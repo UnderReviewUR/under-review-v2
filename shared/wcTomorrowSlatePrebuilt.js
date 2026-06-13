@@ -2,16 +2,26 @@
  * Tomorrow's World Cup slate — fixture-bound prebuilt (no tournament outrights).
  */
 
+import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { getTomorrowEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
   getWcFixtureMlSeed,
 } from "./wcFixtureMatchupPrebuilt.js";
+import {
+  devigWcMatchMoneylineProbs,
+  readWcMatchMoneylineAmerican,
+  resolveMatchWinProbabilityBar,
+} from "./wcMatchMoneylineProbs.js";
 import { buildStaticPromoMatchesFallback, GROUP_STAGE_OPENERS } from "./wc2026PromoFixtures.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import { parseWcKickoffEtMs, resolveWcMatchEtDate, resolveWcMatchSlateEtDate, wcMatchEtDateYmd, wcTodayEtYmd } from "./wcKickoffDisplay.js";
 import { isWcFinishedMatchStatus, isWcLiveMatchStatus, isWcScheduledMatchStatus } from "./wcFeaturedMatch.js";
-import { extractWcSlateDayFromQuestion, isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
+import {
+  extractWcSlateDayFromQuestion,
+  isWcSlateOutcomePredictionQuestion,
+  isWcTomorrowOrSlateBetQuestion,
+} from "./wcTakeRetentionQA.js";
 
 function isScheduled(status) {
   return isWcScheduledMatchStatus(status);
@@ -121,8 +131,12 @@ export function formatWcSlateMatchDeepBlock(angle) {
   const header = group ? `${label} (Group ${group})` : label;
   /** @type {string[]} */
   const blocks = [`Match: ${header}`];
-  if (lean) blocks.push(`Lean: ${lean}`);
-  if (body) blocks.push(body);
+  if (angle?.predictionPick) blocks.push(`Pick: ${angle.predictionPick}`);
+  if (angle?.bookLine) blocks.push(`Book: ${angle.bookLine}`);
+  if (angle?.simLine) blocks.push(`UR sim: ${angle.simLine}`);
+  if (lean && !angle?.predictionPick) blocks.push(`Lean: ${lean}`);
+  if (body && !angle?.simLine) blocks.push(body);
+  else if (body && angle?.simLine && !body.includes(angle.simLine)) blocks.push(body);
   return blocks.join("\n\n");
 }
 
@@ -188,6 +202,157 @@ function stripLeanPrefix(lean) {
 }
 
 /**
+ * @param {string} homeMl
+ * @param {string} awayMl
+ * @param {string} home
+ * @param {string} away
+ */
+function pickMlFavoriteSide(homeMl, awayMl, home, away) {
+  const homeN = Number.parseInt(String(homeMl || "").replace(/[^\d+-]/g, ""), 10);
+  const awayN = Number.parseInt(String(awayMl || "").replace(/[^\d+-]/g, ""), 10);
+  if (!Number.isFinite(homeN) || !Number.isFinite(awayN)) {
+    return { abbr: home, odds: homeMl };
+  }
+  const homeImp = homeN < 0 ? -homeN / (-homeN + 100) : 100 / (homeN + 100);
+  const awayImp = awayN < 0 ? -awayN / (-awayN + 100) : 100 / (awayN + 100);
+  return homeImp >= awayImp
+    ? { abbr: home, odds: homeMl }
+    : { abbr: away, odds: awayMl };
+}
+
+/**
+ * Outcome pick for slate prediction questions — book ML + UR sim win bar.
+ * @param {Record<string, unknown>} fx
+ * @param {{ question?: string, teamStats?: Record<string, unknown>, simLastUpdated?: number, nowMs?: number }} opts
+ */
+export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
+  const home = String(fx?.homeTeam || "").toUpperCase();
+  const away = String(fx?.awayTeam || "").toUpperCase();
+  const group = String(fx?.group || "").toUpperCase();
+  const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
+  const match = attachSeedOdds(fx);
+
+  const seedOdds = getWcFixtureMlSeed(home, away);
+  const matchOdds =
+    match?.odds && typeof match.odds === "object" ? match.odds : seedOdds;
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+  const drawMl = readWcMatchMoneylineAmerican(matchOdds?.draw);
+
+  if (!homeMl || !awayMl) {
+    return {
+      home,
+      away,
+      group,
+      label,
+      lean: `Lines pending on ${label}.`,
+      call: `${label} — lines pending`,
+      line: "",
+      whyNow: `${label} is on today's slate — wait for posted ML before locking a pick.`,
+      deep: `${label}${group ? ` (Group ${group})` : ""} — no verified ML in cache yet.`,
+      fixtureCard: null,
+      predictionMode: true,
+    };
+  }
+
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const market = devigWcMatchMoneylineProbs({
+    home: matchOdds?.home,
+    draw: matchOdds?.draw,
+    away: matchOdds?.away,
+    provider: matchOdds?.provider,
+  });
+  const winBar = resolveMatchWinProbabilityBar({
+    homeAbbr: home,
+    awayAbbr: away,
+    teams: WC_2026_TEAMS,
+    matchOdds,
+    oddsStale: Boolean(match?.oddsStale),
+  });
+
+  const homeSim = winBar?.teamA?.winPct ?? market?.homePct;
+  const awaySim = winBar?.teamB?.winPct ?? market?.awayPct;
+  const drawSim = winBar?.draw ?? market?.drawPct;
+
+  let pickAbbr = home;
+  let pickSim = homeSim;
+  if (
+    Number.isFinite(awaySim) &&
+    Number.isFinite(homeSim) &&
+    awaySim > homeSim &&
+    awaySim >= (drawSim ?? 0)
+  ) {
+    pickAbbr = away;
+    pickSim = awaySim;
+  } else if (
+    Number.isFinite(drawSim) &&
+    Number.isFinite(homeSim) &&
+    Number.isFinite(awaySim) &&
+    drawSim > homeSim &&
+    drawSim > awaySim
+  ) {
+    pickAbbr = "DRAW";
+    pickSim = drawSim;
+  }
+
+  const bookFav = pickMlFavoriteSide(homeMl, awayMl, home, away);
+  const pickName =
+    pickAbbr === "DRAW" ? "Draw" : wcMatchupTeamDisplayName(pickAbbr);
+  const pickOdds =
+    pickAbbr === "DRAW"
+      ? drawMl || "n/a"
+      : pickAbbr === home
+        ? homeMl
+        : awayMl;
+
+  const bookLine = drawMl
+    ? `${homeName} ${homeMl} · Draw ${drawMl} · ${awayName} ${awayMl}`
+    : `${homeName} ${homeMl} · ${awayName} ${awayMl}`;
+  const simLine =
+    homeSim != null && awaySim != null
+      ? `${homeName} ${homeSim}% · Draw ${drawSim ?? "n/a"}% · ${awayName} ${awaySim}%`
+      : market
+        ? `${homeName} ${market.homePct}% · Draw ${market.drawPct}% · ${awayName} ${market.awayPct}%`
+        : "";
+
+  const predictionPick =
+    pickAbbr === "DRAW"
+      ? `Draw (${pickOdds} ML · UR sim ${pickSim}% 90-min)`
+      : `${pickName} to win (${pickOdds} ML · UR sim ${pickSim}% win)`;
+
+  const lean = predictionPick;
+  const whyNow = `${bookLine}${simLine ? ` — UR sim win bar: ${simLine}.` : ""}`.slice(0, 400);
+  const deep = [
+    `Book: ${bookLine}`,
+    simLine ? `UR sim: ${simLine}` : "",
+    bookFav.abbr !== pickAbbr && pickAbbr !== "DRAW"
+      ? `Note: book leans ${wcMatchupTeamDisplayName(bookFav.abbr)} ${bookFav.odds}; sim win bar favors ${pickName}.`
+      : "",
+    `Pick: ${predictionPick}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    home,
+    away,
+    group,
+    label,
+    lean,
+    call: `${pickName} to win`.slice(0, 100),
+    line: `${pickOdds} ML · UR sim ${pickSim ?? "n/a"}%`.slice(0, 200),
+    whyNow,
+    deep,
+    fixtureCard: null,
+    predictionMode: true,
+    predictionPick,
+    bookLine,
+    simLine,
+  };
+}
+
+/**
  * @param {Array<Record<string, unknown>>} tomorrowSlate
  * @param {{
  *   question?: string,
@@ -199,10 +364,17 @@ function stripLeanPrefix(lean) {
 export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
   const question = String(opts.question || "");
   const nowMs = Number(opts.nowMs) || Date.now();
+  const predictionMode =
+    Boolean(opts.predictionMode) || isWcSlateOutcomePredictionQuestion(question);
   /** @type {Array<Record<string, unknown>>} */
   const angles = [];
 
   for (const fx of tomorrowSlate || []) {
+    if (predictionMode) {
+      angles.push(buildWcSlateMatchOutcomeAngle(fx, opts));
+      continue;
+    }
+
     const home = String(fx.homeTeam || "").toUpperCase();
     const away = String(fx.awayTeam || "").toUpperCase();
     const group = String(fx.group || "").toUpperCase();
@@ -275,6 +447,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const question = String(opts.question || "");
   const slateDay = extractWcSlateDayFromQuestion(question);
   const dayCopy = slateDayCopy(slateDay);
+  const predictionMode = isWcSlateOutcomePredictionQuestion(question);
   let matches = Array.isArray(opts.matches) ? opts.matches : [];
   if (!matches.length) {
     matches = buildStaticPromoMatchesFallback(nowMs);
@@ -296,21 +469,40 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const slateLabels = angles.map((a) => a.label).join(" · ");
   const featuredLabel = featuredAngle.label;
 
-  const lean =
-    count > 1
+  const lean = predictionMode
+    ? (count > 1
+        ? `${count} match predictions on ${dayCopy} ET slate (${slateYmd}) — book + sim per game.`.slice(
+            0,
+            120,
+          )
+        : `${featuredLabel}: ${featuredAngle.predictionPick || featuredAngle.lean}`.slice(0, 120))
+    : count > 1
       ? `${count} angles on ${dayCopy} ET slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
           0,
           120,
         )
-      : `${slateDay === "today" ? "Today" : "Tomorrow"} (${slateYmd} ET): ${featuredAngle.lean}`.slice(0, 120);
+      : `${slateDay === "today" ? "Today" : "Tomorrow"} (${slateYmd} ET): ${featuredAngle.lean}`.slice(
+          0,
+          120,
+        );
 
-  const whyNow = [
-    `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} ET slate (${slateYmd}, ${count} ${count === 1 ? "match" : "matches"}): ${slateLabels}.`,
-    ...angles.map((a, i) => `${i + 1}) ${a.label}: ${a.lean}`),
-    "Match-level only — teams not on this slate are out of scope.",
-  ]
-    .join(" ")
-    .slice(0, 520);
+  const whyNow = predictionMode
+    ? [
+        `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} ET slate (${slateYmd}) — ${count} ${count === 1 ? "match" : "matches"}. Picks blend posted ML with UR sim win bar.`,
+        ...angles.map(
+          (a, i) =>
+            `${i + 1}) ${a.label}: ${a.predictionPick || a.lean}${a.line ? ` (${a.line})` : ""}`,
+        ),
+      ]
+        .join(" ")
+        .slice(0, 520)
+    : [
+        `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} ET slate (${slateYmd}, ${count} ${count === 1 ? "match" : "matches"}): ${slateLabels}.`,
+        ...angles.map((a, i) => `${i + 1}) ${a.label}: ${a.lean}`),
+        "Match-level only — teams not on this slate are out of scope.",
+      ]
+        .join(" ")
+        .slice(0, 520);
 
   const deep = buildWcSlateDeepBreakdown(angles, { slateDay, slateYmd });
 
@@ -331,9 +523,13 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
     ...base,
     callType: "tomorrow_slate",
     lean,
-    call: (count > 1
-      ? `${count} angles on ${dayCopy} slate — lead ${featuredLabel}`
-      : featuredAngle.call
+    call: (predictionMode
+      ? count > 1
+        ? `${count} match predictions on ${dayCopy} slate`
+        : featuredAngle.call
+      : count > 1
+        ? `${count} angles on ${dayCopy} slate — lead ${featuredLabel}`
+        : featuredAngle.call
     ).slice(0, 100),
     line: featuredAngle.line || base.line || "",
     whyNow,
@@ -355,7 +551,9 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
       group: a.group,
       label: a.label,
       lean: a.lean,
+      predictionPick: a.predictionPick || null,
     })),
+    slatePredictionMode: predictionMode,
     fixtureHome: featuredHome,
     fixtureAway: featuredAway,
   };

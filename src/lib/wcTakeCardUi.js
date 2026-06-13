@@ -311,6 +311,12 @@ export function pickWcCardHeadline(opts = {}) {
   }
 
   if (ct === "group_slate" || ct === "tomorrow_slate" || ct === "advancement") {
+    if (ct === "tomorrow_slate" && call && /\bmatch predictions?\b/i.test(call)) {
+      return capWcCardFaceField(call, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
     const advancementHeadline = pickWcAdvancementPlayHeadline(opts.lean);
     if (advancementHeadline) {
       return capWcCardFaceField(advancementHeadline, {

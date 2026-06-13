@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWcTomorrowSlatePrebuiltStructured,
   buildWcTomorrowSlateMatchAngles,
+  buildWcSlateMatchOutcomeAngle,
   resolveWcTomorrowSlateMatches,
   resolveWcSlateMatches,
 } from "./wcTomorrowSlatePrebuilt.js";
@@ -137,4 +138,34 @@ test("today slate filter matches WC today tab (live + scheduled, ET date)", () =
   assert.equal(slate.length, 5);
   assert.ok(slate.some((m) => m.homeTeam === "ENG"));
   assert.ok(!slate.some((m) => m.homeTeam === "HAI"));
+});
+
+test("predict each game today — slate prediction mode with book + sim per match", () => {
+  const nowMs = Date.parse("2026-06-13T14:41:00Z");
+  const matches = [
+    { homeTeam: "ENG", awayTeam: "GHA", group: "L", date: "2026-06-13", time: "15:00 ET", status: "NS" },
+    { homeTeam: "FRA", awayTeam: "SEN", group: "I", date: "2026-06-13", time: "18:00 ET", status: "NS" },
+    { homeTeam: "ARG", awayTeam: "ALG", group: "J", date: "2026-06-13", time: "21:00 ET", status: "NS" },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "predict the outcomes for each world cup game today",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.equal(card.slatePredictionMode, true);
+  assert.equal(card.tomorrowFixtureCount, 3);
+  assert.match(String(card.lean || ""), /3 match predictions on today's ET slate/i);
+  assert.match(String(card.call || ""), /3 match predictions/i);
+  assert.match(String(card.whyNow || ""), /1\) England vs Ghana/i);
+  assert.match(String(card.deep || ""), /Match: England vs Ghana/i);
+  assert.match(String(card.deep || ""), /Book:/i);
+  assert.match(String(card.deep || ""), /UR sim:/i);
+  assert.match(String(card.deep || ""), /Pick:/i);
+  assert.doesNotMatch(String(card.lean || ""), /no actionable line yet/i);
+
+  const angle = buildWcSlateMatchOutcomeAngle(matches[0], { nowMs });
+  assert.match(angle.predictionPick || "", /England to win/i);
+  assert.match(angle.bookLine || "", /-165/);
+  assert.ok(angle.simLine);
 });

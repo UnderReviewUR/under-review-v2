@@ -33,3 +33,9 @@ test("extractWcSlateDayFromQuestion prefers today for today's slate prompts", ()
   assert.equal(extractWcSlateDayFromQuestion("Best World Cup bets for tomorrow?"), "tomorrow");
   assert.equal(extractWcSlateDayFromQuestion("What are sneaky good bets for World Cup matches tomorrow?"), "tomorrow");
 });
+
+test("isWcSlateOutcomePredictionQuestion matches predict each game today", () => {
+  const q = "predict the outcomes for each world cup game today";
+  assert.ok(isWcTomorrowOrSlateBetQuestion(q));
+  assert.equal(extractWcSlateDayFromQuestion(q), "today");
+});

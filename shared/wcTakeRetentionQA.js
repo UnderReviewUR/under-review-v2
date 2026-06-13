@@ -568,12 +568,37 @@ export function extractWcSlateDayFromQuestion(question) {
 }
 
 /**
+ * "Predict each game today" / slate outcome bundles — route to fixture slate prebuilt.
+ * @param {string} question
+ */
+export function isWcSlateOutcomePredictionQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (/\b(golden boot|golden glove|player prop|anytime scorer|tournament winner)\b/i.test(q)) {
+    return false;
+  }
+  const hasDay = /\b(today'?s?|tomorrow'?s?)\b/i.test(q);
+  const hasWc = /\bworld cup\b/i.test(q);
+  const hasPredict = /\b(predict|prediction|predictions|outcome|outcomes|who wins|result|results|forecast|scoreline|scorelines)\b/i.test(
+    q,
+  );
+  const hasMultiMatch =
+    /\b(each|every|all)\b[\s\S]{0,40}\b(game|match|fixture)s?\b/i.test(q) ||
+    /\b(game|match|fixture)s?\b[\s\S]{0,32}\b(today|tomorrow)\b/i.test(q) ||
+    /\b(today|tomorrow)\b[\s\S]{0,32}\b(game|match|fixture|slate)s?\b/i.test(q);
+  if (hasPredict && hasMultiMatch && (hasDay || hasWc)) return true;
+  if (hasPredict && hasDay && /\b(slate|fixtures?|matches?|games?)\b/i.test(q)) return true;
+  return false;
+}
+
+/**
  * Broad slate picks ("sneaky bets tomorrow") — route to fast cross-group prebuilt, not full LLM.
  * @param {string} question
  */
 export function isWcTomorrowOrSlateBetQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
+  if (isWcSlateOutcomePredictionQuestion(q)) return true;
   if (/\b(golden boot|golden glove|player prop|anytime scorer)\b/i.test(q)) return false;
   if (/\boutright\b/i.test(q) && !/\b(tomorrow|today'?s?|slate|matches)\b/i.test(q)) return false;
   return (
