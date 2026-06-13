@@ -2,7 +2,13 @@
  * WC kickoff display — ET only (product standard).
  */
 
+import { getTomorrowEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
+
 const ET_ZONE = "America/New_York";
+/** US Central — common local view for WC host cities west of ET. */
+const CT_ZONE = "America/Chicago";
+/** After-midnight ET through 5:59am counts on the prior evening broadcast slate. */
+const BROADCAST_LATE_ET_HOUR = 6;
 
 /** Today in ET as YYYY-MM-DD (matches en-CA toLocaleDateString). */
 export function wcTodayEtYmd(nowMs = Date.now()) {
@@ -95,6 +101,58 @@ export function wcMatchDatesIncludeYmd(match, ymd) {
 }
 
 /**
+ * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
+ * @returns {number}
+ */
+export function resolveWcMatchKickoffMs(match) {
+  if (!match || typeof match !== "object") return NaN;
+  let ms = Number(match.commenceTs);
+  if (Number.isFinite(ms) && ms > 0) return ms;
+  const parsed = parseWcKickoffEtMs(match.date, match.time);
+  return parsed ?? NaN;
+}
+
+/**
+ * @param {number} kickoffMs
+ * @returns {number}
+ */
+export function wcMatchEtHour(kickoffMs) {
+  const ts = Number(kickoffMs);
+  if (!Number.isFinite(ts)) return NaN;
+  return Number(
+    formatInZone(dateFromMs(ts), ET_ZONE, {
+      hour: "numeric",
+      hour12: false,
+    }),
+  );
+}
+
+/**
+ * True for 12:00am–5:59am ET — still "tonight" in Central/Mountain/Pacific.
+ * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
+ */
+export function wcMatchIsEarlyEtMorningKickoff(match) {
+  const hour = wcMatchEtHour(resolveWcMatchKickoffMs(match));
+  return Number.isFinite(hour) && hour < BROADCAST_LATE_ET_HOUR;
+}
+
+/**
+ * Today's slate in ET plus after-midnight ET games still on the prior US evening.
+ * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
+ * @param {string} ymd
+ */
+export function wcMatchOnEtBroadcastSlateDay(match, ymd) {
+  const target = String(ymd || "").trim();
+  if (!target || !match) return false;
+  if (wcMatchDatesIncludeYmd(match, target)) return true;
+
+  const kickoffMs = resolveWcMatchKickoffMs(match);
+  if (!Number.isFinite(kickoffMs)) return false;
+  if (wcMatchEtDateYmd(kickoffMs) !== getTomorrowEtDateString(target)) return false;
+  return wcMatchIsEarlyEtMorningKickoff(match);
+}
+
+/**
  * @param {number} ts
  * @returns {Date}
  */
@@ -126,9 +184,13 @@ export function parseWcKickoffEtMs(dateYmd, timeEt) {
   const timeRaw = String(timeEt || "").trim();
   const m = timeRaw.match(/(\d{1,2}):(\d{2})/);
   if (!m) return null;
-  const hour = parseInt(m[1], 10);
+  let hour = parseInt(m[1], 10);
   const minute = parseInt(m[2], 10);
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+
+  const ampm = timeRaw.match(/\b(AM|PM)\b/i)?.[1]?.toUpperCase();
+  if (ampm === "AM" && hour === 12) hour = 0;
+  else if (ampm === "PM" && hour !== 12) hour += 12;
 
   const etWall = `${date}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00`;
   const probe = new Date(`${etWall}Z`);
@@ -164,18 +226,22 @@ export function parseWcKickoffEtMs(dateYmd, timeEt) {
 }
 
 /**
+ * @param {number} kickoffMs
+ */
+function shouldShowCentralKickoffHint(kickoffMs) {
+  const hour = wcMatchEtHour(kickoffMs);
+  return Number.isFinite(hour) && (hour >= 19 || hour < BROADCAST_LATE_ET_HOUR);
+}
+
+/**
  * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
- * @param {{ nowMs?: number }} [opts]
+ * @param {{ nowMs?: number, viewerTimeZone?: string }} [opts]
  * @returns {string}
  */
 export function formatWcKickoffDisplay(match, opts = {}) {
   if (!match) return "";
 
-  let kickoffMs = Number(match.commenceTs);
-  if (!Number.isFinite(kickoffMs) || kickoffMs <= 0) {
-    const parsed = parseWcKickoffEtMs(match.date, match.time);
-    kickoffMs = parsed ?? NaN;
-  }
+  let kickoffMs = resolveWcMatchKickoffMs(match);
   if (!Number.isFinite(kickoffMs) || kickoffMs <= 0) {
     const fallback = [match.date, match.time].filter(Boolean).join(" ");
     return fallback || "";
@@ -190,5 +256,22 @@ export function formatWcKickoffDisplay(match, opts = {}) {
     hour12: true,
   });
   const etPart = `${etDay} ${etTime} ET`.replace(/\s+/g, " ").trim();
-  return etPart;
+
+  const viewerTz = String(opts.viewerTimeZone || "").trim();
+  const localTz =
+    viewerTz && viewerTz !== ET_ZONE
+      ? viewerTz
+      : shouldShowCentralKickoffHint(kickoffMs)
+        ? CT_ZONE
+        : "";
+  if (!localTz) return etPart;
+
+  const localDay = formatInZone(d, localTz, { weekday: "short" });
+  const localTime = formatInZone(d, localTz, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const tzName = formatInZone(d, localTz, { timeZoneName: "short" });
+  return `${etPart} · ${localDay} ${localTime} ${tzName}`.replace(/\s+/g, " ").trim();
 }

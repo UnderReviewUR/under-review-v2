@@ -5,7 +5,7 @@
 import {
   parseWcKickoffEtMs,
   resolveWcMatchEtDate,
-  wcMatchDatesIncludeYmd,
+  wcMatchOnEtBroadcastSlateDay,
   wcTodayEtYmd,
 } from "./wcKickoffDisplay.js";
 
@@ -72,8 +72,7 @@ export function pickWcFeaturedMatch(opts = {}) {
 
   if (!nextScheduled) return null;
 
-  const nextEt = resolveWcMatchEtDate(nextScheduled);
-  const isToday = nextEt === todayEt;
+  const isToday = wcMatchOnEtBroadcastSlateDay(nextScheduled, todayEt);
 
   return {
     match: nextScheduled,
@@ -90,6 +89,6 @@ export function pickWcFeaturedMatch(opts = {}) {
  */
 export function sortWcTodayMatches(matches, todayEt) {
   return (matches || [])
-    .filter((m) => wcMatchDatesIncludeYmd(m, todayEt))
+    .filter((m) => wcMatchOnEtBroadcastSlateDay(m, todayEt))
     .sort(sortByKickoff);
 }

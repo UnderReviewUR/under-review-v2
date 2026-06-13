@@ -158,7 +158,7 @@ test("predict each game today — slate prediction mode with book + sim per matc
   assert.match(String(card.lean || ""), /3 match predictions on today's slate/i);
   assert.match(String(card.call || ""), /3 match predictions/i);
   assert.match(String(card.whyNow || ""), /3 matches/i);
-  assert.match(String(card.whyNow || ""), /Full breakdown/i);
+  assert.match(String(card.whyNow || ""), /After-midnight ET/i);
   assert.doesNotMatch(String(card.whyNow || ""), /1\) England/i);
   assert.match(String(card.deep || ""), /Match: England vs Ghana/i);
   assert.match(String(card.deep || ""), /Kickoff:/i);
@@ -194,4 +194,33 @@ test("today slate lists kickoff ET for every Jun 13 fixture", () => {
   assert.match(String(card.deep || ""), /Kickoff:.*ET/);
   assert.match(String(card.whyNow || ""), /4 matches/i);
   assert.doesNotMatch(String(card.whyNow || ""), /3:00 PM ET/i);
+});
+
+test("after-midnight ET game on Jun 14 rolls into Jun 13 today slate", () => {
+  const nowMs = Date.parse("2026-06-13T15:28:00Z");
+  const midnightEt = Date.parse("2026-06-14T04:00:00.000Z");
+  const matches = [
+    { homeTeam: "USA", awayTeam: "PAR", group: "D", date: "2026-06-13", time: "15:00 ET", status: "NS" },
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "18:00 ET", status: "NS" },
+    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "21:00 ET", status: "NS" },
+    {
+      homeTeam: "HAI",
+      awayTeam: "SCO",
+      group: "C",
+      date: "2026-06-14",
+      time: "12:00 AM ET",
+      commenceTs: midnightEt,
+      status: "NS",
+    },
+  ];
+  const { matches: slate } = resolveWcSlateMatches(matches, nowMs, "today");
+  assert.equal(slate.length, 4);
+  assert.ok(slate.some((m) => m.homeTeam === "HAI"));
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "predict the results of each world cup match today",
+    matches,
+    nowMs,
+  });
+  assert.equal(card?.tomorrowFixtureCount, 4);
+  assert.match(String(card.deep || ""), /11:00 PM/i);
 });

@@ -15,7 +15,7 @@ import {
 } from "./wcMatchMoneylineProbs.js";
 import { buildStaticPromoMatchesFallback, GROUP_STAGE_OPENERS } from "./wc2026PromoFixtures.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
-import { parseWcKickoffEtMs, formatWcKickoffDisplay, hasExplicitWcSlateDate, resolveWcMatchSlateEtDate, wcMatchDatesIncludeYmd, wcTodayEtYmd } from "./wcKickoffDisplay.js";
+import { parseWcKickoffEtMs, formatWcKickoffDisplay, hasExplicitWcSlateDate, resolveWcMatchSlateEtDate, wcMatchIsEarlyEtMorningKickoff, wcMatchOnEtBroadcastSlateDay, wcTodayEtYmd } from "./wcKickoffDisplay.js";
 import { isWcFinishedMatchStatus, isWcLiveMatchStatus, isWcScheduledMatchStatus } from "./wcFeaturedMatch.js";
 import {
   extractWcSlateDayFromQuestion,
@@ -49,14 +49,16 @@ export function filterWcMatchesForEtDate(matches, etYmd, opts = {}) {
   if (slateDay === "today") {
     return (matches || []).filter((m) => {
       if (!isTodaySlateEligibleStatus(m?.status)) return false;
-      return wcMatchDatesIncludeYmd(m, ymd);
+      return wcMatchOnEtBroadcastSlateDay(m, ymd);
     });
   }
 
   return (matches || []).filter((m) => {
     if (!isScheduled(m?.status)) return false;
     if (!hasExplicitSlateDate(m)) return false;
-    return resolveWcMatchSlateEtDate(m) === ymd;
+    if (resolveWcMatchSlateEtDate(m) !== ymd) return false;
+    if (wcMatchIsEarlyEtMorningKickoff(m)) return false;
+    return true;
   });
 }
 
@@ -139,8 +141,11 @@ function buildWcSlateWhyNowIntro(angles, opts = {}) {
 
   const intro = `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} slate (${slateYmd}) — ${count} matches.`;
   return predictionMode
-    ? `${intro} Full breakdown: kickoff (ET), book ML, UR sim, and pick per game.`.slice(0, 220)
-    : `${intro} Full breakdown has every angle on the slate.`.slice(0, 220);
+    ? `${intro} Kickoffs in ET; late games show Central too. After-midnight ET stays on tonight's slate.`.slice(
+        0,
+        220,
+      )
+    : `${intro} After-midnight ET games stay on tonight's slate in Central.`.slice(0, 220);
 }
 
 /**
