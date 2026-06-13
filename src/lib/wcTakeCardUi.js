@@ -426,7 +426,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   }
 
   const breakdownWordCap =
-    focusLayout && premiumBreakdownCall
+    focusLayout && (premiumBreakdownCall || selfContainedSlateBreakdown)
       ? WC_FACE_PREMIUM_BREAKDOWN_WORDS
       : WC_FACE_BREAKDOWN_WORDS;
   let breakdown = capWcDeepWords(fullDeep, breakdownWordCap);
@@ -444,7 +444,9 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     if (fullWatch && !watchAlreadyInBreakdown && !selfContainedSlateBreakdown) {
       breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
     }
-    if (fullDeep) breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
+    if (fullDeep && !selfContainedSlateBreakdown) {
+      breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
+    }
     if (fullWhy && (!focusWhyCompressed || premiumBreakdownCall) && !selfContainedSlateBreakdown) {
       breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
     }

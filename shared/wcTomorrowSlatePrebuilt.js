@@ -10,11 +10,16 @@ import {
 import { buildStaticPromoMatchesFallback, GROUP_STAGE_OPENERS } from "./wc2026PromoFixtures.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import { parseWcKickoffEtMs, resolveWcMatchEtDate, resolveWcMatchSlateEtDate, wcMatchEtDateYmd, wcTodayEtYmd } from "./wcKickoffDisplay.js";
+import { isWcFinishedMatchStatus, isWcLiveMatchStatus, isWcScheduledMatchStatus } from "./wcFeaturedMatch.js";
 import { extractWcSlateDayFromQuestion, isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 
 function isScheduled(status) {
-  const s = String(status || "").toLowerCase();
-  return ["ns", "scheduled", "pre", "upcoming", "not started"].includes(s);
+  return isWcScheduledMatchStatus(status);
+}
+
+function isTodaySlateEligibleStatus(status) {
+  if (isWcFinishedMatchStatus(status)) return false;
+  return isWcScheduledMatchStatus(status) || isWcLiveMatchStatus(status);
 }
 
 function hasExplicitSlateDate(match) {
@@ -26,10 +31,20 @@ function hasExplicitSlateDate(match) {
 /**
  * @param {Array<Record<string, unknown>>} matches
  * @param {string} etYmd
+ * @param {{ slateDay?: "today" | "tomorrow" }} [opts]
  */
-export function filterWcMatchesForEtDate(matches, etYmd) {
+export function filterWcMatchesForEtDate(matches, etYmd, opts = {}) {
   const ymd = String(etYmd || "").trim();
   if (!ymd) return [];
+  const slateDay = opts.slateDay === "today" ? "today" : "tomorrow";
+
+  if (slateDay === "today") {
+    return (matches || []).filter((m) => {
+      if (!isTodaySlateEligibleStatus(m?.status)) return false;
+      return resolveWcMatchEtDate(m) === ymd;
+    });
+  }
+
   return (matches || []).filter((m) => {
     if (!isScheduled(m?.status)) return false;
     if (!hasExplicitSlateDate(m)) return false;
@@ -52,9 +67,9 @@ function matchSortKey(match) {
  * @param {string} etYmd
  * @param {number} [nowMs]
  */
-export function resolveWcSlateMatchesForEtDate(matches = [], etYmd, nowMs = Date.now()) {
+export function resolveWcSlateMatchesForEtDate(matches = [], etYmd, nowMs = Date.now(), slateDay = "tomorrow") {
   const ymd = String(etYmd || "").trim();
-  let slate = filterWcMatchesForEtDate(matches, ymd);
+  let slate = filterWcMatchesForEtDate(matches, ymd, { slateDay });
   if (!slate.length) {
     slate = GROUP_STAGE_OPENERS.filter((m) => m.date === ymd).map((m) => ({
       ...m,
@@ -76,7 +91,7 @@ export function resolveWcSlateMatches(matches = [], nowMs = Date.now(), slateDay
     slateDay === "today"
       ? todayYmd
       : getTomorrowEtDateString(todayYmd);
-  return resolveWcSlateMatchesForEtDate(matches, targetYmd, nowMs);
+  return resolveWcSlateMatchesForEtDate(matches, targetYmd, nowMs, slateDay);
 }
 
 /**
@@ -126,7 +141,7 @@ export function buildWcSlateDeepBreakdown(angles, opts = {}) {
   return [intro, ...(angles || []).map((a) => formatWcSlateMatchDeepBlock(a))]
     .filter(Boolean)
     .join("\n\n")
-    .slice(0, 2200);
+    .slice(0, 3600);
 }
 
 /**
@@ -227,7 +242,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
         lean: `Watch lines on ${label} when posted.`,
         call: `${label} — lines pending`,
         line: "",
-        whyNow: `${label} is on tomorrow's slate; wait for posted ML/totals before locking a play.`,
+        whyNow: `${label} is on this slate; wait for posted ML/totals before locking a play.`,
         deep: `${label}${group ? ` (Group ${group})` : ""} — no verified ML in cache yet.`,
         fixtureCard: null,
       });

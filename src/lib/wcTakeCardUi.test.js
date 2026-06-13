@@ -216,6 +216,29 @@ test("prepareWcCardFaceDisplay focus mode hides watch for on card face", () => {
   assert.match(face.breakdownText, /51\.9%/);
 });
 
+test("prepareWcCardFaceDisplay tomorrow_slate keeps breakdown self-contained", () => {
+  const whyNow =
+    "Today's ET slate (2026-06-13, 2 matches): Qatar vs Switzerland · Brazil vs Morocco. 1) Qatar vs Switzerland: lean both teams to advance.";
+  const deep = `Today's World Cup slate (ET, 2026-06-13) — 2 matches
+
+Match: Qatar vs Switzerland (Group B)
+Lean: lean both teams to advance in Group B.
+MATCH ODDS: Qatar +1300 · Draw +600 · Switzerland -475`;
+  const face = prepareWcCardFaceDisplay({
+    lean: "2 angles on today's ET slate — lead Qatar vs Switzerland: lean both teams…",
+    call: "2 angles on today's slate — lead Qatar vs Switzerland",
+    why: whyNow,
+    watchFor: "Watch the scoreboard after 60 minutes — group math can flip the right side.",
+    breakdown: deep,
+    breakdownAvailable: true,
+    focusLayout: true,
+    callType: "tomorrow_slate",
+  });
+  assert.doesNotMatch(face.breakdownText, /1\) Qatar vs Switzerland/);
+  assert.doesNotMatch(face.breakdownText, /Watch the scoreboard after 60 minutes/);
+  assert.match(face.breakdownText, /Match: Qatar vs Switzerland/);
+});
+
 test("wcTakeCardHasVisibleContent — empty structured face is not visible", () => {
   assert.equal(
     wcTakeCardHasVisibleContent({
