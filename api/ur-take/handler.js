@@ -2776,8 +2776,17 @@ export default async function handler(req, res) {
     if (wcUpsetScanCandidate) {
       try {
         const nowMs = Date.now();
-        const { teamStats, bdlFutures, simLastUpdated, eloMatchesApplied, strengthMatchesApplied, xgMatchesApplied } =
-          await resolveWcCrossGroupPrebuiltInputs(nowMs);
+        const {
+          teamStats,
+          bdlFutures,
+          simLastUpdated,
+          eloMatchesApplied,
+          strengthMatchesApplied,
+          xgMatchesApplied,
+          formFixturesResolved,
+          formRatingRange,
+          formBumpApplied,
+        } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
         wcGroupUpsetScanPrebuiltEarly = buildWcGroupUpsetScanPrebuiltStructured({
           teamStats,
           bdlFutures,
@@ -2787,6 +2796,9 @@ export default async function handler(req, res) {
           eloMatchesApplied,
           strengthMatchesApplied,
           xgMatchesApplied,
+          formFixturesResolved,
+          formRatingRange,
+          formBumpApplied,
         });
       } catch (upsetErr) {
         console.warn("[ur-take] upset scan prebuilt resolve failed:", upsetErr?.message);
@@ -2805,8 +2817,17 @@ export default async function handler(req, res) {
     if (wcCrossGroupCandidate) {
       try {
         const nowMs = Date.now();
-        const { teamStats, bdlFutures, simLastUpdated, eloMatchesApplied, strengthMatchesApplied, xgMatchesApplied } =
-          await resolveWcCrossGroupPrebuiltInputs(nowMs);
+        const {
+          teamStats,
+          bdlFutures,
+          simLastUpdated,
+          eloMatchesApplied,
+          strengthMatchesApplied,
+          xgMatchesApplied,
+          formFixturesResolved,
+          formRatingRange,
+          formBumpApplied,
+        } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
         wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
           teamStats,
           bdlFutures,
@@ -2816,6 +2837,9 @@ export default async function handler(req, res) {
           eloMatchesApplied,
           strengthMatchesApplied,
           xgMatchesApplied,
+          formFixturesResolved,
+          formRatingRange,
+          formBumpApplied,
         });
         if (!wcCrossGroupPrebuiltEarly) {
           wcCrossGroupPrebuiltEarly = buildWcGroupSlatePrebuiltStructured({
@@ -5475,6 +5499,12 @@ You are responding to a Pro subscriber. Apply the following:
           prebuiltInputs.strengthMatchesApplied ?? wcContext?.tournamentSimResults?.strengthMatchesApplied ?? 0,
         xgMatchesApplied:
           prebuiltInputs.xgMatchesApplied ?? wcContext?.tournamentSimResults?.xgMatchesApplied ?? 0,
+        formFixturesResolved:
+          prebuiltInputs.formFixturesResolved ?? wcContext?.tournamentSimResults?.formFixturesResolved ?? 0,
+        formRatingRange:
+          prebuiltInputs.formRatingRange ?? wcContext?.tournamentSimResults?.formRatingRange ?? null,
+        formBumpApplied:
+          prebuiltInputs.formBumpApplied ?? wcContext?.tournamentSimResults?.formBumpApplied ?? false,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
@@ -5515,6 +5545,12 @@ You are responding to a Pro subscriber. Apply the following:
           prebuiltInputs.strengthMatchesApplied ?? wcContext?.tournamentSimResults?.strengthMatchesApplied ?? 0,
         xgMatchesApplied:
           prebuiltInputs.xgMatchesApplied ?? wcContext?.tournamentSimResults?.xgMatchesApplied ?? 0,
+        formFixturesResolved:
+          prebuiltInputs.formFixturesResolved ?? wcContext?.tournamentSimResults?.formFixturesResolved ?? 0,
+        formRatingRange:
+          prebuiltInputs.formRatingRange ?? wcContext?.tournamentSimResults?.formRatingRange ?? null,
+        formBumpApplied:
+          prebuiltInputs.formBumpApplied ?? wcContext?.tournamentSimResults?.formBumpApplied ?? false,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;

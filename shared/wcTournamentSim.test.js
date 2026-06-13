@@ -1,5 +1,8 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import { buildFixtureFormKey, fixtureFormRating, applyFormBump, formBumpFromRating } from "./wcFormBump.js";
+import { applyStrengthMultipliers } from "./wcSimTeamStrength.js";
 import { simulateTournament, formatSimResultsForPrompt } from "./wcTournamentSim.js";
 
 describe("simulateTournament", () => {
@@ -142,5 +145,63 @@ describe("simulateTournament with live results", () => {
     });
     assert.ok(boosted.strengthMatchesApplied === 2);
     assert.ok(boosted.teamStats.MEX.advancePct >= baseline.teamStats.MEX.advancePct);
+  });
+});
+
+describe("simulateTournament with pre-match form bump", () => {
+  test("FT fixture uses actual score — form map ignored for played pair", () => {
+    const results = simulateTournament(undefined, {
+      simCount: 500,
+      completedMatches: [
+        { homeTeam: "MEX", awayTeam: "RSA", homeScore: 2, awayScore: 0, status: "FT" },
+      ],
+      formByFixture: {
+        "MEX|RSA": {
+          MEX: { avgRating: 9.0 },
+          RSA: { avgRating: 6.0 },
+        },
+      },
+      formFixturesResolved: 1,
+    });
+    assert.equal(results.completedMatchCount, 1);
+    assert.equal(results.formFixturesResolved, 1);
+  });
+
+  test("unplayed form bump shifts advance % vs baseline", () => {
+    const mex = WC_2026_TEAMS.find((t) => t.abbreviation === "MEX");
+    const rsa = WC_2026_TEAMS.find((t) => t.abbreviation === "RSA");
+    assert.ok(mex && rsa);
+    const key = buildFixtureFormKey("MEX", "RSA");
+    const baseline = simulateTournament(WC_2026_TEAMS, { simCount: 4000 });
+    const withForm = simulateTournament(WC_2026_TEAMS, {
+      simCount: 4000,
+      formByFixture: {
+        [key]: {
+          MEX: { avgRating: 8.3 },
+          RSA: { avgRating: 7.5 },
+        },
+      },
+      formFixturesResolved: 1,
+      formTeamsAffected: 2,
+    });
+    const mexDelta = Math.abs(withForm.teamStats.MEX.advancePct - baseline.teamStats.MEX.advancePct);
+    assert.ok(mexDelta >= 0.04, `expected MEX advance shift, got ${mexDelta}`);
+  });
+
+  test("strength + form stack multiplicatively on lambda", () => {
+    const base = 1.3;
+    const afterStrength = applyStrengthMultipliers(
+      base,
+      { attackMult: 1.08, defenseMult: 0.96 },
+      { attackMult: 1, defenseMult: 1 },
+    );
+    const afterBoth = applyFormBump(afterStrength, 8.3);
+    assert.ok(afterBoth > afterStrength);
+    assert.ok(Math.abs(afterBoth / afterStrength - formBumpFromRating(8.3)) < 0.0001);
+  });
+
+  test("empty form map leaves ratings neutral", () => {
+    assert.equal(fixtureFormRating({}, "MEX", "RSA", "MEX"), null);
+    assert.equal(applyFormBump(1.3, null), 1.3);
   });
 });

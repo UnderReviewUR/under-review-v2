@@ -57,6 +57,9 @@ function pickBdlVendorLabel(bdlFutures, marketType, teamAbbr) {
  *   eloMatchesApplied?: number,
  *   strengthMatchesApplied?: number,
  *   xgMatchesApplied?: number,
+ *   formFixturesResolved?: number,
+ *   formRatingRange?: { min?: number, max?: number } | null,
+ *   formBumpApplied?: boolean,
  *   bdlFutures?: { byMarketType?: Record<string, Record<string, { vendor?: string }>>, lastUpdated?: number, source?: string },
  *   bdlMarketType?: string,
  *   teamAbbr?: string,
@@ -69,6 +72,9 @@ export function buildWcMispriceAuditFootnote(opts = {}) {
   const eloApplied = Number(opts.eloMatchesApplied) || 0;
   const strengthApplied = Number(opts.strengthMatchesApplied) || 0;
   const xgApplied = Number(opts.xgMatchesApplied) || 0;
+  const formFixtures = Number(opts.formFixturesResolved) || 0;
+  const formRange = opts.formRatingRange;
+  const formApplied = opts.formBumpApplied ?? formFixtures > 0;
   const bdl = opts.bdlFutures;
   const bdlMs = Number(bdl?.lastUpdated);
   const marketType = String(opts.bdlMarketType || "qualify_from_group");
@@ -87,6 +93,15 @@ export function buildWcMispriceAuditFootnote(opts = {}) {
     parts.push(`xG/form from ${xgApplied} BDL match${xgApplied === 1 ? "" : "es"}`);
   } else if (strengthApplied > 0) {
     parts.push(`form from ${strengthApplied} FT sample${strengthApplied === 1 ? "" : "s"}`);
+  }
+  if (formApplied && formFixtures > 0) {
+    const min = Number(formRange?.min);
+    const max = Number(formRange?.max);
+    const rangeText =
+      Number.isFinite(min) && Number.isFinite(max) ? ` (ratings ${min}–${max})` : "";
+    parts.push(`pre-match form nudge on ${formFixtures} fixture${formFixtures === 1 ? "" : "s"}${rangeText}`);
+  } else if (formApplied === false && formFixtures === 0) {
+    parts.push("pre-match form n/a (no BDL bundles for upcoming fixtures)");
   }
   if (Number.isFinite(simMs) && simMs > 0) {
     parts.push(`updated ${formatAuditStamp(simMs)}`);

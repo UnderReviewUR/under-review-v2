@@ -17,6 +17,7 @@ import {
   simulateTournament,
 } from "../shared/wcTournamentSim.js";
 import { resolveWcSimStrengthFromKv } from "./_wcSimStrengthInputs.js";
+import { resolveWcSimFormFromKv, filterUnplayedWcFixtures } from "./_wcSimFormInputs.js";
 
 const DEFAULT_SIM_COUNT = 10000;
 
@@ -94,8 +95,10 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
   }
 
   const completed = completedMatchesForSim(matches);
+  const unplayed = filterUnplayedWcFixtures(matches || []);
   const strengthInputs = await resolveWcSimStrengthFromKv(completed);
-  const fingerprint = `${buildWcStandingsFingerprint(groups, completed.length)}|${strengthInputs.strengthFingerprint}`;
+  const formInputs = await resolveWcSimFormFromKv(unplayed);
+  const fingerprint = `${buildWcStandingsFingerprint(groups, completed.length)}|${strengthInputs.strengthFingerprint}|${formInputs.formFingerprint}`;
 
   const cached = await getDurableJson(WC_TOURNAMENT_SIM_KV_KEY);
   if (isWcTournamentSimCacheValid(cached, fingerprint, WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS, nowMs)) {
@@ -108,8 +111,12 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
     teamStrength: strengthInputs.teamStrength,
     strengthMatchesApplied: strengthInputs.strengthMatchesApplied,
     xgMatchesApplied: strengthInputs.xgMatchesApplied,
+    formByFixture: formInputs.formByFixture,
+    formFixturesResolved: formInputs.formFixturesResolved,
+    formTeamsAffected: formInputs.formTeamsAffected,
   });
 
+  const formBumpApplied = formInputs.formFixturesResolved > 0;
   const payload = {
     ok: true,
     teamStats: simResults.teamStats,
@@ -121,6 +128,13 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
     knockoutResultsApplied: simResults.knockoutResultsApplied,
     strengthMatchesApplied: simResults.strengthMatchesApplied,
     xgMatchesApplied: simResults.xgMatchesApplied,
+    formFixturesResolved: formInputs.formFixturesResolved,
+    formTeamsAffected: formInputs.formTeamsAffected,
+    formRatingRange:
+      Number.isFinite(Number(formInputs.formRatingMin)) && Number.isFinite(Number(formInputs.formRatingMax))
+        ? { min: formInputs.formRatingMin, max: formInputs.formRatingMax }
+        : null,
+    formBumpApplied,
     fingerprint,
     lastUpdated: nowMs,
     source: "monte_carlo_poisson_elo_live",
@@ -139,6 +153,9 @@ export async function scrapeAndCacheWcTournamentSim(input = {}) {
       eloMatchesApplied: simResults.eloMatchesApplied,
       strengthMatchesApplied: simResults.strengthMatchesApplied,
       xgMatchesApplied: simResults.xgMatchesApplied,
+      formFixturesResolved: formInputs.formFixturesResolved,
+      formTeamsAffected: formInputs.formTeamsAffected,
+      formBumpApplied,
       fingerprint,
     }),
   );
@@ -230,6 +247,10 @@ export async function resolveWcTournamentSimForPrompt(opts = {}) {
     knockoutResultsApplied: Number(row.knockoutResultsApplied) || 0,
     strengthMatchesApplied: Number(row.strengthMatchesApplied) || 0,
     xgMatchesApplied: Number(row.xgMatchesApplied) || 0,
+    formFixturesResolved: Number(row.formFixturesResolved) || 0,
+    formTeamsAffected: Number(row.formTeamsAffected) || 0,
+    formBumpApplied: Boolean(row.formBumpApplied),
+    formRatingRange: row.formRatingRange || null,
   };
 
   return {

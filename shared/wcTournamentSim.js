@@ -21,6 +21,7 @@ import {
   winnerFromCompletedMatch,
 } from "./wc2026KnockoutBracket.js";
 import { applyStrengthMultipliers } from "./wcSimTeamStrength.js";
+import { applyFormBump, fixtureFormRating } from "./wcFormBump.js";
 
 // ── Poisson helpers ──
 
@@ -72,19 +73,28 @@ function effectiveElo(team) {
  */
 /**
  * @param {Record<string, { attackMult?: number, defenseMult?: number }> | null | undefined} teamStrength
+ * @param {Record<string, Record<string, { avgRating?: number }>> | null | undefined} formByFixture
  */
-function simulateMatch(teamA, teamB, allowDraw = true, teamStrength = null) {
+function simulateMatch(teamA, teamB, allowDraw = true, teamStrength = null, formByFixture = null) {
   const eloA = effectiveElo(teamA);
   const eloB = effectiveElo(teamB);
 
   let lambdaA = eloToExpectedGoals(eloA, eloB);
   let lambdaB = eloToExpectedGoals(eloB, eloA);
 
+  const abbrA = String(teamA?.abbreviation || "").toUpperCase();
+  const abbrB = String(teamB?.abbreviation || "").toUpperCase();
+
   if (teamStrength && typeof teamStrength === "object") {
-    const abbrA = String(teamA?.abbreviation || "").toUpperCase();
-    const abbrB = String(teamB?.abbreviation || "").toUpperCase();
     lambdaA = applyStrengthMultipliers(lambdaA, teamStrength[abbrA], teamStrength[abbrB]);
     lambdaB = applyStrengthMultipliers(lambdaB, teamStrength[abbrB], teamStrength[abbrA]);
+  }
+
+  if (formByFixture && typeof formByFixture === "object") {
+    const ratingA = fixtureFormRating(formByFixture, abbrA, abbrB, abbrA);
+    const ratingB = fixtureFormRating(formByFixture, abbrA, abbrB, abbrB);
+    lambdaA = applyFormBump(lambdaA, ratingA);
+    lambdaB = applyFormBump(lambdaB, ratingB);
   }
 
   let goalsA = poissonSample(lambdaA);
@@ -218,7 +228,7 @@ function sortGroupStandings(stats) {
  * @param {Array<Record<string, unknown>>} [completedMatches]
  * @returns {Array<{ team: object, points: number, gd: number, gf: number }>} sorted standings
  */
-function simulateGroupStage(groupTeams, completedMatches = [], teamStrength = null) {
+function simulateGroupStage(groupTeams, completedMatches = [], teamStrength = null, formByFixture = null) {
   const stats = new Map();
   for (const t of groupTeams) {
     stats.set(t.abbreviation, { team: t, points: 0, gd: 0, gf: 0 });
@@ -241,7 +251,7 @@ function simulateGroupStage(groupTeams, completedMatches = [], teamStrength = nu
       goalsA = homeIsA ? Number(played.homeScore) : Number(played.awayScore);
       goalsB = homeIsA ? Number(played.awayScore) : Number(played.homeScore);
     } else {
-      const result = simulateMatch(teamA, teamB, true, teamStrength);
+      const result = simulateMatch(teamA, teamB, true, teamStrength, formByFixture);
       goalsA = result.goalsA;
       goalsB = result.goalsB;
     }
@@ -306,6 +316,7 @@ function simulateKnockoutFromTemplate(
   completedKnockout,
   tracker,
   teamStrength = null,
+  formByFixture = null,
 ) {
   const r32Template = WC2026_KNOCKOUT_BRACKET.find((r) => r.round === "r32")?.matches || [];
   const thirdByMatchNum = assignThirdPlaceToR32Slots(r32Template, rankedThirdPlace.slice(0, 8));
@@ -349,7 +360,7 @@ function simulateKnockoutFromTemplate(
       }
 
       if (!winner) {
-        const result = simulateMatch(teamA, teamB, false, teamStrength);
+        const result = simulateMatch(teamA, teamB, false, teamStrength, formByFixture);
         winner = result.winner;
         loser = result.loser;
       }
@@ -387,8 +398,8 @@ function simulateKnockoutFromTemplate(
 /**
  * Run full Monte Carlo tournament simulation.
  * @param {Array<object>} [teams] — defaults to WC_2026_TEAMS
- * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>>, applyLiveElo?: boolean, teamStrength?: Record<string, { attackMult?: number, defenseMult?: number }> }} [opts]
- * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number, eloMatchesApplied: number, knockoutResultsApplied: number, strengthMatchesApplied: number, xgMatchesApplied: number }}
+ * @param {{ simCount?: number, completedMatches?: Array<Record<string, unknown>>, applyLiveElo?: boolean, teamStrength?: Record<string, { attackMult?: number, defenseMult?: number }>, formByFixture?: Record<string, Record<string, { avgRating?: number }>>, strengthMatchesApplied?: number, xgMatchesApplied?: number, formFixturesResolved?: number, formTeamsAffected?: number }} [opts]
+ * @returns {{ teamStats: Record<string, TeamSimStats>, simCount: number, topContenders: TeamSimStats[], liveResultsApplied: boolean, completedMatchCount: number, eloMatchesApplied: number, knockoutResultsApplied: number, strengthMatchesApplied: number, xgMatchesApplied: number, formFixturesResolved: number, formTeamsAffected: number }}
  */
 export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
   const simCount = opts.simCount || 10000;
@@ -400,9 +411,13 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
 
   let teamList = teams || WC_2026_TEAMS;
   const teamStrength = opts.teamStrength && typeof opts.teamStrength === "object" ? opts.teamStrength : null;
+  const formByFixture =
+    opts.formByFixture && typeof opts.formByFixture === "object" ? opts.formByFixture : null;
   let eloMatchesApplied = 0;
   let strengthMatchesApplied = Number(opts.strengthMatchesApplied) || 0;
   let xgMatchesApplied = Number(opts.xgMatchesApplied) || 0;
+  const formFixturesResolved = Number(opts.formFixturesResolved) || 0;
+  const formTeamsAffected = Number(opts.formTeamsAffected) || 0;
   if (applyLiveElo && completedMatches.length > 0) {
     const eloOut = applyPostMatchEloToTeams(teamList, completedMatches);
     teamList = eloOut.teams;
@@ -434,7 +449,7 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
 
     for (const [letter, groupTeams] of groupMap) {
       const groupCompletedForGroup = completedMatchesForGroup(groupTeams, groupCompleted);
-      const standings = simulateGroupStage(groupTeams, groupCompletedForGroup, teamStrength);
+      const standings = simulateGroupStage(groupTeams, groupCompletedForGroup, teamStrength, formByFixture);
       groupResults.set(letter, standings);
 
       if (standings.length > 0) {
@@ -472,6 +487,7 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
       knockoutCompleted,
       tracker,
       teamStrength,
+      formByFixture,
     );
   }
 
@@ -510,6 +526,8 @@ export function simulateTournament(teams = WC_2026_TEAMS, opts = {}) {
     knockoutResultsApplied: knockoutCompleted.length,
     strengthMatchesApplied,
     xgMatchesApplied,
+    formFixturesResolved,
+    formTeamsAffected,
   };
 }
 

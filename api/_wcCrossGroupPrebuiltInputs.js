@@ -34,6 +34,10 @@ export async function resolveWcCrossGroupPrebuiltInputs(nowMs = Date.now()) {
     eloMatchesApplied: Number(simRow?.eloMatchesApplied) || 0,
     strengthMatchesApplied: Number(simRow?.strengthMatchesApplied) || 0,
     xgMatchesApplied: Number(simRow?.xgMatchesApplied) || 0,
+    formFixturesResolved: Number(simRow?.formFixturesResolved) || 0,
+    formTeamsAffected: Number(simRow?.formTeamsAffected) || 0,
+    formRatingRange: simRow?.formRatingRange ?? null,
+    formBumpApplied: Boolean(simRow?.formBumpApplied),
     nowMs,
   };
 }
