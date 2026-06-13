@@ -13,7 +13,13 @@ test("isWcTomorrowOrSlateBetQuestion matches sneaky bets tomorrow", () => {
   assert.ok(isWcTomorrowOrSlateBetQuestion(q));
   assert.ok(isWcCrossGroupMispriceQuestion(q));
   assert.ok(isWcGroupSlateQuestion(q));
-  assert.ok(shouldUseWcCrossGroupValuePrebuilt(q, WC_INTENT.STRUCTURAL));
+  assert.ok(!shouldUseWcCrossGroupValuePrebuilt(q, WC_INTENT.STRUCTURAL));
+});
+
+test("isWcTomorrowOrSlateBetQuestion matches best world cup bets for tomorrow", () => {
+  const q = "Best World Cup bets for tomorrow?";
+  assert.ok(isWcTomorrowOrSlateBetQuestion(q));
+  assert.ok(!shouldUseWcCrossGroupValuePrebuilt(q, WC_INTENT.GENERAL));
 });
 
 test("isWcTomorrowOrSlateBetQuestion skips player prop questions", () => {

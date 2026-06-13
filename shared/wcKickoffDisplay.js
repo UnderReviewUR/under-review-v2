@@ -21,6 +21,16 @@ export function wcMatchEtDateYmd(commenceTs) {
 }
 
 /**
+ * Slate filter date — prefer explicit fixture `date` over derived commenceTs (promo seeds can drift ET).
+ * @param {{ date?: string, commenceTs?: number | string, time?: string } | null | undefined} match
+ */
+export function resolveWcMatchSlateEtDate(match) {
+  const fromDate = String(match?.date || "").trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) return fromDate;
+  return resolveWcMatchEtDate(match);
+}
+
+/**
  * Best ET slate date for filtering Today tab.
  * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
  * @returns {string}

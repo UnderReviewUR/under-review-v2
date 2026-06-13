@@ -1,4 +1,5 @@
 import { sendUrTakeJson } from "./responseDelivery.js";
+import { buildWcTomorrowSlatePrebuiltFromInputs } from "../_wcTomorrowSlatePrebuiltInputs.js";
 import { runUnderReviewPostProcess } from "../_urTakeOutputQA.js";
 import { runWcUrTakeQA } from "../_wcUrTakeQA.js";
 import {
@@ -13,7 +14,7 @@ import {
   resolveWcQaStructured,
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructured.js";
-import { extractWcRunnerUpFromHistory } from "../../shared/wcTakeRetentionQA.js";
+import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
 
 /**
  * Deliver World Cup prebuilt takes without building prompts or calling Anthropic.
@@ -34,6 +35,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     wcRelevanceLog,
     wcContext,
     wcCrossGroupPrebuiltEarly,
+    wcTomorrowSlatePrebuiltEarly,
     wcFixtureMatchupPrebuiltEarly,
     wcFixtureAltFollowUpPrebuiltEarly,
     wcRunnerUpFollowUpQuestion,
@@ -71,6 +73,17 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
         passKind = "runner_up_follow_up";
       }
     }
+  } else if (
+    !isConversationFollowUp &&
+    (wcTomorrowSlatePrebuiltEarly || isWcTomorrowOrSlateBetQuestion(routingQuestion))
+  ) {
+    structuredResponse =
+      wcTomorrowSlatePrebuiltEarly ||
+      (await buildWcTomorrowSlatePrebuiltFromInputs({
+        question: String(question || ""),
+        nowMs: Date.now(),
+      }).catch(() => null));
+    passKind = "tomorrow_slate";
   } else if (
     !isConversationFollowUp &&
     (wcCrossGroupPrebuiltEarly ||

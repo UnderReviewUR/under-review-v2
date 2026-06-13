@@ -125,6 +125,8 @@ import {
   buildWcFixtureMatchupPrebuiltFromInputs,
   resolveWcFixtureMatchupPrebuiltInputs,
 } from "../_wcFixtureMatchupPrebuiltInputs.js";
+import { buildWcTomorrowSlatePrebuiltFromInputs } from "../_wcTomorrowSlatePrebuiltInputs.js";
+import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
@@ -2649,6 +2651,8 @@ export default async function handler(req, res) {
   let wcContext = null;
   /** @type {import("../../shared/wcGroupComposition.js").ReturnType<typeof buildWcCrossGroupValuePrebuiltStructured> | null} */
   let wcCrossGroupPrebuiltEarly = null;
+  /** @type {import("../../shared/wcTomorrowSlatePrebuilt.js").ReturnType<typeof buildWcTomorrowSlatePrebuiltStructured> | null} */
+  let wcTomorrowSlatePrebuiltEarly = null;
   /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcFixtureMatchupPrebuiltStructured> | null} */
   let wcFixtureMatchupPrebuiltEarly = null;
   /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcFixtureMatchupPrebuiltStructured> | null} */
@@ -2704,7 +2708,36 @@ export default async function handler(req, res) {
     const sessionEntities = extractSessionWcEntities(incomingHistory);
     const reqSet = new Set(wcRequiredEntities);
     wcForbiddenEntities = sessionEntities.filter((e) => !reqSet.has(e));
+    const wcTomorrowSlateCandidate =
+      !wcRunnerUpFollowUpQuestion &&
+      !isConversationFollowUp &&
+      isWcTomorrowOrSlateBetQuestion(routingQuestion) &&
+      !isWcPlayerMarketIntent(wcIntent);
+    if (wcTomorrowSlateCandidate) {
+      try {
+        wcTomorrowSlatePrebuiltEarly = await buildWcTomorrowSlatePrebuiltFromInputs({
+          question: String(question || ""),
+          nowMs: Date.now(),
+        });
+        if (wcTomorrowSlatePrebuiltEarly) {
+          console.log(
+            JSON.stringify({
+              event: "ur_take_wc_tomorrow_slate_prebuilt_early",
+              sport: "worldcup",
+              wcIntent,
+              tomorrowEtDate: wcTomorrowSlatePrebuiltEarly.tomorrowEtDate,
+              fixtureCount: wcTomorrowSlatePrebuiltEarly.tomorrowFixtures?.length ?? 0,
+              featuredHome: wcTomorrowSlatePrebuiltEarly.fixtureHome,
+              featuredAway: wcTomorrowSlatePrebuiltEarly.fixtureAway,
+            }),
+          );
+        }
+      } catch (tomorrowErr) {
+        console.warn("[ur-take] tomorrow slate prebuilt resolve failed:", tomorrowErr?.message);
+      }
+    }
     const wcCrossGroupCandidate =
+      !wcTomorrowSlatePrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
@@ -2814,7 +2847,12 @@ export default async function handler(req, res) {
         console.warn("[ur-take] fixture matchup prebuilt resolve failed:", fixtureErr?.message);
       }
     }
-    if (!wcCrossGroupPrebuiltEarly && !wcFixtureMatchupPrebuiltEarly && !wcFixtureAltFollowUpPrebuiltEarly) {
+    if (
+      !wcTomorrowSlatePrebuiltEarly &&
+      !wcCrossGroupPrebuiltEarly &&
+      !wcFixtureMatchupPrebuiltEarly &&
+      !wcFixtureAltFollowUpPrebuiltEarly
+    ) {
       try {
         wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
           wcIntent,
@@ -2825,6 +2863,15 @@ export default async function handler(req, res) {
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
       }
+    } else if (wcTomorrowSlatePrebuiltEarly) {
+      wcContext = {
+        source: "worldcup_tomorrow_slate_prebuilt",
+        promptBlock: "",
+        phase: "GROUP_STAGE",
+        tournamentSimResults: null,
+        matchDetails: [],
+        groups: {},
+      };
     } else if (wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly) {
       wcContext = {
         source: "worldcup_fixture_matchup_prebuilt",
@@ -2890,6 +2937,7 @@ export default async function handler(req, res) {
       wcRelevanceLog,
       wcContext,
       wcCrossGroupPrebuiltEarly,
+      wcTomorrowSlatePrebuiltEarly,
       wcFixtureMatchupPrebuiltEarly,
       wcFixtureAltFollowUpPrebuiltEarly,
       wcRunnerUpFollowUpQuestion,
