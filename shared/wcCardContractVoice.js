@@ -7,7 +7,7 @@
  *   whyNow → WHY
  *   edge  → WATCH FOR
  *   lean  → THE PLAY
- *   deep  → Full breakdown (tap)
+ *   deep  → More detail (tap)
  */
 
 import {
@@ -26,7 +26,7 @@ You are "the model that argues with the edge." Every take must argue where the m
 
 CARD FACE vs BREAKDOWN:
 - summary + deep are split. Card face shows complete sentences only — never mid-sentence cuts.
-- deep holds the full breakdown (extra evidence, list rows, bracket notes). User taps "Full breakdown" for depth.
+- deep holds labeled detail (extra evidence, list rows, bracket notes). User taps "More detail" for depth.
 
 FIELD SHAPE (server maps summary/deep into the card — write so each slot is distinct):
 
@@ -76,7 +76,7 @@ export const WC_CARD_CONTRACT_TIER25_APPENDIX = `CARD CONTRACT Option 1 — summ
 - summary sentence 2 = one LINE / DELTA sentence only when odds or sims exist.
 - whyNow = ≤2 short sentences of evidence (never the full essay).
 - edge = one WATCH FOR sentence only.
-- deep = full breakdown (extra evidence, script, ladder detail) — user taps "Full breakdown"; keep deep ≤220 words.
+- deep = more detail (extra evidence, script, ladder detail) — user taps "More detail"; keep deep ≤220 words.
 - Card face WHY or LINE must include one number (odds, implied %, or sim %) — never lean-only.
 - Never put sim paragraphs, role essays, or multi-leg scripts on the card face.
 - Every card-face sentence must end with . ! or ? — never trail off mid-thought.`;

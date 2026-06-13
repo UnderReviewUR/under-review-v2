@@ -60,6 +60,7 @@ import {
   detectMissingWcSimAttribution,
   detectMissingWcCardFaceNumericWhy,
   detectWcAdvancementLeanDirectionMismatch,
+  detectWcDeepMetaLeak,
   detectWcRoboticPushbackConcession,
   isWcWatchForDupedAgainstWhy,
   WC_NEEDS_ATTRIBUTION_QA_SUFFIX,
@@ -434,6 +435,10 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_dedup_watch_for");
     }
 
+    if (detectWcDeepMetaLeak(deepField) || detectWcDeepMetaLeak(body)) {
+      issueCodes.push("wc_deep_meta_leak");
+    }
+
     if (detectMissingComparativeProof(routingQuestion, body, structured)) {
       issueCodes.push("wc_missing_comparative_proof");
     }
@@ -555,6 +560,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_roundup_unnamed_market_odds",
       "wc_missing_sim_attribution",
       "wc_dedup_watch_for",
+      "wc_deep_meta_leak",
       "wc_missing_comparative_proof",
       "wc_card_face_missing_numeric_why",
       "wc_advancement_lean_direction_mismatch",

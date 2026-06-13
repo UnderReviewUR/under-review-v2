@@ -1726,6 +1726,10 @@ function coerceStructuredForUrTakeCard(raw) {
       raw.modelAttribution != null && String(raw.modelAttribution).trim()
         ? String(raw.modelAttribution).trim()
         : null,
+    auditFootnote:
+      raw.auditFootnote != null && String(raw.auditFootnote).trim()
+        ? String(raw.auditFootnote).trim()
+        : null,
   };
 }
 
@@ -2147,6 +2151,7 @@ function UrTakeAiBubble({
             focusLayout={cardFocusLayout}
             cardCollapsed={cardCollapsed}
             modelAttribution={s.modelAttribution}
+            auditFootnote={s.auditFootnote}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

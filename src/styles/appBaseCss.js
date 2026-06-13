@@ -3397,6 +3397,10 @@ export const baseCss = `
   .wc-take-breakdown-body{
     font-size:13px;line-height:1.6;color:var(--soft);white-space:pre-wrap;
   }
+  .wc-take-audit-footnote{
+    margin:10px 0 0;font-size:11px;line-height:1.45;color:var(--muted);
+    opacity:0.82;
+  }
   .wc-take-breakdown-preamble{margin:0 0 14px;}
   .wc-take-breakdown-section{margin:0 0 10px;}
   .wc-take-breakdown-section--match{

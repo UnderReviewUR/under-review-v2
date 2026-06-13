@@ -20,7 +20,10 @@ import {
   extractWcModelAttributionPrefix,
   stripWcModelAttributionPrefix,
   wcCardFaceBlobHasNumericWhy,
+  detectWcDeepMetaLeak,
 } from "../../shared/wcTakeRetentionQA.js";
+
+export const UR_TAKE_BREAKDOWN_LABEL = "More detail";
 
 const WC_FACE_HEADLINE_WORDS = 14;
 const WC_FACE_WHY_WORDS = 36;
@@ -396,6 +399,34 @@ function wcBreakdownContainsWatchText(breakdown, watchText) {
 }
 
 /**
+ * Only show expandable breakdown when deep adds scannable structure beyond the card face.
+ * @param {string} deep
+ * @param {string} [whyNow]
+ * @param {string} [watchFor]
+ */
+export function wcDeepAddsReaderValue(deep, whyNow = "", watchFor = "") {
+  const d = sanitizeWcUserFacingProse(String(deep || "").trim());
+  if (!d || d.length < 40) return false;
+  if (detectWcDeepMetaLeak(d)) return false;
+  if (/^Angle:/im.test(d) || /^Match:/im.test(d) || /^Sim vs market:/im.test(d)) return true;
+
+  const norm = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  const nw = norm(whyNow);
+  const nd = norm(d);
+  if (nw && nw.length > 60 && nd.includes(nw.slice(0, Math.min(100, nw.length)))) {
+    if (nd.length < nw.length + 100) return false;
+  }
+  if (watchFor && wcBreakdownContainsWatchText(d, watchFor) && d.split(/\n\n+/).length < 2) {
+    return false;
+  }
+  return d.split(/\n\n+/).filter(Boolean).length >= 2;
+}
+
+/**
  * Compress card face; overflow lives in breakdown.
  * @param {object} opts
  */
@@ -501,7 +532,8 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   breakdown = dedupeWcBreakdownParagraphs(sanitizeWcUserFacingProse(breakdown));
 
   const breakdownAvailable =
-    Boolean(opts.breakdownAvailable) || breakdown.length > (whyFace.length + 24);
+    (Boolean(opts.breakdownAvailable) || breakdown.length > whyFace.length + 24) &&
+    wcDeepAddsReaderValue(breakdown, fullWhy, fullWatch);
 
   return {
     headline,

@@ -42,6 +42,10 @@ function sanitizeWcUserFacingLine(line) {
   t = t.replace(/\bNo BDL group-winner seed is posted\b/gi, "No group-winner line is posted");
   t = t.replace(/\bNo BDL group-winner price exists\b/gi, "No group-winner line exists");
   t = t.replace(/\bNo BDL advancement lines available\b/gi, "No advance lines available");
+  t = t.replace(/\bVERIFIED CONTEXT\b/gi, "");
+  t = t.replace(/\bGROUP BINDING\b/gi, "");
+  t = t.replace(/\bno matches (?:are )?available (?:for|on)\b[^.]*\.?/gi, "");
+  t = t.replace(/\bI need to focus on\b[^.]*\.?/gi, "");
   t = t.replace(/\(\s*·\s*as of/gi, " ·");
   t = t.replace(/\(\s*\)/g, "");
   t = t.replace(/\s{2,}/g, " ").trim();

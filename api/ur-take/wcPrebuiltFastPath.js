@@ -6,7 +6,10 @@ import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
   buildWcGroupValuePushBackPrebuiltStructured,
+  buildWcCrossGroupValuePrebuiltStructured,
+  buildWcGroupUpsetScanPrebuiltStructured,
   shouldUseWcCrossGroupValuePrebuilt,
+  shouldUseWcGroupUpsetScanPrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "../../shared/wcGroupComposition.js";
 import {
@@ -40,6 +43,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     wcRelevanceLog,
     wcContext,
     wcCrossGroupPrebuiltEarly,
+    wcGroupUpsetScanPrebuiltEarly,
     wcTomorrowSlatePrebuiltEarly,
     wcFixtureMatchupPrebuiltEarly,
     wcFixtureAltFollowUpPrebuiltEarly,
@@ -105,6 +109,19 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
         nowMs: Date.now(),
       }).catch(() => null));
     passKind = "tomorrow_slate";
+  } else if (
+    !isConversationFollowUp &&
+    (wcGroupUpsetScanPrebuiltEarly ||
+      shouldUseWcGroupUpsetScanPrebuilt(routingQuestion, wcIntent))
+  ) {
+    structuredResponse =
+      wcGroupUpsetScanPrebuiltEarly ||
+      buildWcGroupUpsetScanPrebuiltStructured({
+        teamStats: wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: wcContext?.bdlFuturesPayload,
+        question: String(question || ""),
+      });
+    passKind = "upset_scan";
   } else if (
     !isConversationFollowUp &&
     (wcCrossGroupPrebuiltEarly ||

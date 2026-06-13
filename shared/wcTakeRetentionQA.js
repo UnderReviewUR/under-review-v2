@@ -625,13 +625,58 @@ export function isWcGroupPathMispriceQuestion(question) {
 }
 
 /**
+ * Cross-group upset / sleeper scan — "upsets people are overlooking", etc.
+ * @param {string} question
+ */
+export function isWcGroupUpsetScanQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (isWcGroupPathMispriceQuestion(q)) return false;
+  if (isWcTomorrowOrSlateBetQuestion(q)) return false;
+  if (/\b(most mispriced|which (?:world cup )?group|group[\s-]*stage\s+value)\b/i.test(q)) {
+    return false;
+  }
+
+  const upsetLex =
+    /\b(upset|upsets|sleeper|sleepers|dark horse|longshot|longshots|underdog|underdogs|surprise|surprises)\b/i;
+  const overlookLex =
+    /\b(overlook|overlooking|overlooked|missing|sleeping on|under.?the radar|no one'?s talking|nobody'?s|not talking about|people aren'?t|folks aren'?t|ignored|discounting)\b/i;
+  const scanLex =
+    /\b(potential|any|what|which)\b[\s\S]{0,40}\b(upset|upsets|sleepers?|surprises?)\b/i;
+
+  return (
+    (upsetLex.test(q) && overlookLex.test(q)) ||
+    scanLex.test(q) ||
+    /\b(upsets? people are overlooking|overlooked upsets?|overlooked angles?)\b/i.test(q)
+  );
+}
+
+/** @param {string} text */
+export function detectWcDeepMetaLeak(text) {
+  const t = String(text || "");
+  if (!t.trim()) return false;
+  return (
+    /\bVERIFIED CONTEXT\b/i.test(t) ||
+    /\bGROUP BINDING\b/i.test(t) ||
+    /\bno matches (?:are )?available\b/i.test(t) ||
+    /\bI need to focus on\b/i.test(t) ||
+    /\b(?:Favorite|Contender|Longshot)\s*\(\s*(?:Favorite|Contender|Longshot)\s*\)/i.test(t) ||
+    /\bis four teams:\s*[^.]+\(Favorite\)[^.]+\(Contender\)[^.]+\(Longshot\)[^.]+\(Longshot\)/i.test(t)
+  );
+}
+
+/**
  * @param {string} question
  * @param {string} body
  * @param {Record<string, unknown> | null | undefined} [structured]
  */
 export function detectMissingComparativeProof(question, body, structured) {
   const q = String(question || "").trim();
-  if (!isWcCrossGroupMispriceQuestion(q) && !isWcGroupPathMispriceQuestion(q)) {
+  if (
+    !isWcCrossGroupMispriceQuestion(q) &&
+    !isWcGroupPathMispriceQuestion(q) &&
+    !isWcGroupUpsetScanQuestion(q)
+  ) {
     return false;
   }
 

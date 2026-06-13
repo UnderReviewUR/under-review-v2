@@ -2,7 +2,7 @@ import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
-import { formatWcCardSectionLines, wcTakeCardHasVisibleContent } from "../lib/wcTakeCardUi.js";
+import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, UR_TAKE_BREAKDOWN_LABEL } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
@@ -68,6 +68,7 @@ export default function WcTakeCard({
   modelAttribution = null,
   breakdownDefaultExpanded = false,
   fallbackSummary = "",
+  auditFootnote = "",
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
   const [expandedFromCollapse, setExpandedFromCollapse] = useState(false);
@@ -201,14 +202,17 @@ export default function WcTakeCard({
           className={`ur-v2-body-expand wc-take-breakdown-toggle${effectiveFocusLayout ? " wc-take-breakdown-toggle--focus" : ""}`}
           onClick={() => setBreakdownExpanded(true)}
         >
-          Full breakdown
+          {UR_TAKE_BREAKDOWN_LABEL}
         </button>
       ) : null}
 
       {showBreakdownToggle && breakdownExpanded ? (
         <div className="wc-take-breakdown-panel">
-          <div className="wc-take-breakdown-label">Full breakdown</div>
+          <div className="wc-take-breakdown-label">{UR_TAKE_BREAKDOWN_LABEL}</div>
           <UrTakeBreakdownBody text={deep} />
+          {String(auditFootnote || "").trim() ? (
+            <p className="wc-take-audit-footnote">{String(auditFootnote).trim()}</p>
+          ) : null}
           <button
             type="button"
             className="ur-v2-body-expand wc-take-breakdown-toggle"

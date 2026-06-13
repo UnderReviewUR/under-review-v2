@@ -29,6 +29,7 @@ import {
   prepareWcCardWhyDisplay,
   prepareWcCardFaceDisplay,
   wcTakeCardHasVisibleContent,
+  UR_TAKE_BREAKDOWN_LABEL,
 } from "../lib/wcTakeCardUi.js";
 import { scrubStaleFinalsTiedCopy } from "../../shared/nbaFinalsTakeDisplay.js";
 import {
@@ -100,6 +101,7 @@ export default function URTakeResponse({
   /** Orange data-confidence banner — first take in thread only. */
   showWcCautionBanner = true,
   modelAttribution = null,
+  auditFootnote = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -416,6 +418,7 @@ export default function URTakeResponse({
         focusLayout={focusLayout}
         collapsed={cardCollapsed}
         modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
+        auditFootnote={auditFootnote}
         breakdownDefaultExpanded={
           focusLayout &&
           (callType === "group_slate" || callType === "advancement") &&
@@ -540,7 +543,7 @@ export default function URTakeResponse({
 
       {showBodyExpand && !showDeepBreakdown ? (
         <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(true)}>
-          Full breakdown
+          {UR_TAKE_BREAKDOWN_LABEL}
         </button>
       ) : showDeepBreakdown && !deepBreakdownExpanded ? (
         <button
@@ -548,7 +551,7 @@ export default function URTakeResponse({
           className={`ur-v2-body-expand${focusLayout ? " wc-take-breakdown-toggle--focus" : ""}`}
           onClick={() => setDeepBreakdownExpanded(true)}
         >
-          Full breakdown
+          {UR_TAKE_BREAKDOWN_LABEL}
         </button>
       ) : bodyExpanded && (primaryOverflow || hasSecondaryBody) ? (
         <button type="button" className="ur-v2-body-expand" onClick={() => setBodyExpanded(false)}>
@@ -558,7 +561,7 @@ export default function URTakeResponse({
 
       {showDeepBreakdown && deepBreakdownExpanded ? (
         <div className="wc-take-breakdown-panel">
-          <div className="wc-take-breakdown-label">Full breakdown</div>
+          <div className="wc-take-breakdown-label">{UR_TAKE_BREAKDOWN_LABEL}</div>
           <UrTakeBreakdownBody text={deepRaw} />
           <button
             type="button"

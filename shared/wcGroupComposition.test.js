@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcCrossGroupValuePrebuiltStructured,
+  buildWcGroupUpsetScanPrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
   buildWcGroupValuePushBackPrebuiltStructured,
   formatWcGroupSlateNumericLine,
@@ -14,8 +15,10 @@ import {
   getWcGroupComposition,
   resolveWcGroupLettersForPrompt,
   shouldUseWcCrossGroupValuePrebuilt,
+  shouldUseWcGroupUpsetScanPrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
+import { isWcGroupUpsetScanQuestion } from "./wcTakeRetentionQA.js";
 import { WC_LANDING_PROMPTS } from "./wcMarketingDeepLinks.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
@@ -385,4 +388,54 @@ test("buildWcGroupValuePushBackPrebuiltStructured — reaffirms fade with human 
   assert.match(pre.lean || "", /Pass on DR Congo/i);
   assert.doesNotMatch(pre.lean || "", /Lean: DR Congo to advance/i);
   assert.match(pre.whyNow || "", /play stays pass/i);
+});
+
+test("isWcGroupUpsetScanQuestion — overlooks upsets phrasing", () => {
+  assert.ok(isWcGroupUpsetScanQuestion("any potential upsets that people are overlooking?"));
+  assert.ok(isWcGroupUpsetScanQuestion("What upsets is everyone sleeping on?"));
+  assert.equal(
+    isWcGroupUpsetScanQuestion("Which group is most mispriced for advancement?"),
+    false,
+  );
+});
+
+test("shouldUseWcGroupUpsetScanPrebuilt — routes broad upset scan", () => {
+  assert.ok(
+    shouldUseWcGroupUpsetScanPrebuilt("any potential upsets that people are overlooking?", WC_INTENT.STRUCTURAL),
+  );
+  assert.equal(
+    shouldUseWcGroupUpsetScanPrebuilt("Which group is most mispriced for advancement?", WC_INTENT.STRUCTURAL),
+    false,
+  );
+});
+
+test("buildWcGroupUpsetScanPrebuiltStructured — labeled angles, no meta prose", () => {
+  const pre = buildWcGroupUpsetScanPrebuiltStructured({
+    question: "any potential upsets that people are overlooking?",
+    teamStats: {
+      ALG: { advancePct: 50.2 },
+      COD: { advancePct: 23.7 },
+      COL: { advancePct: 42 },
+      NZL: { advancePct: 18 },
+    },
+    bdlFutures: {
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          ALG: { american: 300, americanDisplay: "+300" },
+          COD: { american: 100, americanDisplay: "+100" },
+          COL: { american: 150 },
+          NZL: { american: 800 },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.match(pre.call || "", /Overlooked group-stage misprices/i);
+  assert.match(pre.deep || "", /^Angle: Group/m);
+  assert.match(pre.deep || "", /Sim vs market:/);
+  assert.doesNotMatch(pre.deep || "", /VERIFIED CONTEXT/i);
+  assert.equal(pre.breakdownAvailable, true);
+  assert.match(pre.auditFootnote || "", /^Sources:/);
+  assert.match(pre.whyNow || "", /market .* UR sim/i);
 });

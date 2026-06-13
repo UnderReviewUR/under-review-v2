@@ -13,6 +13,7 @@ import {
 } from "./wcAdvancementMarket.js";
 import {
   isWcCrossGroupMispriceQuestion,
+  isWcGroupUpsetScanQuestion,
   isWcRunnerUpValueFollowUp,
   isWcTomorrowOrSlateBetQuestion,
   extractWcRunnerUpFromHistory,
@@ -29,6 +30,7 @@ import {
   formatWcBdlAdvancePriceAttribution,
   WC_ADVANCEMENT_TO_BDL_MARKET,
 } from "./wcBdlFutures.js";
+import { attachWcMispriceAuditFootnote } from "./wcMispriceAudit.js";
 
 const GROUP_LETTERS = "ABCDEFGHIJKL".split("");
 
@@ -305,6 +307,7 @@ export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
   if (!q) return false;
   const routingQ = extractLatestUserTurnForRouting(q);
   if (isWcRunnerUpValueFollowUp(routingQ) || isWcRunnerUpValueFollowUp(q)) return false;
+  if (isWcGroupUpsetScanQuestion(routingQ)) return false;
   if (isWcTomorrowOrSlateBetQuestion(routingQ)) return false;
   if (extractGroupLetterFromQuestion(routingQ)) return false;
   if (extractMentionedWcTeams(routingQ).length > 0) return false;
@@ -314,6 +317,27 @@ export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
     (/\b(best|top|single)\b[\s\S]{0,48}\bgroup[\s-]*stage\b/i.test(routingQ) ||
       /\bgroup[\s-]*stage\s+value\b/i.test(routingQ))
   );
+}
+
+/**
+ * Broad upset / sleeper scan — route to deterministic multi-angle prebuilt.
+ * @param {string} question
+ * @param {string} [wcIntent]
+ */
+export function shouldUseWcGroupUpsetScanPrebuilt(question, wcIntent) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  const routingQ = extractLatestUserTurnForRouting(q);
+  if (isWcRunnerUpValueFollowUp(routingQ)) return false;
+  if (isWcTomorrowOrSlateBetQuestion(routingQ)) return false;
+  if (extractGroupLetterFromQuestion(routingQ)) return false;
+  if (
+    extractMentionedWcTeams(routingQ).length > 0 &&
+    !/\b(group|groups|advance|qualify|upset|sleeper)\b/i.test(routingQ)
+  ) {
+    return false;
+  }
+  return isWcGroupUpsetScanQuestion(routingQ);
 }
 
 /**
@@ -427,31 +451,210 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
     bdlMarketType: bdlType,
   });
 
-  return {
-    ...base,
-    call: (Number(top.delta) < 0
-      ? `Group ${top.group} widest misprice — fade ${topPickName} advance`
-      : `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`
-    ).slice(0, 100),
-    lean: buildWcAdvancementMispriceLean({
-      pickAbbr: top.teamAbbr,
-      pickName: topPickName,
-      groupLetter: top.group,
-      odds: advanceOdds,
-      simPct: top.simPct,
-      impliedPct: top.impliedPct,
-      delta: top.delta,
-    }),
-    whyNow,
-    deep,
-    breakdownAvailable: Boolean(deep.trim()),
-    modelAttribution,
-    runnerUpGroupLetter: second.group,
-    runnerUpTeamAbbr: second.teamAbbr,
-    primaryMispriceGroupLetter: top.group,
-    coinFlipGroupLetter: coinFlip ? second.group : null,
-    coinFlipTeamAbbr: coinFlip?.teamAbbr || second.teamAbbr,
-  };
+  return attachWcMispriceAuditFootnote(
+    {
+      ...base,
+      call: (Number(top.delta) < 0
+        ? `Group ${top.group} widest misprice — fade ${topPickName} advance`
+        : `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`
+      ).slice(0, 100),
+      lean: buildWcAdvancementMispriceLean({
+        pickAbbr: top.teamAbbr,
+        pickName: topPickName,
+        groupLetter: top.group,
+        odds: advanceOdds,
+        simPct: top.simPct,
+        impliedPct: top.impliedPct,
+        delta: top.delta,
+      }),
+      whyNow,
+      deep,
+      breakdownAvailable: Boolean(deep.trim()),
+      modelAttribution,
+      runnerUpGroupLetter: second.group,
+      runnerUpTeamAbbr: second.teamAbbr,
+      primaryMispriceGroupLetter: top.group,
+      coinFlipGroupLetter: coinFlip ? second.group : null,
+      coinFlipTeamAbbr: coinFlip?.teamAbbr || second.teamAbbr,
+    },
+    {
+      simLastUpdated: opts.simLastUpdated,
+      bdlFutures: opts.bdlFutures,
+      bdlMarketType: bdlType,
+      teamAbbr: top.teamAbbr,
+      nowMs: opts.nowMs,
+    },
+  );
+}
+
+/**
+ * @param {{ teamAbbr: string, group: string, simPct: number, impliedPct: number, delta: number }} row
+ * @param {string} pickName
+ */
+function buildWcUpsetScanAngleTake(row, pickName) {
+  const delta = Number(row.delta);
+  const letter = String(row.group || "").toUpperCase();
+  const name = String(pickName || row.teamAbbr || "").trim();
+  if (Number.isFinite(delta) && delta < 0) {
+    return `Pass on ${name} — market overprices the escape path in Group ${letter}.`;
+  }
+  if (Number.isFinite(delta) && delta > 0) {
+    return `Lean ${name} to advance — books still underprice the escape in Group ${letter}.`;
+  }
+  return `Watch ${name} in Group ${letter} — sim vs market gap is worth a closer look.`;
+}
+
+/**
+ * @param {Array<{ teamAbbr: string, group: string, simPct: number, impliedPct: number, delta: number }>} picks
+ */
+function buildWcUpsetScanWhyNow(picks) {
+  if (!picks.length) return "";
+  const lead = picks[0];
+  const comp = getWcGroupComposition(lead.group);
+  const pick =
+    comp?.teams.find((t) => String(t.abbreviation).toUpperCase() === lead.teamAbbr) || null;
+  const name = pick?.name || lead.teamAbbr;
+  const deltaStr = `${lead.delta >= 0 ? "+" : ""}${lead.delta.toFixed(1)}pt`;
+  const others = picks
+    .slice(1)
+    .map((row) => {
+      const c = getWcGroupComposition(row.group);
+      const n =
+        c?.teams.find((t) => String(t.abbreviation).toUpperCase() === row.teamAbbr)?.name ||
+        row.teamAbbr;
+      return `${n} (Group ${row.group})`;
+    })
+    .join(", ");
+  let intro = `${name} in Group ${lead.group} leads the board (market ${lead.impliedPct.toFixed(1)}% · UR sim ${lead.simPct.toFixed(1)}%, ${deltaStr})`;
+  if (others) intro += ` — also watch ${others}.`;
+  else intro += ".";
+  return intro.slice(0, 400);
+}
+
+/**
+ * @param {Array<{ teamAbbr: string, group: string, simPct: number, impliedPct: number, delta: number, american?: number | null }>} picks
+ * @param {{ byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string }>> } | undefined} bdlFutures
+ */
+function buildWcUpsetScanDeepBreakdown(picks, bdlFutures) {
+  const bdlType = "qualify_from_group";
+  /** @type {string[]} */
+  const blocks = [];
+  for (const row of picks) {
+    const letter = String(row.group || "").toUpperCase();
+    const abbr = String(row.teamAbbr || "").toUpperCase();
+    const comp = getWcGroupComposition(letter);
+    const pick =
+      comp?.teams.find((t) => String(t.abbreviation).toUpperCase() === abbr) || null;
+    const name = pick?.name || abbr;
+    const deltaStr = `${row.delta >= 0 ? "+" : ""}${row.delta.toFixed(1)}pt`;
+    const priceRow = bdlFutures?.byMarketType?.[bdlType]?.[abbr];
+    const odds =
+      priceRow?.americanDisplay ||
+      (priceRow?.american != null ? String(priceRow.american) : null);
+    const oddsPart = odds ? ` · ${odds}` : "";
+    blocks.push(
+      [
+        `Angle: Group ${letter} — ${name} to advance`,
+        `Sim vs market: Market ${row.impliedPct.toFixed(1)}% · UR sim ${row.simPct.toFixed(1)}% · ${deltaStr}${oddsPart}`,
+        `Take: ${buildWcUpsetScanAngleTake(row, name)}`,
+      ].join("\n"),
+    );
+  }
+  return blocks.join("\n\n").slice(0, 1100);
+}
+
+/**
+ * Deterministic cross-group upset scan — labeled angles, no LLM meta prose.
+ * @param {{
+ *   teamStats?: Record<string, Record<string, unknown>>,
+ *   bdlFutures?: { byMarketType?: Record<string, Record<string, { american?: number, americanDisplay?: string }>>, lastUpdated?: number },
+ *   question?: string,
+ *   nowMs?: number,
+ *   simLastUpdated?: number | null,
+ * }} [opts]
+ */
+export function buildWcGroupUpsetScanPrebuiltStructured(opts = {}) {
+  const ranked = computeGroupMispriceRankings({
+    teamStats: opts.teamStats,
+    bdlFutures: opts.bdlFutures,
+    question: String(opts.question || ""),
+    nowMs: opts.nowMs,
+    topN: 12,
+  });
+  if (!ranked.length) return null;
+
+  /** @type {typeof ranked} */
+  const picks = [];
+  for (const row of ranked) {
+    if (picks.length >= 3) break;
+    if (picks.some((p) => p.group === row.group)) continue;
+    picks.push(row);
+  }
+  if (!picks.length) return null;
+
+  const lead = picks[0];
+  const leadComp = getWcGroupComposition(lead.group);
+  const leadPick =
+    leadComp?.teams.find((t) => String(t.abbreviation).toUpperCase() === lead.teamAbbr) ||
+    leadComp?.contender;
+  const leadName = leadPick?.name || lead.teamAbbr;
+  const leadFav = leadComp?.favorite?.name || "the favorite";
+  const bdlType = "qualify_from_group";
+  const priceRow = opts.bdlFutures?.byMarketType?.[bdlType]?.[lead.teamAbbr];
+  const advanceOdds =
+    priceRow?.americanDisplay ||
+    (priceRow?.american != null ? String(priceRow.american) : null);
+
+  const whyNow = buildWcUpsetScanWhyNow(picks);
+  const deep = buildWcUpsetScanDeepBreakdown(picks, opts.bdlFutures);
+  const numericLine = formatWcGroupSlateNumericLine({
+    odds: advanceOdds,
+    simPct: lead.simPct,
+    impliedPct: lead.impliedPct,
+    delta: lead.delta,
+  });
+  const lean = buildWcAdvancementMispriceLean({
+    pickName: leadName,
+    pickAbbr: lead.teamAbbr,
+    groupLetter: lead.group,
+    odds: advanceOdds,
+    simPct: lead.simPct,
+    impliedPct: lead.impliedPct,
+    delta: lead.delta,
+  });
+  const edge =
+    Number(lead.delta) < 0
+      ? `Watch ${leadFav} dominance — if ${leadName} steals early points, the fade gets harder before prices adjust.`
+      : `If ${leadName} advance odds drift wider than ${advanceOdds || "current"}, pass — lock only while the price still underprices the escape.`;
+
+  return attachWcMispriceAuditFootnote(
+    {
+      sport: "worldcup",
+      callType: "group_slate",
+      groupLetter: lead.group,
+      lean: lean.slice(0, 120),
+      call: "Overlooked group-stage misprices".slice(0, 100),
+      line: numericLine.slice(0, 200),
+      whyNow,
+      deep,
+      breakdownAvailable: Boolean(deep.trim()),
+      edge: edge.slice(0, 200),
+      modelAttribution: wcModelAttributionFooter(opts.bdlFutures?.lastUpdated, opts.nowMs),
+      confidence:
+        Math.abs(Number(lead.delta)) >= 15
+          ? "Medium"
+          : Math.abs(Number(lead.delta)) >= 8
+            ? "Speculative"
+            : "Speculative",
+    },
+    {
+      simLastUpdated: opts.simLastUpdated,
+      bdlFutures: opts.bdlFutures,
+      bdlMarketType: bdlType,
+      teamAbbr: lead.teamAbbr,
+      nowMs: opts.nowMs,
+    },
+  );
 }
 
 /**
@@ -1124,20 +1327,37 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     bdlMarketType: opts.bdlMarketType || "qualify_from_group",
   });
 
-  return {
-    sport: "worldcup",
-    callType: "group_slate",
-    groupLetter: letter,
-    lean: lean.slice(0, 120),
-    call: call.slice(0, 100),
-    line: (numericLine || pathLine).slice(0, 200),
-    deep,
-    breakdownAvailable: Boolean(deep.trim()),
-    whyNow,
-    edge: edge.slice(0, 200),
-    modelAttribution,
-    confidence: Number.isFinite(opts.delta) ? (Math.abs(Number(opts.delta)) >= 15 ? "Medium" : "Speculative") : odds ? "Medium" : "Speculative",
-    caveats: [],
-    timestamp: new Date().toISOString(),
-  };
+  return attachWcMispriceAuditFootnote(
+    {
+      sport: "worldcup",
+      callType: "group_slate",
+      groupLetter: letter,
+      lean: lean.slice(0, 120),
+      call: call.slice(0, 100),
+      line: (numericLine || pathLine).slice(0, 200),
+      deep,
+      breakdownAvailable: Boolean(deep.trim()),
+      whyNow,
+      edge: edge.slice(0, 200),
+      modelAttribution,
+      confidence: Number.isFinite(opts.delta)
+        ? Math.abs(Number(opts.delta)) >= 15
+          ? "Medium"
+          : "Speculative"
+        : odds
+          ? "Medium"
+          : "Speculative",
+      caveats: [],
+      timestamp: new Date().toISOString(),
+    },
+    Number.isFinite(opts.simPct) && Number.isFinite(opts.impliedPct)
+      ? {
+          simLastUpdated: opts.simLastUpdated,
+          bdlFutures: opts.bdlFutures,
+          bdlMarketType: opts.bdlMarketType || "qualify_from_group",
+          teamAbbr: pickAbbr,
+          nowMs: opts.nowMs,
+        }
+      : {},
+  );
 }

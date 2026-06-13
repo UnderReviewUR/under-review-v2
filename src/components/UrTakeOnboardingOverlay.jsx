@@ -48,7 +48,7 @@ export default function UrTakeOnboardingOverlay({ visible, worldCupLine = null }
           and live angles — without digging through feeds.
         </p>
         <ul className="ur-onboarding-list">
-          <li>First line is the answer — tap Full breakdown only if you want more.</li>
+          <li>First line is the answer — tap More detail only if you want more.</li>
           {worldCupLine ? <li>{worldCupLine}</li> : null}
           <li>Use suggested chips after answers to go deeper in one tap.</li>
         </ul>

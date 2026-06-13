@@ -225,6 +225,7 @@ import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcGroupBindingPromptBlocks,
   buildWcCrossGroupValuePrebuiltStructured,
+  buildWcGroupUpsetScanPrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
   buildWcGroupValuePushBackPrebuiltStructured,
   resolveWcRunnerUpFollowUpDelivery,
@@ -232,6 +233,7 @@ import {
   getWcGroupComposition,
   resolveWcGroupLettersForPrompt,
   shouldUseWcCrossGroupValuePrebuilt,
+  shouldUseWcGroupUpsetScanPrebuilt,
   shouldUseWcGroupSlatePrebuilt,
 } from "../../shared/wcGroupComposition.js";
 import {
@@ -2678,6 +2680,8 @@ export default async function handler(req, res) {
   let wcContext = null;
   /** @type {import("../../shared/wcGroupComposition.js").ReturnType<typeof buildWcCrossGroupValuePrebuiltStructured> | null} */
   let wcCrossGroupPrebuiltEarly = null;
+  /** @type {import("../../shared/wcGroupComposition.js").ReturnType<typeof buildWcGroupUpsetScanPrebuiltStructured> | null} */
+  let wcGroupUpsetScanPrebuiltEarly = null;
   /** @type {import("../../shared/wcTomorrowSlatePrebuilt.js").ReturnType<typeof buildWcTomorrowSlatePrebuiltStructured> | null} */
   let wcTomorrowSlatePrebuiltEarly = null;
   /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcFixtureMatchupPrebuiltStructured> | null} */
@@ -2763,8 +2767,33 @@ export default async function handler(req, res) {
         console.warn("[ur-take] tomorrow slate prebuilt resolve failed:", tomorrowErr?.message);
       }
     }
+    const wcUpsetScanCandidate =
+      !wcTomorrowSlatePrebuiltEarly &&
+      !wcRunnerUpFollowUpQuestion &&
+      !isConversationFollowUp &&
+      shouldUseWcGroupUpsetScanPrebuilt(routingQuestion, wcIntent) &&
+      !isWcPlayerMarketIntent(wcIntent);
+    if (wcUpsetScanCandidate) {
+      try {
+        const nowMs = Date.now();
+        const { teamStats, bdlFutures, simLastUpdated } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
+        wcGroupUpsetScanPrebuiltEarly = buildWcGroupUpsetScanPrebuiltStructured({
+          teamStats,
+          bdlFutures,
+          question: String(question || ""),
+          nowMs,
+          simLastUpdated,
+        });
+      } catch (upsetErr) {
+        console.warn("[ur-take] upset scan prebuilt resolve failed:", upsetErr?.message);
+        wcGroupUpsetScanPrebuiltEarly = buildWcGroupUpsetScanPrebuiltStructured({
+          question: String(question || ""),
+        });
+      }
+    }
     const wcCrossGroupCandidate =
       !wcTomorrowSlatePrebuiltEarly &&
+      !wcGroupUpsetScanPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
@@ -2772,12 +2801,13 @@ export default async function handler(req, res) {
     if (wcCrossGroupCandidate) {
       try {
         const nowMs = Date.now();
-        const { teamStats, bdlFutures } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
+        const { teamStats, bdlFutures, simLastUpdated } = await resolveWcCrossGroupPrebuiltInputs(nowMs);
         wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
           teamStats,
           bdlFutures,
           question: String(question || ""),
           nowMs,
+          simLastUpdated,
         });
         if (!wcCrossGroupPrebuiltEarly) {
           wcCrossGroupPrebuiltEarly = buildWcGroupSlatePrebuiltStructured({
@@ -2964,6 +2994,7 @@ export default async function handler(req, res) {
       wcRelevanceLog,
       wcContext,
       wcCrossGroupPrebuiltEarly,
+      wcGroupUpsetScanPrebuiltEarly,
       wcTomorrowSlatePrebuiltEarly,
       wcFixtureMatchupPrebuiltEarly,
       wcFixtureAltFollowUpPrebuiltEarly,
@@ -5371,6 +5402,31 @@ You are responding to a Pro subscriber. Apply the following:
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcRunnerUpFollowUpPassUsed &&
+      wcGroupUpsetScanPrebuiltEarly
+    ) {
+      structuredResponse = wcGroupUpsetScanPrebuiltEarly;
+      responseText = formatWcCompactDisplayText(
+        wcGroupUpsetScanPrebuiltEarly,
+        wcGroupUpsetScanPrebuiltEarly.lean,
+      );
+      responseDeep = null;
+      responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+      wcGroupSlatePassUsed = true;
+      console.log(
+        JSON.stringify({
+          event: "ur_take_wc_upset_scan_pass",
+          sport: "worldcup",
+          wcIntent,
+          groupLetter: wcGroupUpsetScanPrebuiltEarly.groupLetter,
+          early: true,
+        }),
+      );
+    } else if (
+      sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
+      !isConversationFollowUp &&
+      !wcPlayerMarketPassUsed &&
+      !wcRunnerUpFollowUpPassUsed &&
       wcCrossGroupPrebuiltEarly
     ) {
       structuredResponse = wcCrossGroupPrebuiltEarly;
@@ -5393,6 +5449,40 @@ You are responding to a Pro subscriber. Apply the following:
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
+      shouldUseWcGroupUpsetScanPrebuilt(routingQuestion, wcIntent)
+    ) {
+      const prebuiltInputs = await resolveWcCrossGroupPrebuiltInputs(Date.now()).catch(() => ({
+        teamStats: wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: wcContext?.bdlFuturesPayload,
+      }));
+      const prebuilt = buildWcGroupUpsetScanPrebuiltStructured({
+        teamStats: prebuiltInputs.teamStats || wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: prebuiltInputs.bdlFutures || wcContext?.bdlFuturesPayload,
+        question: routingQuestion,
+        nowMs: prebuiltInputs.nowMs,
+        simLastUpdated: prebuiltInputs.simLastUpdated ?? wcContext?.tournamentSimResults?.lastUpdated,
+      });
+      if (prebuilt) {
+        structuredResponse = prebuilt;
+        responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
+        responseDeep = null;
+        responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
+        wcGroupSlatePassUsed = true;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_upset_scan_pass",
+            sport: "worldcup",
+            wcIntent,
+            groupLetter: prebuilt.groupLetter,
+            early: false,
+          }),
+        );
+      }
+    } else if (
+      sportHint === "worldcup" &&
+      !wcRunnerUpFollowUpQuestion &&
+      !isConversationFollowUp &&
+      !wcPlayerMarketPassUsed &&
       shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent)
     ) {
       const prebuiltInputs = await resolveWcCrossGroupPrebuiltInputs(Date.now()).catch(() => ({
@@ -5404,6 +5494,7 @@ You are responding to a Pro subscriber. Apply the following:
         bdlFutures: prebuiltInputs.bdlFutures || wcContext?.bdlFuturesPayload,
         question: routingQuestion,
         nowMs: prebuiltInputs.nowMs,
+        simLastUpdated: prebuiltInputs.simLastUpdated ?? wcContext?.tournamentSimResults?.lastUpdated,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;

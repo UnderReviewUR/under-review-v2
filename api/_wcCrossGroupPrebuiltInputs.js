@@ -27,5 +27,10 @@ export async function resolveWcCrossGroupPrebuiltInputs(nowMs = Date.now()) {
 
   const teamStats = simRow?.teamStats || null;
 
-  return { teamStats, bdlFutures, nowMs };
+  return {
+    teamStats,
+    bdlFutures,
+    simLastUpdated: simRow?.lastUpdated ?? null,
+    nowMs,
+  };
 }
