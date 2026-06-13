@@ -24,6 +24,11 @@
  *   }
  *
  * lean: "pass" (sim < market) | "lean" (sim > market) | "neutral"
+ *
+ * Post-MD1 watch signals:
+ *   xgMatchesApplied still 0 → BDL match-detail bundles may not be caching (investigate).
+ *   Same top misprice >4 days → sim fingerprint lag or stale BDL book.
+ *   Fades flipping matchday-to-matchday → model reacting to FT results (expected).
  */
 import "dotenv/config";
 import fs from "node:fs";
