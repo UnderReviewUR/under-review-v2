@@ -9,12 +9,18 @@ import {
 } from "./wcFixtureMatchupPrebuilt.js";
 import { buildStaticPromoMatchesFallback, GROUP_STAGE_OPENERS } from "./wc2026PromoFixtures.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
-import { parseWcKickoffEtMs, resolveWcMatchSlateEtDate, wcTodayEtYmd } from "./wcKickoffDisplay.js";
+import { parseWcKickoffEtMs, resolveWcMatchEtDate, resolveWcMatchSlateEtDate, wcMatchEtDateYmd, wcTodayEtYmd } from "./wcKickoffDisplay.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 
 function isScheduled(status) {
   const s = String(status || "").toLowerCase();
   return ["ns", "scheduled", "pre", "upcoming", "not started"].includes(s);
+}
+
+function hasExplicitSlateDate(match) {
+  const fromDate = String(match?.date || "").trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) return true;
+  return parseWcKickoffEtMs(match?.date, match?.time) != null;
 }
 
 /**
@@ -26,6 +32,7 @@ export function filterWcMatchesForEtDate(matches, etYmd) {
   if (!ymd) return [];
   return (matches || []).filter((m) => {
     if (!isScheduled(m?.status)) return false;
+    if (!hasExplicitSlateDate(m)) return false;
     return resolveWcMatchSlateEtDate(m) === ymd;
   });
 }

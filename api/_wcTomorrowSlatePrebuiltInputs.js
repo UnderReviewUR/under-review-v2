@@ -2,28 +2,37 @@
  * Resolve tomorrow ET slate + sim inputs for WC tomorrow prebuilt cards.
  */
 
-import { readWcMatchesFromKv } from "./_wcData.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
+import { readWcMatchesFromKv } from "./_wcData.js";
+import { getMatchesPayload } from "./world-cup.js";
 import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.js";
-import { fetchOpenFootballWc2026Schedule } from "../shared/wcOpenFootballSchedule.js";
+import { isWcTournamentWindow } from "../shared/wc2026Constants.js";
 import { buildWcTomorrowSlatePrebuiltStructured } from "../shared/wcTomorrowSlatePrebuilt.js";
 
 /**
+ * Same match board as /api/world-cup (KV-first, no openfootball fallback during tournament).
  * @param {number} [nowMs]
  */
 async function loadWcMatchesForTomorrowSlate(nowMs = Date.now()) {
-  const matchesKv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER).catch(() => null);
-  let matches = Array.isArray(matchesKv?.matches) ? matchesKv.matches : [];
-  if (matches.length >= 20) return matches;
+  try {
+    const payload = await getMatchesPayload({ preferGoat: false, preferEspn: true });
+    if (Array.isArray(payload?.matches) && payload.matches.length) {
+      return payload.matches;
+    }
+  } catch (err) {
+    console.warn("[wc-tomorrow-slate] getMatchesPayload failed:", err?.message || err);
+  }
 
-  const openFootball = await fetchOpenFootballWc2026Schedule().catch(() => null);
-  if (openFootball?.ok && Array.isArray(openFootball.matches) && openFootball.matches.length) {
-    matches = openFootball.matches;
+  const matchesKv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER).catch(() => null);
+  if (Array.isArray(matchesKv?.matches) && matchesKv.matches.length) {
+    return matchesKv.matches;
   }
-  if (!matches.length) {
-    matches = buildStaticPromoMatchesFallback(nowMs);
+
+  if (!isWcTournamentWindow(nowMs)) {
+    return buildStaticPromoMatchesFallback(nowMs);
   }
-  return matches;
+
+  return [];
 }
 
 /**

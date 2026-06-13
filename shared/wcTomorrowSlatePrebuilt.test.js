@@ -35,6 +35,44 @@ test("buildWcTomorrowSlatePrebuiltStructured covers every tomorrow fixture", () 
   assert.doesNotMatch(String(card.lean || ""), /outright/i);
 });
 
+test("excludes commenceTs-only rows without explicit fixture date", () => {
+  const nowMs = Date.parse("2026-06-12T17:00:00Z");
+  const matches = [
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "19:00", status: "NS" },
+    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "22:00", status: "NS" },
+    {
+      homeTeam: "HAI",
+      awayTeam: "SCO",
+      group: "C",
+      status: "NS",
+      commenceTs: Date.parse("2026-06-13T05:00:00Z"),
+    },
+  ];
+  const { matches: slate } = resolveWcTomorrowSlateMatches(matches, nowMs);
+  assert.equal(slate.length, 2);
+  assert.ok(!slate.some((m) => m.homeTeam === "HAI"));
+});
+
+test("explicit date wins over drifted commenceTs", () => {
+  const nowMs = Date.parse("2026-06-12T17:00:00Z");
+  const matches = [
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "19:00", status: "NS" },
+    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "22:00", status: "NS" },
+    {
+      homeTeam: "HAI",
+      awayTeam: "SCO",
+      group: "C",
+      date: "2026-06-14",
+      time: "21:00 ET",
+      status: "NS",
+      commenceTs: Date.parse("2026-06-13T05:00:00Z"),
+    },
+  ];
+  const { matches: slate } = resolveWcTomorrowSlateMatches(matches, nowMs);
+  assert.equal(slate.length, 2);
+  assert.ok(!slate.some((m) => m.homeTeam === "HAI"));
+});
+
 test("multi-match KV slate builds one angle per fixture", () => {
   const nowMs = Date.parse("2026-06-12T17:00:00Z");
   const matches = [
