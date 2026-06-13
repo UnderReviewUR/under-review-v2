@@ -21,15 +21,41 @@ export function wcMatchEtDateYmd(commenceTs) {
 }
 
 /**
- * Slate filter date — prefer explicit fixture `date` over derived commenceTs (promo seeds can drift ET).
+ * Slate filter date — FIFA matchday when available; reconcile late ET kickoffs on next UTC day.
  * @param {{ date?: string, commenceTs?: number | string, time?: string } | null | undefined} match
  */
 export function resolveWcMatchSlateEtDate(match) {
   const fromDate = String(match?.date || "").trim().slice(0, 10);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) return fromDate;
-  const parsed = parseWcKickoffEtMs(match?.date, match?.time);
-  if (parsed != null) return wcMatchEtDateYmd(parsed);
-  return resolveWcMatchEtDate(match);
+  const ts = Number(match?.commenceTs);
+  const fromTs = wcMatchEtDateYmd(match?.commenceTs);
+  const utcDate =
+    Number.isFinite(ts) && ts > 0 ? new Date(ts).toISOString().slice(0, 10) : "";
+
+  let candidate = "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) candidate = fromDate;
+  else {
+    const parsed = parseWcKickoffEtMs(match?.date, match?.time);
+    if (parsed != null) candidate = wcMatchEtDateYmd(parsed);
+    else if (fromTs) candidate = fromTs;
+    else candidate = resolveWcMatchEtDate(match);
+  }
+
+  if (fromTs && utcDate && utcDate > fromTs && candidate === fromTs) {
+    const etHour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: ET_ZONE,
+        hour: "numeric",
+        hour12: false,
+      }).format(new Date(ts)),
+    );
+    if (etHour >= 21) return utcDate;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate) && fromTs && fromDate !== fromTs) {
+    return fromDate > fromTs ? fromDate : fromTs;
+  }
+
+  return candidate;
 }
 
 /**

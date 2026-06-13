@@ -53,19 +53,19 @@ test("excludes commenceTs-only rows without explicit fixture date", () => {
   assert.ok(!slate.some((m) => m.homeTeam === "HAI"));
 });
 
-test("explicit date wins over drifted commenceTs", () => {
+test("late 9pm ET kickoff uses FIFA UTC matchday when KV date is ET-only", () => {
   const nowMs = Date.parse("2026-06-12T17:00:00Z");
   const matches = [
-    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "19:00", status: "NS" },
-    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "22:00", status: "NS" },
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "19:00 ET", status: "NS" },
+    { homeTeam: "BRA", awayTeam: "MAR", group: "C", date: "2026-06-13", time: "18:00 ET", status: "NS" },
     {
       homeTeam: "HAI",
       awayTeam: "SCO",
       group: "C",
-      date: "2026-06-14",
+      date: "2026-06-13",
       time: "21:00 ET",
       status: "NS",
-      commenceTs: Date.parse("2026-06-13T05:00:00Z"),
+      commenceTs: Date.parse("2026-06-14T01:00:00.000Z"),
     },
   ];
   const { matches: slate } = resolveWcTomorrowSlateMatches(matches, nowMs);
