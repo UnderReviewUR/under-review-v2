@@ -6,6 +6,7 @@ import {
   detectWcMatchupMissingWinnerLine,
   extractWcMatchupPlayHeadline,
   extractWcMatchupWinnerLine,
+  parseWcMatchGoalsOverUnder,
   parseWcMatchupTeamsFromQuestion,
 } from "./wcMatchupWinnerLine.js";
 import { runWcUrTakeQA, wcQaRequiresRegeneration } from "../api/_wcUrTakeQA.js";
@@ -50,6 +51,31 @@ test("extractWcMatchupPlayHeadline surfaces Under 2.5 from pass-on-ML lean", () 
     "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.",
   );
   assert.equal(play, "Lean Under 2.5 goals");
+});
+
+test("parseWcMatchGoalsOverUnder rejects Over 90 minutes regulation copy", () => {
+  assert.equal(
+    parseWcMatchGoalsOverUnder(
+      "Knockout: Over 90 minutes, extra time, penalties. Pass on ML — no clear alternate.",
+    ),
+    null,
+  );
+  assert.equal(extractWcMatchupPlayHeadline("Pass on ML — lean over 90 goals"), "");
+  assert.equal(
+    extractWcMatchupPlayHeadline("Pass on ML — lean Under 2.5 goals — cleaner angle than the ML."),
+    "Lean Under 2.5 goals",
+  );
+});
+
+test("buildWcCompactStructured ignores Over 90 minutes when synthesizing matchup lean", () => {
+  const structured = buildWcCompactStructured({
+    wcIntent: WC_INTENT.MATCHUP,
+    question: "Who wins HAI vs SCO?",
+    summary: "Scotland -195 to win.",
+    deep:
+      "Scotland -195 to win. Knockout: Over 90 minutes, extra time, penalties. Pass on ML — no clear alternate.",
+  });
+  assert.doesNotMatch(structured.lean || "", /over 90 goals/i);
 });
 
 test("buildWcCompactStructured uses play headline when no ML odds cited", () => {

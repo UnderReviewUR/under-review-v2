@@ -10,6 +10,7 @@ import {
   extractWcMatchupWinnerLine,
   extractWcMatchupPlayHeadline,
   isWcMatchupPathsBoilerplate,
+  parseWcMatchGoalsOverUnder,
   parseWcMatchupTeamsFromBlob,
   parseWcMatchupTeamsFromQuestion,
   resolveWcMatchupCardHeadline,
@@ -252,8 +253,10 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
   }
 
   const raw = String(lean || "").replace(/^lean:\s*/i, "").trim();
-  const fallback =
-    /\b(under|over)\s+\d/i.test(raw) ? raw.split(/[.!?](?=\s|$)/)[0].trim() : formatWcPlaySlot(lean);
+  const ouFallback = parseWcMatchGoalsOverUnder(raw);
+  const fallback = ouFallback
+    ? `Lean ${ouFallback.side} ${ouFallback.line} goals`
+    : formatWcPlaySlot(lean);
   if (!fallback) return "";
   if (normLine(fallback) === normLine(headlineStr)) return "";
   if (!/\b(under|over|btts|advance|both teams|draw no bet|handicap|alt)\b/i.test(fallback)) {

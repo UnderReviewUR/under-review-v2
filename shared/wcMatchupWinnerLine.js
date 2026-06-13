@@ -184,6 +184,45 @@ export function extractWcMatchupWinnerLine(blob, teams = {}) {
 
 export const WC_MATCHUP_PATHS_CALL_RE = /\badvancement paths\b|\bgroup-stage paths\b/i;
 
+const WC_GOALS_OU_MIN = 0.5;
+const WC_GOALS_OU_MAX = 6.5;
+const WC_MINUTES_AFTER_OU_RE = /^\s*(?:minutes?|mins?\b|-minute\b)/i;
+
+/**
+ * True when n looks like a soccer goals O/U line (not "90 minutes" etc.).
+ * @param {number} n
+ */
+export function isWcSaneGoalTotalLine(n) {
+  return Number.isFinite(n) && n >= WC_GOALS_OU_MIN && n <= WC_GOALS_OU_MAX;
+}
+
+/**
+ * Parse Over/Under goals from prose — rejects regulation-time "90 minutes" false positives.
+ * @param {string} text
+ * @returns {{ side: string, line: string } | null}
+ */
+export function parseWcMatchGoalsOverUnder(text) {
+  const raw = String(text || "");
+  const patterns = [
+    /\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\s*goals?\b/gi,
+    /\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\b/gi,
+  ];
+
+  for (const re of patterns) {
+    for (const m of raw.matchAll(re)) {
+      const idx = m.index + m[0].length;
+      const after = raw.slice(idx, idx + 24);
+      if (WC_MINUTES_AFTER_OU_RE.test(after)) continue;
+      const n = Number.parseFloat(m[3]);
+      if (!isWcSaneGoalTotalLine(n)) continue;
+      const side =
+        m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase();
+      return { side, line: m[3] };
+    }
+  }
+  return null;
+}
+
 /**
  * @param {string} text
  */
@@ -201,13 +240,8 @@ export function extractWcMatchupPlayHeadline(leanOrBlob) {
     .trim();
   if (!raw) return "";
 
-  const passOu = raw.match(
-    /pass\s+on\s+(?:the\s+)?ml\b[^.]{0,100}?\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\s*goals?/i,
-  );
-  if (passOu) return `Lean ${passOu[2]} ${passOu[3]} goals`;
-
-  const ou = raw.match(/\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
-  if (ou) return `Lean ${ou[2]} ${ou[3]} goals`;
+  const ou = parseWcMatchGoalsOverUnder(raw);
+  if (ou) return `Lean ${ou.side} ${ou.line} goals`;
 
   if (/\bboth teams to advance\b/i.test(raw)) {
     const clause = raw.match(/both teams to advance[^.!?]*/i)?.[0];

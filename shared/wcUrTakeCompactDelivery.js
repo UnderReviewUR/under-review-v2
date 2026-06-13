@@ -35,6 +35,7 @@ import {
   extractWcMatchupPlayHeadline,
   isWcMatchWinnerQuestion,
   isWcMatchupPathsBoilerplate,
+  parseWcMatchGoalsOverUnder,
   parseWcMatchupTeamsFromQuestion,
   resolveWcMatchupCardHeadline,
 } from "./wcMatchupWinnerLine.js";
@@ -197,9 +198,9 @@ function synthesizeWcMatchupPlay(summary, deep, question, teams, pass) {
     return `Pass on ML — lean both teams to advance${groupClause}.`;
   }
 
-  const ou = blob.match(/\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\b/i);
+  const ou = parseWcMatchGoalsOverUnder(blob);
   if (ou) {
-    return `Lean ${ou[2]} ${ou[3]} goals — cleaner angle than the ML.`;
+    return `Lean ${ou.side} ${ou.line} goals — cleaner angle than the ML.`;
   }
 
   if (pass && teams.home && teams.away) {
