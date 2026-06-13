@@ -26,7 +26,7 @@ export const UPGRADE_LIMIT_HIT_HEADLINE = DAILY_QUOTA_LIMIT_MESSAGE;
 
 export const UPGRADE_MODAL_DAILY_TAGLINE = "Upgrade for unlimited reads.";
 
-export const UPGRADE_LIMIT_HIT_BODY = `Pro members get the full take, not the summary. Session memory means the app knows your positions. THE PLAY block means it tells you exactly what to bet and why.
+export const UPGRADE_LIMIT_HIT_BODY = `Pro members get the full take, not the summary. Session memory means Pro recalls your recent takes and follow-up context. THE PLAY block means it tells you exactly what to bet and why.
 
 $9.99/month · cancel anytime`;
 

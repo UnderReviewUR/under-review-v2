@@ -18,7 +18,7 @@ export {
 } from "../../shared/freeTierCopy.js";
 
 export const THREAD_UPGRADE_NUDGE_TEXT =
-  "Get the full take with THE PLAY. Pro remembers your positions across the slate.";
+  "Get the full take with THE PLAY. Pro recalls your recent takes across the slate.";
 
 export const LEDGER_TEASER_UNLOCK =
   "Your full record. Every THE PLAY tracked and graded with Pro.";
@@ -49,9 +49,9 @@ No 'on the other hand.'`,
   ],
   [
     "IT REMEMBERS. YOU BUILD.",
-    `UR Take carries the thread
-across sessions. Your angles
-compound.`,
+    `Follow-ups carry context in each thread.
+Pro recalls recent takes across sessions.
+Your angles compound.`,
   ],
   [
     "ASK EVERYTHING. PAY NOTHING EXTRA.",
@@ -70,7 +70,7 @@ export const PRO_PROOF_LINES = [
   `Injury and lineup moves tracked across active slates.
 The market reacts slower than this.`,
   `280+ player profiles updated every 30 minutes.
-World Cup, NBA, and Golf plus the full seasonal library.`,
+World Cup, NBA, Golf, and MLB plus the broader seasonal library.`,
   `Live game scripts adjust in real time.
 You know before the line moves.`,
 ];
@@ -85,7 +85,7 @@ export const PRO_PAGE_FEATURE_ROWS = [
     kind: "feature",
     color: "#C9A227",
     name: "Session Memory",
-    desc: "The app remembers your positions across takes. A betting companion that knows you, not a one-off answer.",
+    desc: "Follow-ups stay in context inside each thread. Pro recalls your last few takes across sessions so the next read builds on what you already asked.",
   },
   {
     kind: "feature",
@@ -124,6 +124,12 @@ export const PRO_PAGE_FEATURE_ROWS = [
     name: "Golf: Course Fit & Matchup H2Hs",
     desc: "PGA SG profiles, make-cut plays, and outright value the market underprices weekly.",
   },
+  {
+    kind: "feature",
+    color: "#1DB954",
+    name: "MLB: Pitcher K Props",
+    desc: "Park-adjusted, platoon-split, barrel rate. Know before the line moves on pitcher K props and slate reads.",
+  },
   { kind: "section", label: "Seasonal library (included with Pro)" },
   {
     kind: "feature",
@@ -135,13 +141,7 @@ export const PRO_PAGE_FEATURE_ROWS = [
     kind: "feature",
     color: "#FFE600",
     name: "Tennis: Elo + Surface Edges",
-    desc: "ATP/WTA rally profiles, serve baselines, and draw-path value. Surfaces when the tour is live.",
-  },
-  {
-    kind: "feature",
-    color: "#1DB954",
-    name: "MLB: Pitcher K Props",
-    desc: "Park-adjusted, platoon-split, barrel rate. Returns when the MLB slate is active.",
+    desc: "ATP/WTA rally profiles, serve baselines, and draw-path value across every surface.",
   },
   {
     kind: "feature",
