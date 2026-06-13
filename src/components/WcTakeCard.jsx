@@ -9,7 +9,7 @@ function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
   if (!raw) return null;
   const body = raw.replace(/^lean:\s*/i, "").trim();
-  const isPass = /^pass/i.test(body);
+  const isPass = /^pass/i.test(body) || /^fade/i.test(body);
   if (focusLayout) {
     return (
       <div className="wc-take-play-block">
@@ -153,10 +153,6 @@ export default function WcTakeCard({
         <p className="wc-take-alt-play-line">{sections.thePlay}</p>
       ) : null}
 
-      {effectiveFocusLayout && modelAttribution ? (
-        <p className="wc-take-model-attribution wc-take-model-attribution--focus">{modelAttribution}</p>
-      ) : null}
-
       {!effectiveFocusLayout && statSlots.length > 0 ? (
         <>
           <div className="ur-v2-stat-grid wc-take-stat-grid">
@@ -231,9 +227,6 @@ export default function WcTakeCard({
             <span />
           )}
           <div className="wc-take-footer-actions">
-            {modelAttribution ? (
-              <span className="wc-take-model-attribution">{modelAttribution}</span>
-            ) : null}
             {formattedTimestamp ? <span className="ur-v2-ts">{formattedTimestamp}</span> : null}
             <UrTakeShareButton
               headline={headline}

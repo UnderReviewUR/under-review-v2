@@ -25,3 +25,11 @@ test("sanitizeUrTakeUserFacingProse strips NBA BDL grounding leak", () => {
   assert.match(out, /Mitchell questionable/i);
   assert.doesNotMatch(out, /BDL grounding/i);
 });
+
+test("sanitizeWcUserFacingProse strips UR model bracket prefix", () => {
+  const out = sanitizeWcUserFacingProse(
+    "[UR model · 10k Poisson/Elo · Jun 13] COD sim 23.7% advance vs market-implied 50.0%.",
+  );
+  assert.doesNotMatch(out, /Poisson\/Elo/i);
+  assert.match(out, /23\.7%/);
+});

@@ -416,10 +416,9 @@ export function detectMissingComparativeProof(question, body, structured) {
   return false;
 }
 
-export const WC_SIM_ATTRIBUTION_PROMPT = `SIM ATTRIBUTION (mandatory when citing sim %):
-- Every take citing UR simulation percentages MUST include this exact prefix once on the card face (LINE or WHY): [UR model · 10k Poisson/Elo · {date}]
-- Example LINE: "[UR model · 10k Poisson/Elo · Jun 10] Market -130 · sim 15% advance vs market ~57%."
-- Failure to label sim outputs fails QA and triggers regeneration.`;
+export const WC_SIM_ATTRIBUTION_PROMPT = `SIM ATTRIBUTION (internal + card face):
+- Cite sim vs market in plain language on the card face: "UR sim 24% vs market 50% (-26pt)" — no bracket prefix, no "Poisson/Elo" labels unless the user asks how the model works.
+- GROUP_MISPRICE_RANKING context may use [UR model · …] for LLM grounding only — strip before user-facing fields.`;
 
 /** Card-face WHY must cite a number — odds, implied %, or sim. */
 export const WC_CARD_FACE_NUMERIC_RE =
@@ -568,9 +567,9 @@ export const WC_DEDUP_PROMPT = `BREAKDOWN DEDUP (mandatory):
 
 export const WC_NEEDS_ATTRIBUTION_QA_SUFFIX = `
 
-WC SIM ATTRIBUTION QA (mandatory — prior answer omitted model label):
-- When citing sim percentages, include [UR model · 10k Poisson/Elo · date] on the card face (LINE or WHY).
-- Do not cite bare percentages without the attribution prefix.`;
+WC SIM ATTRIBUTION QA (mandatory — prior answer omitted sim source):
+- When citing sim percentages, say "UR sim" vs market — do not use bare percentages alone.
+- Do not put [UR model · 10k Poisson/Elo · date] on the card face unless the user asked about methodology.`;
 
 export const WC_NEEDS_DEDUP_QA_SUFFIX = `
 

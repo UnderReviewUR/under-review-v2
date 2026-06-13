@@ -13,6 +13,7 @@ export const WC_USER_FACING_COPY_PROMPT = `USER-FACING COPY (mandatory — never
 - Book lines: "Book line: +100 · DraftKings" (optional " · Jun 13" date) — vendor only, no pipeline jargon.
 - Missing lines: "No group-winner line is posted for this market" — not "No BDL seed".
 - Team codes: prefer country name on first mention ("DR Congo (COD)") — codes alone are fine in tables/stats.
+- Never put "[UR model · 10k Poisson/Elo · …]" or Poisson/Elo pipeline labels on the card face (lean, whyNow, edge). Plain "UR sim X% vs market Y%" is enough unless the user asks how the model works.
 - Only if the user explicitly asks where World Cup data comes from, use the approved source answer (DraftKings via BallDontLie premium API — no GOAT label).`;
 
 /**
@@ -37,6 +38,7 @@ function sanitizeWcUserFacingLine(line) {
   t = t.replace(/\bvia BallDontLie\b/gi, "");
   t = t.replace(/\bBDL\s+grounding\b/gi, "");
   t = t.replace(/\bBallDontLie\s+(?:grounding|roster|slate|data)\b/gi, "");
+  t = t.replace(/^\[(UR model\s*·\s*10k Poisson\/Elo\s*·\s*[^\]]+)\]\s*/i, "");
   t = t.replace(/\bNo BDL group-winner seed is posted\b/gi, "No group-winner line is posted");
   t = t.replace(/\bNo BDL group-winner price exists\b/gi, "No group-winner line exists");
   t = t.replace(/\bNo BDL advancement lines available\b/gi, "No advance lines available");

@@ -18,6 +18,7 @@ import {
 import { isWcMatchupAltMarketFollowUp } from "../../shared/wcMatchBettingPrompt.js";
 import {
   extractWcModelAttributionPrefix,
+  stripWcModelAttributionPrefix,
   wcCardFaceBlobHasNumericWhy,
 } from "../../shared/wcTakeRetentionQA.js";
 
@@ -137,6 +138,20 @@ function pickWcAdvancementPlayHeadline(lean) {
   const play = formatWcPlaySlot(lean);
   if (!play) return "";
 
+  const pass = play.match(
+    /^Pass on (.+?) to advance in Group\s+([A-L])(?:\s+at\s+([+-]?\d+))?/i,
+  );
+  if (pass) {
+    const odds = pass[3] ? ` at ${pass[3]}` : "";
+    return `Pass on ${wcDisplayTeamToken(pass[1].trim())} to advance in Group ${pass[2]}${odds}`;
+  }
+
+  const fade = play.match(/^Fade (.+?) Group\s+([A-L]) advance(?:\s+at\s+([+-]?\d+))?/i);
+  if (fade) {
+    const odds = fade[3] ? ` at ${fade[3]}` : "";
+    return `Fade ${wcDisplayTeamToken(fade[1].trim())} Group ${fade[2]} advance${odds}`;
+  }
+
   const misprice = play.match(
     /Group\s+([A-L])\s*[—-]\s*([A-Z]{2,4})\s+advancement\s+misprice/i,
   );
@@ -247,7 +262,7 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
 export function pickWcCardHeadline(opts = {}) {
   const ct = String(opts.callType || "").toLowerCase();
   const call = String(opts.call || "").trim();
-  const leanRaw = String(opts.lean || "").trim();
+  const leanRaw = stripWcModelAttributionPrefix(String(opts.lean || "").trim());
   const leanIsPassBoilerplate = /^pass\s*[—-]\s*no actionable line yet/i.test(leanRaw);
   const playerMarketCt =
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
@@ -715,8 +730,8 @@ export function wcCardSectionText(text) {
 export function prepareWcCardWhyDisplay(rawWhy) {
   const base = wcCardSectionText(sanitizeWcUserFacingProse(rawWhy));
   if (!base) return { why: "", modelAttribution: null };
-  const { body, attribution } = extractWcModelAttributionPrefix(base);
-  return { why: sanitizeWcUserFacingProse(body), modelAttribution: attribution };
+  const { body } = extractWcModelAttributionPrefix(base);
+  return { why: sanitizeWcUserFacingProse(body), modelAttribution: null };
 }
 
 /**

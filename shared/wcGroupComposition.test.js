@@ -103,6 +103,32 @@ test("runWcUrTakeQA — group math mismatch triggers regeneration", () => {
   assert.equal(wcQaRequiresRegeneration(qa), true);
 });
 
+test("buildWcCrossGroupValuePrebuiltStructured — negative delta fades overpriced advance", () => {
+  const pre = buildWcCrossGroupValuePrebuiltStructured({
+    question: "What's the best group-stage value bet right now — one pick, direct answer?",
+    teamStats: {
+      COD: { advancePct: 23.7 },
+      COL: { advancePct: 42 },
+      POR: { advancePct: 98 },
+    },
+    bdlFutures: {
+      lastUpdated: Date.now(),
+      byMarketType: {
+        qualify_from_group: {
+          COD: { american: 100, americanDisplay: "+100" },
+          COL: { american: 150 },
+          POR: { american: -800 },
+        },
+      },
+    },
+  });
+  assert.ok(pre);
+  assert.match(pre.lean || "", /Pass on DR Congo/i);
+  assert.doesNotMatch(pre.lean || "", /Lean: DR Congo to advance/i);
+  assert.match(pre.whyNow || "", /overprice|fade|pass on/i);
+  assert.equal(pre.modelAttribution, null);
+});
+
 test("buildWcCrossGroupValuePrebuiltStructured — misprice question cites runner-up", () => {
   const pre = buildWcCrossGroupValuePrebuiltStructured({
     question: "Which group is most mispriced for advancement — name #1 and runner-up?",

@@ -16,8 +16,6 @@ import {
   isWcRunnerUpValueFollowUp,
   isWcTomorrowOrSlateBetQuestion,
   extractWcRunnerUpFromHistory,
-  buildWcSimAttributionLabel,
-  extractWcModelAttributionPrefix,
 } from "./wcTakeRetentionQA.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import {
@@ -429,14 +427,19 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
 
   return {
     ...base,
-    call: `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`.slice(
-      0,
-      100,
-    ),
-    lean: `Lean: ${top.teamAbbr} to advance in Group ${top.group}${advanceOdds ? ` at ${advanceOdds}` : ""}.`.slice(
-      0,
-      120,
-    ),
+    call: (Number(top.delta) < 0
+      ? `Group ${top.group} widest misprice — fade ${topPickName} advance`
+      : `Group ${top.group} most mispriced (#1); Group ${second.group} runner-up`
+    ).slice(0, 100),
+    lean: buildWcAdvancementMispriceLean({
+      pickAbbr: top.teamAbbr,
+      pickName: topPickName,
+      groupLetter: top.group,
+      odds: advanceOdds,
+      simPct: top.simPct,
+      impliedPct: top.impliedPct,
+      delta: top.delta,
+    }),
     whyNow,
     deep,
     breakdownAvailable: Boolean(deep.trim()),
@@ -572,8 +575,62 @@ export function shouldUseWcGroupSlatePrebuilt(question, wcIntent) {
 
 /** @param {number | null | undefined} lastUpdatedMs @param {number} [nowMs] */
 function wcModelAttributionFooter(lastUpdatedMs, nowMs = Date.now()) {
-  const raw = buildWcSimAttributionLabel(lastUpdatedMs, nowMs);
-  return extractWcModelAttributionPrefix(raw).attribution;
+  void lastUpdatedMs;
+  void nowMs;
+  return null;
+}
+
+/**
+ * Direction-aware lean — negative delta means market overprices advance (fade/pass), not back it.
+ * @param {{
+ *   pickName?: string,
+ *   pickAbbr?: string,
+ *   groupLetter?: string,
+ *   odds?: string | null,
+ *   simPct?: number,
+ *   impliedPct?: number,
+ *   delta?: number,
+ * }} row
+ */
+export function buildWcAdvancementMispriceLean(row = {}) {
+  const letter = String(row.groupLetter || "").trim().toUpperCase();
+  const name = String(row.pickName || row.pickAbbr || "").trim();
+  const odds = row.odds ? String(row.odds).trim() : "";
+  const oddsPart = odds ? ` at ${odds}` : "";
+  const delta = Number(row.delta);
+
+  if (Number.isFinite(delta) && delta < 0) {
+    return `Lean: Pass on ${name} to advance in Group ${letter}${oddsPart} — market overprices the escape path.`.slice(
+      0,
+      120,
+    );
+  }
+  return `Lean: ${name} to advance in Group ${letter}${oddsPart}.`.slice(0, 120);
+}
+
+/**
+ * @param {{
+ *   pickName?: string,
+ *   groupLetter?: string,
+ *   odds?: string | null,
+ *   simPct?: number,
+ *   impliedPct?: number,
+ *   delta?: number,
+ * }} row
+ */
+export function buildWcAdvancementMispriceCall(row = {}) {
+  const letter = String(row.groupLetter || "").trim().toUpperCase();
+  const name = String(row.pickName || "").trim();
+  const odds = row.odds ? String(row.odds).trim() : "";
+  const delta = Number(row.delta);
+
+  if (Number.isFinite(delta) && delta < 0) {
+    return `Fade ${name} Group ${letter} advance${odds ? ` at ${odds}` : ""} — widest board misprice`.slice(
+      0,
+      100,
+    );
+  }
+  return `${name} in Group ${letter} — best group-stage value (to advance)`.slice(0, 100);
 }
 
 /**
@@ -677,7 +734,10 @@ function buildWcGroupSlateWhyNow(row) {
   const { letter, pickName, favName, odds, simPct, impliedPct, delta } = row;
   if (Number.isFinite(simPct) && Number.isFinite(impliedPct) && Number.isFinite(delta)) {
     const sign = delta >= 0 ? "+" : "";
-    return `The market implies ${pickName} is ${impliedPct.toFixed(1)}% to advance, but UR sims put it at ${simPct.toFixed(1)}% (${sign}${delta.toFixed(1)}pt) — the favorite (${favName}) path looks priced too aggressively in Group ${letter}.`;
+    if (delta < 0) {
+      return `The market implies ${pickName} is ${impliedPct.toFixed(1)}% to advance, but UR sims put it at ${simPct.toFixed(1)}% (${sign}${delta.toFixed(1)}pt) — books overprice the escape path; pass on or fade ${pickName} to qualify, don't back it at ${odds || "this number"}.`;
+    }
+    return `The market implies ${pickName} is ${impliedPct.toFixed(1)}% to advance, but UR sims put it at ${simPct.toFixed(1)}% (${sign}${delta.toFixed(1)}pt) — that's value on ${pickName} to qualify in Group ${letter}${odds ? ` at ${odds}` : ""}.`;
   }
   if (odds) {
     return `Market has ${pickName} to advance at ${odds}; sim-vs-market gap needs fresh lines — structural value still runs through top-two, not finishing last behind ${favName}.`;
@@ -856,7 +916,21 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
   const odds = opts.advanceOdds ? String(opts.advanceOdds).trim() : "";
   const fav = comp.favorite?.name || "the favorite";
 
-  const call = `${pick.name} in Group ${letter} — best group-stage value (${market})`;
+  const lean = buildWcAdvancementMispriceLean({
+    pickName: pick.name,
+    pickAbbr,
+    groupLetter: letter,
+    odds,
+    simPct: opts.simPct,
+    impliedPct: opts.impliedPct,
+    delta: opts.delta,
+  });
+  const call = buildWcAdvancementMispriceCall({
+    pickName: pick.name,
+    groupLetter: letter,
+    odds,
+    delta: opts.delta,
+  });
   const pathLine = `${pick.name} needs a top-two finish in Group ${letter} — the path is not finishing last on points behind ${fav}.`;
   const numericLine = formatWcGroupSlateNumericLine({
     odds,
@@ -864,7 +938,6 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     impliedPct: opts.impliedPct,
     delta: opts.delta,
   });
-  const lean = `Lean: ${pick.name} ${market}${odds ? ` at ${odds}` : ""} in Group ${letter}.`;
   const whyNow = buildWcGroupSlateWhyNow({
     letter,
     pickName: pick.name,
@@ -875,9 +948,12 @@ export function buildWcGroupSlatePrebuiltStructured(opts = {}) {
     delta: opts.delta,
   }).slice(0, 400);
   const modelAttribution = wcModelAttributionFooter(opts.bdlLastUpdated, opts.nowMs);
-  const edge = odds
-    ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
-    : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;
+  const edge =
+    Number(opts.delta) < 0
+      ? `Watch ${fav} dominance — if ${pick.name} steals early points, the fade gets harder before prices adjust.`
+      : odds
+        ? `If ${pick.name} advance odds drift wider than ${odds}, pass — lock only while the price still prices a second-place path.`
+        : `Watch the ${fav} vs ${pick.name} opener — a point or better for ${pick.name} should tighten advance prices.`;
   const { winsIf, diesIf } = buildWcGroupSlateScenarioLines(pick.name, fav, letter);
   const deep = buildWcGroupSlateDeepBreakdown({
     letter,
