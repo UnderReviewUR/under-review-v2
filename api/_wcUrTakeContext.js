@@ -789,7 +789,7 @@ async function loadWorldCupMatchesPayload() {
 
 /**
  * @param {string} [question]
- * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null }} [opts]
+ * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null, liteFollowUp?: boolean }} [opts]
  */
 const WC_CONTEXT_TIMEOUT_MS = 8000;
 
@@ -803,13 +803,16 @@ export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
 
 async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const wcIntent = opts.wcIntent || null;
+  const liteFollowUp = opts.liteFollowUp === true;
   const injectStaticRules =
     opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
 
-  void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
-    console.warn("[wc-context] lazy warm failed:", warmErr?.message);
-  });
+  if (!liteFollowUp) {
+    void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
+      console.warn("[wc-context] lazy warm failed:", warmErr?.message);
+    });
+  }
 
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([
     loadWorldCupGroupsPayload().catch((err) => {
@@ -860,23 +863,27 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     if (liveFx) fixtures = [liveFx];
   }
   /** @type {Array<Record<string, unknown>>} */
-  const matchDetails = [];
-  for (const fx of fixtures) {
-    try {
-      const detail = await readWcMatchDetailFromKv(fx.id);
-      if (!detail) continue;
-      let enriched = detail;
-      try {
-        const advancedStats = await readWcMatchAdvancedStatsForEvent(fx.id, nowMs);
-        if (advancedStats) enriched = { ...enriched, advancedStats };
-      } catch (advErr) {
-        console.warn("[wc-context] readWcMatchAdvancedStatsForEvent failed for", fx.id, advErr?.message);
-      }
-      matchDetails.push(enriched);
-    } catch (err) {
-      console.warn("[wc-context] readWcMatchDetailFromKv failed for", fx.id, err?.message);
-    }
-  }
+  const matchDetails = (
+    await Promise.all(
+      fixtures.map(async (fx) => {
+        try {
+          const detail = await readWcMatchDetailFromKv(fx.id);
+          if (!detail) return null;
+          let enriched = detail;
+          try {
+            const advancedStats = await readWcMatchAdvancedStatsForEvent(fx.id, nowMs);
+            if (advancedStats) enriched = { ...enriched, advancedStats };
+          } catch (advErr) {
+            console.warn("[wc-context] readWcMatchAdvancedStatsForEvent failed for", fx.id, advErr?.message);
+          }
+          return enriched;
+        } catch (err) {
+          console.warn("[wc-context] readWcMatchDetailFromKv failed for", fx.id, err?.message);
+          return null;
+        }
+      }),
+    )
+  ).filter(Boolean);
 
   const groupsForPrompt = selectGroupsForPrompt(groups, {
     phase,
@@ -905,21 +912,23 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   let tournamentSimBlock = null;
   let tournamentSimResults = null;
-  try {
-    const simResolved = await resolveWcTournamentSimForPrompt({
-      groups: groupsPayload?.groups || groups,
-      matches,
-      mentionedTeams,
-      question,
-      nowMs,
-      kvOnly: true,
-    });
-    if (simResolved?.promptBlock) {
-      tournamentSimBlock = simResolved.promptBlock;
-      tournamentSimResults = simResolved.simResults;
+  if (!liteFollowUp) {
+    try {
+      const simResolved = await resolveWcTournamentSimForPrompt({
+        groups: groupsPayload?.groups || groups,
+        matches,
+        mentionedTeams,
+        question,
+        nowMs,
+        kvOnly: true,
+      });
+      if (simResolved?.promptBlock) {
+        tournamentSimBlock = simResolved.promptBlock;
+        tournamentSimResults = simResolved.simResults;
+      }
+    } catch (simErr) {
+      console.warn("[wc-context] tournament sim resolve failed:", simErr?.message);
     }
-  } catch (simErr) {
-    console.warn("[wc-context] tournament sim resolve failed:", simErr?.message);
   }
 
   let adjustedGoldenBootBlock = null;
@@ -928,10 +937,11 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   let roundupPlayerKv = null;
   let playerBioPromptBlock = null;
   const needsPlayerBio =
-    shouldInjectAdjustedGoldenBoot(wcIntent, question) ||
-    shouldInjectGoldenGloveBlocks(wcIntent, question) ||
-    isWcPlayerMarketIntent(wcIntent);
-  if (shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
+    !liteFollowUp &&
+    (shouldInjectAdjustedGoldenBoot(wcIntent, question) ||
+      shouldInjectGoldenGloveBlocks(wcIntent, question) ||
+      isWcPlayerMarketIntent(wcIntent));
+  if (!liteFollowUp && shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
     try {
       const [goldenBootKv, playersKv] = await Promise.all([
         readWcGoldenBootFromKv(nowMs),
@@ -961,7 +971,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     }
   }
 
-  if (shouldInjectGoldenGloveBlocks(wcIntent, question)) {
+  if (!liteFollowUp && shouldInjectGoldenGloveBlocks(wcIntent, question)) {
     try {
       const [goldenGloveKv, playersKv] = await Promise.all([
         readWcGoldenGloveFromKv(nowMs),
@@ -1012,28 +1022,30 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   let groupMispriceBlock = null;
   /** @type {string[] | null} */
   let groupMispriceTopGroups = null;
-  try {
-    if (tournamentSimResults?.teamStats) {
-      groupMispriceBlock = formatGroupMispriceContextBlock({
-        teamStats: tournamentSimResults.teamStats,
-        bdlFutures: bdlPayloadForRanking,
-        question,
-        simLastUpdated: tournamentSimResults.lastUpdated,
-        nowMs,
-      });
-      const ranked = computeGroupMispriceRankings({
-        teamStats: tournamentSimResults.teamStats,
-        bdlFutures: bdlPayloadForRanking,
-        question,
-        nowMs,
-        topN: 3,
-      });
-      if (ranked.length) {
-        groupMispriceTopGroups = ranked.map((row) => row.group);
+  if (!liteFollowUp) {
+    try {
+      if (tournamentSimResults?.teamStats) {
+        groupMispriceBlock = formatGroupMispriceContextBlock({
+          teamStats: tournamentSimResults.teamStats,
+          bdlFutures: bdlPayloadForRanking,
+          question,
+          simLastUpdated: tournamentSimResults.lastUpdated,
+          nowMs,
+        });
+        const ranked = computeGroupMispriceRankings({
+          teamStats: tournamentSimResults.teamStats,
+          bdlFutures: bdlPayloadForRanking,
+          question,
+          nowMs,
+          topN: 3,
+        });
+        if (ranked.length) {
+          groupMispriceTopGroups = ranked.map((row) => row.group);
+        }
       }
+    } catch (rankErr) {
+      console.warn("[wc-context] group misprice ranking failed:", rankErr?.message);
     }
-  } catch (rankErr) {
-    console.warn("[wc-context] group misprice ranking failed:", rankErr?.message);
   }
 
   const ctx = {

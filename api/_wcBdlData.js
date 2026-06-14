@@ -147,7 +147,7 @@ export async function scrapeAndCacheWcBdlStandingsAndFixtures() {
   if (!standingsRes.ok) errors.push(`standings: ${standingsRes.error}`);
   else if (!Object.keys(groups).length) errors.push("standings: empty");
 
-  const matchesFetched = await fetchAllMatchesBdl();
+  const matchesFetched = await fetchAllMatchesBdl({ delayMs: BDL_GOAT_RATE_LIMIT_MS });
   /** @type {Array<Record<string, unknown>>} */
   let bdlMatches = [];
   for (const row of matchesFetched.matches || []) {

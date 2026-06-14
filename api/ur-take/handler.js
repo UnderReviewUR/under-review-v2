@@ -2959,6 +2959,8 @@ export default async function handler(req, res) {
           requiredEntities: wcRequiredEntities,
           injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
           wcEventId: wcEventIdTrimmed,
+          liteFollowUp:
+            isConversationFollowUp && !isWcPlayerMarketIntent(wcIntent) && !wcRunnerUpFollowUpQuestion,
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
@@ -5209,7 +5211,9 @@ ${continuationRule}`;
       draftTeamSimulationInject
         ? 2600
         : effectiveStructuredModeRequested
-          ? 4200
+          ? isConversationFollowUp
+            ? 1600
+            : 4200
           : outputJsonMode === "tier2_5_json"
             ? 4200
             : outputJsonMode === "tier2_live_json"
@@ -5222,7 +5226,13 @@ ${continuationRule}`;
                   ? isPro
                     ? 700
                     : 500
-                : isPro ? 1400 : 800;
+                : isConversationFollowUp
+                  ? isPro
+                    ? 900
+                    : 650
+                  : isPro
+                    ? 1400
+                    : 800;
 
     // Pro depth guidance only for plain-text full cards — never override JSON contracts,
     // follow-up brevity rules, or draft simulation routes.
@@ -5704,7 +5714,8 @@ You are responding to a Pro subscriber. Apply the following:
       }
     }
 
-    for (let qaAttempt = 0; qaAttempt < 2; qaAttempt++) {
+    const maxQaAttempts = isConversationFollowUp ? 1 : 2;
+    for (let qaAttempt = 0; qaAttempt < maxQaAttempts; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
       if (
