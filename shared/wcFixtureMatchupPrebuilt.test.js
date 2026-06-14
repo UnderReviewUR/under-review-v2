@@ -86,6 +86,68 @@ test("extractPriorTotalsLeanFromHistory reads last assistant totals lean", () =>
   assert.deepEqual(prior, { kind: "over", line: "4.5" });
 });
 
+test("buildWcFixtureMatchupPrebuiltStructured Over or under goals flips prior totals lean", () => {
+  const history = [
+    { content: "Best bet on GER vs CUW if I only know the moneyline?" },
+    {
+      role: "assistant",
+      structured: { call: "Lean Over 4.5 goals", lean: "Pass on ML — Lean Over 4.5 goals" },
+    },
+  ];
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "GER",
+    away: "CUW",
+    group: "E",
+    question: "Over or under goals?",
+    match: {
+      odds: {
+        home: { moneyline: "-3500" },
+        away: { moneyline: "+3000" },
+        draw: { moneyline: "+1600" },
+        totalLine: 4.5,
+        totalOver: "-110",
+        provider: "draftkings",
+      },
+    },
+    history,
+  });
+  assert.equal(structured?.call, "Lean Under 4.5 goals");
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured other-side after both-advance leans Under", () => {
+  const history = [
+    { content: "Who wins USA vs PAR (Group D)?" },
+    {
+      role: "assistant",
+      structured: { call: "Both teams to advance in Group D.", lean: "Pass on ML — both teams to advance" },
+    },
+  ];
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "USA",
+    away: "PAR",
+    group: "D",
+    question: "What's the other side?",
+    match: { odds: getWcFixtureMlSeed("USA", "PAR") },
+    teamStats: {
+      USA: { advancePct: 51.8 },
+      PAR: { advancePct: 75.95 },
+      TUR: { advancePct: 42 },
+    },
+    history,
+  });
+  assert.equal(structured?.call, "Lean Under 2.5 goals");
+});
+
+test("shouldUseWcFixtureMatchupAltFollowUpPrebuilt when fixture pair in history", () => {
+  const history = [{ content: "Best bet on GER vs CUW if I only know the moneyline?" }];
+  assert.ok(
+    shouldUseWcFixtureMatchupAltFollowUpPrebuilt("What's the other side?", WC_INTENT.MATCHUP, {
+      isConversationFollowUp: true,
+      history,
+    }),
+  );
+});
+
 test("shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt on mashup follow-up", () => {
   const history = [{ content: "Best bet on GER vs CUW if I only know the moneyline?" }];
   assert.ok(

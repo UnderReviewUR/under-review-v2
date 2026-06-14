@@ -81,3 +81,16 @@ test("getWcContextFollowUpChips skips who-wins after matchup who-wins question",
   assert.ok(!chips.some((c) => /^Who wins USA vs PAR/i.test(c)));
   assert.ok(chips.some((c) => /besides the moneyline/i.test(c)));
 });
+
+test("getWcContextFollowUpChips offers other side after totals lean", () => {
+  const chips = getWcContextFollowUpChips(
+    {
+      wcMatchTeams: { home: "GER", away: "CUW" },
+      wcIntent: WC_INTENT.MATCHUP,
+      structured: { callType: "matchup", call: "Lean Over 4.5 goals" },
+    },
+    "Best bet on GER vs CUW if I only know the moneyline?",
+  );
+  assert.ok(chips.some((c) => /other side/i.test(c)));
+  assert.ok(!chips.some((c) => /^Over or under goals\?$/i.test(c)));
+});

@@ -338,6 +338,8 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
 
   if (!pair?.home || !pair?.away) return false;
   if (opts.wcEventId || opts.hasKvFixture) return true;
+  const fromHistory = resolveWcFixturePairFromHistory(opts.history);
+  if (fromHistory?.home === pair.home && fromHistory?.away === pair.away) return true;
   return isWcPromoFixturePair(pair.home, pair.away);
 }
 
@@ -498,6 +500,33 @@ export function extractPriorTotalsLeanFromHistory(history = []) {
 }
 
 /**
+ * @param {Array<unknown>} [history]
+ */
+export function extractPriorBothAdvanceFromHistory(history = []) {
+  if (!Array.isArray(history)) return false;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const turn = history[i];
+    if (turn?.role !== "assistant" && turn?.role !== "ai") continue;
+    const blob = [turn?.structured?.call, turn?.structured?.lean, turn?.content, turn?.text]
+      .filter(Boolean)
+      .join(" ");
+    if (/\bboth teams to advance\b/i.test(blob)) return true;
+  }
+  return false;
+}
+
+/**
+ * @param {Array<unknown>} [history]
+ * @returns {string | null}
+ */
+function flipPriorTotalsLeanFromHistory(history) {
+  const priorTotals = extractPriorTotalsLeanFromHistory(history);
+  if (!priorTotals?.line) return null;
+  const flipped = priorTotals.kind === "over" ? "under" : "over";
+  return formatTotalsLeanHeadline(flipped, priorTotals.line);
+}
+
+/**
  * @param {{
  *   question: string,
  *   group?: string,
@@ -513,12 +542,21 @@ export function extractPriorTotalsLeanFromHistory(history = []) {
 function pickWcFixtureAltFollowUpLean(row) {
   const q = String(row.question || "");
   const groupClause = row.group ? ` in Group ${row.group}` : "";
+  const priorTotals = extractPriorTotalsLeanFromHistory(row.history);
 
   if (isWcMatchupOtherSideFollowUp(q)) {
-    const priorTotals = extractPriorTotalsLeanFromHistory(row.history);
-    if (priorTotals?.line) {
-      const flipped = priorTotals.kind === "over" ? "under" : "over";
-      return formatTotalsLeanHeadline(flipped, priorTotals.line);
+    const flipped = flipPriorTotalsLeanFromHistory(row.history);
+    if (flipped) return flipped;
+    if (extractPriorBothAdvanceFromHistory(row.history) && row.homeMl && row.awayMl) {
+      return pickWcFixtureTotalsAlternateLean({
+        home: row.home,
+        away: row.away,
+        homeMl: row.homeMl,
+        awayMl: row.awayMl,
+        matchOdds: row.matchOdds,
+        question: q,
+        passOnMlPrefix: false,
+      }).headline;
     }
     if (row.homeMl && row.awayMl) {
       const fav = pickMlFavorite(row.homeMl, row.awayMl, row.home, row.away);
@@ -550,7 +588,7 @@ function pickWcFixtureAltFollowUpLean(row) {
   }
 
   if (row.homeMl && row.awayMl) {
-    return pickWcFixtureTotalsAlternateLean({
+    const fresh = pickWcFixtureTotalsAlternateLean({
       home: row.home,
       away: row.away,
       homeMl: row.homeMl,
@@ -558,7 +596,16 @@ function pickWcFixtureAltFollowUpLean(row) {
       matchOdds: row.matchOdds,
       question: q,
       passOnMlPrefix: false,
-    }).headline;
+    });
+    if (priorTotals?.line) {
+      const sameLean =
+        fresh.kind === priorTotals.kind &&
+        formatGoalsLine(fresh.line) === formatGoalsLine(priorTotals.line);
+      if (/\bover or under goals\b/i.test(q) || sameLean) {
+        return flipPriorTotalsLeanFromHistory(row.history) || fresh.headline;
+      }
+    }
+    return fresh.headline;
   }
 
   return "Lean Under 2.5 goals.";

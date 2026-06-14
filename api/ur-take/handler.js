@@ -21,7 +21,7 @@ import {
   buildNbaRosterProminentInjection,
   ROSTER_ENFORCEMENT_NBA,
 } from "./prompt/outputMode.js";
-import { buildUrTakeFollowUpCoreSystemPrompt } from "./prompt/followUpCore.js";
+import { buildUrTakeFollowUpStyleAppendix } from "./prompt/followUpCore.js";
 import {
   coerceWcRulesModelText,
   finalizeWcRulesDelivery,
@@ -1368,7 +1368,9 @@ function summarizePriorTakes(history) {
     const play =
       (structured?.call && String(structured.call).trim()) ||
       playMatch?.[1]?.trim() ||
-      liveCallMatch?.[1]?.trim();
+      liveCallMatch?.[1]?.trim() ||
+      (structured?.lean && String(structured.lean).trim()) ||
+      text.match(/^(?:Lean|Pass on|Fade|Look for|Back)\b[^\n]{0,160}/i)?.[0]?.trim();
     const confidence =
       (structured?.confidence && String(structured.confidence).trim()) ||
       confidenceMatch?.[1]?.trim() ||
@@ -3678,8 +3680,7 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
           : WC_FOLLOW_UP_SYSTEM_APPENDIX;
       systemPromptForModel = `${systemPromptForModel}\n\n${wcFollowUpAppendix}`;
     } else {
-      systemPromptForModel = buildUrTakeFollowUpCoreSystemPrompt();
-      systemPromptForModel = `${systemPromptForModel}\n\n${buildFactAuthorityPrompt()}`;
+      systemPromptForModel = `${systemPromptForModel}\n\n${buildUrTakeFollowUpStyleAppendix()}\n\n${buildFactAuthorityPrompt()}`;
     }
   }
   if (sportHint === "worldcup" && wcIntent === WC_INTENT.RULES) {
@@ -3768,11 +3769,13 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
     appendTakeForUser,
     takeClientPayload,
     hasNoChatHistory: normalizedUrTakeHistoryForGate.length === 0,
+    isConversationFollowUp,
     golfContextEffective,
   });
 
   const nbaShortcutEarly = await tryUrTakeEarlyPaths(buildEarlyPathsCtx(), {
     includeEmptyFallbacks: false,
+    includeNbaShortcuts: !isConversationFollowUp,
   });
   if (nbaShortcutEarly.handled) return;
 

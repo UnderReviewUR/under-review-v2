@@ -121,10 +121,20 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
   const callType = String(message?.structured?.callType || "").toLowerCase();
   const isMatchupTake = callType === "matchup" || wcIntent === WC_INTENT.MATCHUP;
   const alreadyAskedWhoWins = home && away ? isWhoWinsMatchupQuestion(q, home, away) : false;
+  const priorTotalsInCall = [message?.structured?.call, message?.structured?.lean]
+    .filter(Boolean)
+    .join(" ")
+    .match(/\b(Over|Under)\s+\d+\.?\d*\s*goals?\b/i);
+  const isMoneylineBestBetQuestion =
+    /\b(best bet|only know the moneyline)\b/i.test(q) && /\b(vs\.?|versus)\b/i.test(q);
+  const showAltMatchupChips =
+    isMatchupTake && (alreadyAskedWhoWins || priorTotalsInCall || isMoneylineBestBetQuestion);
 
   if (home && away) {
-    if (isMatchupTake && alreadyAskedWhoWins) {
-      chips.push("What's the best bet besides the moneyline?");
+    if (showAltMatchupChips) {
+      if (!isMoneylineBestBetQuestion) {
+        chips.push("What's the best bet besides the moneyline?");
+      }
       const groupLetter =
         extractWcPrimaryGroupLetterFromMessage(message) ||
         wcGroupLetterForTeam(home) ||
@@ -138,10 +148,14 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
       }).ok;
       if (bothAdvanceOk) {
         chips.push("Both teams to advance?");
-      } else if (groupLetter) {
+      } else if (groupLetter && !isMoneylineBestBetQuestion) {
         chips.push(`Who wins Group ${groupLetter}?`);
       }
-      chips.push("Over or under goals?");
+      if (priorTotalsInCall) {
+        chips.push("What's the other side?");
+      } else {
+        chips.push("Over or under goals?");
+      }
     } else if (!alreadyAskedWhoWins) {
       chips.push(`Who wins ${home} vs ${away}?`);
     }
