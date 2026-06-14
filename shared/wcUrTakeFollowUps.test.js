@@ -7,6 +7,13 @@ import {
   parseWcMatchupFromQuestion,
 } from "./wcUrTakeFollowUps.js";
 
+test("getWcContextFollowUpChips — generic player props avoids What misprice chip", () => {
+  const q = "What are the best player props for the remaining matches?";
+  const chips = getWcContextFollowUpChips({ wcIntent: WC_INTENT.PLAYER_PROP }, q);
+  assert.ok(!chips.some((c) => /mispriced instead of What/i.test(c)));
+  assert.ok(chips.some((c) => /player parlay|anytime scorer|group stage/i.test(c)));
+});
+
 test("parseWcMatchupFromQuestion", () => {
   const p = parseWcMatchupFromQuestion("Who wins Spain vs Brazil?");
   assert.equal(p?.home, "Spain");

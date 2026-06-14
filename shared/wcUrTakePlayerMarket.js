@@ -623,27 +623,109 @@ export function detectWcPlayerPropMarketLabel(question) {
   return "player prop";
 }
 
+const WC_PLAYER_PROP_LEAD_WORDS = new Set([
+  "what",
+  "who",
+  "which",
+  "where",
+  "when",
+  "why",
+  "how",
+  "best",
+  "list",
+  "give",
+  "show",
+  "rank",
+  "create",
+  "build",
+  "name",
+  "tell",
+  "are",
+  "is",
+  "will",
+  "can",
+  "could",
+  "should",
+  "would",
+  "any",
+  "top",
+  "good",
+  "great",
+  "sneaky",
+  "remaining",
+  "player",
+  "props",
+  "prop",
+]);
+
 /**
+ * Named player in a prop ask — null for slate/generic questions ("best player props today").
  * @param {string} question
  */
-export function extractWcPlayerPropNameHint(question) {
+export function extractWcNamedPlayerFromQuestion(question) {
   const q = String(question || "").trim();
-  if (!q) return "Player";
+  if (!q) return null;
+
+  const willScore = q.match(
+    /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+score\b/i,
+  );
+  if (willScore?.[1]) return willScore[1].trim();
+
+  const propFor = q.match(
+    /\b(?:prop|scorer|shots?)\s+for\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\b/i,
+  );
+  if (propFor?.[1] && !WC_PLAYER_PROP_LEAD_WORDS.has(propFor[1].toLowerCase())) {
+    return propFor[1].trim();
+  }
+
+  const lead = q.match(/^([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)/)?.[1]?.toLowerCase();
+  if (!lead || WC_PLAYER_PROP_LEAD_WORDS.has(lead)) return null;
+
   const m = q.match(
     /^([A-Za-zÀ-ÿ][\wÀ-ÿ' -]*?)(?:\s+(?:\d|o\/u|over|under|to\s+)|\s*\d+\.?\d*|\?|$)/i,
   );
   const raw = String(m?.[1] || "").trim();
-  if (!raw || raw.length < 2) return "Player";
-  return raw.split(/\s+/).slice(0, 3).join(" ");
+  if (!raw || raw.length < 2) return null;
+  const name = raw.split(/\s+/).slice(0, 3).join(" ");
+  const first = name.split(/\s+/)[0]?.toLowerCase();
+  if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) return null;
+  return name;
+}
+
+/**
+ * Slate-wide player prop asks with no named subject.
+ * @param {string} question
+ */
+export function isGenericWcPlayerPropQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return true;
+  if (extractWcNamedPlayerFromQuestion(q)) return false;
+  return /\bplayer props?\b/i.test(q);
+}
+
+/**
+ * @param {string} question
+ */
+export function extractWcPlayerPropNameHint(question) {
+  return extractWcNamedPlayerFromQuestion(question) || "Player";
 }
 
 /**
  * @param {string} question
  */
 export function buildWcPlayerPropPassHeadline(question) {
-  const player = extractWcPlayerPropNameHint(question);
+  const named = extractWcNamedPlayerFromQuestion(question);
+  if (!named) {
+    if (/\bremaining matches?\b/i.test(question)) {
+      return "Player props for remaining matches — Pass until lines post.";
+    }
+    if (/\b(today|tonight|slate|schedule|matchday)\b/i.test(question)) {
+      return "Player props for today's slate — Pass until lines post.";
+    }
+    return "No verified player prop lines — Pass.";
+  }
   const market = detectWcPlayerPropMarketLabel(question);
-  return `No posted ${player} ${market} line — Pass.`;
+  return `No posted ${named} ${market} line — Pass.`;
 }
 
 /**
@@ -674,7 +756,7 @@ export function repairWcPlayerPropPassCard(structured, question = "") {
 
   const out = { ...structured };
   const market = detectWcPlayerPropMarketLabel(question);
-  const player = extractWcPlayerPropNameHint(question);
+  const named = extractWcNamedPlayerFromQuestion(question);
   const sgpCombo = detectWcSgpComboIntent(question);
   const headline = sgpCombo
     ? buildWcSgpComboPassHeadline(question)
@@ -684,7 +766,9 @@ export function repairWcPlayerPropPassCard(structured, question = "") {
   if (sgpCombo) {
     out.lean = "Pass the SGP — legs share one script; wait for verified match prices.";
   } else if (!String(out.lean || "").trim() || wcCardPlayRestatesCall(out.lean, out.call)) {
-    out.lean = `Pass — no verified ${market} line in the feed yet.`;
+    out.lean = named
+      ? `Pass — no verified ${market} line in the feed yet.`
+      : "Pass — no verified player prop lines in the feed yet.";
   }
   if (sgpCombo && !/\b(correlat|script|same.?game|share)\b/i.test(`${out.whyNow} ${out.edge}`)) {
     out.whyNow =
@@ -702,7 +786,9 @@ export function repairWcPlayerPropPassCard(structured, question = "") {
     out.whyNow = whyNow;
   }
   if (!String(out.edge || "").trim()) {
-    out.edge = `Watch for ${player} in confirmed lineups once books post match ${market}.`;
+    out.edge = named
+      ? `Watch for ${named} in confirmed lineups once books post match ${market}.`
+      : "Re-ask closer to kickoff once MATCH PLAYER PROPS populate in VERIFIED CONTEXT.";
   }
   return out;
 }

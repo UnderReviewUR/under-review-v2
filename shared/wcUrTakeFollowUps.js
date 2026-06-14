@@ -3,7 +3,11 @@
  */
 
 import { WC_INTENT, isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
-import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import {
+  extractWcNamedPlayerFromQuestion,
+  isGenericWcPlayerPropQuestion,
+  isWcPlayerMarketIntent,
+} from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
 import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
 import { wcGroupLetterForTeam } from "./wcGroupComposition.js";
@@ -174,9 +178,15 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
   }
 
   if (isWcPlayerMarketIntent(wcIntent)) {
-    const name = (q.match(/\b([A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+)?)\b/) || [])[1];
+    const name = extractWcNamedPlayerFromQuestion(q);
     if (name && !chips.some((c) => c.includes(name))) {
       chips.push(`Who is mispriced instead of ${name}?`);
+    } else if (isGenericWcPlayerPropQuestion(q)) {
+      if (/\bremaining matches?\b/i.test(q)) {
+        chips.push("Best player parlays for remaining matches?");
+      } else {
+        chips.push("Best anytime scorer value today?");
+      }
     }
     chips.push("Best group stage bet?");
   } else if (wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(q)) {

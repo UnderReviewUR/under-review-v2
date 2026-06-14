@@ -12,9 +12,11 @@ import {
   buildWcPlayerPropPassHeadline,
   detectTeamAnswerToPlayerQuestion,
   detectWcPlayerPropMarketLabel,
+  extractWcNamedPlayerFromQuestion,
   finalizeWcPlayerPropStructured,
   formatWcPlayerPropLadderBreakdown,
   formatWcPlayerPropLadderWhy,
+  isGenericWcPlayerPropQuestion,
   isWcMisroutedShotsHeadline,
   isWcPlayerPropPassStructured,
   isWcShotsPropQuestion,
@@ -125,6 +127,36 @@ test("shouldForceWcPlayerMarketPass — false when KV populated", () => {
     }),
     false,
   );
+});
+
+test("buildWcPlayerPropPassHeadline — generic remaining matches slate", () => {
+  const q = "What are the best player props for the remaining matches?";
+  assert.equal(
+    buildWcPlayerPropPassHeadline(q),
+    "Player props for remaining matches — Pass until lines post.",
+  );
+  assert.equal(extractWcNamedPlayerFromQuestion(q), null);
+  assert.equal(isGenericWcPlayerPropQuestion(q), true);
+});
+
+test("buildWcPlayerPropPassHeadline — named player unchanged", () => {
+  assert.equal(buildWcPlayerPropPassHeadline("Son 2.5 shots?"), "No posted Son shots line — Pass.");
+});
+
+test("repairWcPlayerPropPassCard — generic slate avoids What name leak", () => {
+  const repaired = repairWcPlayerPropPassCard(
+    {
+      call: "No posted What are the player prop line — Pass.",
+      lean: "Pass — no actionable line yet.",
+      whyNow: "Tournament is in Final phase (Spain vs Argentina projected).",
+    },
+    "What are the best player props for the remaining matches?",
+  );
+  assert.equal(
+    repaired.call,
+    "Player props for remaining matches — Pass until lines post.",
+  );
+  assert.doesNotMatch(repaired.call, /\bWhat\b/);
 });
 
 test("detectWcPlayerPropMarketLabel — shots vs SOT", () => {
