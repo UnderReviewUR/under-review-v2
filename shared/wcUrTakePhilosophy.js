@@ -5,7 +5,7 @@
 
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
-import { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
+import { extractMentionedWcTeams, questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isKnockoutPhase } from "./wcPhaseUtils.js";
 
@@ -51,6 +51,28 @@ export function detectWcSgpComboIntent(question) {
   if (detectParlayIntent(question)) return true;
   const q = String(question || "").trim();
   if (!q) return false;
+
+  if (
+    /\bboth\b/i.test(q) &&
+    /\b(players?\s+to\s+score|to\s+score|scorer)\b/i.test(q) &&
+    (/\b(and|&)\b/i.test(q) || extractMentionedWcTeams(q).length >= 1)
+  ) {
+    return true;
+  }
+
+  const playerLegCount = (q.match(/\bto\s+(score|assist)\b/gi) || []).length;
+  if (playerLegCount >= 2 && /\b(and|\+|both)\b/i.test(q)) return true;
+
+  if (
+    /\b(vs\.?|versus)\b/i.test(q) &&
+    /\b(and|\+|both)\b/i.test(q) &&
+    /\b(score|assist|scorer|goal)\b/i.test(q) &&
+    !/\b(who wins|moneyline|\bml\b|under|over)\b/i.test(q)
+  ) {
+    if (/\b[A-Za-zÀ-ÿ][\wÀ-ÿ'-]{2,}\s+to\s+(score|assist)\b/i.test(q)) return true;
+    if (/\bboth\b.*\b(score|scorer|goal)\b/i.test(q)) return true;
+    if (/\b(goal|scorer)\b.*\b(and|\+)\b.*\b(goal|scorer)\b/i.test(q)) return true;
+  }
 
   // Single player O/U phrasing ("Son over 2.5 shots") hits multiple patterns — not an SGP.
   const singlePlayerPropOu =

@@ -32,6 +32,7 @@ import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wc
 import { isWcLiveDominanceQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
+import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
 import {
   assessWcBothTeamsAdvanceFixture,
   buildWcBothTeamsAdvanceCaveat,
@@ -44,6 +45,7 @@ function isWcNonFixtureMatchupQuestion(question) {
   const q = String(question || "");
   if (!q) return false;
   if (detectParlayIntent(q)) return true;
+  if (detectWcSgpComboIntent(q)) return true;
   if (
     /\b(player parlay|parlay props?|player props?|goalscorer|golden boot|anytime scorer|shots on target|assists?)\b/i.test(
       q,

@@ -31,6 +31,19 @@ test("getWcContextFollowUpChips — fixture player props avoids mangled who wins
   assert.ok(chips.some((c) => /CIV vs ECU|parlay/i.test(c)));
 });
 
+test("getWcContextFollowUpChips — named player with fixture uses team abbrs", () => {
+  const q = "Will Enner Valencia score vs Ivory Coast?";
+  const chips = getWcContextFollowUpChips({ wcIntent: WC_INTENT.PLAYER_PROP }, q);
+  assert.ok(!chips.some((c) => /Who wins Will Enner/i.test(c)));
+});
+
+test("getWcContextFollowUpChips — named player on both teams gets sane who wins chip", () => {
+  const q = "Enner Valencia anytime scorer ECU vs CIV";
+  const chips = getWcContextFollowUpChips({ wcIntent: WC_INTENT.PLAYER_PROP }, q);
+  assert.ok(chips.some((c) => /Who wins (CIV|ECU) vs (CIV|ECU)/i.test(c)));
+  assert.ok(!chips.some((c) => /Who wins Enner/i.test(c)));
+});
+
 test("getWcContextFollowUpChips uses wcMatchTeams", () => {
   const chips = getWcContextFollowUpChips(
     { wcMatchTeams: { home: "France", away: "Germany" }, wcEventId: "1" },

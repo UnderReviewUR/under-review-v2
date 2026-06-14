@@ -16,6 +16,7 @@ import {
   isWcPlayerParlaySlateQuestion,
 } from "./wcMatchProbabilityQuestion.js";
 import { isWcFixturePlayerPropsQuestion } from "./wcUrTakePlayerMarket.js";
+import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -213,6 +214,7 @@ export function classifyWcPlayerMarketIntent(question) {
   if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
 
   if (isWcPlayerParlaySlateQuestion(q)) return WC_INTENT.PLAYER_PROP;
+  if (detectWcSgpComboIntent(q)) return WC_INTENT.PLAYER_PROP;
   if (detectParlayIntent(q) && /\b(player|props?|scorer|goalscorer|shots?|assists?)\b/i.test(q)) {
     return WC_INTENT.PLAYER_PROP;
   }
@@ -436,6 +438,16 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - User asked for MULTIPLE labeled predictions in one message — answer every slot they listed (Winners, Dark horse, Breakout player, Top goalscorer).
 - Do NOT collapse the answer into a single Golden Boot / top-scorer thesis.
 - Label each pick in deep; use sims/odds from VERIFIED CONTEXT when citing numbers.`;
+  }
+  if (
+    detectWcSgpComboIntent(routingQuestion) &&
+    !detectParlayIntent(routingQuestion) &&
+    !isWcFixturePlayerPropsQuestion(routingQuestion)
+  ) {
+    return `TURN SCOPE (binding):
+- User asked for a multi-leg PLAYER PROP ticket (both score, score+assist, SGP-style combo) — NOT moneyline, totals, or both-advance.
+- Build legs from MATCH PLAYER PROPS in VERIFIED CONTEXT — cite player, market, and American price per leg when posted.
+- Use parlayLegs when 2+ verified player legs exist; otherwise Pass and name missing lines or correlation — never substitute Under/Over goals.`;
   }
   if (detectParlayIntent(routingQuestion)) {
     const legCount = extractParlayLegCount(routingQuestion) || extractWcPlayerParlayRankCount(routingQuestion);

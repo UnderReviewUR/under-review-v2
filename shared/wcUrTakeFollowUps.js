@@ -85,6 +85,23 @@ function resolveWcMatchupSideAbbr(side, mentioned) {
   return s;
 }
 
+function isPlausibleWcMatchupChipSide(side) {
+  const s = String(side || "").trim();
+  if (!s) return false;
+  if (s.split(/\s+/).length > 4) return false;
+  if (/\b(will|best|player|props?|score|both|sneaky|top)\b/i.test(s)) return false;
+  if (/^[A-Z]{2,4}$/.test(s)) return true;
+  return s.length <= 24;
+}
+
+/**
+ * @param {string} home
+ * @param {string} away
+ */
+function isPlausibleWcMatchupChip(home, away) {
+  return isPlausibleWcMatchupChipSide(home) && isPlausibleWcMatchupChipSide(away);
+}
+
 export function parseWcMatchupFromQuestion(text) {
   let q = String(text || "").trim();
   if (!q) return null;
@@ -211,7 +228,21 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
     }
   } else {
     const parsed = parseWcMatchupFromQuestion(q);
-    if (parsed?.home && parsed?.away && !isFixturePlayerPropsQuestion) {
+    const namedPlayer = extractWcNamedPlayerFromQuestion(q);
+    const mentionedTeams = extractMentionedWcTeams(q);
+    if (
+      namedPlayer &&
+      mentionedTeams.length >= 2 &&
+      !isFixturePlayerPropsQuestion &&
+      !chips.some((c) => /who wins/i.test(c))
+    ) {
+      chips.push(`Who wins ${mentionedTeams[0]} vs ${mentionedTeams[1]}?`);
+    } else if (
+      parsed?.home &&
+      parsed?.away &&
+      !isFixturePlayerPropsQuestion &&
+      isPlausibleWcMatchupChip(parsed.home, parsed.away)
+    ) {
       chips.push(`Who wins ${parsed.home} vs ${parsed.away}?`);
       chips.push(`What's the other side?`);
     }

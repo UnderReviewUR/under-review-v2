@@ -271,6 +271,7 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
  */
 function pickWcPlayerPropListHeadline(lean, call = "") {
   const leanStr = String(lean || "").trim();
+  const leanIsPass = /^pass\s*[—-]\s*no actionable line yet/i.test(leanStr);
   const numbered = leanStr.match(/^\s*1\.\s+(.+)$/m);
   if (numbered) {
     const lead = numbered[1].split(/\n/)[0].trim();
@@ -287,6 +288,22 @@ function pickWcPlayerPropListHeadline(lean, call = "") {
     });
   }
   const callStr = String(call || "").trim();
+  const callIsPassHeadline =
+    /^pass\b|^no verified|^same-script legs|^player parlay legs|^player props for/i.test(callStr);
+
+  if (leanIsPass) {
+    if (callIsPassHeadline && callStr) {
+      return capWcCardFaceField(callStr, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    return capWcCardFaceField(leanStr, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+
   if (callStr && !/^pass\b/i.test(callStr)) {
     return capWcCardFaceField(callStr, {
       maxWords: WC_FACE_HEADLINE_WORDS,
@@ -322,7 +339,15 @@ export function pickWcCardHeadline(opts = {}) {
     call &&
     call !== "—"
   ) {
-    return capWcCardFaceField(call, {
+    const callIsPassHeadline =
+      /^pass\b|^no verified|^same-script legs|^player parlay legs|^player props for/i.test(call);
+    if (!playerMarketCt || callIsPassHeadline) {
+      return capWcCardFaceField(call, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    return capWcCardFaceField(leanRaw, {
       maxWords: WC_FACE_HEADLINE_WORDS,
       maxSentences: 1,
     });

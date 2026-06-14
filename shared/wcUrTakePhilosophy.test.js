@@ -8,7 +8,7 @@ import {
   isWcTeamMarketOpenerQuestion,
   shouldRunNbaFirstSessionGuarantee,
 } from "./wcUrTakePhilosophy.js";
-import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { classifyWcQuestionIntent, WC_INTENT } from "./wcUrTakeIntent.js";
 
 const WC_PROMO_MS = Date.UTC(2026, 5, 12, 16, 0, 0); // Jun 12 2026 ET-ish
 const OFF_SEASON_MS = Date.UTC(2026, 0, 15, 16, 0, 0); // Jan 15 2026
@@ -68,6 +68,29 @@ test("detectWcSgpComboIntent — player + team leg without parlay keyword", () =
   assert.equal(detectWcSgpComboIntent("Jimenez to score or assist?"), false);
   assert.equal(detectWcSgpComboIntent("Son over 2.5 shots and Mexico ML"), true);
   assert.equal(detectWcSgpComboIntent("Mexico moneyline tonight"), false);
+});
+
+test("detectWcSgpComboIntent — both players to score without parlay keyword", () => {
+  assert.equal(
+    detectWcSgpComboIntent("Both Jackson and Valencia to score vs Ecuador vs Ivory Coast"),
+    true,
+  );
+  assert.equal(
+    detectWcSgpComboIntent("Jiménez to score AND Valencia to assist for ECU vs CIV"),
+    true,
+  );
+  assert.equal(detectWcSgpComboIntent("Both players to score in CIV vs ECU — Jackson and Valencia"), true);
+});
+
+test("classifyWcQuestionIntent — combo props route to PLAYER_PROP not MATCHUP", () => {
+  assert.equal(
+    classifyWcQuestionIntent("Both Jackson and Valencia to score vs Ecuador vs Ivory Coast"),
+    WC_INTENT.PLAYER_PROP,
+  );
+  assert.equal(
+    classifyWcQuestionIntent("Jiménez to score AND Valencia to assist for ECU vs CIV"),
+    WC_INTENT.PLAYER_PROP,
+  );
 });
 
 test("buildWcScriptPriceUserAppendix — skips rules intent", () => {

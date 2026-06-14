@@ -17,6 +17,18 @@ import {
 const USA_PAR_DEEP =
   "USA +110 vs Paraguay +285 on the ML. Pass on USA +110 — lean both teams to advance in Group D.";
 
+test("prepareWcCardFaceDisplay — pass lean ignores long prop call headline", () => {
+  const face = prepareWcCardFaceDisplay({
+    callType: "player_market_verified",
+    call: "Enner Valencia anytime scorer at +450 is the sharpest lean — Ecuador's set-piece taker and primary forward in a group-stage match.",
+    lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+    why: "Valencia: PK taker.",
+    focusLayout: true,
+  });
+  assert.equal(face.headline, "Pass — no actionable line yet; see Watch For before locking a bet.");
+  assert.doesNotMatch(face.headline, /set-piece taker/i);
+});
+
 test("prepareWcCardFaceDisplay — numbered fixture props list in why", () => {
   const lean = [
     "1. Enner Valencia anytime scorer +450",
