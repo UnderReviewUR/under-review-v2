@@ -177,9 +177,44 @@ export async function getGroupsPayload(opts = {}) {
 /**
  * @param {{ preferGoat?: boolean }} [opts]
  */
+function countRealWcMatchesInKv(kv) {
+  return (kv?.matches || []).filter(
+    (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
+  ).length;
+}
+
+function buildMatchesPayloadFromKv(kv, nowMs) {
+  const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated, nowMs);
+  return {
+    matches,
+    lastUpdated: kv.lastUpdated,
+    source: kv.source || "espn",
+    fallback: Boolean(kv.stale),
+    stale: Boolean(kv.stale),
+    ageMinutes:
+      kv.stale && kv.lastUpdated
+        ? Math.round((Date.now() - Number(kv.lastUpdated)) / 60000)
+        : 0,
+  };
+}
+
 export async function getMatchesPayload(opts = {}) {
   const nowMs = Date.now();
   const preferGoat = opts.preferGoat ?? (isWcGoatPrimaryEnabled() && !opts.preferEspn);
+
+  let kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
+  let kvRealCount = countRealWcMatchesInKv(kv);
+
+  if (kvRealCount < 50 && isWcTournamentWindow(nowMs)) {
+    await ensureWcScheduleInKv(nowMs);
+    kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
+    kvRealCount = countRealWcMatchesInKv(kv);
+  }
+
+  // User GETs must not block on live BDL pagination — cron/warmup refreshes KV.
+  if (kv?.matches?.length && kvRealCount >= 50 && !kv.stale) {
+    return buildMatchesPayloadFromKv(kv, nowMs);
+  }
 
   if (preferGoat) {
     const goat = await getGoatMatchesPayload();
@@ -188,31 +223,9 @@ export async function getMatchesPayload(opts = {}) {
       return { ...goat, matches };
     }
   }
-  let kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
-  let kvRealCount = (kv?.matches || []).filter(
-    (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
-  ).length;
-
-  if (kvRealCount < 50 && isWcTournamentWindow(nowMs)) {
-    await ensureWcScheduleInKv(nowMs);
-    kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
-    kvRealCount = (kv?.matches || []).filter(
-      (m) => m?.id != null && !String(m.id).startsWith("wc-promo-"),
-    ).length;
-  }
 
   if (kv?.matches?.length && kvRealCount >= 50) {
-    const matches = attachMatchListOddsFreshness(kv.matches, kv.lastUpdated, nowMs);
-    return {
-      matches,
-      lastUpdated: kv.lastUpdated,
-      source: kv.source || "espn",
-      fallback: Boolean(kv.stale),
-      stale: Boolean(kv.stale),
-      ageMinutes: kv.stale && kv.lastUpdated
-        ? Math.round((Date.now() - Number(kv.lastUpdated)) / 60000)
-        : 0,
-    };
+    return buildMatchesPayloadFromKv(kv, nowMs);
   }
 
   if (isWcHomePromoWindow(nowMs)) {
@@ -460,7 +473,10 @@ export default async function handler(req, res) {
     if (view === "matches") {
       const payload = await getMatchesPayload({ preferGoat, preferEspn });
       const hydrated = await hydrateWcPublicMatchesIfEmpty(payload, Date.now());
-      const matches = await enrichMatchesWithDetailMeta(hydrated.matches || []);
+      const matches = await enrichMatchesWithDetailMeta(hydrated.matches || [], {
+        listView: true,
+        nowMs: Date.now(),
+      });
       const dataHealth = await getWcClientDataHealth();
       return res.status(200).json(
         sanitizeWcPublicPayload(
@@ -492,7 +508,10 @@ export default async function handler(req, res) {
         })
         .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0))
         .slice(0, 12);
-      const upcoming = await enrichMatchesWithDetailMeta(upcomingRaw);
+      const upcoming = await enrichMatchesWithDetailMeta(upcomingRaw, {
+        listView: true,
+        nowMs: Date.now(),
+      });
       return res.status(200).json(
         sanitizeWcPublicPayload(
           {
@@ -510,7 +529,10 @@ export default async function handler(req, res) {
         Date.now(),
       );
       const liveRaw = (payload.matches || []).filter((m) => isLiveStatus(m.status));
-      const live = await enrichMatchesWithDetailMeta(liveRaw);
+      const live = await enrichMatchesWithDetailMeta(liveRaw, {
+        listView: true,
+        nowMs: Date.now(),
+      });
       return res.status(200).json(
         sanitizeWcPublicPayload(
           {

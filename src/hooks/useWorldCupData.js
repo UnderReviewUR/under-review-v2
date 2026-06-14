@@ -159,11 +159,10 @@ export function useWorldCupData(options = {}) {
     const generation = ++loadGenerationRef.current;
     setWcLoading(true);
     try {
-      const [groupsRes, matchesRes, outrightsRes, upcomingRes, matchReadRes] = await Promise.all([
+      const [groupsRes, matchesRes, outrightsRes, matchReadRes] = await Promise.all([
         fetch("/api/world-cup?view=groups", { cache: "no-store" }),
         fetch("/api/world-cup?view=matches", { cache: "no-store" }),
         fetch("/api/world-cup?view=outrights", { cache: "no-store" }),
-        fetch("/api/world-cup?view=upcoming", { cache: "no-store" }),
         fetch("/api/world-cup?view=match_read_context", { cache: "no-store" }),
       ]);
       fetch("/api/world-cup?view=context", { cache: "no-store" }).catch(() => {});
@@ -171,12 +170,11 @@ export function useWorldCupData(options = {}) {
       const groupsData = groupsRes.ok ? await groupsRes.json().catch(() => null) : null;
       const matchesData = matchesRes.ok ? await matchesRes.json().catch(() => null) : null;
       const outrightsData = outrightsRes.ok ? await outrightsRes.json().catch(() => null) : null;
-      const upcomingData = upcomingRes.ok ? await upcomingRes.json().catch(() => null) : null;
       const matchReadData = matchReadRes.ok ? await matchReadRes.json().catch(() => null) : null;
 
       if (generation !== loadGenerationRef.current) return;
 
-      applyPayloads(groupsData, matchesData, outrightsData, upcomingData);
+      applyPayloads(groupsData, matchesData, outrightsData, null);
       if (matchReadData?.ok) {
         setMatchReadContext({
           teamStats: matchReadData.teamStats || null,

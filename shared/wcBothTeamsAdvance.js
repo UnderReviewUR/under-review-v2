@@ -53,6 +53,51 @@ export function assessWcBothTeamsAdvanceFixture(row) {
 
   const exclusion = wcFixtureTeamsExcludingGroupFavorite(group, home, away);
   if (!exclusion) {
+    const comp = getWcGroupComposition(group);
+    const favAbbr = comp?.favorite?.abbreviation
+      ? String(comp.favorite.abbreviation).toUpperCase()
+      : "";
+    const favInFixture = favAbbr && (home === favAbbr || away === favAbbr);
+    const contAbbr = comp?.contender?.abbreviation
+      ? String(comp.contender.abbreviation).toUpperCase()
+      : "";
+    const contAdv = contAbbr ? Number(teamStats[contAbbr]?.advancePct) : NaN;
+    const bothFixtureTeamsLive =
+      Number.isFinite(homeAdv) &&
+      Number.isFinite(awayAdv) &&
+      homeAdv >= 45 &&
+      awayAdv >= 45;
+
+    if (favInFixture && contAbbr && contAbbr !== home && contAbbr !== away && bothFixtureTeamsLive) {
+      if (Number.isFinite(contAdv) && contAdv >= 58) {
+        return {
+          ok: false,
+          requiresFavoriteOut: false,
+          requiresContenderOut: true,
+          reason: "contender_likely_advances",
+          favoriteAbbr: favAbbr,
+          favoriteName: comp?.favorite?.name || wcMatchupTeamDisplayName(favAbbr),
+          favoriteAdvancePct: Number(teamStats[favAbbr]?.advancePct) || null,
+          contenderAbbr: contAbbr,
+          contenderName: comp?.contender?.name || wcMatchupTeamDisplayName(contAbbr),
+          contenderAdvancePct: contAdv,
+        };
+      }
+      if (Number.isFinite(contAdv) && contAdv >= 45) {
+        return {
+          ok: true,
+          requiresFavoriteOut: false,
+          requiresContenderOut: true,
+          favoriteAbbr: favAbbr,
+          favoriteName: comp?.favorite?.name || wcMatchupTeamDisplayName(favAbbr),
+          favoriteAdvancePct: Number(teamStats[favAbbr]?.advancePct) || null,
+          contenderAbbr: contAbbr,
+          contenderName: comp?.contender?.name || wcMatchupTeamDisplayName(contAbbr),
+          contenderAdvancePct: contAdv,
+        };
+      }
+    }
+
     return {
       ok: true,
       requiresFavoriteOut: false,
@@ -115,8 +160,15 @@ export function assessWcBothTeamsAdvanceFixture(row) {
  * @param {string} [group]
  */
 export function buildWcBothTeamsAdvanceCaveat(assessment, homeName, awayName, group = "") {
-  if (!assessment?.requiresFavoriteOut || !assessment.favoriteName) return "";
   const groupClause = group ? ` in Group ${group}` : "";
+  if (assessment?.requiresContenderOut && assessment.contenderName) {
+    const contPct =
+      assessment.contenderAdvancePct != null
+        ? ` (UR sim ${Number(assessment.contenderAdvancePct).toFixed(1)}%)`
+        : "";
+    return `Structural bet${groupClause}: ${homeName} and ${awayName} both advancing means ${assessment.contenderName} likely misses${contPct}.`;
+  }
+  if (!assessment?.requiresFavoriteOut || !assessment.favoriteName) return "";
   const favPct =
     assessment.favoriteAdvancePct != null
       ? ` (UR sim ${Number(assessment.favoriteAdvancePct).toFixed(1)}%)`

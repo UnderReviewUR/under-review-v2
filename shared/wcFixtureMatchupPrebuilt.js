@@ -29,10 +29,32 @@ import {
 } from "./wcGroupComposition.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wcMatchBettingPrompt.js";
+import { isWcLiveDominanceQuestion } from "./wcLiveMatchQuestion.js";
 import {
   assessWcBothTeamsAdvanceFixture,
   buildWcBothTeamsAdvanceCaveat,
 } from "./wcBothTeamsAdvance.js";
+
+const WC_LIVE_ANGLE_RE =
+  /\b(live angle|best live|in play|in-play|right now|currently|this minute|at the moment)\b/i;
+
+function isWcLiveMatchStatus(status) {
+  return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+/**
+ * @param {string} question
+ * @param {Record<string, unknown> | null | undefined} [match]
+ */
+export function isWcFixturePrebuiltBlockedForLivePlay(question, match) {
+  const q = String(question || "");
+  if (WC_LIVE_ANGLE_RE.test(q) || isWcLiveDominanceQuestion(q)) return true;
+  if (match && isWcLiveMatchStatus(match.status)) return true;
+  const hs = Number(match?.homeScore);
+  const as = Number(match?.awayScore);
+  if (Number.isFinite(hs) && Number.isFinite(as) && hs + as > 0) return true;
+  return false;
+}
 
 /** @type {Record<string, { home: { moneyline: string }, draw: { moneyline: string }, away: { moneyline: string }, provider?: string }>} */
 const FIXTURE_ML_SEED = {
@@ -131,6 +153,50 @@ function formatGoalsLine(n) {
  */
 export function pickWcFixtureTotalsAlternateLean(row) {
   const q = String(row.question || "");
+  const hs = Number(row.homeScore);
+  const as = Number(row.awayScore);
+  const goalsScored =
+    Number.isFinite(hs) && Number.isFinite(as) ? Math.max(0, hs + as) : null;
+  const livePlay =
+    row.isLive === true ||
+    isWcLiveMatchStatus(row.status) ||
+    (goalsScored != null && goalsScored > 0);
+
+  if (livePlay && goalsScored != null && goalsScored >= 1) {
+    const postedLine = row.matchOdds?.totalLine != null ? Number(row.matchOdds.totalLine) : null;
+    const liveLine = Number.isFinite(postedLine)
+      ? postedLine
+      : goalsScored >= 3
+        ? goalsScored + 0.5
+        : 2.5;
+    if (goalsScored >= 3) {
+      const lineStr = formatGoalsLine(liveLine);
+      const headline = `Lean Over ${lineStr} goals`;
+      const scoreLabel = `${Number.isFinite(hs) ? hs : 0}-${Number.isFinite(as) ? as : 0}`;
+      return {
+        lean:
+          row.passOnMlPrefix === false
+            ? `${headline} — already ${scoreLabel} (${goalsScored} goals); Under 2.5 is dead.`
+            : `Pass on ML — ${headline} — already ${scoreLabel}; Under 2.5 is dead.`,
+        headline,
+        kind: "over",
+        line: lineStr,
+      };
+    }
+    if (goalsScored >= 2) {
+      const headline = "Lean Over 2.5 goals";
+      return {
+        lean:
+          row.passOnMlPrefix === false
+            ? `${headline} — ${goalsScored} goals already; Under 2.5 is dead.`
+            : `Pass on ML — ${headline} — ${goalsScored} goals already; Under 2.5 is dead.`,
+        headline,
+        kind: "over",
+        line: "2.5",
+      };
+    }
+  }
+
   const userOu = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
   if (userOu) {
     const headline = `Lean ${userOu[1]} ${userOu[2]} goals`;
@@ -190,6 +256,7 @@ export function pickWcFixtureTotalsAlternateLean(row) {
 export function isWcMoneylineBestBetQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (/\bgroup context\b/i.test(q)) return false;
   return (
     /\b(best bet|only know the moneyline)\b/i.test(q) &&
     (/\b(vs\.?|versus)\b/i.test(q) || isWcMatchWinnerQuestion(q))
@@ -323,6 +390,7 @@ export function resolveWcFixturePairFromHistory(history = []) {
  * }} [opts]
  */
 export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent, opts = {}) {
+  if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return false;
   if (!opts.isConversationFollowUp) return false;
   if (opts.wcRunnerUpFollowUpQuestion) return false;
   if (isWcPlayerMarketIntent(wcIntent)) return false;
@@ -355,6 +423,7 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
  * }} [opts]
  */
 export function shouldUseWcFixtureMatchupPrebuilt(question, wcIntent, opts = {}) {
+  if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return false;
   if (opts.isConversationFollowUp || opts.wcRunnerUpFollowUpQuestion) return false;
   if (isWcPlayerMarketIntent(wcIntent)) return false;
   if (shouldUseWcCrossGroupValuePrebuilt(question, wcIntent)) return false;
@@ -420,33 +489,42 @@ function pickWcFixturePrebuiltLean(row) {
   const resolvedHomeMl = homeMl || readWcMatchMoneylineAmerican(seedOdds?.home);
   const resolvedAwayMl = awayMl || readWcMatchMoneylineAmerican(seedOdds?.away);
 
+  const totalsRow = {
+    home,
+    away,
+    homeMl: resolvedHomeMl,
+    awayMl: resolvedAwayMl,
+    matchOdds,
+    question: q,
+    homeScore: row.homeScore,
+    awayScore: row.awayScore,
+    status: row.status,
+    isLive: row.isLive,
+  };
+
+  if (isWcMoneylineBestBetQuestion(q)) {
+    if (resolvedHomeMl && resolvedAwayMl) {
+      return pickWcFixtureTotalsAlternateLean(totalsRow).lean;
+    }
+  }
+
   if (
-    /\b(best bet|group context|moneyline.*group|both teams to advance|both advance)\b/i.test(q)
+    /\b(best bet|group context|moneyline.*group|both teams to advance|both advance)\b/i.test(q) &&
+    !/\b(vs\.?|versus)\b/i.test(q)
   ) {
     const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group);
     if (bothLean) return bothLean;
     if (resolvedHomeMl && resolvedAwayMl) {
-      return pickWcFixtureTotalsAlternateLean({
-        home,
-        away,
-        homeMl: resolvedHomeMl,
-        awayMl: resolvedAwayMl,
-        matchOdds,
-        question: q,
-      }).lean;
+      return pickWcFixtureTotalsAlternateLean(totalsRow).lean;
     }
   }
 
-  if (isWcMatchWinnerQuestion(q) || /\b(best bet|only know the moneyline)\b/i.test(q)) {
+  if (
+    (isWcMatchWinnerQuestion(q) && !/\bgroup context\b/i.test(q)) ||
+    (/\b(best bet|only know the moneyline)\b/i.test(q) && !/\bgroup context\b/i.test(q))
+  ) {
     if (resolvedHomeMl && resolvedAwayMl) {
-      return pickWcFixtureTotalsAlternateLean({
-        home,
-        away,
-        homeMl: resolvedHomeMl,
-        awayMl: resolvedAwayMl,
-        matchOdds,
-        question: q,
-      }).lean;
+      return pickWcFixtureTotalsAlternateLean(totalsRow).lean;
     }
   }
 
@@ -458,14 +536,7 @@ function pickWcFixturePrebuiltLean(row) {
   }
 
   if (resolvedHomeMl && resolvedAwayMl) {
-    return pickWcFixtureTotalsAlternateLean({
-      home,
-      away,
-      homeMl: resolvedHomeMl,
-      awayMl: resolvedAwayMl,
-      matchOdds,
-      question: q,
-    }).lean;
+    return pickWcFixtureTotalsAlternateLean(totalsRow).lean;
   }
 
   return "Pass on ML — lean both teams to advance — cleaner angle than the ML.";
@@ -640,6 +711,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const question = String(opts.question || "").trim();
   const routingQ = extractLatestUserTurnForRouting(question);
   const altFollowUp = isWcMatchupAltMarketFollowUp(routingQ);
+  if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return null;
   if (!home || !away) return null;
 
   const homeName = wcMatchupTeamDisplayName(home);
@@ -686,6 +758,10 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
         awayStats,
         teamStats: opts.teamStats,
         matchOdds,
+        homeScore: opts.match?.homeScore,
+        awayScore: opts.match?.awayScore,
+        status: opts.match?.status,
+        isLive: isWcLiveMatchStatus(opts.match?.status),
       });
   const playHeadline = extractWcMatchupPlayHeadline(lean) || "";
   const call = altFollowUp

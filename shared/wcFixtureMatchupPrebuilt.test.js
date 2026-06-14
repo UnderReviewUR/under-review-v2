@@ -363,3 +363,50 @@ test("prepareWcCardFaceDisplay both-advance follow-up uses advance headline not 
   assert.match(face.headline, /both teams to advance/i);
   assert.doesNotMatch(face.headline, /to win/i);
 });
+
+test("live NED vs JPN at 2-1 blocks prebuilt under 2.5 on live-angle prompt", () => {
+  assert.equal(
+    shouldUseWcFixtureMatchupPrebuilt({
+      sport: "wc",
+      question: "Best live angle on NED vs JPN right now?",
+      home: "NED",
+      away: "JPN",
+      group: "F",
+      match: { status: "live", homeScore: 2, awayScore: 1 },
+    }),
+    false
+  );
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "NED",
+    away: "JPN",
+    group: "F",
+    question: "Best live angle on NED vs JPN right now?",
+    match: { status: "live", homeScore: 2, awayScore: 1, odds: getWcFixtureMlSeed("NED", "JPN") },
+  });
+  assert.equal(structured, null);
+});
+
+test("CIV vs ECU moneyline best-bet prompt prefers totals not both advance", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "CIV",
+    away: "ECU",
+    group: "E",
+    question: "Best bet on CIV vs ECU if I only know the moneyline?",
+    match: {
+      odds: {
+        home: { moneyline: "+145" },
+        draw: { moneyline: "+220" },
+        away: { moneyline: "+155" },
+        provider: "seed",
+      },
+    },
+    teamStats: {
+      CIV: { advancePct: 45 },
+      ECU: { advancePct: 62 },
+      GER: { advancePct: 58 },
+      CUW: { advancePct: 20 },
+    },
+  });
+  assert.match(structured?.lean || "", /under 2\.5|over 2\.5/i);
+  assert.doesNotMatch(structured?.lean || "", /both teams to advance/i);
+});

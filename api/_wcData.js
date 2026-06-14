@@ -34,6 +34,7 @@ import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdd
 import { scrapeAllWcOutrightsAggregators } from "./_wcScrapeOutrightsAggregators.js";
 import { WC_OUTRIGHTS_AGGREGATOR_COUNT } from "../shared/wcOutrightsAggregatorRegistry.js";
 import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
+import { resolveWcMatchEtDate, wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
 import {
   fetchOpenFootballWc2026Schedule,
   validateEspnScheduleAgainstOpenFootball,
@@ -755,13 +756,85 @@ export function buildMatchDetailMeta(detail) {
   };
 }
 
+function isWcScheduledStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
+}
+
+function isWcLiveListStatus(status) {
+  return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+/**
+ * List views only need XI/detail meta for live, today, and near-term fixtures — not all 104 KV reads.
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {number} [nowMs]
+ */
+export function pickMatchesForDetailEnrichment(matches, nowMs = Date.now()) {
+  const rows = Array.isArray(matches) ? matches : [];
+  const todayEt = wcTodayEtYmd(nowMs);
+  /** @type {Set<string>} */
+  const seen = new Set();
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+
+  const push = (m) => {
+    const id = m?.id != null ? String(m.id).trim() : "";
+    if (!id || seen.has(id)) return;
+    seen.add(id);
+    out.push(m);
+  };
+
+  for (const m of rows) {
+    if (isWcLiveListStatus(m?.status)) push(m);
+  }
+  for (const m of rows) {
+    if (resolveWcMatchEtDate(m) === todayEt) push(m);
+  }
+
+  const nearScheduled = rows
+    .filter((m) => isWcScheduledStatus(m?.status))
+    .filter((m) => {
+      const et = resolveWcMatchEtDate(m);
+      return et && et >= todayEt;
+    })
+    .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0));
+  for (const m of nearScheduled.slice(0, 24)) push(m);
+
+  const cap = 48;
+  if (out.length >= cap) return out.slice(0, cap);
+  for (const m of rows) {
+    push(m);
+    if (out.length >= cap) break;
+  }
+  return out;
+}
+
 /**
  * Attach lineupConfirmed / xiStatus / lastUpdated / dataConfidence from wc_match_detail KV.
  * @param {Array<Record<string, unknown>>} matches
- * @param {{ concurrency?: number }} [opts]
+ * @param {{ concurrency?: number, listView?: boolean, nowMs?: number }} [opts]
  */
 export async function enrichMatchesWithDetailMeta(matches, opts = {}) {
   const rows = Array.isArray(matches) ? matches : [];
+  const nowMs = Number(opts.nowMs) || Date.now();
+
+  if (opts.listView === true && rows.length > 12) {
+    const priority = pickMatchesForDetailEnrichment(rows, nowMs);
+    const enrichedById = new Map(
+      (await enrichMatchesWithDetailMeta(priority, { ...opts, listView: false })).map((m) => [
+        String(m.id),
+        m,
+      ]),
+    );
+    return rows.map((m) => {
+      const id = m?.id != null ? String(m.id).trim() : "";
+      const hit = id ? enrichedById.get(id) : null;
+      if (hit) return hit;
+      return { ...m, ...buildMatchDetailMeta(null) };
+    });
+  }
+
   const concurrency = Math.max(
     1,
     Math.min(Number(opts.concurrency) || WC_MATCH_DETAIL_ENRICH_CONCURRENCY, 24),
