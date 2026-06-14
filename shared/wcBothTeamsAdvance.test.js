@@ -77,3 +77,27 @@ test("buildWcBothTeamsAdvanceCaveat names the group favorite", () => {
   assert.match(caveat, /Türkiye|Turkey/i);
   assert.match(caveat, /miss/i);
 });
+
+test("assessWcBothTeamsAdvanceFixture blocks CIV-ECU without sim when Germany is contender", () => {
+  const result = assessWcBothTeamsAdvanceFixture({
+    home: "CIV",
+    away: "ECU",
+    group: "E",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.contenderAbbr, "GER");
+});
+
+test("buildWcBothTeamsAdvanceCaveat mentions Germany when contender must miss", () => {
+  const caveat = buildWcBothTeamsAdvanceCaveat(
+    {
+      requiresContenderOut: true,
+      contenderName: "Germany",
+      contenderAdvancePct: 58,
+    },
+    "Ivory Coast",
+    "Ecuador",
+    "E",
+  );
+  assert.match(caveat, /Germany/i);
+});

@@ -68,8 +68,36 @@ export function assessWcBothTeamsAdvanceFixture(row) {
       homeAdv >= 45 &&
       awayAdv >= 45;
 
-    if (favInFixture && contAbbr && contAbbr !== home && contAbbr !== away && bothFixtureTeamsLive) {
-      if (Number.isFinite(contAdv) && contAdv >= 58) {
+    if (favInFixture && contAbbr && contAbbr !== home && contAbbr !== away) {
+      if (!bothFixtureTeamsLive) {
+        return {
+          ok: false,
+          requiresFavoriteOut: false,
+          requiresContenderOut: true,
+          reason: "needs_fixture_advance_sims",
+          favoriteAbbr: favAbbr,
+          favoriteName: comp?.favorite?.name || wcMatchupTeamDisplayName(favAbbr),
+          favoriteAdvancePct: Number(teamStats[favAbbr]?.advancePct) || null,
+          contenderAbbr: contAbbr,
+          contenderName: comp?.contender?.name || wcMatchupTeamDisplayName(contAbbr),
+          contenderAdvancePct: Number.isFinite(contAdv) ? contAdv : null,
+        };
+      }
+      if (!Number.isFinite(contAdv)) {
+        return {
+          ok: false,
+          requiresFavoriteOut: false,
+          requiresContenderOut: true,
+          reason: "needs_contender_out_unverified",
+          favoriteAbbr: favAbbr,
+          favoriteName: comp?.favorite?.name || wcMatchupTeamDisplayName(favAbbr),
+          favoriteAdvancePct: Number(teamStats[favAbbr]?.advancePct) || null,
+          contenderAbbr: contAbbr,
+          contenderName: comp?.contender?.name || wcMatchupTeamDisplayName(contAbbr),
+          contenderAdvancePct: null,
+        };
+      }
+      if (contAdv >= 58) {
         return {
           ok: false,
           requiresFavoriteOut: false,

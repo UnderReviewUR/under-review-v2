@@ -410,3 +410,24 @@ test("CIV vs ECU moneyline best-bet prompt prefers totals not both advance", () 
   assert.match(structured?.lean || "", /under 2\.5|over 2\.5/i);
   assert.doesNotMatch(structured?.lean || "", /both teams to advance/i);
 });
+
+test("player parlay question does not use fixture matchup prebuilt", () => {
+  const q = "List player parlay props to consider for the remaining matches today";
+  assert.equal(
+    shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.MATCHUP, { hasKvFixture: true }),
+    false,
+  );
+  assert.equal(
+    shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(q, WC_INTENT.MATCHUP, {
+      isConversationFollowUp: true,
+      hasKvFixture: true,
+      history: [
+        {
+          role: "user",
+          content: "Best bet on CIV vs ECU if I only know the moneyline?",
+        },
+      ],
+    }),
+    false,
+  );
+});

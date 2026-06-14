@@ -30,6 +30,7 @@ import {
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wcMatchBettingPrompt.js";
 import { isWcLiveDominanceQuestion } from "./wcLiveMatchQuestion.js";
+import { detectParlayIntent } from "./detectParlayIntent.js";
 import {
   assessWcBothTeamsAdvanceFixture,
   buildWcBothTeamsAdvanceCaveat,
@@ -37,6 +38,21 @@ import {
 
 const WC_LIVE_ANGLE_RE =
   /\b(live angle|best live|in play|in-play|right now|currently|this minute|at the moment)\b/i;
+
+function isWcNonFixtureMatchupQuestion(question) {
+  const q = String(question || "");
+  if (!q) return false;
+  if (detectParlayIntent(q)) return true;
+  if (
+    /\b(player parlay|parlay props?|player props?|goalscorer|golden boot|anytime scorer|shots on target|assists?)\b/i.test(
+      q,
+    )
+  ) {
+    return true;
+  }
+  if (/\bremaining matches today\b/i.test(q) && /\b(prop|parlay|player)\b/i.test(q)) return true;
+  return false;
+}
 
 function isWcLiveMatchStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
@@ -270,6 +286,7 @@ export function isWcMoneylineBestBetQuestion(question) {
  */
 export function shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(question, wcIntent, opts = {}) {
   if (!opts.isConversationFollowUp || opts.wcRunnerUpFollowUpQuestion) return false;
+  if (isWcNonFixtureMatchupQuestion(question)) return false;
   if (isWcPlayerMarketIntent(wcIntent)) return false;
   if (shouldUseWcCrossGroupValuePrebuilt(question, wcIntent)) return false;
   if (shouldUseWcGroupSlatePrebuilt(question, wcIntent)) return false;
@@ -390,10 +407,11 @@ export function resolveWcFixturePairFromHistory(history = []) {
  * }} [opts]
  */
 export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent, opts = {}) {
+  if (isWcNonFixtureMatchupQuestion(question)) return false;
+  if (isWcPlayerMarketIntent(wcIntent)) return false;
   if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return false;
   if (!opts.isConversationFollowUp) return false;
   if (opts.wcRunnerUpFollowUpQuestion) return false;
-  if (isWcPlayerMarketIntent(wcIntent)) return false;
   if (shouldUseWcCrossGroupValuePrebuilt(question, wcIntent)) return false;
   if (shouldUseWcGroupSlatePrebuilt(question, wcIntent)) return false;
   if (!isWcMatchupAltMarketFollowUp(question)) return false;
@@ -423,6 +441,7 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
  * }} [opts]
  */
 export function shouldUseWcFixtureMatchupPrebuilt(question, wcIntent, opts = {}) {
+  if (isWcNonFixtureMatchupQuestion(question)) return false;
   if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return false;
   if (opts.isConversationFollowUp || opts.wcRunnerUpFollowUpQuestion) return false;
   if (isWcPlayerMarketIntent(wcIntent)) return false;
@@ -850,6 +869,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
     confidence: "Medium",
     caveats: [],
+    teamStats: opts.teamStats || undefined,
     timestamp: new Date().toISOString(),
   };
 }

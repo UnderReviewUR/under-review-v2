@@ -2,13 +2,15 @@ import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
+import { extractWcMatchupPlayHeadline } from "../../shared/wcMatchupWinnerLine.js";
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, UR_TAKE_BREAKDOWN_LABEL } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
   if (!raw) return null;
-  const body = raw.replace(/^lean:\s*/i, "").trim();
+  const playHeadline = extractWcMatchupPlayHeadline(raw);
+  const body = (playHeadline || raw.replace(/^pass on ml\s*[—-]\s*/i, "")).replace(/^lean:\s*/i, "").trim();
   const isPass = /^pass/i.test(body) || /^fade/i.test(body);
   if (focusLayout) {
     return (
@@ -20,7 +22,7 @@ function WcPlayHeadline({ text, focusLayout }) {
       </div>
     );
   }
-  return <h2 className="wc-take-headline">{raw}</h2>;
+  return <h2 className="wc-take-headline">{body}</h2>;
 }
 
 function WcSectionBody({ text, stacked = false }) {

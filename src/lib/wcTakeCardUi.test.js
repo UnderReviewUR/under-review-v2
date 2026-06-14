@@ -146,6 +146,16 @@ test("pickWcCardHeadline shortens misprice lean to actionable play", () => {
   assert.equal(headline, "USA to advance in Group D");
 });
 
+test("prepareWcCardFaceDisplay keeps Under 2.5 headline intact", () => {
+  const face = prepareWcCardFaceDisplay({
+    callType: "matchup",
+    call: "Pass on ML — Lean Under 2.5 goals — cleaner angle than the ML.",
+    lean: "Pass on ML — Lean Under 2.5 goals — cleaner angle than the ML.",
+    focusLayout: true,
+  });
+  assert.equal(face.headline, "Lean Under 2.5 goals");
+});
+
 test("pickWcFocusWhyLine compresses sim vs market to one line", () => {
   const line = pickWcFocusWhyLine(
     "The market prices USA to advance at 88.2% implied, but UR sims put the escape path at 51.9% (-36.3pt).",

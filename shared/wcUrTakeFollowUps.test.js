@@ -94,3 +94,24 @@ test("getWcContextFollowUpChips offers other side after totals lean", () => {
   assert.ok(chips.some((c) => /other side/i.test(c)));
   assert.ok(!chips.some((c) => /^Over or under goals\?$/i.test(c)));
 });
+
+test("getWcContextFollowUpChips skips both-advance for CIV vs ECU when Germany blocks", () => {
+  const chips = getWcContextFollowUpChips(
+    {
+      wcMatchTeams: { home: "CIV", away: "ECU" },
+      wcIntent: WC_INTENT.MATCHUP,
+      structured: {
+        callType: "matchup",
+        call: "Lean Under 2.5 goals",
+        lean: "Pass on ML — Lean Under 2.5 goals — cleaner angle than the ML.",
+        teamStats: {
+          CIV: { advancePct: 45 },
+          ECU: { advancePct: 62 },
+          GER: { advancePct: 58 },
+        },
+      },
+    },
+    "Best bet on CIV vs ECU if I only know the moneyline?",
+  );
+  assert.ok(!chips.some((c) => /both teams to advance/i.test(c)));
+});

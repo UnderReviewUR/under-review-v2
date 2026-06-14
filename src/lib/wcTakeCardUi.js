@@ -7,8 +7,8 @@ import { getWcTeamByAbbr } from "../data/wc2026Teams.js";
 import { dedupeWcBreakdownParagraphs } from "../../shared/wcBreakdownParse.js";
 import { sanitizeWcUserFacingProse } from "../../shared/wcUserFacingCopy.js";
 import {
-  extractWcMatchupWinnerLine,
   extractWcMatchupPlayHeadline,
+  extractWcMatchupWinnerLine,
   isWcMatchupPathsBoilerplate,
   parseWcMatchGoalsOverUnder,
   parseWcMatchupTeamsFromBlob,
@@ -558,6 +558,8 @@ function formatWcPlaySlot(lean) {
     .replace(/^lean:\s*/i, "")
     .trim();
   if (!l || l.length < 8) return "";
+  const playHeadline = extractWcMatchupPlayHeadline(l);
+  if (playHeadline) return playHeadline;
   const first = l.match(/[^.!?]+[.!?]+/)?.[0]?.trim();
   return first || l;
 }
