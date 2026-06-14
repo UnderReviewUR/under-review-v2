@@ -185,6 +185,7 @@ function formatSetPieceTakersForPrompt(matchDetails, matchPlayerProps) {
  * @param {Array<Record<string, unknown>>} [opts.matchDetails]
  * @param {object | null | undefined} [opts.matchPlayerProps]
  * @param {string | null | undefined} [opts.wcEventId]
+ * @param {string} [opts.question]
  */
 export function formatWcPlayerMarketsPromptBlock(opts = {}) {
   const {
@@ -199,6 +200,7 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     matchPlayerProps = null,
     wcEventId = null,
     tournamentSimResults = null,
+    question = "",
   } = opts;
 
   const gbRows = goldenBootRowsFromKv(goldenBoot, 15);
@@ -212,7 +214,7 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
     `  Tier: ${tier} (${tierLabel})`,
     `  ${tierDisclaimer}`,
     "",
-    formatWcPlayerMarketPromptRules(wcIntent),
+    formatWcPlayerMarketPromptRules(wcIntent, question),
     "",
   ];
 

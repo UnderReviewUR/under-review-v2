@@ -15,6 +15,7 @@ import {
   isWcMatchProbabilityQuestion,
   isWcPlayerParlaySlateQuestion,
 } from "./wcMatchProbabilityQuestion.js";
+import { isWcFixturePlayerPropsQuestion } from "./wcUrTakePlayerMarket.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -458,6 +459,12 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - User asked for PROBABILITY / CHANCES on a match or team goal threshold — answer the number asked.
 - Cite sim or market implied % from VERIFIED CONTEXT; do not substitute a generic Under/Over lean card unless that is the closest posted market.
 - For "more than N goals" asks, discuss team total / scoring path — not Golden Boot or unrelated player props.`;
+  }
+  if (isWcFixturePlayerPropsQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User asked for MULTIPLE player props on this fixture — numbered list in lean (3-5 players with market + American price).
+- Cover both teams when MATCH PLAYER PROPS has rows for each side.
+- HEADLINE/call: #1 prop only; never one truncated sentence ending in "lean his…".`;
   }
   if (isWcPlayerMarketIntent(intent)) {
     return `TURN SCOPE (binding):

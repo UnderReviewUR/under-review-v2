@@ -17,6 +17,25 @@ import {
 const USA_PAR_DEEP =
   "USA +110 vs Paraguay +285 on the ML. Pass on USA +110 — lean both teams to advance in Group D.";
 
+test("prepareWcCardFaceDisplay — numbered fixture props list in why", () => {
+  const lean = [
+    "1. Enner Valencia anytime scorer +450",
+    "2. Nicolas Jackson anytime scorer +380",
+    "3. Sebastien Haller over 0.5 SOT -110",
+  ].join("\n");
+  const face = prepareWcCardFaceDisplay({
+    callType: "player_market_verified",
+    call: "Enner Valencia anytime scorer +450",
+    lean,
+    why: "Valencia: PK taker, likely starter.",
+    focusLayout: true,
+    question: "Best player props for Ecuador vs Ivory Coast?",
+  });
+  assert.match(face.headline, /Enner Valencia anytime scorer \+450 \(\+2 more\)/);
+  assert.match(face.sections.why, /Nicolas Jackson/);
+  assert.doesNotMatch(face.headline, /lean his/i);
+});
+
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
     "Bruno Fernandes recording 7 assists in a single World Cup tournament is structurally implausible — Portugal's group strength and likely knockout run don't support that volume.";
@@ -143,7 +162,7 @@ test("pickWcCardHeadline shortens misprice lean to actionable play", () => {
     callType: "group_slate",
     lean: "Lean: Group D — USA advancement misprice (-36.0pt sim vs market).",
   });
-  assert.equal(headline, "USA to advance in Group D");
+  assert.equal(headline, "United States to advance in Group D");
 });
 
 test("prepareWcCardFaceDisplay keeps Under 2.5 headline intact", () => {

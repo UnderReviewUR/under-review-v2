@@ -583,8 +583,15 @@ export function formatWcPlayerMarketPassLabel(wcIntent) {
 /**
  * @param {string} wcIntent
  */
-export function formatWcPlayerMarketPromptRules(wcIntent) {
+export function formatWcPlayerMarketPromptRules(wcIntent, question = "") {
   const label = formatWcPlayerMarketPassLabel(wcIntent);
+  if (isWcFixturePlayerPropsQuestion(question)) {
+    return `FIXTURE PLAYER PROPS (binding):
+  User asked for MULTIPLE player props on this match — list 3-5 named players with market + American price.
+  Put a numbered list in lean (one line each, e.g. "1. Enner Valencia anytime scorer +450").
+  HEADLINE/call: lead player #1 only; full list lives in lean so mobile can scan every leg.
+  Cover both teams when MATCH PLAYER PROPS has rows for each side — never collapse to one vague sentence.`;
+  }
   if (wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST) {
     return `PLAYER MARKET (${label}) — binding:
   User wants a RANKED LIST (typically five players) — not a single Golden Boot lean from the prior turn.
@@ -693,7 +700,7 @@ export function extractWcNamedPlayerFromQuestion(question) {
 }
 
 /**
- * Slate-wide player prop asks with no named subject.
+ * Slate-wide or fixture-scoped player prop asks with no named subject.
  * @param {string} question
  */
 export function isGenericWcPlayerPropQuestion(question) {
@@ -701,6 +708,17 @@ export function isGenericWcPlayerPropQuestion(question) {
   if (!q) return true;
   if (extractWcNamedPlayerFromQuestion(q)) return false;
   return /\bplayer props?\b/i.test(q);
+}
+
+/**
+ * Multi-prop ask pinned to a head-to-head fixture (both teams in the question).
+ * @param {string} question
+ */
+export function isWcFixturePlayerPropsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q || !/\bplayer props?\b/i.test(q)) return false;
+  if (extractWcNamedPlayerFromQuestion(q)) return false;
+  return /\b(vs\.?|versus)\b/i.test(q);
 }
 
 /**
@@ -839,7 +857,7 @@ export function resolveWcPlayerMarketResponse(question, wcIntent, wcContext) {
   }
 
   const promptAppendix =
-    wcContext?.playerMarketPromptBlock || formatWcPlayerMarketPromptRules(wcIntent);
+    wcContext?.playerMarketPromptBlock || formatWcPlayerMarketPromptRules(wcIntent, question);
 
   return {
     forcePass: false,

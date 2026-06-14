@@ -14,9 +14,11 @@ import {
   detectWcPlayerPropMarketLabel,
   extractWcNamedPlayerFromQuestion,
   finalizeWcPlayerPropStructured,
+  formatWcPlayerMarketPromptRules,
   formatWcPlayerPropLadderBreakdown,
   formatWcPlayerPropLadderWhy,
   isGenericWcPlayerPropQuestion,
+  isWcFixturePlayerPropsQuestion,
   isWcMisroutedShotsHeadline,
   isWcPlayerPropPassStructured,
   isWcShotsPropQuestion,
@@ -127,6 +129,12 @@ test("shouldForceWcPlayerMarketPass — false when KV populated", () => {
     }),
     false,
   );
+});
+
+test("isWcFixturePlayerPropsQuestion — Ecuador vs Ivory Coast", () => {
+  const q = "Best player props for Ecuador vs Ivory Coast?";
+  assert.equal(isWcFixturePlayerPropsQuestion(q), true);
+  assert.match(formatWcPlayerMarketPromptRules(WC_INTENT.PLAYER_PROP, q), /MULTIPLE player props/);
 });
 
 test("buildWcPlayerPropPassHeadline — generic remaining matches slate", () => {

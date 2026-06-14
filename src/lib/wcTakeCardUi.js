@@ -265,6 +265,44 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
   return fallback.startsWith("Alt:") ? fallback : `Alt: ${fallback}`;
 }
 
+/**
+ * @param {string} lean
+ * @param {string} [call]
+ */
+function pickWcPlayerPropListHeadline(lean, call = "") {
+  const leanStr = String(lean || "").trim();
+  const numbered = leanStr.match(/^\s*1\.\s+(.+)$/m);
+  if (numbered) {
+    const lead = numbered[1].split(/\n/)[0].trim();
+    const count = (leanStr.match(/^\s*\d+\.\s+/gm) || []).length;
+    if (count > 1) {
+      return capWcCardFaceField(`${lead} (+${count - 1} more)`, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    return capWcCardFaceField(lead, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+  const callStr = String(call || "").trim();
+  if (callStr && !/^pass\b/i.test(callStr)) {
+    return capWcCardFaceField(callStr, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+  const leanPlay = formatWcPlaySlot(lean);
+  if (leanPlay && !/\blean his\b/i.test(leanPlay)) {
+    return capWcCardFaceField(leanPlay.replace(/^lean:\s*/i, ""), {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+  return "";
+}
+
 export function pickWcCardHeadline(opts = {}) {
   const ct = String(opts.callType || "").toLowerCase();
   const call = String(opts.call || "").trim();
@@ -272,6 +310,11 @@ export function pickWcCardHeadline(opts = {}) {
   const leanIsPassBoilerplate = /^pass\s*[—-]\s*no actionable line yet/i.test(leanRaw);
   const playerMarketCt =
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
+
+  if (playerMarketCt) {
+    const propHeadline = pickWcPlayerPropListHeadline(leanRaw, call);
+    if (propHeadline) return propHeadline;
+  }
 
   if (
     (ct === "matchup" || playerMarketCt) &&
@@ -456,13 +499,25 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   });
 
   let whyFace = "";
+  const playerMarketCt =
+    ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
+  const leanStr = String(opts.lean || "").trim();
+  const numberedPropList = playerMarketCt && /^\s*\d+\.\s+/m.test(leanStr);
+
   if (focusLayout) {
-    whyFace = pickWcFocusWhyLine(fullWhy, lineSlot);
-    if (!whyFace && fullWhy) {
-      whyFace = capWcCardFaceField(fullWhy, {
-        maxWords: WC_FACE_FOCUS_WHY_WORDS,
-        maxSentences: 1,
+    if (numberedPropList) {
+      whyFace = capWcCardFaceField(leanStr, {
+        maxWords: 72,
+        maxSentences: 6,
       });
+    } else {
+      whyFace = pickWcFocusWhyLine(fullWhy, lineSlot);
+      if (!whyFace && fullWhy) {
+        whyFace = capWcCardFaceField(fullWhy, {
+          maxWords: WC_FACE_FOCUS_WHY_WORDS,
+          maxSentences: 1,
+        });
+      }
     }
   } else {
     whyFace = capWcCardFaceField(fullWhy, {

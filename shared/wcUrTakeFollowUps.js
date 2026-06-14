@@ -3,9 +3,12 @@
  */
 
 import { WC_INTENT, isWcGroupSlateQuestion } from "./wcUrTakeIntent.js";
+import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
+import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
   extractWcNamedPlayerFromQuestion,
   isGenericWcPlayerPropQuestion,
+  isWcFixturePlayerPropsQuestion,
   isWcPlayerMarketIntent,
 } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
@@ -65,12 +68,44 @@ export function gateWcFollowUpChipText(chip, message, parsedGroup) {
  * @param {string} text
  * @returns {{ home: string, away: string } | null}
  */
+/**
+ * @param {string} side
+ * @param {string[]} mentioned
+ */
+function resolveWcMatchupSideAbbr(side, mentioned) {
+  const s = String(side || "").trim();
+  if (!s) return "";
+  const upper = s.toUpperCase();
+  if (mentioned.includes(upper)) return upper;
+  const sl = s.toLowerCase();
+  for (const abbr of mentioned) {
+    const name = wcMatchupTeamDisplayName(abbr).toLowerCase();
+    if (sl.includes(name) || sl.includes(abbr.toLowerCase())) return abbr;
+  }
+  return s;
+}
+
 export function parseWcMatchupFromQuestion(text) {
   let q = String(text || "").trim();
+  if (!q) return null;
+  if (/\b(player props?|player parlays?|parlay props?|golden boot)\b/i.test(q)) return null;
+
   q = q.replace(/^(who wins|who will win|what'?s your take on|ur take on)\s+/i, "");
+  const mentioned = extractMentionedWcTeams(q);
   const m = q.match(/([A-Za-zÀ-ÿ'.\s-]{2,40}?)\s+vs\.?\s+([A-Za-zÀ-ÿ'.\s-]{2,40}?)(?:\s*[—–-]|\?|$)/i);
+  if (m && mentioned.length >= 2) {
+    const homeSide = m[1].trim();
+    if (/\b(player props?|props?|parlay|best bet)\b/i.test(homeSide)) return null;
+    return {
+      home: resolveWcMatchupSideAbbr(homeSide, mentioned),
+      away: resolveWcMatchupSideAbbr(m[2].trim(), mentioned),
+    };
+  }
   if (!m) return null;
-  return { home: m[1].trim(), away: m[2].trim() };
+  const home = m[1].trim();
+  const away = m[2].trim();
+  if (/\b(player props?|props?|parlay|best bet)\b/i.test(home)) return null;
+  return { home, away };
 }
 
 /**
@@ -131,11 +166,12 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
     .match(/\b(Over|Under)\s+\d+\.?\d*\s*goals?\b/i);
   const isMoneylineBestBetQuestion =
     /\b(best bet|only know the moneyline)\b/i.test(q) && /\b(vs\.?|versus)\b/i.test(q);
+  const isFixturePlayerPropsQuestion = isWcFixturePlayerPropsQuestion(q);
   const showAltMatchupChips =
     isMatchupTake && (alreadyAskedWhoWins || priorTotalsInCall || isMoneylineBestBetQuestion);
 
   if (home && away) {
-    if (showAltMatchupChips) {
+    if (showAltMatchupChips && !isFixturePlayerPropsQuestion) {
       if (!isMoneylineBestBetQuestion) {
         chips.push("What's the best bet besides the moneyline?");
       }
@@ -160,18 +196,22 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
       } else {
         chips.push("Over or under goals?");
       }
-    } else if (!alreadyAskedWhoWins) {
+    } else if (!alreadyAskedWhoWins && !isFixturePlayerPropsQuestion) {
       chips.push(`Who wins ${home} vs ${away}?`);
     }
-    if (!chips.some((c) => /mispriced/i.test(c))) {
+    if (!isFixturePlayerPropsQuestion && !chips.some((c) => /mispriced/i.test(c))) {
       chips.push(`What's mispriced on ${home} vs ${away}?`);
     }
-    if (message?.wcEventId && !chips.some((c) => /player prop/i.test(c))) {
+    if (
+      message?.wcEventId &&
+      !isFixturePlayerPropsQuestion &&
+      !chips.some((c) => /player prop/i.test(c))
+    ) {
       chips.push(`Best player prop for ${home} vs ${away}?`);
     }
   } else {
     const parsed = parseWcMatchupFromQuestion(q);
-    if (parsed?.home && parsed?.away) {
+    if (parsed?.home && parsed?.away && !isFixturePlayerPropsQuestion) {
       chips.push(`Who wins ${parsed.home} vs ${parsed.away}?`);
       chips.push(`What's the other side?`);
     }
@@ -181,6 +221,14 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
     const name = extractWcNamedPlayerFromQuestion(q);
     if (name && !chips.some((c) => c.includes(name))) {
       chips.push(`Who is mispriced instead of ${name}?`);
+    } else if (isFixturePlayerPropsQuestion) {
+      const teams = extractMentionedWcTeams(q);
+      if (teams.length >= 2 && !chips.some((c) => /parlay/i.test(c))) {
+        chips.push(`4 player parlay for ${teams[0]} vs ${teams[1]}?`);
+      }
+      if (!chips.some((c) => /who wins/i.test(c)) && teams.length >= 2) {
+        chips.push(`Who wins ${teams[0]} vs ${teams[1]}?`);
+      }
     } else if (isGenericWcPlayerPropQuestion(q)) {
       if (/\bremaining matches?\b/i.test(q)) {
         chips.push("Best player parlays for remaining matches?");

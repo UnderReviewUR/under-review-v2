@@ -14,10 +14,21 @@ test("getWcContextFollowUpChips — generic player props avoids What misprice ch
   assert.ok(chips.some((c) => /player parlay|anytime scorer|group stage/i.test(c)));
 });
 
+test("parseWcMatchupFromQuestion — player props fixture returns null", () => {
+  assert.equal(parseWcMatchupFromQuestion("Best player props for Ecuador vs Ivory Coast?"), null);
+});
+
 test("parseWcMatchupFromQuestion", () => {
   const p = parseWcMatchupFromQuestion("Who wins Spain vs Brazil?");
-  assert.equal(p?.home, "Spain");
-  assert.equal(p?.away, "Brazil");
+  assert.equal(p?.home, "ESP");
+  assert.equal(p?.away, "BRA");
+});
+
+test("getWcContextFollowUpChips — fixture player props avoids mangled who wins chip", () => {
+  const q = "Best player props for Ecuador vs Ivory Coast?";
+  const chips = getWcContextFollowUpChips({ wcIntent: WC_INTENT.PLAYER_PROP }, q);
+  assert.ok(!chips.some((c) => /Who wins Best player props/i.test(c)));
+  assert.ok(chips.some((c) => /CIV vs ECU|parlay/i.test(c)));
 });
 
 test("getWcContextFollowUpChips uses wcMatchTeams", () => {

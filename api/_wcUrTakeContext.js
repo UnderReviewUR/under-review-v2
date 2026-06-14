@@ -1157,6 +1157,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         matchPlayerProps: playerMarketKv.matchPlayerProps,
         wcEventId: wcEventIdTrimmed,
         tournamentSimResults,
+        question,
       });
     } catch (err) {
       console.warn("[wc-context] player market KV load failed:", err?.message);
