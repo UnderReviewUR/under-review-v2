@@ -79,7 +79,7 @@ export async function getGoatMatchesPayload() {
   const oddsPaginated = await bdlFifaFetchPaginated(
     "/odds",
     { "seasons[]": 2026, per_page: 100 },
-    { maxPages: 15, delayMs: 0 },
+    { maxPages: 15, delayMs: BDL_GOAT_RATE_LIMIT_MS },
   );
   if (oddsPaginated.ok) {
     matches = attachBdlMoneylinesToMatches(matches, oddsPaginated.rows, nowMs);
