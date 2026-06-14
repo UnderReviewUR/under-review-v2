@@ -175,6 +175,56 @@ export function hasMatchPlayerPropRows(eventPayload) {
 }
 
 /**
+ * True when payload is a per-event record (readWcMatchPlayerPropsForEvent), not the KV index root.
+ * @param {Record<string, unknown> | null | undefined} payload
+ */
+export function isMatchPlayerPropsEventPayload(payload) {
+  return Boolean(payload?.markets && typeof payload.markets === "object");
+}
+
+/**
+ * Resolve event id + payload from either KV index root or a single-event payload.
+ * @param {Record<string, unknown> | null | undefined} kvOrEvent
+ * @param {object} [opts]
+ * @param {string} [opts.eventId]
+ * @param {string[]} [opts.teams]
+ * @returns {{ eventId: string, payload: Record<string, unknown> } | null}
+ */
+export function resolveMatchPlayerPropsPayload(kvOrEvent, opts = {}) {
+  if (!kvOrEvent) return null;
+
+  const eventId = String(opts.eventId || "").trim();
+  const teams = Array.isArray(opts.teams) ? opts.teams : [];
+
+  if (isMatchPlayerPropsEventPayload(kvOrEvent)) {
+    const payload = /** @type {Record<string, unknown>} */ (kvOrEvent);
+    const payloadEventId = String(payload.eventId || eventId || "").trim();
+    if (eventId && payloadEventId && payloadEventId !== eventId) return null;
+    if (teams.length >= 2) {
+      const want = new Set(teams.map((t) => String(t).trim().toUpperCase()));
+      const home = String(payload.homeTeam || "").trim().toUpperCase();
+      const away = String(payload.awayTeam || "").trim().toUpperCase();
+      if (!want.has(home) || !want.has(away)) return null;
+    }
+    return {
+      eventId: payloadEventId || eventId,
+      payload,
+    };
+  }
+
+  if (eventId) {
+    const payload = matchPlayerPropsForEvent(kvOrEvent, eventId);
+    if (payload) return { eventId, payload: /** @type {Record<string, unknown>} */ (payload) };
+  }
+
+  if (teams.length >= 2) {
+    return resolveMatchPlayerPropsEventForTeams(kvOrEvent, teams[0], teams[1]);
+  }
+
+  return null;
+}
+
+/**
  * @param {Record<string, unknown> | null | undefined} kvRoot
  * @param {string} eventId
  */
@@ -328,15 +378,9 @@ export function readFreshMatchPlayerPropsForEvent(kvRoot, eventId, nowMs = Date.
  */
 export function kvHasFreshMatchPlayerProps(kvRoot, opts = {}) {
   if (!kvRoot) return false;
-  const eventId = String(opts.eventId || "").trim();
-  if (eventId) {
-    return isMatchPlayerPropsFresh(matchPlayerPropsForEvent(kvRoot, eventId), opts.nowMs);
-  }
-  const teams = Array.isArray(opts.teams) ? opts.teams : [];
-  if (teams.length >= 2) {
-    const resolved = resolveMatchPlayerPropsEventForTeams(kvRoot, teams[0], teams[1]);
-    if (resolved) return isMatchPlayerPropsFresh(resolved.payload, opts.nowMs);
-  }
+  const resolved = resolveMatchPlayerPropsPayload(kvRoot, opts);
+  if (resolved) return isMatchPlayerPropsFresh(resolved.payload, opts.nowMs);
+
   const by = kvRoot.byEventId;
   if (!by || typeof by !== "object") return false;
   for (const payload of Object.values(by)) {

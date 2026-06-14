@@ -20,7 +20,9 @@ import {
   WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
-import { formatWcPlayerMarketPromptRules } from "../shared/wcUrTakePlayerMarket.js";
+import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion } from "../shared/wcUrTakePlayerMarket.js";
+import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
+import { resolveWcEventIdForFixtureTeams } from "../shared/wcPlayerPropFixture.js";
 import {
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
@@ -38,15 +40,25 @@ import {
 
 /**
  * @param {number} [nowMs]
- * @param {{ wcEventId?: string | null, wcIntent?: string }} [opts]
+ * @param {{ wcEventId?: string | null, wcIntent?: string, question?: string, matches?: Array<Record<string, unknown>> }} [opts]
  * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, wcEventId: string | null }>}
  */
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
-  const wcEventId = String(opts.wcEventId || "").trim() || null;
+  const question = String(opts.question || "");
+  let wcEventId = String(opts.wcEventId || "").trim() || null;
+
+  if (!wcEventId && isWcFixturePlayerPropsQuestion(question) && Array.isArray(opts.matches)) {
+    const teams = extractMentionedWcTeams(question);
+    if (teams.length >= 2) {
+      wcEventId = resolveWcEventIdForFixtureTeams(opts.matches, teams[0], teams[1]);
+    }
+  }
+
   const loadMatchProps =
     Boolean(wcEventId) &&
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
-      isWcLiveDominanceQuestion(String(opts.question || "")));
+      isWcLiveDominanceQuestion(question) ||
+      isWcFixturePlayerPropsQuestion(question));
 
   const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
     readWcPlayersFromKv(),

@@ -19,7 +19,7 @@ import {
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
-import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
+import { isWcPlayerMarketIntent, isWcFixturePlayerPropsQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import {
   formatWcPlayerMarketsPromptBlock,
   loadWcPlayerMarketKvBlocks,
@@ -82,6 +82,7 @@ import {
 } from "../shared/wcLiveMatchQuestion.js";
 import { WC_MATCH_BETTING_PROMPT_RULES } from "../shared/wcMatchBettingPrompt.js";
 import {
+  resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
 } from "../shared/wcPlayerPropFixture.js";
@@ -852,6 +853,16 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     effectiveEventId =
       resolveWcEventIdForPlayerNation(matches, mentionedTeams[0]) || effectiveEventId;
   }
+  if (
+    !effectiveEventId &&
+    isWcPlayerMarketIntent(wcIntent) &&
+    mentionedTeams.length >= 2 &&
+    (isWcFixturePlayerPropsQuestion(question) || /\bvs\.?\b/i.test(String(question || "")))
+  ) {
+    effectiveEventId =
+      resolveWcEventIdForFixtureTeams(matches, mentionedTeams[0], mentionedTeams[1]) ||
+      effectiveEventId;
+  }
   if (!effectiveEventId && isWcLiveDominanceQuestion(question)) {
     const livePinned = selectLiveFixtureForQuestion(matches, question, null);
     if (livePinned?.id) effectiveEventId = String(livePinned.id);
@@ -1132,18 +1143,21 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         wcEventId: wcEventIdTrimmed,
         wcIntent,
         question,
+        matches,
       });
+      const playerEventId = playerMarketKv.wcEventId || wcEventIdTrimmed;
+      ctx.wcEventId = playerEventId;
       const playerMarketTier = resolveWcPlayerMarketTier({
         goldenBoot: playerMarketKv.goldenBoot,
         players: playerMarketKv.players,
         injuries: playerMarketKv.injuries,
         matchPlayerProps: playerMarketKv.matchPlayerProps,
-        wcEventId: wcEventIdTrimmed,
+        wcEventId: playerEventId,
         wcContext: ctx,
         wcIntent,
       });
       const tierMeta = tierMetaFor(playerMarketTier);
-      ctx.playerMarketKv = playerMarketKv;
+      ctx.playerMarketKv = { ...playerMarketKv, wcEventId: playerEventId };
       ctx.playerMarketTier = playerMarketTier;
       ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
         tier: playerMarketTier,
@@ -1155,7 +1169,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         injuries: playerMarketKv.injuries,
         matchDetails,
         matchPlayerProps: playerMarketKv.matchPlayerProps,
-        wcEventId: wcEventIdTrimmed,
+        wcEventId: playerEventId,
         tournamentSimResults,
         question,
       });

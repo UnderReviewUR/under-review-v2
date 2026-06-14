@@ -134,15 +134,11 @@ export function findWcMatchPlayerPropRowForQuestion(question, matchPlayerProps) 
  * @param {Array<Record<string, unknown>>} matches
  * @param {string} nationAbbr
  */
-export function resolveWcEventIdForPlayerNation(matches, nationAbbr) {
-  const abbr = String(nationAbbr || "").toUpperCase();
-  if (!abbr) return null;
-
-  const relevant = (matches || []).filter(
-    (m) =>
-      String(m.homeTeam || "").toUpperCase() === abbr ||
-      String(m.awayTeam || "").toUpperCase() === abbr,
-  );
+/**
+ * @param {Array<Record<string, unknown>>} candidates
+ */
+function pickBestWcEventIdFromMatches(candidates) {
+  const relevant = Array.isArray(candidates) ? candidates : [];
   if (!relevant.length) return null;
 
   const live = relevant.filter((m) => /live|in progress|1h|2h|ht/i.test(String(m.status || "")));
@@ -161,4 +157,36 @@ export function resolveWcEventIdForPlayerNation(matches, nationAbbr) {
     .filter((m) => /final|ft|finished|complete/i.test(String(m.status || "")))
     .sort((a, b) => (Number(b.commenceTs) || 0) - (Number(a.commenceTs) || 0));
   return finished.length ? String(finished[0]?.id ?? "").trim() || null : null;
+}
+
+export function resolveWcEventIdForPlayerNation(matches, nationAbbr) {
+  const abbr = String(nationAbbr || "").toUpperCase();
+  if (!abbr) return null;
+
+  const relevant = (matches || []).filter(
+    (m) =>
+      String(m.homeTeam || "").toUpperCase() === abbr ||
+      String(m.awayTeam || "").toUpperCase() === abbr,
+  );
+  return pickBestWcEventIdFromMatches(relevant);
+}
+
+/**
+ * Pin ESPN event id for a head-to-head fixture (both teams in question text).
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {string} teamA
+ * @param {string} teamB
+ */
+export function resolveWcEventIdForFixtureTeams(matches, teamA, teamB) {
+  const want = new Set(
+    [teamA, teamB].map((t) => String(t || "").trim().toUpperCase()).filter(Boolean),
+  );
+  if (want.size < 2) return null;
+
+  const relevant = (matches || []).filter((m) => {
+    const home = String(m.homeTeam || "").trim().toUpperCase();
+    const away = String(m.awayTeam || "").trim().toUpperCase();
+    return want.has(home) && want.has(away);
+  });
+  return pickBestWcEventIdFromMatches(relevant);
 }

@@ -10,8 +10,7 @@ import {
   isMatchPlayerPropsFresh,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
-  matchPlayerPropsForEvent,
-  resolveMatchPlayerPropsEventForTeams,
+  resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
@@ -295,15 +294,13 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const kvRoot = kvBlocks?.matchPlayerProps;
   if (!kvRoot) return null;
 
-  let eventId = String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim();
-  let eventPayload = eventId ? matchPlayerPropsForEvent(kvRoot, eventId) : null;
-
-  if (!eventPayload) {
-    const resolved = resolveMatchPlayerPropsEventForTeams(kvRoot, teams[0], teams[1]);
-    if (!resolved) return null;
-    eventId = resolved.eventId;
-    eventPayload = resolved.payload;
-  }
+  const resolved = resolveMatchPlayerPropsPayload(kvRoot, {
+    eventId: String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim(),
+    teams,
+  });
+  if (!resolved) return null;
+  const eventId = resolved.eventId;
+  const eventPayload = resolved.payload;
 
   const rawRows = matchPlayerPropRowsFromEvent(eventPayload, "anytime_scorer", 24);
   const rows = collapseMatchPlayerPropRowsForDisplay(rawRows, "anytime_scorer");

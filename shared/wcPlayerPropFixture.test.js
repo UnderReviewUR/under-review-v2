@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   detectWcPlayerPropMarketKey,
   findWcMatchPlayerPropRowForQuestion,
+  resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
 } from "./wcPlayerPropFixture.js";
@@ -88,6 +89,27 @@ test("resolveWcEventIdForPlayerNation — pins upcoming KOR fixture", () => {
     },
   ];
   assert.equal(resolveWcEventIdForPlayerNation(matches, "KOR"), "kor-cze-1");
+});
+
+test("resolveWcEventIdForFixtureTeams — pins live ECU vs CIV fixture", () => {
+  const matches = [
+    {
+      id: "760423",
+      homeTeam: "ECU",
+      awayTeam: "CIV",
+      status: "live",
+      commenceTs: Date.now(),
+    },
+    {
+      id: "760424",
+      homeTeam: "FRA",
+      awayTeam: "BRA",
+      status: "scheduled",
+      commenceTs: Date.now() + 86400000,
+    },
+  ];
+  assert.equal(resolveWcEventIdForFixtureTeams(matches, "ECU", "CIV"), "760423");
+  assert.equal(resolveWcEventIdForFixtureTeams(matches, "CIV", "ECU"), "760423");
 });
 
 test("isMatchPlayerPropsFresh — shots-only BDL payload counts as fresh", () => {

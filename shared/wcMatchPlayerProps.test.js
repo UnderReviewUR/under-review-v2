@@ -5,8 +5,10 @@ import {
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
   isMatchPlayerPropsFresh,
+  kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
   matchPlayerPropsForEvent,
+  resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
 import { MOCK_WC_MATCH_PLAYER_PROPS_EVENT } from "../api/wcPlayerMarkets.fixture.js";
 
@@ -96,4 +98,26 @@ test("collapseMatchPlayerPropRowsForDisplay — assists O/U keeps primary line p
       ["Tani Oluwaseyi", "+450", "1"],
     ],
   );
+});
+
+test("resolveMatchPlayerPropsPayload — single-event payload from readWcMatchPlayerPropsForEvent", () => {
+  const event = {
+    ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+    lastUpdated: Date.now(),
+  };
+  const resolved = resolveMatchPlayerPropsPayload(event, { teams: ["FRA", "BRA"] });
+  assert.equal(resolved?.eventId, "760416");
+  assert.ok(isMatchPlayerPropsFresh(resolved?.payload));
+});
+
+test("kvHasFreshMatchPlayerProps — fresh single-event payload", () => {
+  const event = {
+    ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+    lastUpdated: Date.now(),
+  };
+  assert.equal(
+    kvHasFreshMatchPlayerProps(event, { teams: ["FRA", "BRA"] }),
+    true,
+  );
+  assert.equal(kvHasFreshMatchPlayerProps(event, { teams: ["ECU", "CIV"] }), false);
 });
