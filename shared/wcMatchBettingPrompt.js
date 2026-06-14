@@ -37,12 +37,23 @@ export const WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX = `MATCH ALT FOLLOW-UP (mandatory â
 - HEADLINE / CALL must name the alternate market only: Under/Over 2.5 goals, both teams to advance, BTTS, etc.
 - Put the ML winner line in breakdown / alt only â€” never as sentence one again.`;
 
+export function isWcMatchupOtherSideFollowUp(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  return (
+    /\bwhat'?s?\s+the\s+other\s+side\b/i.test(q) ||
+    /\b(?:give me|show me)\s+the\s+other\s+side\b/i.test(q) ||
+    /\bother\s+side\s+of\s+(?:this|that|the\s+(?:lean|play|total|line))\b/i.test(q)
+  );
+}
+
 /**
  * @param {string} question
  */
 export function isWcMatchupAltMarketFollowUp(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcMatchupOtherSideFollowUp(q)) return true;
   if (
     /\bbest bet\b[^.]{0,48}\bbesides\b[^.]{0,48}(?:the\s+)?(?:moneyline|ml)\b/i.test(q) ||
     /\bbesides\s+(?:the\s+)?(?:moneyline|ml)\b/i.test(q) ||

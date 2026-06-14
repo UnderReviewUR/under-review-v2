@@ -2914,6 +2914,7 @@ export default async function handler(req, res) {
             teamStats: inputs.teamStats,
             simLastUpdated: inputs.simLastUpdated,
             nowMs: inputs.nowMs,
+            history: normalizedUrTakeHistoryForGate,
           });
           if (built) {
             if (wcFixtureAltFollowUpCandidate) {

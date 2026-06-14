@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
+  extractPriorTotalsLeanFromHistory,
   getWcFixtureMlSeed,
   isWcPromoFixturePair,
   resolveWcFixturePairFromHistory,
@@ -47,6 +48,42 @@ test("buildWcFixtureMatchupPrebuiltStructured GER vs CUW heavy favorite leans Ov
   assert.equal(structured?.call, "Lean Over 4.5 goals");
   assert.match(structured?.whyNow || "", /Heavy favorite/i);
   assert.doesNotMatch(structured?.whyNow || "", /sits deep and Germany rarely blows/i);
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured other-side follow-up flips Over to Under", () => {
+  const history = [
+    { content: "Best bet on GER vs CUW if I only know the moneyline?" },
+    {
+      role: "assistant",
+      structured: { call: "Lean Over 4.5 goals", lean: "Pass on ML — Lean Over 4.5 goals" },
+    },
+  ];
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "GER",
+    away: "CUW",
+    group: "E",
+    question: "What's the other side?",
+    match: {
+      odds: {
+        home: { moneyline: "-3500" },
+        away: { moneyline: "+3000" },
+        draw: { moneyline: "+1600" },
+        totalLine: 4.5,
+        totalOver: "-110",
+        provider: "draftkings",
+      },
+    },
+    history,
+  });
+  assert.equal(structured?.call, "Lean Under 4.5 goals");
+  assert.doesNotMatch(structured?.lean || "", /Pass on ML/i);
+});
+
+test("extractPriorTotalsLeanFromHistory reads last assistant totals lean", () => {
+  const prior = extractPriorTotalsLeanFromHistory([
+    { role: "assistant", structured: { call: "Lean Over 4.5 goals" } },
+  ]);
+  assert.deepEqual(prior, { kind: "over", line: "4.5" });
 });
 
 test("shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt on mashup follow-up", () => {

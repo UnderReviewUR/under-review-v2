@@ -5,6 +5,7 @@ import {
   detectWcMatchupPassOnlyWithoutAlternate,
   detectWcMatchupAltFollowUpMlHeadline,
   isWcMatchupAltMarketFollowUp,
+  isWcMatchupOtherSideFollowUp,
   WC_MATCH_BETTING_PROMPT_RULES,
 } from "./wcMatchBettingPrompt.js";
 
@@ -47,6 +48,12 @@ test("isWcMatchupAltMarketFollowUp detects besides-ML chip", () => {
   assert.ok(isWcMatchupAltMarketFollowUp("What's the best bet besides the moneyline?"));
   assert.ok(isWcMatchupAltMarketFollowUp("Both teams to advance?"));
   assert.ok(!isWcMatchupAltMarketFollowUp("Who wins USA vs PAR?"));
+});
+
+test("isWcMatchupOtherSideFollowUp detects other-side chip", () => {
+  assert.ok(isWcMatchupOtherSideFollowUp("What's the other side?"));
+  assert.ok(isWcMatchupAltMarketFollowUp("What's the other side?"));
+  assert.ok(!isWcMatchupOtherSideFollowUp("Who wins GER vs CUW?"));
 });
 
 test("detectWcMatchupAltFollowUpMlHeadline flags repeated ML on alt follow-up", () => {

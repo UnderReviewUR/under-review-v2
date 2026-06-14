@@ -28,7 +28,7 @@ import {
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
-import { isWcMatchupAltMarketFollowUp } from "./wcMatchBettingPrompt.js";
+import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wcMatchBettingPrompt.js";
 import {
   assessWcBothTeamsAdvanceFixture,
   buildWcBothTeamsAdvanceCaveat,
@@ -469,18 +469,64 @@ function pickWcFixturePrebuiltLean(row) {
   return "Pass on ML — lean both teams to advance — cleaner angle than the ML.";
 }
 
+function formatTotalsLeanHeadline(kind, line) {
+  const side = String(kind || "").toLowerCase() === "over" ? "Over" : "Under";
+  return `Lean ${side} ${formatGoalsLine(line)} goals`;
+}
+
+/**
+ * @param {Array<{ role?: string, content?: string, text?: string, structured?: { call?: string, lean?: string } }>} [history]
+ * @returns {{ kind: "over" | "under", line: string } | null}
+ */
+export function extractPriorTotalsLeanFromHistory(history = []) {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const turn = history[i];
+    if (turn?.role !== "assistant" && turn?.role !== "ai") continue;
+    const blob = [turn?.structured?.call, turn?.structured?.lean, turn?.content, turn?.text]
+      .filter(Boolean)
+      .join(" ");
+    const hit = blob.match(/\b(Over|Under)\s+(\d+\.?\d*)\s*goals?\b/i);
+    if (hit) {
+      return {
+        kind: hit[1].toLowerCase() === "over" ? "over" : "under",
+        line: hit[2],
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * @param {{
  *   question: string,
  *   group?: string,
  *   home?: string,
  *   away?: string,
+ *   homeMl?: string,
+ *   awayMl?: string,
+ *   matchOdds?: Record<string, unknown>,
  *   teamStats?: Record<string, { advancePct?: number }>,
+ *   history?: Array<unknown>,
  * }} row
  */
 function pickWcFixtureAltFollowUpLean(row) {
   const q = String(row.question || "");
   const groupClause = row.group ? ` in Group ${row.group}` : "";
+
+  if (isWcMatchupOtherSideFollowUp(q)) {
+    const priorTotals = extractPriorTotalsLeanFromHistory(row.history);
+    if (priorTotals?.line) {
+      const flipped = priorTotals.kind === "over" ? "under" : "over";
+      return formatTotalsLeanHeadline(flipped, priorTotals.line);
+    }
+    if (row.homeMl && row.awayMl) {
+      const fav = pickMlFavorite(row.homeMl, row.awayMl, row.home, row.away);
+      const dogAbbr = fav.abbr === row.home ? row.away : row.home;
+      const dogMl = fav.abbr === row.home ? row.awayMl : row.homeMl;
+      return `${wcMatchupTeamDisplayName(dogAbbr)} ${dogMl} to win`;
+    }
+  }
 
   if (/\bboth teams to advance\b/i.test(q)) {
     const assessment = assessWcBothTeamsAdvanceFixture({
@@ -537,6 +583,7 @@ function wcModelAttributionFooter(lastUpdatedMs, nowMs = Date.now()) {
  *   teamStats?: Record<string, { advancePct?: number, groupWinPct?: number, name?: string }>,
  *   simLastUpdated?: number,
  *   nowMs?: number,
+ *   history?: Array<unknown>,
  * }} [opts]
  */
 export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
@@ -568,17 +615,21 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const favName = wcMatchupTeamDisplayName(fav.abbr);
   const mlCall = `${favName} ${fav.odds} to win`;
 
+  const altLeanText = pickWcFixtureAltFollowUpLean({
+    question: routingQ,
+    group,
+    home,
+    away,
+    homeMl,
+    awayMl,
+    matchOdds,
+    teamStats: opts.teamStats,
+    history: opts.history,
+  }).replace(/^lean:\s*/i, "");
   const lean = altFollowUp
-    ? `Pass on ML — ${pickWcFixtureAltFollowUpLean({
-        question: routingQ,
-        group,
-        home,
-        away,
-        homeMl,
-        awayMl,
-        matchOdds,
-        teamStats: opts.teamStats,
-      }).replace(/^lean:\s*/i, "")}`
+    ? isWcMatchupOtherSideFollowUp(routingQ)
+      ? altLeanText
+      : `Pass on ML — ${altLeanText}`
     : pickWcFixturePrebuiltLean({
         question: routingQ,
         home,
