@@ -1458,6 +1458,97 @@ export const baseCss = `
   .ur-onboarding-list{margin:0 0 18px;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.5;}
   .ur-onboarding-cta{width:100%;border:none;border-radius:12px;padding:12px 16px;font-family:var(--body-font);font-size:15px;font-weight:600;cursor:pointer;background:var(--cyan-bright);color:#080A0C;}
 
+  .ur-nba-champs-confetti{
+    position:fixed;
+    inset:0;
+    z-index:125;
+    pointer-events:none;
+  }
+  .ur-nba-champs-backdrop{
+    position:fixed;
+    inset:0;
+    z-index:126;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+    background:rgba(6,8,12,.86);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+  }
+  .ur-nba-champs-card{
+    position:relative;
+    width:100%;
+    max-width:420px;
+    padding:26px 22px 22px;
+    border-radius:22px;
+    border:1px solid rgba(245,132,38,.28);
+    background:
+      radial-gradient(120% 80% at 50% -10%, rgba(0,107,182,.22) 0%, transparent 55%),
+      linear-gradient(165deg, rgba(14,18,26,.98) 0%, rgba(8,10,14,.98) 100%);
+    box-shadow:0 24px 64px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+    text-align:center;
+  }
+  .ur-nba-champs-visual{
+    display:flex;
+    align-items:flex-end;
+    justify-content:center;
+    gap:18px;
+    margin-bottom:18px;
+  }
+  .ur-nba-champs-logo{
+    width:72px;
+    height:72px;
+    object-fit:contain;
+    filter:drop-shadow(0 8px 18px rgba(0,0,0,.35));
+  }
+  .ur-nba-champs-trophy{
+    width:52px;
+    height:78px;
+    filter:drop-shadow(0 10px 20px rgba(184,134,11,.35));
+  }
+  .ur-nba-champs-eyebrow{
+    margin:0 0 8px;
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:.18em;
+    text-transform:uppercase;
+    color:#F58426;
+  }
+  .ur-nba-champs-title{
+    margin:0 0 12px;
+    font-family:var(--display-font);
+    font-size:clamp(26px,6vw,32px);
+    line-height:1.05;
+    letter-spacing:.5px;
+    color:#fff;
+  }
+  .ur-nba-champs-lead{
+    margin:0 0 10px;
+    font-size:15px;
+    line-height:1.55;
+    color:rgba(255,255,255,.82);
+  }
+  .ur-nba-champs-sub{
+    margin:0 0 20px;
+    font-size:13px;
+    line-height:1.5;
+    color:rgba(255,255,255,.52);
+  }
+  .ur-nba-champs-cta{
+    width:100%;
+    border:none;
+    border-radius:12px;
+    padding:13px 16px;
+    font-family:var(--body-font);
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    color:#080A0C;
+    background:linear-gradient(90deg,#F58426 0%,#FFB066 48%,#006BB6 100%);
+    box-shadow:0 10px 24px rgba(245,132,38,.22);
+  }
+
   .ur-session-context-header{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 4px 12px;font-family:var(--mono-font);font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);}
   .ur-session-context-kicker{color:rgba(0,245,233,.75);}
   .ur-session-context-sport{color:rgba(255,255,255,.72);}

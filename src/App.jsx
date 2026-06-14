@@ -216,6 +216,7 @@ import {
 import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
 import BookmakerOddsPanel from "./components/BookmakerOddsPanel.jsx";
 import UrTakeOnboardingOverlay from "./components/UrTakeOnboardingOverlay.jsx";
+import NbaChampionsBanner from "./components/NbaChampionsBanner.jsx";
 import { isUrFocusSession } from "./lib/urFocusSession.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
@@ -6563,6 +6564,8 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
           </div>
         )}
 
+        <NbaChampionsBanner />
+
         {/* ══ NAV ══ */}
         <nav className="bottom-nav bottom-nav--six" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
@@ -6576,15 +6579,15 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
               <span className="nav-btn__stack-line">Cup</span>
             </span>
           </button>
-          <button className={`nav-btn${tab==="nba"?" nba-active":""}`} onClick={goNba}><span>NBA</span></button>
-          <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
+          <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1} aria-label="Formula 1"><span>F1</span></button>
+          <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
           <button
             className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
             onClick={goPro}
             aria-label="Pro"
           >
-            <span>Pro</span>
+            <span>PRO</span>
           </button>
         </nav>
 
