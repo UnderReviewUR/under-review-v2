@@ -187,6 +187,30 @@ export function matchPlayerPropsForEvent(kvRoot, eventId) {
 }
 
 /**
+ * Resolve per-event player props payload from two FIFA team abbreviations.
+ * @param {Record<string, unknown> | null | undefined} kvRoot
+ * @param {string} teamA
+ * @param {string} teamB
+ * @returns {{ eventId: string, payload: Record<string, unknown> } | null}
+ */
+export function resolveMatchPlayerPropsEventForTeams(kvRoot, teamA, teamB) {
+  const by = kvRoot?.byEventId;
+  if (!by || typeof by !== "object") return null;
+  const want = new Set(
+    [teamA, teamB].map((t) => String(t || "").trim().toUpperCase()).filter(Boolean),
+  );
+  if (want.size < 2) return null;
+  for (const [id, payload] of Object.entries(by)) {
+    const home = String(payload?.homeTeam || "").trim().toUpperCase();
+    const away = String(payload?.awayTeam || "").trim().toUpperCase();
+    if (want.has(home) && want.has(away)) {
+      return { eventId: String(id), payload: /** @type {Record<string, unknown>} */ (payload) };
+    }
+  }
+  return null;
+}
+
+/**
  * @param {Record<string, unknown> | null | undefined} eventPayload
  * @param {number} [nowMs]
  */
@@ -292,4 +316,31 @@ export function filterMatchPropRowsByFixtureTeams(rows, homeTeam, awayTeam) {
 export function readFreshMatchPlayerPropsForEvent(kvRoot, eventId, nowMs = Date.now()) {
   const raw = matchPlayerPropsForEvent(kvRoot, eventId);
   return attachMatchPlayerPropsFreshness(raw, nowMs);
+}
+
+/**
+ * True when the KV index has at least one non-stale event with player-prop rows.
+ * @param {Record<string, unknown> | null | undefined} kvRoot
+ * @param {object} [opts]
+ * @param {string} [opts.eventId]
+ * @param {string} [opts.question]
+ * @param {number} [nowMs]
+ */
+export function kvHasFreshMatchPlayerProps(kvRoot, opts = {}) {
+  if (!kvRoot) return false;
+  const eventId = String(opts.eventId || "").trim();
+  if (eventId) {
+    return isMatchPlayerPropsFresh(matchPlayerPropsForEvent(kvRoot, eventId), opts.nowMs);
+  }
+  const teams = Array.isArray(opts.teams) ? opts.teams : [];
+  if (teams.length >= 2) {
+    const resolved = resolveMatchPlayerPropsEventForTeams(kvRoot, teams[0], teams[1]);
+    if (resolved) return isMatchPlayerPropsFresh(resolved.payload, opts.nowMs);
+  }
+  const by = kvRoot.byEventId;
+  if (!by || typeof by !== "object") return false;
+  for (const payload of Object.values(by)) {
+    if (isMatchPlayerPropsFresh(payload, opts.nowMs)) return true;
+  }
+  return false;
 }

@@ -74,6 +74,7 @@ import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
 import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "../shared/wcUrTakeKeywords.js";
 import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
 import { formatWcCompactDisplayText } from "../shared/wcUrTakeCompactDelivery.js";
 import {
   buildWcHomePromoCard,
@@ -2374,6 +2375,10 @@ ${themeCss}
     const bubbleSport =
       String(structuredForBubble?.sport || "").trim().toLowerCase() ||
       (sportForBubble ? String(sportForBubble).trim().toLowerCase() : "") ||
+      (String(data.wcIntent || "").toUpperCase() === WC_INTENT.PLAYER_PROP ||
+      isWcPlayerMarketIntent(String(data.wcIntent || "").toUpperCase())
+        ? "worldcup"
+        : "") ||
       (resolvedWcIntent &&
       resolvedWcIntent !== WC_INTENT.UNCLASSIFIED &&
       resolvedWcIntent !== WC_INTENT.CONTINUATION
@@ -3962,13 +3967,19 @@ ${themeCss}
       const text = String(prompt ?? "").trim();
       if (!text) return;
       if (!canAsk()) return;
+      const resolvedHint =
+        typeof sportHint === "string" && sportHint.trim() && sportHint.trim() !== "generic"
+          ? sportHint.trim()
+          : questionMentionsWorldCup(text) || inferWorldCupFromPlayerMarketQuestion(text)
+            ? "worldcup"
+            : null;
       if (screen !== "ask" || tab !== "ask") {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
       setTab("ask");
       setScreen("ask");
       setAskInput("");
-      askUrTake({ text, setMsgs: setAskMsgs, sportHint });
+      askUrTake({ text, setMsgs: setAskMsgs, ...(resolvedHint ? { sportHint: resolvedHint } : {}) });
       requestAnimationFrame(() => {
         scheduleChatScroll(askScreenRef);
         const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
@@ -4010,8 +4021,7 @@ ${themeCss}
     setTab("ask");
     setScreen("ask");
     const homeSportHint =
-      isWcHomePromoWindow() &&
-      (questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t))
+      questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t)
         ? "worldcup"
         : undefined;
     askUrTake({
@@ -4029,7 +4039,15 @@ ${themeCss}
     const t = askInput.trim();
     if (!t || isAsking || prefetchingUrTakeContext) return;
     setAskInput("");
-    askUrTake({ text: t, setMsgs: setAskMsgs });
+    const askSportHint =
+      questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t)
+        ? "worldcup"
+        : undefined;
+    askUrTake({
+      text: t,
+      setMsgs: setAskMsgs,
+      ...(askSportHint ? { sportHint: askSportHint } : {}),
+    });
     scheduleChatScroll(askScreenRef);
     requestAnimationFrame(() => {
       askInputRef.current?.focus({ preventScroll: true });

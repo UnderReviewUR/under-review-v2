@@ -304,7 +304,7 @@ function pickWcPlayerPropListHeadline(lean, call = "") {
     });
   }
 
-  if (callStr && !/^pass\b/i.test(callStr)) {
+  if (callStr && !/^pass\b/i.test(callStr) && !leanIsPass) {
     return capWcCardFaceField(callStr, {
       maxWords: WC_FACE_HEADLINE_WORDS,
       maxSentences: 1,

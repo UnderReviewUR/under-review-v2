@@ -6,9 +6,15 @@ import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
 import { sortGoldenBootRows } from "./wcPlayerOddsFreshness.js";
 import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
 import {
+  collapseMatchPlayerPropRowsForDisplay,
   isMatchPlayerPropsFresh,
+  kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
+  matchPlayerPropsForEvent,
+  resolveMatchPlayerPropsEventForTeams,
 } from "./wcMatchPlayerProps.js";
+import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import {
   countRegistryPlayers,
   normalizeWcPlayerName,
@@ -275,6 +281,92 @@ export function buildWcTopGoalscorersListStructured(
   };
 }
 
+/**
+ * Deterministic numbered fixture player-prop card from MATCH PLAYER PROPS KV.
+ * @param {string} question
+ * @param {WcPlayerMarketTier} tier
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ */
+export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks, wcContext) {
+  const teams = extractMentionedWcTeams(String(question || ""));
+  if (teams.length < 2) return null;
+
+  const kvRoot = kvBlocks?.matchPlayerProps;
+  if (!kvRoot) return null;
+
+  let eventId = String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim();
+  let eventPayload = eventId ? matchPlayerPropsForEvent(kvRoot, eventId) : null;
+
+  if (!eventPayload) {
+    const resolved = resolveMatchPlayerPropsEventForTeams(kvRoot, teams[0], teams[1]);
+    if (!resolved) return null;
+    eventId = resolved.eventId;
+    eventPayload = resolved.payload;
+  }
+
+  const rawRows = matchPlayerPropRowsFromEvent(eventPayload, "anytime_scorer", 24);
+  const rows = collapseMatchPlayerPropRowsForDisplay(rawRows, "anytime_scorer");
+  if (rows.length < 2) return null;
+
+  const teamSet = new Set(teams.map((t) => String(t).toUpperCase()));
+  const byTeam = { home: [], away: [] };
+  for (const r of rows) {
+    const abbr = String(r.nationAbbr || "").toUpperCase();
+    if (teamSet.has(abbr)) {
+      if (!byTeam.home.length || byTeam.home[0]?.nationAbbr === abbr) {
+        byTeam.home.push(r);
+      } else {
+        byTeam.away.push(r);
+      }
+    }
+  }
+  if (!byTeam.away.length) {
+    byTeam.away = rows.filter((r) => !byTeam.home.includes(r));
+  }
+
+  /** @type {typeof rows} */
+  const picked = [];
+  const perSide = 3;
+  for (let i = 0; i < perSide && i < byTeam.home.length; i += 1) picked.push(byTeam.home[i]);
+  for (let i = 0; i < perSide && i < byTeam.away.length; i += 1) picked.push(byTeam.away[i]);
+  if (picked.length < 2) {
+    for (const r of rows) {
+      if (picked.length >= 5) break;
+      if (!picked.includes(r)) picked.push(r);
+    }
+  }
+  if (picked.length < 2) return null;
+  if (!eventPayload || !isMatchPlayerPropsFresh(eventPayload)) return null;
+
+  const numbered = picked
+    .slice(0, 5)
+    .map((r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`)
+    .join("\n");
+  const lead = picked[0];
+  const meta = tierMetaFor(tier);
+  const homeAbbr = String(eventPayload?.homeTeam || teams[0] || "").toUpperCase();
+  const awayAbbr = String(eventPayload?.awayTeam || teams[1] || "").toUpperCase();
+
+  return {
+    sport: "worldcup",
+    callType: meta.callType,
+    playerMarketTier: tier,
+    wcEventId: eventId || undefined,
+    fixtureHome: homeAbbr,
+    fixtureAway: awayAbbr,
+    call: `${lead.name} anytime scorer ${lead.americanOdds}`,
+    lean: numbered,
+    whyNow: `Posted anytime scorer lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)} in VERIFIED CONTEXT.`,
+    edge:
+      picked.length >= 2
+        ? `${picked[1].name} ${picked[1].americanOdds} is the alternate if ${lead.name} sits.`
+        : "",
+    confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
+    analysis: String(question || "").trim(),
+  };
+}
+
 export function buildWcPlayerMarketPrebuiltStructured(
   question,
   wcIntent,
@@ -366,10 +458,17 @@ export function resolveWcPlayerMarketAnswer(
     wcIntent === WC_INTENT.PLAYER_PROP &&
     isGenericWcPlayerPropQuestion(questionStr) &&
     !isWcFixturePlayerPropsQuestion(questionStr);
-  const freshMatchProps = isMatchPlayerPropsFresh(kvBlocks?.matchPlayerProps);
+  const fixturePlayerProps =
+    wcIntent === WC_INTENT.PLAYER_PROP && isWcFixturePlayerPropsQuestion(questionStr);
+  const freshMatchProps = kvHasFreshMatchPlayerProps(kvBlocks?.matchPlayerProps, {
+    eventId: String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim(),
+    question: questionStr,
+    teams: extractMentionedWcTeams(questionStr),
+  });
   const forcePass =
     (tier === WC_PLAYER_MARKET_TIER.THIN && knownNames.length === 0) ||
-    (genericSlateProps && !freshMatchProps);
+    (genericSlateProps && !freshMatchProps) ||
+    (fixturePlayerProps && !freshMatchProps);
 
   const base = {
     tier,
@@ -385,6 +484,26 @@ export function resolveWcPlayerMarketAnswer(
     promptAppendix: null,
   };
 
+  if (fixturePlayerProps && freshMatchProps) {
+    const structured = buildWcFixturePlayerPropsListStructured(
+      questionStr,
+      tier,
+      {
+        ...kvBlocks,
+        wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
+      },
+      wcContext,
+    );
+    if (structured) {
+      return {
+        ...base,
+        forcePass: true,
+        structured,
+        responseText: `${structured.lean}\n\n${structured.whyNow}`,
+      };
+    }
+  }
+
   if (forcePass) {
     const structured = detectParlayIntent(question)
       ? buildWcPlayerParlayPassStructured(question, extractParlayLegCount(question))
@@ -397,8 +516,10 @@ export function resolveWcPlayerMarketAnswer(
             lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
             whyNow: genericSlateProps
               ? "Player props for the remaining slate need confirmed XI and posted match lines in VERIFIED CONTEXT."
-              : "Re-ask once Golden Boot odds and match intel refresh.",
-            edge: genericSlateProps
+              : fixturePlayerProps
+                ? "Fixture player props need confirmed XI and posted match lines in VERIFIED CONTEXT."
+                : "Re-ask once Golden Boot odds and match intel refresh.",
+            edge: genericSlateProps || fixturePlayerProps
               ? "Re-ask closer to kickoff when MATCH PLAYER PROPS populate."
               : "No priced player edge until KV fills.",
             confidence: "Speculative",

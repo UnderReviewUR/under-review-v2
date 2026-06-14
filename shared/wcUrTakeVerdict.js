@@ -154,7 +154,7 @@ export function getVerdictFollowUpChips(verdict) {
       ];
     case "PLAYER_MARKET_PASS":
       return [
-        "Who is mispriced instead?",
+        "Best player parlays for remaining matches?",
         "Best group stage bet?",
         "Who lifts the trophy?",
       ];

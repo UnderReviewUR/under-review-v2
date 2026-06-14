@@ -49,6 +49,8 @@ import {
   wcDataConfidenceNeedsCaution,
 } from "../../../shared/wcDataConfidence.js";
 import { mergeWcFollowUpChips } from "../../../shared/wcUrTakeFollowUps.js";
+import { inferWorldCupFromPlayerMarketQuestion } from "../../../shared/wcUrTakeKeywords.js";
+import { isGenericWcPlayerPropQuestion, isWcPlayerMarketIntent } from "../../../shared/wcUrTakePlayerMarket.js";
 import {
   classifyWcVerdictForUi,
   getVerdictNextLine,
@@ -1056,8 +1058,14 @@ export function getFollowUpSuggestions(message, userQuestion = "") {
   const api = apiRaw.map((t) => String(t).trim()).filter(Boolean);
 
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
-  if (sport === "worldcup") {
-    const q = String(userQuestion || message?.userQuestion || "").trim();
+  const q = String(userQuestion || message?.userQuestion || "").trim();
+  const wcIntentRaw = String(message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "");
+  const treatAsWorldCup =
+    sport === "worldcup" ||
+    isWcPlayerMarketIntent(wcIntentRaw) ||
+    inferWorldCupFromPlayerMarketQuestion(q);
+
+  if (treatAsWorldCup) {
     const verdict = resolveWcVerdictFromQuestion(q, message);
     const merged = mergeWcFollowUpChips(verdict, message, q);
     if (api.length >= 2) {
