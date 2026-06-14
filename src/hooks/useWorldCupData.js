@@ -10,6 +10,7 @@ import {
   stripWcTeamInternalMeta,
 } from "../../shared/wcClientResilience.js";
 import { resolveWcMatchEtDate, wcTodayEtYmd } from "../../shared/wcKickoffDisplay.js";
+import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
 
 const WC_POLL_INTERVAL_MS = 60 * 1000;
 const WC_POLL_TIGHT_INTERVAL_MS = 30 * 1000;
@@ -77,7 +78,8 @@ function mergeMatchRowsForXiPoll(...lists) {
   return [...byId.values()];
 }
 
-export function useWorldCupData() {
+export function useWorldCupData(options = {}) {
+  const enabled = options.enabled !== false;
   const [wcLoading, setWcLoading] = useState(true);
   const [groups, setGroups] = useState(null);
   const [matches, setMatches] = useState([]);
@@ -197,6 +199,11 @@ export function useWorldCupData() {
   }, [loadAll]);
 
   useEffect(() => {
+    if (!enabled || !isWcHomePromoWindow()) {
+      setWcLoading(false);
+      return undefined;
+    }
+
     let isCurrent = true;
     let pollId = null;
     const matchRowsRef = { current: [] };
@@ -239,7 +246,7 @@ export function useWorldCupData() {
       isCurrent = false;
       if (pollId) window.clearTimeout(pollId);
     };
-  }, [loadAll, ingestXiPoll]);
+  }, [loadAll, ingestXiPoll, enabled]);
 
   return {
     wcLoading,

@@ -71,13 +71,19 @@ export function buildBdlMatchIdIndex(matches) {
  * @param {string | number} eventId
  * @param {{ bdlMatchId?: number, homeTeam?: string, awayTeam?: string, date?: string }} [meta]
  */
+/** ESPN WC event ids are 6-digit; BDL match ids are small integers on the GOAT slate. */
+export function looksLikeWcEspnEventId(eventId) {
+  const idStr = String(eventId ?? "").trim();
+  return /^\d{6,}$/.test(idStr);
+}
+
 export async function resolveBdlMatchIdForEvent(eventId, meta = {}) {
   if (meta.bdlMatchId != null && Number.isFinite(Number(meta.bdlMatchId))) {
     return Number(meta.bdlMatchId);
   }
 
-  const idStr = String(eventId);
-  if (/^\d+$/.test(idStr)) return Number(idStr);
+  const idStr = String(eventId ?? "").trim();
+  if (!idStr) return null;
 
   const map = await getDurableJson(WC_BDL_MATCH_MAP_KV_KEY);
   if (map?.byEventId?.[idStr]) return Number(map.byEventId[idStr]);
@@ -85,6 +91,12 @@ export async function resolveBdlMatchIdForEvent(eventId, meta = {}) {
   const kv = await getDurableJson(WC_MATCHES_KV_KEY);
   const hit = (kv?.matches || []).find((m) => String(m?.id) === idStr);
   if (hit?.bdlMatchId != null) return Number(hit.bdlMatchId);
+
+  // BDL-primary slate ids only — never treat ESPN event ids (e.g. 760418) as BDL match ids.
+  if (!looksLikeWcEspnEventId(idStr) && /^\d+$/.test(idStr)) {
+    const num = Number(idStr);
+    if (Number.isFinite(num)) return num;
+  }
 
   if (meta.homeTeam && meta.awayTeam && meta.date) {
     const key = `${meta.homeTeam}-${meta.awayTeam}-${meta.date}`;

@@ -31,6 +31,7 @@ export function isWcMatchFtStatus(status) {
 /**
  * @typedef {Object} WcMatchDetailScrapeTarget
  * @property {string} eventId
+ * @property {number | null} [bdlMatchId]
  * @property {number} commenceTs
  * @property {string} status
  * @property {string} homeTeam
@@ -59,8 +60,11 @@ export function selectWcMatchDetailTargets(matches, nowMs = Date.now(), opts = {
     const homeTeam = String(m?.homeTeam || "").toUpperCase();
     const awayTeam = String(m?.awayTeam || "").toUpperCase();
     const date = String(m?.date || "").slice(0, 10);
+    const bdlMatchId =
+      m?.bdlMatchId != null && Number.isFinite(Number(m.bdlMatchId)) ? Number(m.bdlMatchId) : null;
     const base = {
       eventId,
+      bdlMatchId,
       commenceTs: Number.isFinite(commenceTs) ? commenceTs : nowMs + 86400000,
       status,
       homeTeam,

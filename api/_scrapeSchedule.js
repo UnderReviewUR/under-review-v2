@@ -493,6 +493,7 @@ export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date
         awayTeam: t.awayTeam,
         commenceTs: t.commenceTs,
         scrapeMode: t.scrapeMode,
+        ...(t.bdlMatchId != null ? { bdlMatchId: t.bdlMatchId } : {}),
         ...(fixedIntervalMs != null ? { fixedIntervalMs } : {}),
       },
     });

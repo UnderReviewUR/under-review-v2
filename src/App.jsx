@@ -808,6 +808,12 @@ ${themeCss}
   const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
   const { golfData, golfLoading } = useGolfData();
+  const wcDataPollEnabled = useMemo(
+    () =>
+      isWcHomePromoWindow() &&
+      (screen === "home" || screen === "worldcup" || screen === "ask"),
+    [screen],
+  );
   const {
     wcLoading,
     groups,
@@ -820,7 +826,7 @@ ${themeCss}
     retryWcLoad,
     xiConfirmedNotice,
     dismissXiConfirmedNotice,
-  } = useWorldCupData();
+  } = useWorldCupData({ enabled: wcDataPollEnabled });
   const [wcScreenNav, setWcScreenNav] = useState(null);
   const { nflContextData } = useNflData();
   const {

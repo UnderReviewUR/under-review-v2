@@ -39,7 +39,7 @@ import {
   validateEspnScheduleAgainstOpenFootball,
 } from "../shared/wcOpenFootballSchedule.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
-import { scrapeAndCacheWcBdlStandingsAndFixtures } from "./_wcBdlData.js";
+import { scrapeAndCacheWcBdlStandingsAndFixtures, looksLikeWcEspnEventId } from "./_wcBdlData.js";
 import {
   loadFinalizedWcMatchDetailIds as loadFinalizedWcMatchDetailIdsFromCache,
   markWcMatchFinalizedInCache,
@@ -312,7 +312,13 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
         }
         return bdl;
       }
-      console.warn(`[wc-match-bundle] BDL failed for ${id}, ESPN fallback:`, bdl.error);
+      const bdlErrMsg = String(bdl.error || "bdl_bundle_failed");
+      const expectedEspnOnly =
+        bdlErrMsg === "no_bdl_match_id" ||
+        (looksLikeWcEspnEventId(id) && bdlErrMsg.includes("match:"));
+      if (!expectedEspnOnly) {
+        console.warn(`[wc-match-bundle] BDL failed for ${id}, ESPN fallback:`, bdl.error);
+      }
     } catch (bdlErr) {
       console.warn(`[wc-match-bundle] BDL error for ${id}:`, bdlErr?.message);
     }
