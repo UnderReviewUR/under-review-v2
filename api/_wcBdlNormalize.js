@@ -141,6 +141,80 @@ export function linkBdlMatchesToEspn(bdlMatches, espnMatches) {
   });
 }
 
+function impliedProbFromAmerican(am) {
+  const v = Number(am);
+  if (!Number.isFinite(v)) return null;
+  if (v > 0) return 100 / (v + 100);
+  return -v / (-v + 100);
+}
+
+/** BDL nests match O/U in markets[] when top-level total_value is null (common on DK/FD). */
+export function pickMainNestedMatchTotal(markets) {
+  if (!Array.isArray(markets) || !markets.length) return null;
+
+  /** @type {Array<{ line: string, over: number, under: number }>} */
+  const candidates = [];
+  for (const market of markets) {
+    if (market?.type !== "total") continue;
+    if (market?.period !== "match" || market?.scope !== "match") continue;
+    const line = market?.line_value;
+    if (line == null || String(line).trim() === "") continue;
+
+    const name = String(market?.name || market?.key || "").toLowerCase();
+    if (!name.includes("over/under")) continue;
+    if (/band|1st half|first half|team|moneyline|half time/.test(name)) continue;
+
+    const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+    const over = outcomes.find((o) => o?.type === "over");
+    const under = outcomes.find((o) => o?.type === "under");
+    if (over?.american_odds == null || under?.american_odds == null) continue;
+
+    candidates.push({
+      line: String(line),
+      over: Number(over.american_odds),
+      under: Number(under.american_odds),
+    });
+  }
+
+  if (!candidates.length) return null;
+
+  candidates.sort((a, b) => {
+    const balA = Math.abs(
+      (impliedProbFromAmerican(a.over) ?? 0.5) - (impliedProbFromAmerican(a.under) ?? 0.5),
+    );
+    const balB = Math.abs(
+      (impliedProbFromAmerican(b.over) ?? 0.5) - (impliedProbFromAmerican(b.under) ?? 0.5),
+    );
+    return balA - balB;
+  });
+
+  const best = candidates[0];
+  return {
+    totalLine: best.line,
+    totalOver: formatAm(best.over),
+    totalUnder: formatAm(best.under),
+  };
+}
+
+/** @param {Record<string, unknown>} row */
+export function extractBdlRowTotals(row) {
+  if (!row || typeof row !== "object") {
+    return { totalLine: null, totalOver: null, totalUnder: null };
+  }
+  if (row.total_value != null && row.total_over_odds != null) {
+    return {
+      totalLine: row.total_value,
+      totalOver: formatAm(row.total_over_odds),
+      totalUnder: row.total_under_odds != null ? formatAm(row.total_under_odds) : null,
+    };
+  }
+  return pickMainNestedMatchTotal(row.markets) || { totalLine: null, totalOver: null, totalUnder: null };
+}
+
+function findBdlOddsRowForVendor(rows, vendor) {
+  return rows.find((r) => String(r.vendor || "").toLowerCase() === vendor) || null;
+}
+
 /**
  * @param {Array<Record<string, unknown>>} oddsRows — FIFABettingOdd[]
  * @param {number} matchId
@@ -149,25 +223,39 @@ export function pickBdlMatchOddsForMatch(oddsRows, matchId) {
   const rows = (oddsRows || []).filter((r) => Number(r.match_id ?? r.matchId) === Number(matchId));
   if (!rows.length) return null;
 
+  let mlHit = null;
   for (const vendor of VENDOR_PRIORITY) {
-    const hit = rows.find((r) => String(r.vendor || "").toLowerCase() === vendor);
+    const hit = findBdlOddsRowForVendor(rows, vendor);
     if (!hit) continue;
     const home = formatAm(hit.moneyline_home_odds);
     const away = formatAm(hit.moneyline_away_odds);
     const draw = formatAm(hit.moneyline_draw_odds);
     if (!home && !away && !draw) continue;
-    return {
-      home: home ? { moneyline: home } : undefined,
-      away: away ? { moneyline: away } : undefined,
-      draw: draw ? { moneyline: draw } : undefined,
-      provider: String(hit.vendor || "BDL"),
-      spreadHome: hit.spread_home_odds != null ? formatAm(hit.spread_home_odds) : null,
-      spreadHomeLine: hit.spread_home_value ?? null,
-      totalOver: hit.total_over_odds != null ? formatAm(hit.total_over_odds) : null,
-      totalLine: hit.total_value ?? null,
-    };
+    mlHit = { hit, home, away, draw, vendor };
+    break;
   }
-  return null;
+  if (!mlHit) return null;
+
+  let totals = { totalLine: null, totalOver: null, totalUnder: null };
+  for (const vendor of VENDOR_PRIORITY) {
+    const hit = findBdlOddsRowForVendor(rows, vendor);
+    if (!hit) continue;
+    totals = extractBdlRowTotals(hit);
+    if (totals.totalLine != null && totals.totalOver != null) break;
+  }
+
+  return {
+    home: mlHit.home ? { moneyline: mlHit.home } : undefined,
+    away: mlHit.away ? { moneyline: mlHit.away } : undefined,
+    draw: mlHit.draw ? { moneyline: mlHit.draw } : undefined,
+    provider: String(mlHit.hit.vendor || "BDL"),
+    spreadHome:
+      mlHit.hit.spread_home_odds != null ? formatAm(mlHit.hit.spread_home_odds) : null,
+    spreadHomeLine: mlHit.hit.spread_home_value ?? null,
+    totalOver: totals.totalOver,
+    totalLine: totals.totalLine,
+    totalUnder: totals.totalUnder,
+  };
 }
 
 function formatAm(n) {
