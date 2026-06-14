@@ -17,6 +17,10 @@ import {
 import {
   formatWcPlayerMarketPassLabel,
   wcContextHasVerifiedScorerGrounding,
+  buildWcPlayerPropPassHeadline,
+  isGenericWcPlayerPropQuestion,
+  isWcFixturePlayerPropsQuestion,
+  repairWcPlayerPropPassCard,
 } from "./wcUrTakePlayerMarket.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
@@ -357,7 +361,15 @@ export function resolveWcPlayerMarketAnswer(
   });
   const meta = tierMetaFor(tier);
   const knownNames = extractKnownPlayerNamesFromKv(kvBlocks);
-  const forcePass = tier === WC_PLAYER_MARKET_TIER.THIN && knownNames.length === 0;
+  const questionStr = String(question || "").trim();
+  const genericSlateProps =
+    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isGenericWcPlayerPropQuestion(questionStr) &&
+    !isWcFixturePlayerPropsQuestion(questionStr);
+  const freshMatchProps = isMatchPlayerPropsFresh(kvBlocks?.matchPlayerProps);
+  const forcePass =
+    (tier === WC_PLAYER_MARKET_TIER.THIN && knownNames.length === 0) ||
+    (genericSlateProps && !freshMatchProps);
 
   const base = {
     tier,
@@ -376,7 +388,24 @@ export function resolveWcPlayerMarketAnswer(
   if (forcePass) {
     const structured = detectParlayIntent(question)
       ? buildWcPlayerParlayPassStructured(question, extractParlayLegCount(question))
-      : buildWcPlayerMarketEmptyStructured(question, wcIntent);
+      : repairWcPlayerPropPassCard(
+          {
+            sport: "worldcup",
+            callType: meta.callType,
+            playerMarketTier: tier,
+            call: buildWcPlayerPropPassHeadline(questionStr),
+            lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+            whyNow: genericSlateProps
+              ? "Player props for the remaining slate need confirmed XI and posted match lines in VERIFIED CONTEXT."
+              : "Re-ask once Golden Boot odds and match intel refresh.",
+            edge: genericSlateProps
+              ? "Re-ask closer to kickoff when MATCH PLAYER PROPS populate."
+              : "No priced player edge until KV fills.",
+            confidence: "Speculative",
+            analysis: questionStr,
+          },
+          questionStr,
+        );
     return {
       ...base,
       forcePass: true,

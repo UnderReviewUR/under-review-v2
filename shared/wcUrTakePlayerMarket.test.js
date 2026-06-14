@@ -7,7 +7,9 @@ import {
 } from "./wcUrTakeIntent.js";
 import {
   buildWcPlayerMarketEmptyStructured,
+  resolveWcPlayerMarketAnswer,
 } from "./wcPlayerMarketResolve.js";
+import { inferWorldCupFromPlayerMarketQuestion } from "./wcUrTakeKeywords.js";
 import {
   buildWcPlayerPropPassHeadline,
   detectTeamAnswerToPlayerQuestion,
@@ -145,6 +147,44 @@ test("buildWcPlayerPropPassHeadline — generic remaining matches slate", () => 
   );
   assert.equal(extractWcNamedPlayerFromQuestion(q), null);
   assert.equal(isGenericWcPlayerPropQuestion(q), true);
+});
+
+test("buildWcPlayerPropPassHeadline — today's remaining matches slate", () => {
+  const q = "Best player props for today's remaining matches?";
+  assert.equal(
+    buildWcPlayerPropPassHeadline(q),
+    "Player props for remaining matches — Pass until lines post.",
+  );
+  assert.equal(extractWcNamedPlayerFromQuestion(q), null);
+});
+
+test("inferWorldCupFromPlayerMarketQuestion — generic player props", () => {
+  assert.equal(
+    inferWorldCupFromPlayerMarketQuestion("Best player props for today's remaining matches?"),
+    true,
+  );
+  assert.equal(inferWorldCupFromPlayerMarketQuestion("Best props for LeBron tonight"), false);
+});
+
+test("classifyWcQuestionIntent — today's remaining player props", () => {
+  assert.equal(
+    classifyWcQuestionIntent("Best player props for today's remaining matches?"),
+    WC_INTENT.PLAYER_PROP,
+  );
+});
+
+test("resolveWcPlayerMarketAnswer — generic slate without match props forces pass", () => {
+  const resolved = resolveWcPlayerMarketAnswer(
+    "Best player props for today's remaining matches?",
+    WC_INTENT.PLAYER_PROP,
+    { playerMarketKv: { goldenBoot: { rows: [{ name: "Mbappé", americanOdds: "+600" }] } } },
+    {
+      goldenBoot: { rows: [{ name: "Mbappé", americanOdds: "+600" }] },
+      matchPlayerProps: null,
+    },
+  );
+  assert.equal(resolved.forcePass, true);
+  assert.match(resolved.structured?.call || "", /remaining matches/i);
 });
 
 test("buildWcPlayerPropPassHeadline — named player unchanged", () => {

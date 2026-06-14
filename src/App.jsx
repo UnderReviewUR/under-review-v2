@@ -71,7 +71,7 @@ import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
-import { questionMentionsWorldCup } from "../shared/wcUrTakeKeywords.js";
+import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "../shared/wcUrTakeKeywords.js";
 import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { formatWcCompactDisplayText } from "../shared/wcUrTakeCompactDelivery.js";
@@ -4010,7 +4010,10 @@ ${themeCss}
     setTab("ask");
     setScreen("ask");
     const homeSportHint =
-      isWcHomePromoWindow() && questionMentionsWorldCup(t) ? "worldcup" : undefined;
+      isWcHomePromoWindow() &&
+      (questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t))
+        ? "worldcup"
+        : undefined;
     askUrTake({
       text: t,
       setMsgs: setAskMsgs,

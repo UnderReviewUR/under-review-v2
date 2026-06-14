@@ -2,12 +2,12 @@
  * Shared UR Take sport routing: infer sport from question text, resolve vs UI hint, tab nudge copy.
  */
 
-import { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
+import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
 import { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
 
 export { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
 
-export { questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
+export { questionMentionsWorldCup, inferWorldCupFromPlayerMarketQuestion } from "./wcUrTakeKeywords.js";
 
 function normalizeText(value) {
   return String(value || "")
@@ -349,6 +349,10 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
   const q = normalizeText(extractLatestUserTurnForRouting(question));
 
   if (inferNbaFromMatchupSlug(q)) return "nba";
+
+  if (inferWorldCupFromPlayerMarketQuestion(question)) {
+    return "worldcup";
+  }
 
   if (matchupContext?.league) {
     const league = normalizeText(matchupContext.league);

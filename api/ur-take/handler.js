@@ -175,6 +175,7 @@ import {
   shouldInjectStaticRules,
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
+  WC_STATIC_RULES_BLOCK,
 } from "../../shared/wcUrTakeIntent.js";
 import {
   classifyWcAdvancementMarket,
@@ -296,6 +297,7 @@ import {
 import {
   buildUrTakeSportTurnScopeRules,
   extractLatestUserTurnForRouting,
+  inferWorldCupFromPlayerMarketQuestion,
   questionMentionsWorldCup,
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
@@ -2621,7 +2623,11 @@ export default async function handler(req, res) {
     chatHistory: incomingHistory,
   });
 
-  if (uiSportHintForRouting === "worldcup" || questionMentionsWorldCup(question)) {
+  if (
+    uiSportHintForRouting === "worldcup" ||
+    questionMentionsWorldCup(question) ||
+    inferWorldCupFromPlayerMarketQuestion(routingQuestion)
+  ) {
     sportHint = "worldcup";
   }
 
@@ -2663,7 +2669,7 @@ export default async function handler(req, res) {
   }
   if (
     (sportHint === "generic" || sportHint === "image_review") &&
-    questionMentionsWorldCup(question)
+    (questionMentionsWorldCup(question) || inferWorldCupFromPlayerMarketQuestion(routingQuestion))
   ) {
     sportHint = "worldcup";
   }
@@ -2731,6 +2737,9 @@ export default async function handler(req, res) {
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
+    if (isWcPlayerMarketIntent(wcIntent) || detectParlayIntent(routingQuestion)) {
+      sportHint = "worldcup";
+    }
     wcRequiredEntities = resolveRequiredEntities(routingQuestion, incomingHistory, wcIntent);
     wcRelevanceLog.wcIntent = wcIntent;
     wcRelevanceLog.mentionedTeams = extractMentionedWcTeams(String(question || ""));
@@ -3655,7 +3664,10 @@ export default async function handler(req, res) {
     longFormRequested,
     wcIntent,
   });
-  const propProjectionModeBlock = intent === "prop_projection" ? `\n\n${PROP_PROJECTION_MODE_BLOCK}` : "";
+  const propProjectionModeBlock =
+    intent === "prop_projection" && sportHint !== "worldcup"
+      ? `\n\n${PROP_PROJECTION_MODE_BLOCK}`
+      : "";
   const spreadAndGameSideBlock = isSpreadOrGameSideQuestion(question)
     ? `\n\n${SPREAD_AND_GAME_SIDE_BLOCK}`
     : "";
@@ -4950,7 +4962,7 @@ Rules:
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
-  } else if (sportHint === "worldcup" && (wcContext?.promptBlock || wcCrossGroupPrebuiltEarly)) {
+  } else if (sportHint === "worldcup") {
     const wcTurnScopeBlock = buildWcTurnScopeBlock(routingQuestion, wcIntent);
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
     const priceBindingBlock = buildPriceBindingPromptBlock(
@@ -5139,7 +5151,7 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 
     userPrompt = `${wcRoleLine}
 
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext.promptBlock}
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext?.promptBlock || WC_STATIC_RULES_BLOCK}
 
 Question:
 ${question}

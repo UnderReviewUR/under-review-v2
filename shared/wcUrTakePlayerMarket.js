@@ -592,6 +592,13 @@ export function formatWcPlayerMarketPromptRules(wcIntent, question = "") {
   HEADLINE/call: lead player #1 only; full list lives in lean so mobile can scan every leg.
   Cover both teams when MATCH PLAYER PROPS has rows for each side — never collapse to one vague sentence.`;
   }
+  if (isGenericWcPlayerPropQuestion(question)) {
+    return `SLATE PLAYER PROPS (binding):
+  User asked for player props across today's / remaining World Cup matches — NOT NBA/NFL/MLB.
+  When MATCH PLAYER PROPS has rows, list 3-5 named players with market + American price (numbered lean).
+  When no verified match lines exist, Pass honestly — never ask which sport or paste a multi-sport checklist.
+  Never treat question words (Best, What, Remaining) as player names.`;
+  }
   if (wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST) {
     return `PLAYER MARKET (${label}) — binding:
   User wants a RANKED LIST (typically five players) — not a single Golden Boot lean from the prior turn.
@@ -660,6 +667,11 @@ const WC_PLAYER_PROP_LEAD_WORDS = new Set([
   "great",
   "sneaky",
   "remaining",
+  "today",
+  "tonight",
+  "matches",
+  "match",
+  "slate",
   "player",
   "props",
   "prop",
@@ -697,6 +709,17 @@ export function extractWcNamedPlayerFromQuestion(question) {
   const first = name.split(/\s+/)[0]?.toLowerCase();
   if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) return null;
   return name;
+}
+
+/**
+ * @param {string} name
+ */
+export function isWcGenericPlayerPropSubjectName(name) {
+  const first = String(name || "")
+    .trim()
+    .split(/\s+/)[0]
+    ?.toLowerCase();
+  return !first || WC_PLAYER_PROP_LEAD_WORDS.has(first);
 }
 
 /**

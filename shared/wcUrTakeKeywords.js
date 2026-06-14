@@ -62,6 +62,11 @@ const WC_TOURNAMENT_TERMS = [
   "highest scorer",
   "player with most goals",
   "golden boot winner",
+  "player props",
+  "player prop",
+  "player parlays",
+  "player parlay",
+  "remaining matches",
 ];
 
 /** Single-token nation names that collide with other sports — need a co-signal. */
@@ -124,7 +129,7 @@ const WC_NFL_EXCLUDE_RE = /\b(nfl|touchdown|quarterback|super bowl)\b/i;
 
 /** FanDuel/DK-style soccer prop phrasing without "world cup" or nation names (e.g. "Jimenez 2+ shots?", "Son 2.5 shots?"). */
 const WC_SOCCER_PROP_LINE_RE =
-  /\b(\d+\+\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|\d+\.5\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|(?:over|under)\s*\d+\.5\s*shots?(?:\s+on\s+target)?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|to\s+score\s+or\s+assist|score\s+or\s+assist|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?|shots?\s+on\s+target|sot\s*(?:prop|o\/u|over|under)|anytime\s+(?:goal\s*)?scorer|first\s+goal\s*scorer)\b/i;
+  /\b(\d+\+\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|\d+\.5\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|(?:over|under)\s*\d+\.5\s*shots?(?:\s+on\s+target)?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|to\s+score\s+or\s+assist|score\s+or\s+assist|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?|shots?\s+on\s+target|sot\s*(?:prop|o\/u|over|under)|anytime\s+(?:goal\s*)?scorer|first\s+goal\s*scorer|player\s+props?|player\s+parlays?|parlay\s+props?)\b/i;
 
 const WC_OTHER_SPORT_EXCLUDE_RE =
   /\b(nba|nfl|mlb|nhl|basketball|baseball|hockey|touchdown|quarterback|strikeout|pitcher|pra|rebounds|lakers|celtics|spurs|warriors|yankees|dodgers)\b/i;
@@ -138,6 +143,21 @@ export function questionImpliesWcSoccerPlayerProp(question) {
   if (!q) return false;
   if (WC_OTHER_SPORT_EXCLUDE_RE.test(q)) return false;
   return WC_SOCCER_PROP_LINE_RE.test(q);
+}
+
+/**
+ * Route generic player-prop / parlay asks to World Cup during the tournament
+ * even when the question omits "World Cup" (e.g. home tab or WC screen).
+ * @param {string} question
+ */
+export function inferWorldCupFromPlayerMarketQuestion(question) {
+  const q = normalizeText(question);
+  if (!q || WC_OTHER_SPORT_EXCLUDE_RE.test(q)) return false;
+  if (/\b(player props?|player parlays?|parlay props?)\b/i.test(q)) return true;
+  if (/\bparlays?\b/i.test(q) && /\b(player|scorer|props?|goalscorer)\b/i.test(q)) {
+    return true;
+  }
+  return questionImpliesWcSoccerPlayerProp(question);
 }
 
 /**

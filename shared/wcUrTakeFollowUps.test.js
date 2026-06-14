@@ -14,6 +14,13 @@ test("getWcContextFollowUpChips — generic player props avoids What misprice ch
   assert.ok(chips.some((c) => /player parlay|anytime scorer|group stage/i.test(c)));
 });
 
+test("getWcContextFollowUpChips — today's remaining matches avoids Best misprice chip", () => {
+  const q = "Best player props for today's remaining matches?";
+  const chips = getWcContextFollowUpChips({ wcIntent: WC_INTENT.PLAYER_PROP }, q);
+  assert.ok(!chips.some((c) => /mispriced instead of Best/i.test(c)));
+  assert.ok(chips.some((c) => /player parlay|anytime scorer|group stage/i.test(c)));
+});
+
 test("parseWcMatchupFromQuestion — player props fixture returns null", () => {
   assert.equal(parseWcMatchupFromQuestion("Best player props for Ecuador vs Ivory Coast?"), null);
 });

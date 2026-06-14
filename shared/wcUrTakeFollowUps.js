@@ -9,6 +9,7 @@ import {
   extractWcNamedPlayerFromQuestion,
   isGenericWcPlayerPropQuestion,
   isWcFixturePlayerPropsQuestion,
+  isWcGenericPlayerPropSubjectName,
   isWcPlayerMarketIntent,
 } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
@@ -250,7 +251,7 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
 
   if (isWcPlayerMarketIntent(wcIntent)) {
     const name = extractWcNamedPlayerFromQuestion(q);
-    if (name && !chips.some((c) => c.includes(name))) {
+    if (name && !isWcGenericPlayerPropSubjectName(name) && !chips.some((c) => c.includes(name))) {
       chips.push(`Who is mispriced instead of ${name}?`);
     } else if (isFixturePlayerPropsQuestion) {
       const teams = extractMentionedWcTeams(q);

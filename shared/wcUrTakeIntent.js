@@ -15,7 +15,7 @@ import {
   isWcMatchProbabilityQuestion,
   isWcPlayerParlaySlateQuestion,
 } from "./wcMatchProbabilityQuestion.js";
-import { isWcFixturePlayerPropsQuestion } from "./wcUrTakePlayerMarket.js";
+import { isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "./wcUrTakePlayerMarket.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
@@ -477,6 +477,16 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - User asked for MULTIPLE player props on this fixture — numbered list in lean (3-5 players with market + American price).
 - Cover both teams when MATCH PLAYER PROPS has rows for each side.
 - HEADLINE/call: #1 prop only; never one truncated sentence ending in "lean his…".`;
+  }
+  if (
+    isGenericWcPlayerPropQuestion(routingQuestion) &&
+    !isWcFixturePlayerPropsQuestion(routingQuestion)
+  ) {
+    return `TURN SCOPE (binding):
+- User asked for PLAYER PROPS across today's / remaining World Cup slate — NOT NBA/NFL/MLB/tennis/golf/F1.
+- When MATCH PLAYER PROPS has rows, return a numbered list (3-5 players with market + American price).
+- When lines are missing, Pass honestly — never ask which sport, games, or players to track.
+- Never treat Best/What/Remaining as player names.`;
   }
   if (isWcPlayerMarketIntent(intent)) {
     return `TURN SCOPE (binding):
