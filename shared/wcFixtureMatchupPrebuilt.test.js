@@ -7,6 +7,7 @@ import {
   resolveWcFixturePairFromHistory,
   resolveWcFixturePairFromQuestion,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
+  shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
 } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
@@ -24,6 +25,39 @@ test("shouldUseWcFixtureMatchupPrebuilt for matchup intent", () => {
   const q = "Who wins USA vs PAR (Group D)?";
   assert.ok(shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.MATCHUP));
   assert.ok(!shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.STRUCTURAL));
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured GER vs CUW heavy favorite leans Over 4.5", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "GER",
+    away: "CUW",
+    group: "E",
+    question: "Best bet on GER vs CUW if I only know the moneyline?",
+    match: {
+      odds: {
+        home: { moneyline: "-3500" },
+        away: { moneyline: "+3000" },
+        draw: { moneyline: "+1600" },
+        totalLine: 4.5,
+        totalOver: "-110",
+        provider: "draftkings",
+      },
+    },
+  });
+  assert.equal(structured?.call, "Lean Over 4.5 goals");
+  assert.match(structured?.whyNow || "", /Heavy favorite/i);
+  assert.doesNotMatch(structured?.whyNow || "", /sits deep and Germany rarely blows/i);
+});
+
+test("shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt on mashup follow-up", () => {
+  const history = [{ content: "Best bet on GER vs CUW if I only know the moneyline?" }];
+  assert.ok(
+    shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(
+      "Who wins Best bet on GER vs CUW if I only know the moneyline?",
+      WC_INTENT.MATCHUP,
+      { isConversationFollowUp: true, history, hasKvFixture: true },
+    ),
+  );
 });
 
 test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () => {

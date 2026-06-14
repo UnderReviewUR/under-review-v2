@@ -112,6 +112,113 @@ function pickMlFavorite(homeOdds, awayOdds, home, away) {
     : { abbr: away, odds: awayOdds };
 }
 
+function americanOddsImplied(odds) {
+  const n = Number.parseInt(String(odds || "").replace(/[^\d+-]/g, ""), 10);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  if (n < 0) return -n / (-n + 100);
+  return 100 / (n + 100);
+}
+
+function formatGoalsLine(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "2.5";
+  return Number.isInteger(v) ? String(v) : String(v).replace(/\.0$/, "");
+}
+
+/**
+ * Alternate totals lean from posted lines + favorite strength (not a blanket Under 2.5).
+ * @param {{ home: string, away: string, homeMl: string, awayMl: string, matchOdds?: Record<string, unknown>, question?: string, passOnMlPrefix?: boolean }}
+ */
+export function pickWcFixtureTotalsAlternateLean(row) {
+  const q = String(row.question || "");
+  const userOu = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
+  if (userOu) {
+    const headline = `Lean ${userOu[1]} ${userOu[2]} goals`;
+    return {
+      lean: row.passOnMlPrefix === false ? `${headline}.` : `Pass on ML — ${headline} — cleaner angle than the ML.`,
+      headline,
+      kind: userOu[1].toLowerCase() === "over" ? "over" : "under",
+      line: userOu[2],
+    };
+  }
+
+  const fav = pickMlFavorite(row.homeMl, row.awayMl, row.home, row.away);
+  const favImp = americanOddsImplied(fav.odds);
+  const favAm = Number.parseInt(String(fav.odds || "").replace(/[^\d+-]/g, ""), 10);
+  const postedLine = row.matchOdds?.totalLine != null ? Number(row.matchOdds.totalLine) : null;
+  const line = Number.isFinite(postedLine)
+    ? postedLine
+    : favImp >= 0.85 || favAm <= -800
+      ? 4.5
+      : favImp >= 0.72 || favAm <= -250
+        ? 3.5
+        : 2.5;
+  const lineStr = formatGoalsLine(line);
+
+  const heavyMismatch = favImp >= 0.82 || favAm <= -800;
+  if (heavyMismatch) {
+    const headline = `Lean Over ${lineStr} goals`;
+    return {
+      lean:
+        row.passOnMlPrefix === false
+          ? `${headline}.`
+          : `Pass on ML — ${headline} — cleaner angle than the ML.`,
+      headline,
+      kind: "over",
+      line: lineStr,
+      favAbbr: fav.abbr,
+    };
+  }
+
+  const headline = `Lean Under ${lineStr} goals`;
+  return {
+    lean:
+      row.passOnMlPrefix === false
+        ? `${headline}.`
+        : `Pass on ML — ${headline} — cleaner angle than the ML.`,
+    headline,
+    kind: "under",
+    line: lineStr,
+    favAbbr: fav.abbr,
+  };
+}
+
+/**
+ * Repeat "best bet / moneyline" follow-ups in the same thread — keep prebuilt (avoid LLM flip-flop).
+ * @param {string} question
+ */
+export function isWcMoneylineBestBetQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  return (
+    /\b(best bet|only know the moneyline)\b/i.test(q) &&
+    (/\b(vs\.?|versus)\b/i.test(q) || isWcMatchWinnerQuestion(q))
+  );
+}
+
+/**
+ * @param {string} question
+ * @param {string} [wcIntent]
+ * @param {{ isConversationFollowUp?: boolean, wcRunnerUpFollowUpQuestion?: boolean, mentionedTeams?: string[], wcEventId?: string | null, hasKvFixture?: boolean, history?: Array<unknown> }} [opts]
+ */
+export function shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(question, wcIntent, opts = {}) {
+  if (!opts.isConversationFollowUp || opts.wcRunnerUpFollowUpQuestion) return false;
+  if (isWcPlayerMarketIntent(wcIntent)) return false;
+  if (shouldUseWcCrossGroupValuePrebuilt(question, wcIntent)) return false;
+  if (shouldUseWcGroupSlatePrebuilt(question, wcIntent)) return false;
+  if (isWcMatchupAltMarketFollowUp(question)) return false;
+  if (!isWcMoneylineBestBetQuestion(question) && !isWcMatchWinnerQuestion(question)) return false;
+
+  const pair =
+    resolveWcFixturePairFromQuestion(question, {
+      mentionedTeams: opts.mentionedTeams,
+      wcEventId: opts.wcEventId,
+    }) || resolveWcFixturePairFromHistory(opts.history);
+  if (!pair?.home || !pair?.away) return false;
+  if (opts.wcEventId || opts.hasKvFixture) return true;
+  return isWcPromoFixturePair(pair.home, pair.away);
+}
+
 /**
  * @param {{
  *   question: string,
@@ -297,7 +404,7 @@ function wcBothAdvanceLean(groupClause, teamStats, home, away, group) {
 }
 
 function pickWcFixturePrebuiltLean(row) {
-  const { question, home, away, group, homeStats, awayStats, teamStats: fullTeamStats } = row;
+  const { question, home, away, group, homeStats, awayStats, teamStats: fullTeamStats, matchOdds } = row;
   const q = String(question || "");
   const groupClause = group ? ` in Group ${group}` : "";
   const teamStats = fullTeamStats || {
@@ -305,21 +412,40 @@ function pickWcFixturePrebuiltLean(row) {
     [away]: awayStats,
   };
 
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+  const seedOdds = getWcFixtureMlSeed(home, away);
+  const resolvedHomeMl = homeMl || readWcMatchMoneylineAmerican(seedOdds?.home);
+  const resolvedAwayMl = awayMl || readWcMatchMoneylineAmerican(seedOdds?.away);
+
   if (
     /\b(best bet|group context|moneyline.*group|both teams to advance|both advance)\b/i.test(q)
   ) {
     const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group);
     if (bothLean) return bothLean;
-    return "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.";
+    if (resolvedHomeMl && resolvedAwayMl) {
+      return pickWcFixtureTotalsAlternateLean({
+        home,
+        away,
+        homeMl: resolvedHomeMl,
+        awayMl: resolvedAwayMl,
+        matchOdds,
+        question: q,
+      }).lean;
+    }
   }
 
-  const ou = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
-  if (ou) {
-    return `Lean ${ou[1]} ${ou[2]} goals — cleaner angle than the ML.`;
-  }
-
-  if (isWcMatchWinnerQuestion(q)) {
-    return "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.";
+  if (isWcMatchWinnerQuestion(q) || /\b(best bet|only know the moneyline)\b/i.test(q)) {
+    if (resolvedHomeMl && resolvedAwayMl) {
+      return pickWcFixtureTotalsAlternateLean({
+        home,
+        away,
+        homeMl: resolvedHomeMl,
+        awayMl: resolvedAwayMl,
+        matchOdds,
+        question: q,
+      }).lean;
+    }
   }
 
   const homeAdv = Number(homeStats?.advancePct);
@@ -329,7 +455,18 @@ function pickWcFixturePrebuiltLean(row) {
     if (bothLean) return bothLean;
   }
 
-  return "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.";
+  if (resolvedHomeMl && resolvedAwayMl) {
+    return pickWcFixtureTotalsAlternateLean({
+      home,
+      away,
+      homeMl: resolvedHomeMl,
+      awayMl: resolvedAwayMl,
+      matchOdds,
+      question: q,
+    }).lean;
+  }
+
+  return "Pass on ML — lean both teams to advance — cleaner angle than the ML.";
 }
 
 /**
@@ -352,20 +489,33 @@ function pickWcFixtureAltFollowUpLean(row) {
       group: row.group,
       teamStats: row.teamStats,
     });
-    if (!assessment.ok) return "Lean Under 2.5 goals.";
+    if (!assessment.ok) {
+      return pickWcFixtureTotalsAlternateLean({
+        home: row.home,
+        away: row.away,
+        homeMl: row.homeMl,
+        awayMl: row.awayMl,
+        matchOdds: row.matchOdds,
+        question: q,
+        passOnMlPrefix: false,
+      }).headline;
+    }
     return `Both teams to advance${groupClause}.`;
   }
 
-  const ou = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
-  if (ou) {
-    return `Lean ${ou[1]} ${ou[2]} goals.`;
+  if (row.homeMl && row.awayMl) {
+    return pickWcFixtureTotalsAlternateLean({
+      home: row.home,
+      away: row.away,
+      homeMl: row.homeMl,
+      awayMl: row.awayMl,
+      matchOdds: row.matchOdds,
+      question: q,
+      passOnMlPrefix: false,
+    }).headline;
   }
 
-  if (/\bover or under\b/i.test(q)) {
-    return "Lean Under 2.5 goals.";
-  }
-
-  return "Lean Under 2.5 goals — cleaner angle than the ML.";
+  return "Lean Under 2.5 goals.";
 }
 
 /**
@@ -424,6 +574,9 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
         group,
         home,
         away,
+        homeMl,
+        awayMl,
+        matchOdds,
         teamStats: opts.teamStats,
       }).replace(/^lean:\s*/i, "")}`
     : pickWcFixturePrebuiltLean({
@@ -434,6 +587,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
         homeStats,
         awayStats,
         teamStats: opts.teamStats,
+        matchOdds,
       });
   const playHeadline = extractWcMatchupPlayHeadline(lean) || "";
   const call = altFollowUp
@@ -478,7 +632,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
 
   const line = altFollowUp
     ? `${home} vs ${away} — ${mlCall}`.slice(0, 200)
-    : playHeadline && /under 2\.5/i.test(playHeadline)
+    : playHeadline && /\b(under|over)\s+\d/i.test(playHeadline)
       ? ""
       : winBar?.teamA?.winPct != null
         ? `Market win chance: ${homeName} ${winBar.teamA.winPct}% · Draw ${winBar.draw}% · ${awayName} ${winBar.teamB.winPct}%.`
@@ -542,8 +696,14 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
  */
 function buildWcFixturePrebuiltWhyNow(row) {
   const groupClause = row.group ? ` Group ${row.group}` : "";
+  if (/over \d/i.test(row.lean || row.playHeadline || "")) {
+    return `Heavy favorite script${groupClause} — ${row.homeName} should control the ball; ${row.awayName} sits deep but the posted total is high when the gap is this wide.`;
+  }
   if (/under 2\.5/i.test(row.lean || row.playHeadline || "")) {
     return `Tight${groupClause} opener — ${row.awayName} sits deep and ${row.homeName} rarely blows teams out in Game 1.`;
+  }
+  if (/under \d/i.test(row.lean || row.playHeadline || "")) {
+    return `Cautious${groupClause} script — ${row.awayName} packs in and ${row.homeName} may not need a shootout to win.`;
   }
   if (/both teams to advance/i.test(row.lean || "")) {
     const caveat = buildWcBothTeamsAdvanceCaveat(
@@ -596,7 +756,14 @@ function buildWcFixturePrebuiltDeep(row) {
       `Group paths: ${row.homeName} advances ${Number(row.homeStats.advancePct).toFixed(1)}% · ${row.awayName} ${Number(row.awayStats.advancePct).toFixed(1)}% in UR sims.`,
     );
   }
-  if (/under 2\.5/i.test(row.lean)) {
+  if (/over \d/i.test(row.lean)) {
+    parts.push(
+      `WINS IF: ${row.homeName} scores early and keeps the foot on the gas — ${row.awayName} chases or the bench leaks late.`,
+    );
+    parts.push(
+      `DIES IF: ${row.homeName} settles for 1-0 and shuts off, or a red card / weather swing kills tempo.`,
+    );
+  } else if (/under 2\.5/i.test(row.lean)) {
     parts.push(
       `WINS IF: ${row.awayName} packs the box and ${row.homeName} controls without a multi-goal burst — 0-0, 1-0, or 1-1 keeps you alive.`,
     );
@@ -625,6 +792,9 @@ function buildWcFixturePrebuiltDeep(row) {
  * @param {{ homeName: string, awayName: string, lean: string }} row
  */
 function buildWcFixturePrebuiltEdge(row) {
+  if (/over \d/i.test(row.lean)) {
+    return `Watch the first 25 minutes — if ${row.homeName} leads and keeps attacking, live Over holds up better.`;
+  }
   if (/under 2\.5/i.test(row.lean)) {
     return `Watch tempo — if ${row.homeName} scores inside 20 minutes, live Under gets harder.`;
   }

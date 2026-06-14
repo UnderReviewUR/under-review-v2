@@ -132,6 +132,11 @@ export function formatMatchOddsForPrompt(odds, homeTeam = "HOME", awayTeam = "AW
   if (draw != null && String(draw).trim()) parts.push(`Draw ${String(draw).trim()}`);
   if (away != null && String(away).trim()) parts.push(`${awayTeam} ${String(away).trim()}`);
 
+  if (odds.totalLine != null && String(odds.totalLine).trim() !== "") {
+    const over = odds.totalOver != null ? String(odds.totalOver).trim() : "";
+    parts.push(`Total ${String(odds.totalLine).trim()} goals${over ? ` (Over ${over})` : ""}`);
+  }
+
   return parts.length ? parts.join(" · ") : null;
 }
 
@@ -165,7 +170,7 @@ export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
   if (!line) return null;
 
   const block = [
-    `MATCH ODDS — ${match.homeTeam} vs ${match.awayTeam} (ESPN 1X2 moneylines):`,
+    `MATCH ODDS — ${match.homeTeam} vs ${match.awayTeam} (1X2 + totals when posted):`,
     `  ${line}`,
     `  Last updated: ${freshness.fetchedAt || "unknown"}`,
     `  Freshness: ${freshness.ageText} (max ${freshness.maxAgeMinutes} min)`,

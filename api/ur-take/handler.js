@@ -130,6 +130,7 @@ import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.j
 import {
   buildWcFixtureMatchupPrebuiltStructured,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
+  shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
 } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
@@ -2861,10 +2862,20 @@ export default async function handler(req, res) {
           });
       }
     }
+    const wcFixtureMoneylineRepeatFollowUp =
+      isConversationFollowUp &&
+      shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(routingQuestion, wcIntent, {
+        isConversationFollowUp,
+        wcRunnerUpFollowUpQuestion,
+        mentionedTeams: wcRelevanceLog.mentionedTeams,
+        wcEventId: wcEventIdTrimmed,
+        hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+        history: normalizedUrTakeHistoryForGate,
+      });
     const wcFixturePrebuiltCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
-      !isConversationFollowUp &&
+      (!isConversationFollowUp || wcFixtureMoneylineRepeatFollowUp) &&
       shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
         isConversationFollowUp,
         wcRunnerUpFollowUpQuestion,
@@ -5616,6 +5627,15 @@ You are responding to a Pro subscriber. Apply the following:
             mentionedTeams: wcRelevanceLog.mentionedTeams,
             wcEventId: wcRelevanceLog.wcEventId,
             hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+          })) ||
+        (isConversationFollowUp &&
+          shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcRelevanceLog.wcEventId,
+            hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+            history: normalizedUrTakeHistoryForGate,
           })) ||
         (isConversationFollowUp &&
           shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
