@@ -13,6 +13,7 @@ import {
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import { resolveWcPlayerPropFixtureTeams } from "./wcPlayerPropFixture.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import {
   countRegistryPlayers,
@@ -288,13 +289,11 @@ export function buildWcTopGoalscorersListStructured(
  * @param {object | null | undefined} wcContext
  */
 export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks, wcContext) {
-  const contextTeams = Array.isArray(wcContext?.requiredEntities)
-    ? wcContext.requiredEntities.map((t) => String(t).toUpperCase()).filter(Boolean)
-    : [];
-  const teams =
-    contextTeams.length >= 2
-      ? contextTeams
-      : extractMentionedWcTeams(String(question || ""));
+  const teams = resolveWcPlayerPropFixtureTeams(
+    String(question || ""),
+    wcContext?.conversationHistory || [],
+    wcContext,
+  );
   if (teams.length < 2) return null;
 
   const kvRoot = kvBlocks?.matchPlayerProps;
@@ -365,6 +364,52 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
       picked.length >= 2
         ? `${picked[1].name} ${picked[1].americanOdds} is the alternate if ${lead.name} sits.`
         : "",
+    confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
+    analysis: String(question || "").trim(),
+  };
+}
+
+/**
+ * Deterministic N-leg player parlay from posted MATCH PLAYER PROPS rows.
+ * @param {string} question
+ * @param {WcPlayerMarketTier} tier
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ * @param {number | null} [legCount]
+ */
+export function buildWcFixturePlayerParlayStructured(
+  question,
+  tier,
+  kvBlocks,
+  wcContext,
+  legCount = null,
+) {
+  const list = buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks, wcContext);
+  if (!list?.lean) return null;
+
+  const n = legCount ?? extractParlayLegCount(question) ?? 4;
+  const legLines = String(list.lean || "")
+    .split("\n")
+    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
+    .filter(Boolean);
+  if (legLines.length < Math.min(n, 2)) return null;
+
+  const picked = legLines.slice(0, n);
+  const numbered = picked.map((line, i) => `${i + 1}. ${line}`).join("\n");
+  const meta = tierMetaFor(tier);
+  const ticketLabel = `${picked.length}-leg player parlay`;
+
+  return {
+    sport: "worldcup",
+    callType: meta.callType,
+    playerMarketTier: tier,
+    wcEventId: list.wcEventId,
+    fixtureHome: list.fixtureHome,
+    fixtureAway: list.fixtureAway,
+    call: `${ticketLabel} — ${picked[0]}`,
+    lean: numbered,
+    whyNow: list.whyNow,
+    edge: picked.length >= 2 ? `Alt leg: ${picked[1]}.` : list.edge,
     confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
     analysis: String(question || "").trim(),
   };
@@ -457,20 +502,23 @@ export function resolveWcPlayerMarketAnswer(
   const meta = tierMetaFor(tier);
   const knownNames = extractKnownPlayerNamesFromKv(kvBlocks);
   const questionStr = String(question || "").trim();
-  const contextTeams = Array.isArray(wcContext?.requiredEntities)
-    ? wcContext.requiredEntities.map((t) => String(t).toUpperCase()).filter(Boolean)
-    : [];
+  const history = Array.isArray(wcContext?.conversationHistory) ? wcContext.conversationHistory : [];
+  const fixtureTeams = resolveWcPlayerPropFixtureTeams(questionStr, history, wcContext);
   const questionTeams = extractMentionedWcTeams(questionStr);
-  const fixtureTeams = contextTeams.length >= 2 ? contextTeams : questionTeams;
+  const isFixturePlayerPropAsk =
+    isGenericWcPlayerPropQuestion(questionStr) || detectParlayIntent(questionStr);
   const genericSlateProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
-    isGenericWcPlayerPropQuestion(questionStr) &&
+    isFixturePlayerPropAsk &&
     !isWcFixturePlayerPropsQuestion(questionStr) &&
+    !detectParlayIntent(questionStr) &&
     fixtureTeams.length < 2;
   const fixturePlayerProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
-    isGenericWcPlayerPropQuestion(questionStr) &&
-    (isWcFixturePlayerPropsQuestion(questionStr) || fixtureTeams.length >= 2);
+    isFixturePlayerPropAsk &&
+    (isWcFixturePlayerPropsQuestion(questionStr) ||
+      detectParlayIntent(questionStr) ||
+      fixtureTeams.length >= 2);
   const freshMatchProps = kvHasFreshMatchPlayerProps(kvBlocks?.matchPlayerProps, {
     eventId: String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim(),
     question: questionStr,
@@ -496,6 +544,26 @@ export function resolveWcPlayerMarketAnswer(
   };
 
   if (fixturePlayerProps && freshMatchProps) {
+    if (detectParlayIntent(questionStr)) {
+      const parlayStructured = buildWcFixturePlayerParlayStructured(
+        questionStr,
+        tier,
+        {
+          ...kvBlocks,
+          wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
+        },
+        { ...wcContext, requiredEntities: fixtureTeams },
+        extractParlayLegCount(questionStr),
+      );
+      if (parlayStructured) {
+        return {
+          ...base,
+          forcePass: true,
+          structured: parlayStructured,
+          responseText: `${parlayStructured.lean}\n\n${parlayStructured.whyNow}`,
+        };
+      }
+    }
     const structured = buildWcFixturePlayerPropsListStructured(
       questionStr,
       tier,
@@ -503,7 +571,7 @@ export function resolveWcPlayerMarketAnswer(
         ...kvBlocks,
         wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
       },
-      wcContext,
+      { ...wcContext, requiredEntities: fixtureTeams },
     );
     if (structured) {
       return {

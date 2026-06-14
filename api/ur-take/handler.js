@@ -118,6 +118,7 @@ import {
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
+import { loadWcPlayerMarketKvBlocks } from "../_wcPlayerUrTakeContext.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
@@ -226,7 +227,7 @@ import {
   isWcPlayerMarketIntent,
   resolveWcPlayerMarketResponse,
 } from "../../shared/wcUrTakePlayerMarket.js";
-import { buildWcPlayerMarketPrebuiltStructured } from "../../shared/wcPlayerMarketResolve.js";
+import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier } from "../../shared/wcPlayerMarketResolve.js";
 import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcGroupBindingPromptBlocks,
@@ -2967,6 +2968,10 @@ export default async function handler(req, res) {
         console.warn("[ur-take] fixture matchup prebuilt resolve failed:", fixtureErr?.message);
       }
     }
+    if (isWcPlayerMarketIntent(wcIntent)) {
+      wcFixtureMatchupPrebuiltEarly = null;
+      wcFixtureAltFollowUpPrebuiltEarly = null;
+    }
     if (
       !wcTomorrowSlatePrebuiltEarly &&
       !wcCrossGroupPrebuiltEarly &&
@@ -2979,6 +2984,7 @@ export default async function handler(req, res) {
           requiredEntities: wcRequiredEntities,
           injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
           wcEventId: wcEventIdTrimmed,
+          conversationHistory: normalizedUrTakeHistoryForGate,
           liteFollowUp:
             isConversationFollowUp &&
             !isWcPlayerMarketIntent(wcIntent) &&
@@ -2987,6 +2993,19 @@ export default async function handler(req, res) {
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
+      }
+    } else if (isWcPlayerMarketIntent(wcIntent)) {
+      try {
+        wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
+          wcIntent,
+          requiredEntities: wcRequiredEntities,
+          injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
+          wcEventId: wcEventIdTrimmed,
+          conversationHistory: normalizedUrTakeHistoryForGate,
+          liteFollowUp: false,
+        });
+      } catch (err) {
+        console.warn("[ur-take] buildWorldCupUrTakeContext player-prop override failed:", err?.message || err);
       }
     } else if (wcTomorrowSlatePrebuiltEarly) {
       wcContext = {
@@ -3020,6 +3039,46 @@ export default async function handler(req, res) {
     }
     wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
+    if (sportHint === "worldcup" && wcContext && typeof wcContext === "object") {
+      if (wcRequiredEntities.length) wcContext.requiredEntities = wcRequiredEntities;
+      wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
+      if (
+        isWcPlayerMarketIntent(wcIntent) &&
+        wcRequiredEntities.length >= 2 &&
+        !wcContext?.playerMarketKv?.matchPlayerProps
+      ) {
+        try {
+          const playerEventId = String(
+            wcContext.wcEventId || wcEventIdTrimmed || "",
+          ).trim();
+          const playerMarketKv = await loadWcPlayerMarketKvBlocks(Date.now(), {
+            wcEventId: playerEventId || null,
+            wcIntent,
+            question: routingQuestion,
+            matches: wcContext.allMatches || [],
+            conversationHistory: normalizedUrTakeHistoryForGate,
+          });
+          const playerEventIdResolved = playerMarketKv.wcEventId || playerEventId || null;
+          wcContext.wcEventId = playerEventIdResolved;
+          wcContext.playerMarketKv = {
+            ...playerMarketKv,
+            wcEventId: playerEventIdResolved,
+          };
+          wcContext.playerMarketTier =
+            wcContext.playerMarketTier || resolveWcPlayerMarketTier({
+              goldenBoot: playerMarketKv.goldenBoot,
+              players: playerMarketKv.players,
+              injuries: playerMarketKv.injuries,
+              matchPlayerProps: playerMarketKv.matchPlayerProps,
+              wcEventId: playerEventIdResolved,
+              wcContext,
+              wcIntent,
+            });
+        } catch (kvErr) {
+          console.warn("[ur-take] player market KV supplement failed:", kvErr?.message || kvErr);
+        }
+      }
+    }
 
     if (
       isWcRunnerUpValueFollowUp(routingQuestion) ||

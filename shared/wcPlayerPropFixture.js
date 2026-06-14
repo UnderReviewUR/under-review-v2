@@ -18,6 +18,11 @@ import {
 } from "./wcFeaturedMatch.js";
 import { getTomorrowEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
 import { wcMatchOnEtBroadcastSlateDay, wcTodayEtYmd } from "./wcKickoffDisplay.js";
+import { resolveContinuationEntities } from "./wcUrTakeIntent.js";
+import { resolveWcFixturePairFromHistory } from "./wcFixtureMatchupPrebuilt.js";
+
+const WC_PLAYER_PROP_THIS_FIXTURE_RE =
+  /\b(this|the)\s+(game|match|fixture|matchup)\b|\bfor\s+this\s+(game|match|fixture|matchup)\b/i;
 
 /**
  * @param {string} text
@@ -257,6 +262,41 @@ export function resolveWcPlayerPropSlateFixtureTeams(question, matches = [], now
   if (dayMatches.length === 1) return teamsFromMatch(dayMatches[0]);
 
   return [];
+}
+
+/**
+ * Resolve FIFA team abbrs for a player-prop ask from question text, chat history, or WC context.
+ * @param {string} question
+ * @param {object[]} [history]
+ * @param {{ requiredEntities?: string[], conversationHistory?: object[] }} [wcContext]
+ * @returns {string[]}
+ */
+export function resolveWcPlayerPropFixtureTeams(question, history = [], wcContext = null) {
+  const contextTeams = Array.isArray(wcContext?.requiredEntities)
+    ? wcContext.requiredEntities.map((t) => String(t).toUpperCase()).filter(Boolean)
+    : [];
+  if (contextTeams.length >= 2) return contextTeams;
+
+  const q = String(question || "").trim();
+  const fromQuestion = extractMentionedWcTeams(q);
+  if (fromQuestion.length >= 2) return fromQuestion;
+
+  const hist = Array.isArray(history) && history.length
+    ? history
+    : Array.isArray(wcContext?.conversationHistory)
+      ? wcContext.conversationHistory
+      : [];
+
+  if (WC_PLAYER_PROP_THIS_FIXTURE_RE.test(q) || /\bplayer props?\b/i.test(q)) {
+    const pair = resolveWcFixturePairFromHistory(hist);
+    if (pair?.home && pair?.away) {
+      return [String(pair.home).toUpperCase(), String(pair.away).toUpperCase()];
+    }
+    const cont = resolveContinuationEntities(hist);
+    if (cont.length >= 2) return cont.map((t) => String(t).toUpperCase());
+  }
+
+  return fromQuestion;
 }
 
 /**

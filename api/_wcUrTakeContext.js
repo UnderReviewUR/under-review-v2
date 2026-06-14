@@ -86,6 +86,7 @@ import {
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
   resolveWcPlayerPropSlateFixtureTeams,
+  resolveWcPlayerPropFixtureTeams,
 } from "../shared/wcPlayerPropFixture.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
@@ -791,7 +792,7 @@ async function loadWorldCupMatchesPayload() {
 
 /**
  * @param {string} [question]
- * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null, liteFollowUp?: boolean }} [opts]
+ * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null, liteFollowUp?: boolean, conversationHistory?: object[] }} [opts]
  */
 const WC_CONTEXT_TIMEOUT_MS = 8000;
 
@@ -843,6 +844,14 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     Array.isArray(opts.requiredEntities) && opts.requiredEntities.length
       ? opts.requiredEntities.map((t) => String(t).toUpperCase())
       : extractMentionedWcTeams(question);
+  if (isWcPlayerMarketIntent(wcIntent)) {
+    const pinned = resolveWcPlayerPropFixtureTeams(
+      question,
+      opts.conversationHistory || [],
+      { requiredEntities: mentionedTeams },
+    );
+    if (pinned.length >= 2) mentionedTeams = pinned;
+  }
   if (isWcPlayerMarketIntent(wcIntent) && !mentionedTeams.length) {
     const playerNation = resolveWcPlayerNationFromQuestion(question);
     if (playerNation) mentionedTeams = [String(playerNation).toUpperCase()];
@@ -1082,6 +1091,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     phase,
     wcIntent,
     requiredEntities: mentionedTeams,
+    conversationHistory: Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [],
     staticRulesBlock: injectStaticRules ? WC_STATIC_RULES_BLOCK : null,
     groups,
     groupsForPrompt,
@@ -1092,6 +1102,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     live,
     results: resultsForPrompt,
     upcoming: upcomingForPrompt,
+    allMatches: matches,
     fixtures,
     matchDetails,
     fixtureOddsBlocks,

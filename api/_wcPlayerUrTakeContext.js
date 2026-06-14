@@ -22,7 +22,8 @@ import {
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
 import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
-import { resolveWcEventIdForFixtureTeams } from "../shared/wcPlayerPropFixture.js";
+import { resolveWcEventIdForFixtureTeams, resolveWcPlayerPropSlateFixtureTeams, resolveWcPlayerPropFixtureTeams } from "../shared/wcPlayerPropFixture.js";
+import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 import {
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
@@ -40,15 +41,19 @@ import {
 
 /**
  * @param {number} [nowMs]
- * @param {{ wcEventId?: string | null, wcIntent?: string, question?: string, matches?: Array<Record<string, unknown>> }} [opts]
+ * @param {{ wcEventId?: string | null, wcIntent?: string, question?: string, matches?: Array<Record<string, unknown>>, conversationHistory?: object[] }} [opts]
  * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, wcEventId: string | null }>}
  */
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
   const question = String(opts.question || "");
   let wcEventId = String(opts.wcEventId || "").trim() || null;
 
-  if (!wcEventId && isWcFixturePlayerPropsQuestion(question) && Array.isArray(opts.matches)) {
-    const teams = extractMentionedWcTeams(question);
+  if (!wcEventId && (isWcFixturePlayerPropsQuestion(question) || detectParlayIntent(question)) && Array.isArray(opts.matches)) {
+    const teams = resolveWcPlayerPropFixtureTeams(
+      question,
+      opts.conversationHistory || [],
+      { requiredEntities: extractMentionedWcTeams(question) },
+    );
     if (teams.length >= 2) {
       wcEventId = resolveWcEventIdForFixtureTeams(opts.matches, teams[0], teams[1]);
     }
@@ -58,7 +63,8 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     Boolean(wcEventId) &&
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
       isWcLiveDominanceQuestion(question) ||
-      isWcFixturePlayerPropsQuestion(question));
+      isWcFixturePlayerPropsQuestion(question) ||
+      detectParlayIntent(question));
 
   const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
     readWcPlayersFromKv(),

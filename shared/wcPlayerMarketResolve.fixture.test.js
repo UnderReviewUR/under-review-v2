@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWcFixturePlayerPropsListStructured,
+  buildWcFixturePlayerParlayStructured,
   resolveWcPlayerMarketAnswer,
 } from "./wcPlayerMarketResolve.js";
 import { resolveMatchPlayerPropsEventForTeams } from "./wcMatchPlayerProps.js";
@@ -103,4 +104,43 @@ test("resolveWcPlayerMarketAnswer — follow-up this matchup uses requiredEntiti
   );
   assert.equal(resolved.forcePass, true);
   assert.match(resolved.structured?.lean || "", /^1\./m);
+});
+
+test("buildWcFixturePlayerParlayStructured — four legs from KV", () => {
+  const eventPayload = {
+    ...WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT["760416"],
+    eventId: "760416",
+    lastUpdated: Date.now(),
+  };
+  const structured = buildWcFixturePlayerParlayStructured(
+    "4 player parlay for FRA vs BRA?",
+    "market_only",
+    { matchPlayerProps: eventPayload, wcEventId: "760416" },
+    { requiredEntities: ["FRA", "BRA"] },
+    4,
+  );
+  assert.ok(structured);
+  assert.match(structured.lean, /^1\./m);
+  assert.equal((structured.lean.match(/\n/g) || []).length + 1, 4);
+});
+
+test("resolveWcPlayerMarketAnswer — 4 player parlay uses deterministic legs", () => {
+  const eventPayload = {
+    ...WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT["760416"],
+    eventId: "760416",
+    lastUpdated: Date.now(),
+  };
+  const resolved = resolveWcPlayerMarketAnswer(
+    "4 player parlay for FRA vs BRA?",
+    WC_INTENT.PLAYER_PROP,
+    { wcEventId: "760416", requiredEntities: ["FRA", "BRA"] },
+    {
+      matchPlayerProps: eventPayload,
+      wcEventId: "760416",
+      goldenBoot: { rows: [{ name: "Mbappé", americanOdds: "+600" }] },
+    },
+  );
+  assert.equal(resolved.forcePass, true);
+  assert.match(resolved.structured?.call || "", /4-leg player parlay/i);
+  assert.equal((String(resolved.structured?.lean || "").match(/\n/g) || []).length + 1, 4);
 });

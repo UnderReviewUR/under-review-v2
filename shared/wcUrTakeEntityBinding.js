@@ -4,9 +4,9 @@
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
-import { classifyWcQuestionIntent, resolveContinuationEntities, WC_INTENT } from "./wcUrTakeIntent.js";
+import { classifyWcQuestionIntent, WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
-import { resolveWcPlayerNationFromQuestion } from "./wcPlayerPropFixture.js";
+import { resolveWcPlayerNationFromQuestion, resolveWcPlayerPropFixtureTeams } from "./wcPlayerPropFixture.js";
 
 /** @param {string} abbr */
 export function wcTeamDisplayNames(abbr) {
@@ -27,18 +27,11 @@ export function resolveRequiredEntities(question, history = [], wcIntent) {
   const intent = wcIntent || classifyWcQuestionIntent(question, history);
   if (intent === WC_INTENT.RULES) return [];
   if (isWcPlayerMarketIntent(intent)) {
-    const q = String(question || "");
-    const entities = extractMentionedWcTeams(q);
-    if (/\bvs\.?\b|\bversus\b/i.test(q) && entities.length >= 2) {
-      return [...new Set(entities.map((t) => String(t).toUpperCase()))];
+    const teams = resolveWcPlayerPropFixtureTeams(String(question || ""), history);
+    if (teams.length >= 2) {
+      return [...new Set(teams.map((t) => String(t).toUpperCase()))];
     }
-    if (/\b(this|the)\s+(matchup|match|fixture|game)\b/i.test(q)) {
-      const fromHistory = resolveContinuationEntities(history);
-      if (fromHistory.length >= 2) {
-        return [...new Set(fromHistory.map((t) => String(t).toUpperCase()))];
-      }
-    }
-    const nation = resolveWcPlayerNationFromQuestion(q);
+    const nation = resolveWcPlayerNationFromQuestion(question);
     if (nation) return [String(nation).toUpperCase()];
     return [];
   }
