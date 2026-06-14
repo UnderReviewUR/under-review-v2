@@ -27,11 +27,18 @@ export function resolveRequiredEntities(question, history = [], wcIntent) {
   const intent = wcIntent || classifyWcQuestionIntent(question, history);
   if (intent === WC_INTENT.RULES) return [];
   if (isWcPlayerMarketIntent(intent)) {
-    const entities = extractMentionedWcTeams(String(question || ""));
-    if (/\bvs\.?\b|\bversus\b/i.test(String(question || "")) && entities.length >= 2) {
+    const q = String(question || "");
+    const entities = extractMentionedWcTeams(q);
+    if (/\bvs\.?\b|\bversus\b/i.test(q) && entities.length >= 2) {
       return [...new Set(entities.map((t) => String(t).toUpperCase()))];
     }
-    const nation = resolveWcPlayerNationFromQuestion(question);
+    if (/\b(this|the)\s+(matchup|match|fixture|game)\b/i.test(q)) {
+      const fromHistory = resolveContinuationEntities(history);
+      if (fromHistory.length >= 2) {
+        return [...new Set(fromHistory.map((t) => String(t).toUpperCase()))];
+      }
+    }
+    const nation = resolveWcPlayerNationFromQuestion(q);
     if (nation) return [String(nation).toUpperCase()];
     return [];
   }

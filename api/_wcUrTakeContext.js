@@ -19,7 +19,7 @@ import {
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
-import { isWcPlayerMarketIntent, isWcFixturePlayerPropsQuestion } from "../shared/wcUrTakePlayerMarket.js";
+import { isWcPlayerMarketIntent, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import {
   formatWcPlayerMarketsPromptBlock,
   loadWcPlayerMarketKvBlocks,
@@ -85,6 +85,7 @@ import {
   resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
+  resolveWcPlayerPropSlateFixtureTeams,
 } from "../shared/wcPlayerPropFixture.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
@@ -845,6 +846,14 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   if (isWcPlayerMarketIntent(wcIntent) && !mentionedTeams.length) {
     const playerNation = resolveWcPlayerNationFromQuestion(question);
     if (playerNation) mentionedTeams = [String(playerNation).toUpperCase()];
+  }
+  if (
+    isWcPlayerMarketIntent(wcIntent) &&
+    isGenericWcPlayerPropQuestion(question) &&
+    mentionedTeams.length < 2
+  ) {
+    const slateTeams = resolveWcPlayerPropSlateFixtureTeams(question, matches, nowMs);
+    if (slateTeams.length >= 2) mentionedTeams = slateTeams;
   }
   const phase = getWorldCupPhase(matches);
 

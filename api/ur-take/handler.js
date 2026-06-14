@@ -5397,7 +5397,9 @@ You are responding to a Pro subscriber. Apply the following:
     if (
       sportHint === "worldcup" &&
       !wcRunnerUpFollowUpQuestion &&
-      (!isConversationFollowUp || detectParlayIntent(routingQuestion)) &&
+      (!isConversationFollowUp ||
+        detectParlayIntent(routingQuestion) ||
+        wcIntent === WC_INTENT.PLAYER_PROP) &&
       (isWcPlayerMarketIntent(wcIntent) ||
         wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST ||
         detectParlayIntent(routingQuestion))

@@ -288,7 +288,13 @@ export function buildWcTopGoalscorersListStructured(
  * @param {object | null | undefined} wcContext
  */
 export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks, wcContext) {
-  const teams = extractMentionedWcTeams(String(question || ""));
+  const contextTeams = Array.isArray(wcContext?.requiredEntities)
+    ? wcContext.requiredEntities.map((t) => String(t).toUpperCase()).filter(Boolean)
+    : [];
+  const teams =
+    contextTeams.length >= 2
+      ? contextTeams
+      : extractMentionedWcTeams(String(question || ""));
   if (teams.length < 2) return null;
 
   const kvRoot = kvBlocks?.matchPlayerProps;
@@ -451,16 +457,24 @@ export function resolveWcPlayerMarketAnswer(
   const meta = tierMetaFor(tier);
   const knownNames = extractKnownPlayerNamesFromKv(kvBlocks);
   const questionStr = String(question || "").trim();
+  const contextTeams = Array.isArray(wcContext?.requiredEntities)
+    ? wcContext.requiredEntities.map((t) => String(t).toUpperCase()).filter(Boolean)
+    : [];
+  const questionTeams = extractMentionedWcTeams(questionStr);
+  const fixtureTeams = contextTeams.length >= 2 ? contextTeams : questionTeams;
   const genericSlateProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
     isGenericWcPlayerPropQuestion(questionStr) &&
-    !isWcFixturePlayerPropsQuestion(questionStr);
+    !isWcFixturePlayerPropsQuestion(questionStr) &&
+    fixtureTeams.length < 2;
   const fixturePlayerProps =
-    wcIntent === WC_INTENT.PLAYER_PROP && isWcFixturePlayerPropsQuestion(questionStr);
+    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isGenericWcPlayerPropQuestion(questionStr) &&
+    (isWcFixturePlayerPropsQuestion(questionStr) || fixtureTeams.length >= 2);
   const freshMatchProps = kvHasFreshMatchPlayerProps(kvBlocks?.matchPlayerProps, {
     eventId: String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim(),
     question: questionStr,
-    teams: extractMentionedWcTeams(questionStr),
+    teams: fixtureTeams.length >= 2 ? fixtureTeams : questionTeams,
   });
   const forcePass =
     (tier === WC_PLAYER_MARKET_TIER.THIN && knownNames.length === 0) ||

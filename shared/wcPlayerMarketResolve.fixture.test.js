@@ -84,3 +84,23 @@ test("buildWcFixturePlayerPropsListStructured — single-event payload", () => {
   assert.ok(structured);
   assert.match(structured.lean, /^1\./m);
 });
+
+test("resolveWcPlayerMarketAnswer — follow-up this matchup uses requiredEntities", () => {
+  const eventPayload = {
+    ...WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT["760416"],
+    eventId: "760416",
+    lastUpdated: Date.now(),
+  };
+  const resolved = resolveWcPlayerMarketAnswer(
+    "best player props for this matchup?",
+    WC_INTENT.PLAYER_PROP,
+    { wcEventId: "760416", requiredEntities: ["FRA", "BRA"] },
+    {
+      matchPlayerProps: eventPayload,
+      wcEventId: "760416",
+      goldenBoot: { rows: [{ name: "Mbappé", americanOdds: "+600" }] },
+    },
+  );
+  assert.equal(resolved.forcePass, true);
+  assert.match(resolved.structured?.lean || "", /^1\./m);
+});

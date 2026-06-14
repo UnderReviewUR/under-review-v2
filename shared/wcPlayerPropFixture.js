@@ -6,6 +6,18 @@ import { WC_FULL_SQUADS } from "../src/data/wc2026FullSquadsSeed.js";
 import { extractWcPlayerPropNameHint } from "./wcUrTakePlayerMarket.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 import { matchPlayerPropRowsFromEvent } from "./wcMatchPlayerProps.js";
+import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import { extractWcSlateDayFromQuestion } from "./wcTakeRetentionQA.js";
+import {
+  getWcMatchCommenceMs,
+  isWcFinishedMatchStatus,
+  isWcLiveMatchStatus,
+  isWcScheduledMatchStatus,
+  pickWcFeaturedMatch,
+  sortWcTodayMatches,
+} from "./wcFeaturedMatch.js";
+import { getTomorrowEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
+import { wcMatchOnEtBroadcastSlateDay, wcTodayEtYmd } from "./wcKickoffDisplay.js";
 
 /**
  * @param {string} text
@@ -169,6 +181,82 @@ export function resolveWcEventIdForPlayerNation(matches, nationAbbr) {
       String(m.awayTeam || "").toUpperCase() === abbr,
   );
   return pickBestWcEventIdFromMatches(relevant);
+}
+
+/**
+ * Pin fixture teams for slate/tonight player-prop asks when exactly one relevant match remains.
+ * @param {string} question
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {number} [nowMs]
+ * @returns {string[]}
+ */
+export function resolveWcPlayerPropSlateFixtureTeams(question, matches = [], nowMs = Date.now()) {
+  const q = String(question || "").trim();
+  if (!q || !/\bplayer props?\b/i.test(q)) return [];
+
+  const mentioned = extractMentionedWcTeams(q);
+  if (mentioned.length >= 2) return mentioned.map((t) => String(t).toUpperCase());
+
+  const wantsAnotherTonight = /\banother game tonight\b/i.test(q);
+  const wantsTonight =
+    wantsAnotherTonight ||
+    /\b(game tonight|later tonight|tonight'?s?\s+game)\b/i.test(q) ||
+    (/\btonight\b/i.test(q) && /\b(player props?|another game)\b/i.test(q));
+  const wantsTomorrow = /\btomorrow'?s?\b/i.test(q) && !/\btoday'?s?\b/i.test(q);
+  const wantsToday = /\btoday'?s?\b/i.test(q) || wantsTonight;
+  if (!wantsTonight && !wantsToday && !wantsTomorrow) return [];
+
+  const list = Array.isArray(matches) ? matches : [];
+  if (!list.length) return [];
+
+  const active = list.filter(
+    (m) =>
+      (isWcLiveMatchStatus(m.status) || isWcScheduledMatchStatus(m.status)) &&
+      !isWcFinishedMatchStatus(m.status),
+  );
+  if (!active.length) return [];
+
+  const todayEt = wcTodayEtYmd(nowMs);
+  const tomorrowEt = getTomorrowEtDateString(todayEt);
+
+  /** @param {Record<string, unknown>} match */
+  function teamsFromMatch(match) {
+    const home = String(match?.homeTeam || "").trim().toUpperCase();
+    const away = String(match?.awayTeam || "").trim().toUpperCase();
+    return home && away ? [home, away] : [];
+  }
+
+  if (wantsTonight) {
+    const tonight = sortWcTodayMatches(active, todayEt).filter(
+      (m) => !isWcFinishedMatchStatus(m.status),
+    );
+    if (wantsAnotherTonight) {
+      const upcomingTonight = tonight.filter((m) => isWcScheduledMatchStatus(m.status));
+      if (upcomingTonight.length === 1) return teamsFromMatch(upcomingTonight[0]);
+      if (upcomingTonight.length > 1) return teamsFromMatch(upcomingTonight[0]);
+    }
+    const live = active.filter((m) => isWcLiveMatchStatus(m.status));
+    if (live.length === 1 && !wantsAnotherTonight) return teamsFromMatch(live[0]);
+    if (tonight.length === 1) return teamsFromMatch(tonight[0]);
+    const featured = pickWcFeaturedMatch({ matches: list, nowMs });
+    if (
+      featured?.match &&
+      (featured.kind === "live" || featured.kind === "today") &&
+      !isWcFinishedMatchStatus(featured.match.status)
+    ) {
+      return teamsFromMatch(featured.match);
+    }
+    return [];
+  }
+
+  const slateDay = extractWcSlateDayFromQuestion(q);
+  const targetEt = slateDay === "tomorrow" ? tomorrowEt : todayEt;
+  const dayMatches = active
+    .filter((m) => wcMatchOnEtBroadcastSlateDay(m, targetEt))
+    .sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b));
+  if (dayMatches.length === 1) return teamsFromMatch(dayMatches[0]);
+
+  return [];
 }
 
 /**

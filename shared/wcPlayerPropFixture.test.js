@@ -6,6 +6,7 @@ import {
   resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
+  resolveWcPlayerPropSlateFixtureTeams,
 } from "./wcPlayerPropFixture.js";
 import {
   attachMatchPlayerPropsFreshness,
@@ -110,6 +111,37 @@ test("resolveWcEventIdForFixtureTeams — pins live ECU vs CIV fixture", () => {
   ];
   assert.equal(resolveWcEventIdForFixtureTeams(matches, "ECU", "CIV"), "760423");
   assert.equal(resolveWcEventIdForFixtureTeams(matches, "CIV", "ECU"), "760423");
+});
+
+test("resolveWcPlayerPropSlateFixtureTeams — pins featured tonight match when one remains", () => {
+  const nowMs = Date.parse("2026-06-14T22:00:00-04:00");
+  const matches = [
+    {
+      id: "760423",
+      homeTeam: "CIV",
+      awayTeam: "ECU",
+      status: "live",
+      date: "2026-06-14",
+      commenceTs: nowMs - 3600000,
+    },
+    {
+      id: "760425",
+      homeTeam: "SWE",
+      awayTeam: "TUN",
+      status: "scheduled",
+      date: "2026-06-14",
+      time: "9:00 PM ET",
+      commenceTs: nowMs + 3600000,
+    },
+  ];
+  assert.deepEqual(
+    resolveWcPlayerPropSlateFixtureTeams(
+      "there is another game tonight. best player props?",
+      matches,
+      nowMs,
+    ),
+    ["SWE", "TUN"],
+  );
 });
 
 test("isMatchPlayerPropsFresh — shots-only BDL payload counts as fresh", () => {
