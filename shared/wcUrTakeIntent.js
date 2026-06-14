@@ -8,6 +8,13 @@ import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
+import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
+import {
+  extractWcPlayerParlayRankCount,
+  isWcLiveMatchProbabilityQuestion,
+  isWcMatchProbabilityQuestion,
+  isWcPlayerParlaySlateQuestion,
+} from "./wcMatchProbabilityQuestion.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -155,7 +162,7 @@ const WC_TOP_SCORER_RE =
   /\b(top scorer|most goals|leading scorer|highest goal scorer|score the most goals|who will score the most|who scores the most)\b/i;
 
 const WC_PLAYER_PROP_RE =
-  /\b(which player|what player|player will|player to|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer|to score or assist|score or assist|assist\s*prop|record an assist|to record an assist|player assists?|assists?\s*(prop|market|o\/u|over)|\d+\+\s*shots?|\d+\.5\s*shots?(?:\s+on\s+target)?|(?:over|under)\s*\d+\.5\s*shots?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|shots?\s*on\s*target|sot\s*prop|player shots?|total shots?\s*(prop|o\/u)|to be carded|receive a card|booking\s*prop|yellow card|red card|card\s*prop|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?)\b/i;
+  /\b(which player|what player|player will|player to|name a player|striker|forward to score|individual scorer|player score|anytime goal\s*scorer|anytime scorer|to score anytime|first goal|first goal scorer|to score or assist|score or assist|assist\s*prop|record an assist|to record an assist|player assists?|assists?\s*(prop|market|o\/u|over)|\d+\+\s*shots?|\d+\.5\s*shots?(?:\s+on\s+target)?|(?:over|under)\s*\d+\.5\s*shots?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|shots?\s*on\s*target|sot\s*prop|player shots?|total shots?\s*(prop|o\/u)|to be carded|receive a card|booking\s*prop|yellow card|red card|card\s*prop|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?|best player prop|player props?|player parlays?|parlay props?|will\s+[A-Za-zÀ-ÿ][\wÀ-ÿ' -]{1,40}\s+score\b)\b/i;
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 
@@ -202,7 +209,15 @@ export function classifyWcPlayerMarketIntent(question) {
   const q = String(question || "").trim();
   const ql = q.toLowerCase();
   if (!q) return null;
-  if (WC_TEAM_GOALS_RE.test(ql)) return null;
+  if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
+
+  if (isWcPlayerParlaySlateQuestion(q)) return WC_INTENT.PLAYER_PROP;
+  if (detectParlayIntent(q) && /\b(player|props?|scorer|goalscorer|shots?|assists?)\b/i.test(q)) {
+    return WC_INTENT.PLAYER_PROP;
+  }
+  if (detectParlayIntent(q) && (extractParlayLegCount(q) != null || extractWcPlayerParlayRankCount(q) != null)) {
+    return WC_INTENT.PLAYER_PROP;
+  }
 
   if (WC_PLAYER_PROP_RE.test(ql)) return WC_INTENT.PLAYER_PROP;
   if (WC_GOLDEN_GLOVE_RE.test(ql)) return WC_INTENT.GOLDEN_GLOVE;
@@ -300,6 +315,10 @@ export function classifyWcQuestionIntent(question, history = []) {
   const playerMarketIntent = classifyWcPlayerMarketIntent(q);
   if (playerMarketIntent) {
     return playerMarketIntent;
+  }
+
+  if (isWcMatchProbabilityQuestion(q)) {
+    return WC_INTENT.MATCHUP;
   }
 
   if (isTournamentWinnerQuestion(q)) {
@@ -416,6 +435,29 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - User asked for MULTIPLE labeled predictions in one message — answer every slot they listed (Winners, Dark horse, Breakout player, Top goalscorer).
 - Do NOT collapse the answer into a single Golden Boot / top-scorer thesis.
 - Label each pick in deep; use sims/odds from VERIFIED CONTEXT when citing numbers.`;
+  }
+  if (detectParlayIntent(routingQuestion)) {
+    const legCount = extractParlayLegCount(routingQuestion) || extractWcPlayerParlayRankCount(routingQuestion);
+    const slateNote = isWcPlayerParlaySlateQuestion(routingQuestion)
+      ? " Rank/build distinct tickets when asked (best, traps, under-the-radar). Honor the requested count when the user names a number."
+      : "";
+    return `TURN SCOPE (binding):
+- User asked for a PLAYER PARLAY${legCount ? ` (${legCount} legs or tickets)` : ""} — NOT a moneyline, totals, or both-advance angle.${slateNote}
+- Build legs from MATCH PLAYER PROPS and Golden Boot rows in VERIFIED CONTEXT — cite player full name, market, and American price per leg.
+- Use callType "parlay" with parlayLegs when 2+ verified player legs exist; otherwise Pass and name what lines are missing.
+- Do NOT repeat a prior matchup lean (Under/Over goals, ML winner, both teams advance) from this chat.`;
+  }
+  if (isWcLiveMatchProbabilityQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User asked for LIVE in-play PROBABILITY — anchor on the stated score and minute from the question.
+- Answer chances of draw, winner, or late goal directly — cite implied % from live context/sims when present; do not restart with pre-kickoff ML or totals template.
+- Name both teams when the fixture is inferable from chat or VERIFIED CONTEXT.`;
+  }
+  if (isWcMatchProbabilityQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User asked for PROBABILITY / CHANCES on a match or team goal threshold — answer the number asked.
+- Cite sim or market implied % from VERIFIED CONTEXT; do not substitute a generic Under/Over lean card unless that is the closest posted market.
+- For "more than N goals" asks, discuss team total / scoring path — not Golden Boot or unrelated player props.`;
   }
   if (isWcPlayerMarketIntent(intent)) {
     return `TURN SCOPE (binding):

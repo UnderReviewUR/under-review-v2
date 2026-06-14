@@ -28,6 +28,11 @@ test("isWcTomorrowOrSlateBetQuestion skips player prop questions", () => {
   assert.ok(!isWcTomorrowOrSlateBetQuestion(q));
 });
 
+test("isWcTomorrowOrSlateBetQuestion skips player parlay slate", () => {
+  const q = "Best player parlays on today's World Cup matches?";
+  assert.ok(!isWcTomorrowOrSlateBetQuestion(q));
+});
+
 test("extractWcSlateDayFromQuestion prefers today for today's slate prompts", () => {
   assert.equal(extractWcSlateDayFromQuestion("Best bet on today's slate"), "today");
   assert.equal(extractWcSlateDayFromQuestion("Best World Cup bets for tomorrow?"), "tomorrow");

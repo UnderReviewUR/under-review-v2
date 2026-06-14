@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWcTurnScopeBlock,
   classifyWcQuestionIntent,
+  classifyWcPlayerMarketIntent,
   shouldInjectStaticRules,
   WC_INTENT,
   WC_INTENT_CATALOG,
@@ -80,6 +81,15 @@ test("classifyWcQuestionIntent — extended match player prop intents", () => {
     classifyWcQuestionIntent("Is Casemiro worth the yellow card prop?"),
     WC_INTENT.PLAYER_PROP,
   );
+});
+
+test("classifyWcQuestionIntent — player parlay beats matchup when fixture named", () => {
+  assert.equal(classifyWcPlayerMarketIntent("4 player parlay"), WC_INTENT.PLAYER_PROP);
+  assert.equal(
+    classifyWcQuestionIntent("4 player parlay for CIV vs ECU"),
+    WC_INTENT.PLAYER_PROP,
+  );
+  assert.equal(classifyWcQuestionIntent("4 player parlay"), WC_INTENT.PLAYER_PROP);
 });
 
 test("resolveRequiredEntities — player market returns no teams", () => {

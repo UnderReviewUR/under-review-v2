@@ -431,3 +431,25 @@ test("player parlay question does not use fixture matchup prebuilt", () => {
     false,
   );
 });
+
+test("4 player parlay for named fixture does not use matchup prebuilt", () => {
+  const q = "4 player parlay for CIV vs ECU";
+  assert.equal(
+    shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.PLAYER_PROP, { hasKvFixture: true }),
+    false,
+  );
+  assert.equal(
+    shouldUseWcFixtureMatchupAltFollowUpPrebuilt(q, WC_INTENT.PLAYER_PROP, {
+      isConversationFollowUp: true,
+      hasKvFixture: true,
+      mentionedTeams: ["CIV", "ECU"],
+      history: [
+        {
+          role: "user",
+          content: "Best bet on CIV vs ECU if I only know the moneyline?",
+        },
+      ],
+    }),
+    false,
+  );
+});

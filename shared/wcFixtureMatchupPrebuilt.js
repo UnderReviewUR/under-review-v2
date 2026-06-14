@@ -30,6 +30,7 @@ import {
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wcMatchBettingPrompt.js";
 import { isWcLiveDominanceQuestion } from "./wcLiveMatchQuestion.js";
+import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import {
   assessWcBothTeamsAdvanceFixture,
@@ -408,6 +409,7 @@ export function resolveWcFixturePairFromHistory(history = []) {
  */
 export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent, opts = {}) {
   if (isWcNonFixtureMatchupQuestion(question)) return false;
+  if (isWcMatchProbabilityQuestion(question)) return false;
   if (isWcPlayerMarketIntent(wcIntent)) return false;
   if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return false;
   if (!opts.isConversationFollowUp) return false;
@@ -442,6 +444,7 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
  */
 export function shouldUseWcFixtureMatchupPrebuilt(question, wcIntent, opts = {}) {
   if (isWcNonFixtureMatchupQuestion(question)) return false;
+  if (isWcMatchProbabilityQuestion(question)) return false;
   if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return false;
   if (opts.isConversationFollowUp || opts.wcRunnerUpFollowUpQuestion) return false;
   if (isWcPlayerMarketIntent(wcIntent)) return false;

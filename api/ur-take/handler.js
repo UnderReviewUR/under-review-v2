@@ -128,6 +128,10 @@ import {
 import { buildWcTomorrowSlatePrebuiltFromInputs } from "../_wcTomorrowSlatePrebuiltInputs.js";
 import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
 import {
+  isWcLiveMatchProbabilityQuestion,
+  isWcMatchProbabilityQuestion,
+} from "../../shared/wcMatchProbabilityQuestion.js";
+import {
   buildWcFixtureMatchupPrebuiltStructured,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
@@ -2877,6 +2881,8 @@ export default async function handler(req, res) {
     const wcFixturePrebuiltCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
+      !detectParlayIntent(routingQuestion) &&
+      !isWcMatchProbabilityQuestion(routingQuestion) &&
       (!isConversationFollowUp || wcFixtureMoneylineRepeatFollowUp) &&
       shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
         isConversationFollowUp,
@@ -2887,6 +2893,8 @@ export default async function handler(req, res) {
     const wcFixtureAltFollowUpCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
+      !detectParlayIntent(routingQuestion) &&
+      !isWcMatchProbabilityQuestion(routingQuestion) &&
       isConversationFollowUp &&
       shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
         isConversationFollowUp,
@@ -2963,7 +2971,10 @@ export default async function handler(req, res) {
           injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
           wcEventId: wcEventIdTrimmed,
           liteFollowUp:
-            isConversationFollowUp && !isWcPlayerMarketIntent(wcIntent) && !wcRunnerUpFollowUpQuestion,
+            isConversationFollowUp &&
+            !isWcPlayerMarketIntent(wcIntent) &&
+            !isWcLiveMatchProbabilityQuestion(routingQuestion) &&
+            !wcRunnerUpFollowUpQuestion,
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
@@ -4986,8 +4997,14 @@ Confidence guidance:
     const wcGroupCompositionBlock = wcGroupLettersForPrompt.length
       ? `${buildWcGroupBindingPromptBlocks(wcGroupLettersForPrompt)}\n\n`
       : "";
+    const wcMatchProbabilityIntent =
+      isWcMatchProbabilityQuestion(routingQuestion) || isWcLiveMatchProbabilityQuestion(routingQuestion);
     const wcRoleLine = isWcRulesIntent
       ? "You are answering a factual 2026 FIFA World Cup rules question."
+      : wcMatchProbabilityIntent
+        ? isWcLiveMatchProbabilityQuestion(routingQuestion)
+          ? "You are answering a live in-play World Cup probability question — anchor on the stated score and minute."
+          : "You are answering a World Cup match probability question (chances / odds of a scoreline or team goal threshold)."
       : isWcMatchupIntent
         ? "You are answering a 2026 FIFA World Cup group/matchup advancement question."
         : isWcTournamentWinnerIntent
@@ -4999,20 +5016,27 @@ Confidence guidance:
           : isWcPredictionsRoundupIntent
             ? "You are answering a 2026 FIFA World Cup predictions roundup (Winners, Dark horse, Breakout player, Top goalscorer — every labeled slot)."
             : isWcPlayerMarketIntentFlag
-              ? "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
+              ? detectParlayIntent(routingQuestion)
+                ? "You are answering a 2026 FIFA World Cup player parlay question — build named player legs only, never a matchup totals or ML card."
+                : "You are answering a 2026 FIFA World Cup player-market question (Golden Boot / top scorer / named player)."
               : "You are answering a 2026 FIFA World Cup betting question.";
     const wcIntentRules = isWcRulesIntent
       ? `- Answer with tournament rules only. Do NOT lead with a betting take or group-stage prediction.
 - Lead sentence one with the direct answer about extra time, penalties, or the specific rule asked.
 - No team advancement picks unless the user asked about a specific matchup.
 - Do NOT reference prior chat turns, teams, or pricing/matchup questions — this turn is rules-only.`
-      : isWcMatchupIntent
+      : isWcMatchupIntent && !wcMatchProbabilityIntent
         ? `- Return JSON per OUTPUT CONTRACT: summary = balanced advancement read (150 words max); deep = full reasoning (no word limit).
 - Sentence one must name BOTH required teams and their strength tags from VERIFIED CONTEXT.
 - Use only teams, groups, fixtures, and results from WORLD CUP 2026 — VERIFIED CONTEXT above.
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - If CURRENT OUTRIGHT ODDS is missing or STALE, use cautious structural language — no overconfident winner picks.
 - Do not invent scores, lineups, or odds not supported by the context block.
+- Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
+        : wcMatchProbabilityIntent
+          ? `- Answer the PROBABILITY asked — lead with chances / implied % / structural read for the specific outcome (draw, team scoring N+, late winner).
+- Do NOT substitute a generic moneyline or Under/Over lean card when the user asked for chances.
+- Cite sim or market implied % from VERIFIED CONTEXT when available; say Pass if the exact live state is not in context.
 - Stay on World Cup 2026 (USA, Mexico, Canada hosts; June 11 — July 19, 2026).`
         : isWcTournamentWinnerIntent
           ? `- Return JSON per OUTPUT CONTRACT: summary = tournament favorites verdict (150 words max); deep = full reasoning (no word limit).
@@ -5361,8 +5385,10 @@ You are responding to a Pro subscriber. Apply the following:
     if (
       sportHint === "worldcup" &&
       !wcRunnerUpFollowUpQuestion &&
-      !isConversationFollowUp &&
-      (isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST)
+      (!isConversationFollowUp || detectParlayIntent(routingQuestion)) &&
+      (isWcPlayerMarketIntent(wcIntent) ||
+        wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST ||
+        detectParlayIntent(routingQuestion))
     ) {
       const wcPlayerResolved = resolveWcPlayerMarketResponse(
         String(question || ""),

@@ -5,7 +5,7 @@
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 
 const LIVE_SIGNAL_RE =
-  /\b(right now|live|in play|in-play|currently|at the moment|this minute|controlling|dominating|dominance|possession|momentum|who.?s ahead|who is ahead)\b/i;
+  /\b(right now|live|in play|in-play|currently|at the moment|this minute|controlling|dominating|dominance|possession|momentum|who.?s ahead|who is ahead|\d+\s*[-–]\s*\d+|\d+(?:st|nd|rd|th)?\s+minute|\d+\s+mins?\s+left|minutes?\s+left|mins?\s+to\s+go|time\s+left)\b/i;
 
 /**
  * @param {string} question

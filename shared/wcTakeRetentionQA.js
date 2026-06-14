@@ -599,7 +599,7 @@ export function isWcTomorrowOrSlateBetQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
   if (isWcSlateOutcomePredictionQuestion(q)) return true;
-  if (/\b(golden boot|golden glove|player prop|anytime scorer)\b/i.test(q)) return false;
+  if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|player parlays|parlay prop)\b/i.test(q)) return false;
   if (/\boutright\b/i.test(q) && !/\b(tomorrow|today'?s?|slate|matches)\b/i.test(q)) return false;
   return (
     /\b(sneaky|good bets?|best bets?|value bets?)\b[\s\S]{0,56}\b(tomorrow|matches tomorrow|world cup matches|today'?s?(?: matches| slate| games)?)\b/i.test(

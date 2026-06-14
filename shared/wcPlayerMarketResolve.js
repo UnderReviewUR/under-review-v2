@@ -19,6 +19,7 @@ import {
   wcContextHasVerifiedScorerGrounding,
 } from "./wcUrTakePlayerMarket.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
 
 /** @typedef {"verified" | "market_only" | "squad" | "thin"} WcPlayerMarketTier */
 
@@ -196,6 +197,28 @@ export function buildWcPlayerMarketEmptyStructured(question, wcIntent) {
 }
 
 /**
+ * Pass card when a player parlay was requested but no verified prop rows exist yet.
+ * @param {string} question
+ * @param {number | null} [legCount]
+ */
+export function buildWcPlayerParlayPassStructured(question, legCount = null) {
+  const n = legCount ?? extractParlayLegCount(question);
+  const ticketLabel = n ? `${n}-leg player parlay` : "player parlay";
+  return {
+    sport: "worldcup",
+    callType: "single",
+    playerMarketTier: WC_PLAYER_MARKET_TIER.THIN,
+    call: `Pass on ${ticketLabel} until match player props post.`,
+    lean: `Pass — no verified player lines to build ${n ? `a ${n}-leg` : "a multi-leg"} ticket yet; see Watch For before locking a bet.`,
+    whyNow:
+      "World Cup player props need confirmed XI and listed anytime scorer / shots / assist prices in VERIFIED CONTEXT — re-ask closer to kickoff when MATCH PLAYER PROPS populate.",
+    edge: "Cleaner path: single anytime scorer once lines drop.",
+    confidence: "Speculative",
+    analysis: String(question || "").trim(),
+  };
+}
+
+/**
  * Optional deterministic answer for thin/market_only when we want guaranteed names (smoke/dev).
  * @param {string} question
  * @param {string} wcIntent
@@ -351,7 +374,9 @@ export function resolveWcPlayerMarketAnswer(
   };
 
   if (forcePass) {
-    const structured = buildWcPlayerMarketEmptyStructured(question, wcIntent);
+    const structured = detectParlayIntent(question)
+      ? buildWcPlayerParlayPassStructured(question, extractParlayLegCount(question))
+      : buildWcPlayerMarketEmptyStructured(question, wcIntent);
     return {
       ...base,
       forcePass: true,
