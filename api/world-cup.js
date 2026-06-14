@@ -11,6 +11,7 @@ import {
   ensureWcScheduleInKv,
   ensureWcOutrightsInKv,
   ensureWcDataInKv,
+  refreshWcLiveScoresFromEspn,
   scrapeAndCacheWcStandingsAndFixtures,
 } from "./_wcData.js";
 import {
@@ -204,6 +205,11 @@ export async function getMatchesPayload(opts = {}) {
 
   let kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
   let kvRealCount = countRealWcMatchesInKv(kv);
+
+  if (kv?.matches?.length && kvRealCount >= 50) {
+    const liveRefresh = await refreshWcLiveScoresFromEspn(kv, nowMs);
+    kv = liveRefresh.kv;
+  }
 
   if (kvRealCount < 50 && isWcTournamentWindow(nowMs)) {
     await ensureWcScheduleInKv(nowMs);

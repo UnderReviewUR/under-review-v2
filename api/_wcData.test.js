@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMatchDetailMeta, buildStaticGroupsFallback } from "./_wcData.js";
+import { buildMatchDetailMeta, buildStaticGroupsFallback, mergeWcLiveScorePatches } from "./_wcData.js";
 
 test("buildStaticGroupsFallback returns 12 groups with corrected teams", () => {
   const groups = buildStaticGroupsFallback();
@@ -48,4 +48,13 @@ test("buildMatchDetailMeta confirmed when lineupConfirmed true", () => {
   assert.equal(meta.xiStatus, "confirmed");
   assert.equal(meta.lineupConfirmed, true);
   assert.equal(meta.dataConfidence, "confirmed");
+});
+
+test("mergeWcLiveScorePatches updates live scores by event id", () => {
+  const { matches, changed } = mergeWcLiveScorePatches(
+    [{ id: "760425", homeTeam: "NED", awayTeam: "JPN", homeScore: 2, awayScore: 1, status: "live" }],
+    [{ id: "760425", homeScore: 2, awayScore: 2, status: "live" }],
+  );
+  assert.equal(changed, true);
+  assert.equal(matches[0].awayScore, 2);
 });

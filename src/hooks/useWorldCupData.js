@@ -13,7 +13,7 @@ import { resolveWcMatchEtDate, wcTodayEtYmd } from "../../shared/wcKickoffDispla
 import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
 
 const WC_POLL_INTERVAL_MS = 60 * 1000;
-const WC_POLL_TIGHT_INTERVAL_MS = 30 * 1000;
+const WC_POLL_TIGHT_INTERVAL_MS = 15 * 1000;
 const WC_NEAR_KICKOFF_MS = 90 * 60 * 1000;
 
 function isLiveStatus(status) {

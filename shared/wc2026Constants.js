@@ -38,6 +38,8 @@ export const WC_SCOREBOARD_END_YMD = "20260719";
 
 export const WC_GROUPS_TTL_SECONDS = 900; // 15 min KV TTL
 export const WC_MATCHES_TTL_SECONDS = 3600; // 1 h KV TTL
+/** Min gap between ESPN scoreboard polls while any match is live (user GET + cron). */
+export const WC_LIVE_SCORE_CHECK_INTERVAL_MS = 25 * 1000;
 export const WC_OUTRIGHTS_TTL_SECONDS = 6 * 3600; // 6 h KV TTL
 
 /** Cron fixed intervals (standings vs futures). */

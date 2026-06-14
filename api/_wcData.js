@@ -7,7 +7,9 @@ import {
   fetchEspnAllMatches,
   fetchEspnMatchOddsForEvent,
   fetchEspnOutrights,
+  fetchEspnScoreboardForDate,
   fetchEspnStandings,
+  normalizeEspnScoreboardEvent,
 } from "./_wcEspn.js";
 import { fetchEspnMatchSummary, normalizeEspnMatchSummary } from "./_wcEspnMatchDetail.js";
 import { fetchOddsApiWcOutrights } from "./_wcOutrightsFallback.js";
@@ -17,6 +19,7 @@ import {
   WC_GROUPS_TTL_SECONDS,
   WC_MATCHES_KV_KEY,
   WC_MATCHES_TTL_SECONDS,
+  WC_LIVE_SCORE_CHECK_INTERVAL_MS,
   WC_OUTRIGHTS_KV_KEY,
   WC_OUTRIGHTS_TTL_SECONDS,
   WC_MATCH_DETAIL_FT_TTL_SECONDS,
@@ -52,6 +55,93 @@ export const WC_MATCH_DETAIL_ENRICH_CONCURRENCY = 12;
 /** @typedef {"confirmed" | "pending" | "unavailable"} WcXiStatus */
 
 export { buildStaticGroupsFallback } from "../shared/wcStaticGroupsFallback.js";
+
+function isWcLiveMatchStatus(status) {
+  return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+/**
+ * Patch today's ESPN scoreboard rows onto the cached match list (scores + status only).
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {Array<Record<string, unknown>>} patches
+ */
+export function mergeWcLiveScorePatches(matches, patches) {
+  const patchById = new Map(
+    (patches || [])
+      .filter((p) => p?.id != null)
+      .map((p) => [String(p.id), p]),
+  );
+  let changed = false;
+  const out = (matches || []).map((m) => {
+    const id = m?.id != null ? String(m.id) : "";
+    const patch = id ? patchById.get(id) : null;
+    if (!patch) return m;
+    const next = {
+      ...m,
+      homeScore: patch.homeScore ?? m.homeScore,
+      awayScore: patch.awayScore ?? m.awayScore,
+      status: patch.status ?? m.status,
+    };
+    if (
+      next.homeScore !== m.homeScore ||
+      next.awayScore !== m.awayScore ||
+      next.status !== m.status
+    ) {
+      changed = true;
+    }
+    return next;
+  });
+  return { matches: out, changed };
+}
+
+/**
+ * Lightweight live refresh — one ESPN scoreboard call for today (not full tournament crawl).
+ * @param {Record<string, unknown> | null | undefined} kv
+ * @param {number} [nowMs]
+ */
+export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now()) {
+  if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
+    return { kv, refreshed: false, checked: false };
+  }
+  const hasLive = kv.matches.some((m) => isWcLiveMatchStatus(m.status));
+  if (!hasLive) return { kv, refreshed: false, checked: false };
+
+  const lastCheck = Number(kv.liveCheckedAt || kv.lastUpdated || 0);
+  if (nowMs - lastCheck < WC_LIVE_SCORE_CHECK_INTERVAL_MS) {
+    return { kv, refreshed: false, checked: false };
+  }
+
+  const ymd = wcTodayEtYmd(nowMs).replace(/-/g, "");
+  const board = await fetchEspnScoreboardForDate(ymd);
+  const nextCheckedAt = nowMs;
+  if (!board.ok) {
+    const throttled = { ...kv, liveCheckedAt: nextCheckedAt };
+    await setDurableJson(WC_MATCHES_KV_KEY, throttled, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+    return { kv: throttled, refreshed: false, checked: true };
+  }
+
+  const patches = board.events
+    .map((ev) => normalizeEspnScoreboardEvent(ev, nowMs))
+    .filter(Boolean);
+  const { matches, changed } = mergeWcLiveScorePatches(kv.matches, patches);
+  const nextKv = {
+    ...kv,
+    matches,
+    liveCheckedAt: nextCheckedAt,
+    ...(changed ? { lastUpdated: nowMs } : {}),
+  };
+  await setDurableJson(WC_MATCHES_KV_KEY, nextKv, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+  if (changed) {
+    console.log(
+      JSON.stringify({
+        event: "wc_live_scores_refreshed",
+        liveCount: matches.filter((m) => isWcLiveMatchStatus(m.status)).length,
+        checkedAt: nextCheckedAt,
+      }),
+    );
+  }
+  return { kv: nextKv, refreshed: changed, checked: true };
+}
 
 /**
  * Cron: ESPN standings + full fixture slate → KV.
