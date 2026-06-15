@@ -25,14 +25,26 @@ import {
 } from "../../shared/wcTakeRetentionQA.js";
 
 export const UR_TAKE_BREAKDOWN_LABEL = "More detail";
+export const UR_TAKE_FULL_BREAKDOWN_LABEL = "Full breakdown";
+
+/** Collapsed thread teaser only — active card face shows full why. */
+export const WC_COLLAPSED_THREAD_WHY_WORDS = 16;
 
 const WC_FACE_HEADLINE_WORDS = 14;
-const WC_FACE_WHY_WORDS = 36;
-const WC_FACE_FOCUS_WHY_WORDS = 16;
-const WC_FACE_WATCH_WORDS = 22;
-const WC_FACE_FOCUS_WATCH_WORDS = 34;
-const WC_FACE_BREAKDOWN_WORDS = 220;
-const WC_FACE_PREMIUM_BREAKDOWN_WORDS = 340;
+const WC_FACE_BREAKDOWN_PREVIEW_WORDS = 220;
+const WC_FACE_PREMIUM_BREAKDOWN_PREVIEW_WORDS = 340;
+
+/**
+ * @param {string} full
+ * @param {string} preview
+ */
+export function wcBreakdownPreviewIsTruncated(full, preview) {
+  const f = String(full || "").trim();
+  const p = String(preview || "").trim();
+  if (!f || !p) return false;
+  if (p === f) return false;
+  return p.endsWith("…") || p.length < f.length;
+}
 
 /**
  * @param {string} text
@@ -67,7 +79,7 @@ export function pickWcFocusWhyLine(why, lineSlot = "") {
   const line = String(lineSlot || "").trim();
   if (line && wcLineSlotIsNumericDelta(line)) {
     return capWcCardFaceField(line, {
-      maxWords: WC_FACE_FOCUS_WHY_WORDS,
+      maxWords: WC_COLLAPSED_THREAD_WHY_WORDS,
       maxSentences: 1,
     });
   }
@@ -93,7 +105,7 @@ export function pickWcFocusWhyLine(why, lineSlot = "") {
 
   if (t && wcCardFaceBlobHasNumericWhy(t)) {
     return capWcCardFaceField(t, {
-      maxWords: WC_FACE_FOCUS_WHY_WORDS,
+      maxWords: WC_COLLAPSED_THREAD_WHY_WORDS,
       maxSentences: 1,
     });
   }
@@ -506,8 +518,8 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const ct = String(opts.callType || "").toLowerCase();
   const premiumBreakdownCall = ct === "group_slate" || ct === "advancement";
   const selfContainedSlateBreakdown = ct === "tomorrow_slate";
-  const fullWhy = String(opts.why || "").trim();
-  const fullWatch = String(opts.watchFor || "").trim();
+  const fullWhy = sanitizeWcUserFacingProse(String(opts.why || "").trim());
+  const fullWatch = sanitizeWcUserFacingProse(String(opts.watchFor || "").trim());
   const fullPlay = String(opts.thePlay || "").trim();
   const fullDeep = String(opts.breakdown || "").trim();
   const lineSlot = String(opts.lineSlot || "").trim();
@@ -523,42 +535,17 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     callType: opts.callType,
   });
 
-  let whyFace = "";
   const playerMarketCt =
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
   const leanStr = String(opts.lean || "").trim();
   const numberedPropList = playerMarketCt && /^\s*\d+\.\s+/m.test(leanStr);
 
-  if (focusLayout) {
-    if (numberedPropList) {
-      whyFace = capWcCardFaceField(leanStr, {
-        maxWords: 72,
-        maxSentences: 6,
-      });
-    } else {
-      whyFace = pickWcFocusWhyLine(fullWhy, lineSlot);
-      if (!whyFace && fullWhy) {
-        whyFace = capWcCardFaceField(fullWhy, {
-          maxWords: WC_FACE_FOCUS_WHY_WORDS,
-          maxSentences: 1,
-        });
-      }
-    }
-  } else {
-    whyFace = capWcCardFaceField(fullWhy, {
-      maxWords: WC_FACE_WHY_WORDS,
-      maxSentences: 2,
-    });
-  }
-  const focusWhyCompressed =
-    focusLayout && Boolean(whyFace) && pickWcFocusWhyLine(fullWhy, lineSlot) === whyFace;
+  const whyFace =
+    focusLayout && numberedPropList
+      ? sanitizeWcUserFacingProse(fullWhy || leanStr)
+      : fullWhy;
 
-  const watchFace = focusLayout
-    ? ""
-    : capWcCardFaceField(fullWatch, {
-        maxWords: WC_FACE_WATCH_WORDS,
-        maxSentences: 1,
-      });
+  const watchFace = focusLayout ? "" : fullWatch;
 
   let thePlayFace = "";
   if (focusLayout && ct === "matchup") {
@@ -576,47 +563,51 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     if (normLine(thePlayFace) === normLine(headline)) thePlayFace = "";
   }
 
-  const breakdownWordCap =
+  const breakdownPreviewWordCap =
     focusLayout && (premiumBreakdownCall || selfContainedSlateBreakdown)
-      ? WC_FACE_PREMIUM_BREAKDOWN_WORDS
-      : WC_FACE_BREAKDOWN_WORDS;
-  let breakdown = capWcDeepWords(fullDeep, breakdownWordCap);
-  const ladderBreakdown = /\bover\s+\d+\s*·/i.test(breakdown);
+      ? WC_FACE_PREMIUM_BREAKDOWN_PREVIEW_WORDS
+      : WC_FACE_BREAKDOWN_PREVIEW_WORDS;
+  let breakdownFull = fullDeep;
+  const ladderBreakdown = /\bover\s+\d+\s*·/i.test(breakdownFull);
   const pathLine =
     lineSlot && !wcLineSlotIsNumericDelta(lineSlot) ? lineSlot : "";
-  if (pathLine && !breakdown.includes(pathLine.slice(0, 40))) {
-    breakdown = wcAppendUniqueBlock(pathLine, breakdown);
+  if (pathLine && !breakdownFull.includes(pathLine.slice(0, 40))) {
+    breakdownFull = wcAppendUniqueBlock(pathLine, breakdownFull);
   }
   if (focusLayout) {
     const watchAlreadyInBreakdown =
       fullWatch &&
-      breakdown &&
-      wcBreakdownContainsWatchText(breakdown, fullWatch);
+      breakdownFull &&
+      wcBreakdownContainsWatchText(breakdownFull, fullWatch);
     if (fullWatch && !watchAlreadyInBreakdown && !selfContainedSlateBreakdown) {
-      breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+      breakdownFull = wcAppendUniqueBlock(breakdownFull, fullWatch);
     }
     if (fullDeep && !selfContainedSlateBreakdown) {
-      breakdown = wcAppendUniqueBlock(breakdown, fullDeep);
+      breakdownFull = wcAppendUniqueBlock(breakdownFull, fullDeep);
     }
-    if (fullWhy && (!focusWhyCompressed || premiumBreakdownCall) && !selfContainedSlateBreakdown) {
-      breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+    if (fullWhy && premiumBreakdownCall && !selfContainedSlateBreakdown) {
+      breakdownFull = wcAppendUniqueBlock(breakdownFull, fullWhy);
     }
-    if (fullPlay && !selfContainedSlateBreakdown) breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
+    if (fullPlay && !selfContainedSlateBreakdown) {
+      breakdownFull = wcAppendUniqueBlock(breakdownFull, fullPlay);
+    }
   } else if (fullWhy && fullWhy !== whyFace && !ladderBreakdown && !selfContainedSlateBreakdown) {
-    breakdown = wcAppendUniqueBlock(breakdown, fullWhy);
+    breakdownFull = wcAppendUniqueBlock(breakdownFull, fullWhy);
   }
-  if (!focusLayout && fullWatch && !wcBreakdownContainsWatchText(breakdown, fullWatch) && !selfContainedSlateBreakdown) {
-    breakdown = wcAppendUniqueBlock(breakdown, fullWatch);
+  if (!focusLayout && fullWatch && !wcBreakdownContainsWatchText(breakdownFull, fullWatch) && !selfContainedSlateBreakdown) {
+    breakdownFull = wcAppendUniqueBlock(breakdownFull, fullWatch);
   }
-  if (!focusLayout && fullPlay && !breakdown.includes(fullPlay.slice(0, 40)) && !selfContainedSlateBreakdown) {
-    breakdown = wcAppendUniqueBlock(breakdown, fullPlay);
+  if (!focusLayout && fullPlay && !breakdownFull.includes(fullPlay.slice(0, 40)) && !selfContainedSlateBreakdown) {
+    breakdownFull = wcAppendUniqueBlock(breakdownFull, fullPlay);
   }
 
-  breakdown = dedupeWcBreakdownParagraphs(sanitizeWcUserFacingProse(breakdown));
+  breakdownFull = dedupeWcBreakdownParagraphs(sanitizeWcUserFacingProse(breakdownFull));
+  const breakdownPreview = capWcDeepWords(breakdownFull, breakdownPreviewWordCap);
+  const breakdownTruncated = wcBreakdownPreviewIsTruncated(breakdownFull, breakdownPreview);
 
   const breakdownAvailable =
-    (Boolean(opts.breakdownAvailable) || breakdown.length > whyFace.length + 24) &&
-    wcDeepAddsReaderValue(breakdown, fullWhy, fullWatch);
+    (Boolean(opts.breakdownAvailable) || breakdownFull.length > whyFace.length + 24) &&
+    wcDeepAddsReaderValue(breakdownFull, fullWhy, fullWatch);
 
   return {
     headline,
@@ -625,7 +616,9 @@ export function prepareWcCardFaceDisplay(opts = {}) {
       watchFor: watchFace,
       thePlay: thePlayFace,
     },
-    breakdownText: breakdown,
+    breakdownText: breakdownTruncated ? breakdownPreview : breakdownFull,
+    breakdownTextFull: breakdownFull,
+    breakdownTruncated,
     breakdownAvailable,
   };
 }

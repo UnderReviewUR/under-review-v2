@@ -413,6 +413,8 @@ export default function URTakeResponse({
         userQuestion={userQuestion}
         timestamp={timestamp}
         breakdownText={wcFace.breakdownText}
+        breakdownTextFull={wcFace.breakdownTextFull}
+        breakdownTruncated={wcFace.breakdownTruncated}
         breakdownAvailable={wcFace.breakdownAvailable}
         predictionSlots={wcPredictionSlotRows}
         focusLayout={focusLayout}

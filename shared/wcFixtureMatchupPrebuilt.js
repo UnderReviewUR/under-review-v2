@@ -566,7 +566,7 @@ export function buildWcLiveBetTimingPrebuiltStructured(opts = {}) {
     line: "",
     deep: "",
     breakdownAvailable: false,
-    whyNow: whyNow.slice(0, 400),
+    whyNow: whyNow,
     edge: `Timing play on prior Over/Under ${line} lean — not a new market.`,
     modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
     confidence: "Medium",
@@ -972,7 +972,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     awayScore: opts.match?.awayScore,
     status: opts.match?.status,
     matchOdds,
-  }).slice(0, 400);
+  }).trim();
 
   const totalsPlay =
     playHeadline && /\b(?:over|under)\s+\d/i.test(playHeadline) ? playHeadline : null;
@@ -1009,7 +1009,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     winBar,
     homeStats,
     awayStats,
-  }).slice(0, 1100);
+  }).trim();
 
   const edge = buildWcFixturePrebuiltEdge({
     homeName,

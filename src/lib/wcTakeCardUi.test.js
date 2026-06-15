@@ -39,7 +39,7 @@ test("prepareWcCardFaceDisplay — numbered fixture props list in why", () => {
     callType: "player_market_verified",
     call: "Enner Valencia anytime scorer +450",
     lean,
-    why: "Valencia: PK taker, likely starter.",
+    why: lean,
     focusLayout: true,
     question: "Best player props for Ecuador vs Ivory Coast?",
   });
@@ -135,16 +135,18 @@ test("wcCardSectionText drops empty placeholders", () => {
   assert.equal(wcCardSectionText("Watch the left channel"), "Watch the left channel");
 });
 
-test("prepareWcCardFaceDisplay keeps one numeric why on focus layout", () => {
+test("prepareWcCardFaceDisplay keeps full why on focus layout", () => {
+  const why =
+    "Over 3 at -135 (~57% implied) — nearest posted line to your ask with extra context on Korea's chase shape.";
   const face = prepareWcCardFaceDisplay({
     lean: "Lean over 3 at -135",
     call: "Lean over 3 at -135",
-    why: "Over 3 at -135 (~57% implied) — nearest posted line to your ask.",
+    why,
     watchFor: "Watch Korea's shape when they chase — volume spikes late.",
     breakdown: "Over 1 · -450 · juice\nOver 3 · -135 · worth paying ✓",
     focusLayout: true,
   });
-  assert.match(face.sections.why, /-135/);
+  assert.equal(face.sections.why, why);
   assert.equal(face.sections.watchFor, "");
   assert.match(face.breakdownText, /Korea/);
 });
@@ -279,6 +281,24 @@ MATCH ODDS: Qatar +1300 · Draw +600 · Switzerland -475`;
   assert.doesNotMatch(face.breakdownText, /1\) Qatar vs Switzerland/);
   assert.doesNotMatch(face.breakdownText, /Watch the scoreboard after 60 minutes/);
   assert.match(face.breakdownText, /Match: Qatar vs Switzerland/);
+});
+
+test("prepareWcCardFaceDisplay exposes full breakdown when preview is truncated", () => {
+  const longDeep = "MATCH ODDS: Spain -450. ".repeat(90).trim();
+  const face = prepareWcCardFaceDisplay({
+    callType: "matchup",
+    lean: "Lean Under 2.5 goals",
+    call: "Spain -450 to win",
+    why: "Spain dominates possession live but remains scoreless at halftime.",
+    breakdown: longDeep,
+    breakdownAvailable: true,
+    focusLayout: true,
+  });
+  assert.equal(face.breakdownTruncated, true);
+  assert.ok(face.breakdownTextFull.length > face.breakdownText.length);
+  assert.match(face.breakdownText, /…$/);
+  assert.doesNotMatch(face.breakdownTextFull, /…$/);
+  assert.equal(face.sections.why.endsWith("…"), false);
 });
 
 test("wcTakeCardHasVisibleContent — empty structured face is not visible", () => {

@@ -3,7 +3,7 @@ import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 import { extractWcMatchupPlayHeadline } from "../../shared/wcMatchupWinnerLine.js";
-import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, UR_TAKE_BREAKDOWN_LABEL } from "../lib/wcTakeCardUi.js";
+import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, UR_TAKE_BREAKDOWN_LABEL, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
@@ -63,6 +63,8 @@ export default function WcTakeCard({
   userQuestion = "",
   timestamp = null,
   breakdownText = "",
+  breakdownTextFull = "",
+  breakdownTruncated = false,
   breakdownAvailable = false,
   predictionSlots = [],
   focusLayout = false,
@@ -73,14 +75,20 @@ export default function WcTakeCard({
   auditFootnote = "",
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
+  const [fullBreakdownExpanded, setFullBreakdownExpanded] = useState(false);
   const [expandedFromCollapse, setExpandedFromCollapse] = useState(false);
   const showCollapsed = Boolean(collapsed && !expandedFromCollapse);
   const effectiveFocusLayout = focusLayout || (collapsed && expandedFromCollapse);
   const conf = String(confidence || "Medium").trim();
   const formattedTimestamp = formatUrTakeTimestampEt(timestamp);
   const shareQ = String(userQuestion || headline || "").trim();
-  const deep = String(breakdownText || "").trim();
-  const showBreakdownToggle = Boolean(breakdownAvailable && deep);
+  const deepFull = String(breakdownTextFull || breakdownText || "").trim();
+  const deepPreview = String(breakdownText || "").trim();
+  const showBreakdownToggle = Boolean(breakdownAvailable && deepFull);
+  const breakdownBody =
+    fullBreakdownExpanded || !breakdownTruncated ? deepFull : deepPreview;
+  const showFullBreakdownCta =
+    Boolean(breakdownExpanded && breakdownTruncated && !fullBreakdownExpanded);
   const slots = Array.isArray(predictionSlots)
     ? predictionSlots.filter((s) => s && String(s.value || "").trim())
     : [];
@@ -90,7 +98,7 @@ export default function WcTakeCard({
   const cardHasContent = wcTakeCardHasVisibleContent({
     headline,
     sections,
-    breakdownText: deep,
+    breakdownText: deepFull,
     breakdownAvailable: showBreakdownToggle,
     modelAttribution,
     statSlots,
@@ -99,7 +107,13 @@ export default function WcTakeCard({
   const fallbackBody = String(fallbackSummary || "").trim();
 
   if (showCollapsed) {
-    const collapsedWhy = String(sections?.why || "").trim();
+    const collapsedWhyRaw = String(sections?.why || "").trim();
+    const collapsedWhy = collapsedWhyRaw
+      ? capWcCardFaceField(collapsedWhyRaw, {
+          maxWords: WC_COLLAPSED_THREAD_WHY_WORDS,
+          maxSentences: 1,
+        })
+      : "";
     return (
       <button
         type="button"
@@ -202,7 +216,10 @@ export default function WcTakeCard({
         <button
           type="button"
           className={`ur-v2-body-expand wc-take-breakdown-toggle${effectiveFocusLayout ? " wc-take-breakdown-toggle--focus" : ""}`}
-          onClick={() => setBreakdownExpanded(true)}
+          onClick={() => {
+            setBreakdownExpanded(true);
+            setFullBreakdownExpanded(false);
+          }}
         >
           {UR_TAKE_BREAKDOWN_LABEL}
         </button>
@@ -211,14 +228,26 @@ export default function WcTakeCard({
       {showBreakdownToggle && breakdownExpanded ? (
         <div className="wc-take-breakdown-panel">
           <div className="wc-take-breakdown-label">{UR_TAKE_BREAKDOWN_LABEL}</div>
-          <UrTakeBreakdownBody text={deep} />
+          <UrTakeBreakdownBody text={breakdownBody} />
+          {showFullBreakdownCta ? (
+            <button
+              type="button"
+              className="ur-v2-body-expand wc-take-breakdown-toggle wc-take-breakdown-toggle--full"
+              onClick={() => setFullBreakdownExpanded(true)}
+            >
+              {UR_TAKE_FULL_BREAKDOWN_LABEL}
+            </button>
+          ) : null}
           {String(auditFootnote || "").trim() ? (
             <p className="wc-take-audit-footnote">{String(auditFootnote).trim()}</p>
           ) : null}
           <button
             type="button"
             className="ur-v2-body-expand wc-take-breakdown-toggle"
-            onClick={() => setBreakdownExpanded(false)}
+            onClick={() => {
+              setBreakdownExpanded(false);
+              setFullBreakdownExpanded(false);
+            }}
           >
             Show less
           </button>

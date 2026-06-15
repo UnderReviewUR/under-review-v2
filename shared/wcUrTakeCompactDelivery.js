@@ -746,10 +746,10 @@ function buildWhyNow(summary, deep, wcIntent) {
   const delta = summarySents[1]?.trim() || "";
   const whyFromDeep = deepSents.slice(0, 2).join(" ").trim();
   const whyLead = summarySents.slice(2, 4).join(" ").trim();
-  const merged = capWcDeepWords([whyFromDeep, whyLead].filter(Boolean).join(" ").trim(), 42);
+  const merged = [whyFromDeep, whyLead].filter(Boolean).join(" ").trim();
   if (merged) return merged;
-  if (wcIntent === WC_INTENT.SCORE_PREDICTION && delta) return capWcDeepWords(delta, 42);
-  return capWcDeepWords(deepSents[0] || deep.trim(), 42);
+  if (wcIntent === WC_INTENT.SCORE_PREDICTION && delta) return delta;
+  return deepSents[0] || deep.trim();
 }
 
 /**
