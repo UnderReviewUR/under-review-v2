@@ -174,6 +174,22 @@ const WC_PLAYER_PROP_RE =
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 
+/** Match total goals O/U — not a player-prop ask. */
+const WC_MATCH_TOTALS_RE =
+  /\b(?:over|under)\s+\d+(?:\.\d+)?\s+goals?\b|\bgoals?\s+(?:over|under)\s+\d+(?:\.\d+)?\b|\b(?:hit|reach|see)\s+over\s+\d+(?:\.\d+)?\s+goals?\b/i;
+
+/**
+ * @param {string} question
+ */
+export function isWcMatchTotalsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (WC_MATCH_TOTALS_RE.test(q)) return true;
+  if (/\b(?:has|have)\s+over\s+\d+(?:\.\d+)?\s+goals?\b/i.test(q)) return true;
+  if (/\bsafe to bet\b[\s\S]{0,80}\bover\s+\d+(?:\.\d+)?\s+goals?\b/i.test(q)) return true;
+  return false;
+}
+
 const WC_SCORE_PREDICTION_RE =
   /\b(top\s*\d+\s*scores?|scorelines?|score\s*lines?|predict\s+(?:the\s+)?\d+\s*scores?|scores?\s+to\s+consider|likely\s+final\s+scores?)\b/i;
 
@@ -227,6 +243,7 @@ export function classifyWcPlayerMarketIntent(question) {
   const q = String(question || "").trim();
   const ql = q.toLowerCase();
   if (!q) return null;
+  if (isWcMatchTotalsQuestion(q)) return null;
   if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
   if (isWcTeamMatchGoalsQuestion(q)) return null;
 
@@ -338,6 +355,10 @@ export function classifyWcQuestionIntent(question, history = []) {
 
   if (isWcTeamMatchGoalsQuestion(q)) {
     return WC_INTENT.SCORE_PREDICTION;
+  }
+
+  if (isWcMatchTotalsQuestion(q)) {
+    return WC_INTENT.MATCHUP;
   }
 
   const playerMarketIntent = classifyWcPlayerMarketIntent(q);

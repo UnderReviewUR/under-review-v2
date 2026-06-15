@@ -28,7 +28,7 @@ import {
 } from "../../shared/wcPlayerPropFixture.js";
 import { wcMatchupTeamDisplayName } from "../../shared/wcMatchupWinnerLine.js";
 import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
-import { WC_INTENT } from "../../shared/wcUrTakeIntent.js";
+import { WC_INTENT, isWcMatchTotalsQuestion } from "../../shared/wcUrTakeIntent.js";
 import { matchPlayerPropRowsFromEvent } from "../../shared/wcMatchPlayerProps.js";
 
 /**
@@ -44,6 +44,7 @@ export function shouldRunWcPlayerPropsFastPath(
   isConversationFollowUp,
 ) {
   const q = String(routingQuestion || "").trim();
+  if (isWcMatchTotalsQuestion(q)) return false;
   if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
   if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return true;
   if (isWcFixtureScopedPlayerMarketQuestion(q)) {

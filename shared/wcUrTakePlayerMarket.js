@@ -6,6 +6,7 @@ import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import {
   WC_INTENT,
   classifyWcPlayerMarketIntent,
+  isWcMatchTotalsQuestion,
 } from "./wcUrTakeIntent.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
@@ -715,6 +716,7 @@ export function extractWcNamedPlayerFromQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return null;
 
+  if (isWcMatchTotalsQuestion(q)) return null;
   if (/\b(your read on|read on the|outlook on)\b/i.test(q)) return null;
   if (/\bhost nations?\b/i.test(q) && !/\bwill\b/i.test(q)) return null;
 
@@ -737,7 +739,7 @@ export function extractWcNamedPlayerFromQuestion(question) {
   if (!lead || WC_PLAYER_PROP_LEAD_WORDS.has(lead)) return null;
 
   const m = normalized.match(
-    /^([A-Za-zÀ-ÿ][\wÀ-ÿ' -]*?)(?:\s+(?:\d|o\/u|over|under|to\s+(?:score|record|have|get))\b)/i,
+    /^([A-Za-zÀ-ÿ][\wÀ-ÿ' -]*?)(?:\s+(?:\d|o\/u|(?:over|under)\s+\d+(?:\.\d+)?\s+(?:shots?|assists?)|to\s+(?:score|record|have|get))\b)/i,
   );
   const raw = String(m?.[1] || "").trim();
   if (!raw || raw.length < 2) return null;
@@ -791,6 +793,7 @@ const WC_FIXTURE_PLAYER_MARKET_ASK_RE =
 export function isWcFixtureScopedPlayerMarketQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcMatchTotalsQuestion(q)) return false;
   if (WC_AWARD_FALSE_POSITIVE_RE.test(q)) return false;
   if (/\bhow many goals\b/i.test(q) && extractMentionedWcTeams(q).length) return false;
   if (extractWcNamedPlayerFromQuestion(q)) return true;

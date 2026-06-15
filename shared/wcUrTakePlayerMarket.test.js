@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   classifyWcPlayerMarketIntent,
   classifyWcQuestionIntent,
+  isWcMatchTotalsQuestion,
   WC_INTENT,
 } from "./wcUrTakeIntent.js";
 import {
@@ -73,6 +74,21 @@ test("extractWcNamedPlayerFromQuestion — host nations read is not a player nam
     classifyWcQuestionIntent("What's your read on the host nations?"),
     WC_INTENT.GENERAL,
   );
+});
+
+test("isWcMatchTotalsQuestion — Spain over 3.5 routes to MATCHUP not player props", () => {
+  const q = "Safe to bet Spain game has over 3.5 goals?";
+  const history = [
+    { role: "user", content: "Best bet on ESP vs CPV if I only know the moneyline?" },
+    {
+      role: "assistant",
+      content: "Lean Over 4.5 goals",
+      wcMatchTeams: { home: "ESP", away: "CPV" },
+    },
+  ];
+  assert.equal(isWcMatchTotalsQuestion(q), true);
+  assert.equal(extractWcNamedPlayerFromQuestion(q), null);
+  assert.equal(classifyWcQuestionIntent(q, history), WC_INTENT.MATCHUP);
 });
 
 test("classifyWcQuestionIntent — team match goals is score prediction not player prop", () => {

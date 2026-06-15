@@ -2,6 +2,8 @@
  * World Cup match questions — teach casual bettors markets beyond the moneyline.
  */
 
+import { isWcMatchTotalsQuestion } from "./wcUrTakeIntent.js";
+
 export const WC_MATCH_BETTING_PROMPT_RULES = `MATCH BETTING — CASUAL BETTOR MODE (mandatory for "who wins", vs, matchup, opener questions):
 - HEADLINE / LEAN line one must answer the question: "[Team] [ML price] to win" (e.g. Canada -120 to win) before any alternate market.
 - Many users only know the moneyline. Sentence one must state who wins the match and why — name the favorite lean on the ML before any alternate market.
@@ -63,6 +65,7 @@ export function isWcMatchupAltMarketFollowUp(question) {
   }
   if (/\bboth teams to advance\b/i.test(q)) return true;
   if (/\bover or under goals\b/i.test(q)) return true;
+  if (isWcMatchTotalsQuestion(q)) return true;
   if (/\b(?:over|under)\s+\d+\.?\d*\s*goals?\??\s*$/i.test(q)) return true;
   return false;
 }

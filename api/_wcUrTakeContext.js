@@ -822,7 +822,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   if (!liteFollowUp) {
     if (isWcGoatPrimaryEnabled()) {
-      await prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 5000, runId: "urtake-context" }).catch(
+      void prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 2500, runId: "urtake-context" }).catch(
         (warmErr) => {
           console.warn("[wc-context] GOAT prefetch failed:", warmErr?.message);
         },
