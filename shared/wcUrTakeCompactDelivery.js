@@ -18,6 +18,7 @@ import {
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
 import { wcCardHasDeltaSignal, wcCardPlayRestatesCall } from "./wcCardContractVoice.js";
+import { applyWcFollowUpExplainDelivery } from "./wcFollowUpExplain.js";
 import { isWcValidPlayLine } from "./wcPlayLineQA.js";
 import {
   extractWcRoundupSlotNation,
@@ -835,6 +836,35 @@ function buildWcPredictionsRoundupStructured(opts = {}) {
  * @param {object | null} [opts.structuredSeed]
  */
 export function buildWcCompactStructured(opts = {}) {
+  const built = buildWcCompactStructuredBody(opts);
+  return finalizeWcCompactExplainDelivery(built, opts);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} built
+ * @param {object} opts
+ */
+function finalizeWcCompactExplainDelivery(built, opts = {}) {
+  if (!built || typeof built !== "object") return built;
+  /** @type {Record<string, unknown>} */
+  let out = { ...built };
+  const seed =
+    opts.structuredSeed && typeof opts.structuredSeed === "object"
+      ? opts.structuredSeed
+      : null;
+  if (seed?.breakdownDefaultExpanded) {
+    out.breakdownDefaultExpanded = true;
+  }
+  if (Array.isArray(opts.history) && opts.history.length > 0) {
+    out = applyWcFollowUpExplainDelivery(out, String(opts.question || ""), opts.history);
+  }
+  return out;
+}
+
+/**
+ * @param {object} opts
+ */
+function buildWcCompactStructuredBody(opts = {}) {
   const summary = String(opts.summary || "").trim();
   const deepRaw = String(opts.deep || "").trim();
   const deep = capWcDeepWords(deepRaw, 220);

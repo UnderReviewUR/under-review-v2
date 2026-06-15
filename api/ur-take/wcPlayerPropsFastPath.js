@@ -29,6 +29,11 @@ import {
 import { wcMatchupTeamDisplayName } from "../../shared/wcMatchupWinnerLine.js";
 import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
 import { WC_INTENT, isWcMatchTotalsQuestion } from "../../shared/wcUrTakeIntent.js";
+import {
+  buildWcPlayerPropExplainStructured,
+  isWcPlayerPropFollowUpExplain,
+  resolveWcFollowUpSubject,
+} from "../../shared/wcFollowUpExplain.js";
 import { matchPlayerPropRowsFromEvent } from "../../shared/wcMatchPlayerProps.js";
 
 /**
@@ -44,6 +49,7 @@ export function shouldRunWcPlayerPropsFastPath(
   isConversationFollowUp,
 ) {
   const q = String(routingQuestion || "").trim();
+  if (isWcPlayerPropFollowUpExplain(q, history)) return true;
   if (isWcMatchTotalsQuestion(q)) return false;
   if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
   if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return true;
@@ -202,7 +208,22 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   let structuredResponse = null;
   let passKind = "player_props_loading";
 
-  if (propRows.length >= 2) {
+  if (isWcPlayerPropFollowUpExplain(routingQ, history)) {
+    const subject = resolveWcFollowUpSubject(history, routingQ);
+    structuredResponse = buildWcPlayerPropExplainStructured({
+      question: routingQ,
+      history,
+      subject,
+      tier,
+      kvBlocks,
+      wcContext: syntheticContext,
+    });
+    if (structuredResponse) {
+      passKind = "player_prop_explain";
+    }
+  }
+
+  if (!structuredResponse && propRows.length >= 2) {
     if (detectParlayIntent(routingQ)) {
       structuredResponse = buildWcFixturePlayerParlayStructured(
         String(question || ""),
@@ -297,7 +318,12 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     deep: null,
     playerMarketTier: tier,
     structuredSeed: structuredResponse,
+    history,
   });
+  if (passKind === "player_prop_explain" && structuredResponse && typeof structuredResponse === "object") {
+    structuredResponse.breakdownDefaultExpanded = true;
+    structuredResponse.breakdownAvailable = true;
+  }
   if (structuredResponse && typeof structuredResponse === "object") {
     structuredResponse = normalizeWcStructuredForDelivery(
       structuredResponse,

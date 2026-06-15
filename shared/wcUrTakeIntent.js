@@ -6,6 +6,7 @@ import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+import { classifyWcFollowUpIntent } from "./wcFollowUpExplain.js";
 import { isWcLiveBetTimingQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
@@ -346,6 +347,11 @@ export function classifyWcQuestionIntent(question, history = []) {
 
   if (RULES_SIGNAL_RE.test(ql) && !hasPricingCue) {
     return WC_INTENT.RULES;
+  }
+
+  const followUpIntent = classifyWcFollowUpIntent(q, history);
+  if (followUpIntent) {
+    return /** @type {WcUrTakeIntent} */ (followUpIntent);
   }
 
   if (isWcGroupSlateQuestion(q)) {

@@ -4,7 +4,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { WC_CARD_CONTRACT_GOLDEN_CASES } from "../shared/wcCardContractGolden.fixture.js";
+import { WC_CARD_CONTRACT_GOLDEN_CASES, WC_CARD_CONTRACT_THREAD_CASES } from "../shared/wcCardContractGolden.fixture.js";
 import {
   scoreWcCardContractIntent,
   scoreWcCardContractLayout,
@@ -13,12 +13,13 @@ import {
 import { scoreWcCardContractVoice } from "../shared/wcCardContractVoice.js";
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
 
-test("golden fixture has twenty-one cases across intents", () => {
-  assert.equal(WC_CARD_CONTRACT_GOLDEN_CASES.length, 21);
+test("golden fixture has thirty-six cases across intents and threads", () => {
+  assert.equal(WC_CARD_CONTRACT_GOLDEN_CASES.length, 36);
   const intents = new Set(WC_CARD_CONTRACT_GOLDEN_CASES.map((c) => c.expectedIntent));
   assert.ok(intents.has("RULES"));
   assert.ok(intents.has("PLAYER_PROP"));
   assert.ok(intents.has("GOLDEN_BOOT"));
+  assert.ok(WC_CARD_CONTRACT_THREAD_CASES.length >= 12);
 });
 
 test("layout scorer enforces headline cap and labeled fields", () => {
@@ -121,4 +122,7 @@ test("sample golden case passes layout scorer with mock structured payload", () 
 test("golden day-one cases expect arguing voice", () => {
   const dayOne = WC_CARD_CONTRACT_GOLDEN_CASES.filter((c) => c.cardVoice === "argue");
   assert.ok(dayOne.length >= 10);
+  const intents = new Set(dayOne.map((c) => c.expectedIntent));
+  assert.ok(intents.has("STRUCTURAL"));
+  assert.ok(intents.has("MATCHUP"));
 });

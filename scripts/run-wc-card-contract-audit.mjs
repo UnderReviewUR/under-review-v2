@@ -3,7 +3,7 @@
  * Pre-launch WC Card Contract audit — POST /api/ur-take for golden questions.
  *
  * Usage:
- *   npm run dev:api   # terminal 1
+ *   npm run dev:api:audit   # terminal 1 (auth disabled for local audit)
  *   node scripts/run-wc-card-contract-audit.mjs [--base http://localhost:3001]
  *
  * Requires ANTHROPIC_API_KEY in .env for live model calls.
@@ -12,7 +12,7 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import { WC_CARD_CONTRACT_GOLDEN_CASES } from "../shared/wcCardContractGolden.fixture.js";
+import { WC_CARD_CONTRACT_GOLDEN_CASES, WC_CARD_CONTRACT_THREAD_CASES } from "../shared/wcCardContractGolden.fixture.js";
 import { scoreWcCardContractCase } from "../shared/wcCardContractScorer.js";
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
 import { wcCardHeadlineAnnouncesOnly } from "../shared/wcCardContractVoice.js";
@@ -29,12 +29,14 @@ const base = process.argv.includes("--base")
   ? process.argv[process.argv.indexOf("--base") + 1]
   : process.env.WARM_BASE_URL || "http://localhost:3001";
 
+const threadsOnly = process.argv.includes("--threads-only");
+
 const PRIOR_TURN = {
   role: "user",
   content: "Is Brazil mispriced to win the World Cup at +450?",
 };
 
-async function askUrTake(question, wcEventId) {
+async function askUrTake(question, wcEventId, history = []) {
   const res = await fetch(`${base.replace(/\/$/, "")}/api/ur-take`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -42,7 +44,7 @@ async function askUrTake(question, wcEventId) {
       question,
       sportHint: "worldcup",
       wcEventId: wcEventId || undefined,
-      history: [],
+      history,
     }),
   });
   if (!res.ok) {
@@ -58,13 +60,22 @@ function extractStructured(data) {
 }
 
 async function main() {
-  console.log(`WC Card Contract audit → ${base}/api/ur-take (${WC_CARD_CONTRACT_GOLDEN_CASES.length} cases)\n`);
+  const cases = threadsOnly
+    ? WC_CARD_CONTRACT_THREAD_CASES
+    : WC_CARD_CONTRACT_GOLDEN_CASES;
+  console.log(
+    `WC Card Contract audit → ${base}/api/ur-take (${cases.length} cases${threadsOnly ? ", threads only" : ""})\n`,
+  );
 
   /** @type {Array<Record<string, unknown>>} */
   const rows = [];
 
-  for (const row of WC_CARD_CONTRACT_GOLDEN_CASES) {
-    const history = row.requiresHistory ? [PRIOR_TURN] : [];
+  for (const row of cases) {
+    const history = row.history?.length
+      ? row.history
+      : row.requiresHistory
+        ? [PRIOR_TURN]
+        : [];
     const intentOnly = classifyWcQuestionIntent(row.question, history);
     const intentOk = intentOnly === row.expectedIntent;
 
@@ -72,7 +83,7 @@ async function main() {
     let issueCodes = intentOk ? [] : ["intent_mismatch"];
 
     try {
-      const data = await askUrTake(row.question, row.wcEventId);
+      const data = await askUrTake(row.question, row.wcEventId, history);
       const structured = extractStructured(data);
       if (!structured) {
         layoutOk = false;
@@ -83,6 +94,9 @@ async function main() {
           expectedIntent: row.expectedIntent,
           structured,
           wcIntent: intentOnly,
+          history,
+          followUpExpect: row.followUpExpect,
+          routingExpect: row.routingExpect,
         });
         layoutOk = scored.passed;
         issueCodes = scored.issueCodes;

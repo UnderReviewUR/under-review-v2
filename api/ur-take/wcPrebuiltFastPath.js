@@ -233,6 +233,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     deep: null,
     playerMarketTier: tier,
     structuredSeed: structuredResponse,
+    history: normalizedUrTakeHistoryForGate,
   });
   if (structuredResponse && typeof structuredResponse === "object") {
     structuredResponse = normalizeWcStructuredForDelivery(

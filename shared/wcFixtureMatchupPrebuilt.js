@@ -31,7 +31,12 @@ import {
   shouldUseWcGroupSlatePrebuilt,
 } from "./wcGroupComposition.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
-import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wcMatchBettingPrompt.js";
+import {
+  isWcMatchupAltMarketFollowUp,
+  isWcMatchupOtherSideFollowUp,
+  isWcTotalsExplainFollowUp,
+} from "./wcMatchBettingPrompt.js";
+import { shouldBlockMatchupAltPrebuiltAfterPlayerPivot } from "./wcFollowUpExplain.js";
 import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, parseLiveScoreFromQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
@@ -171,6 +176,35 @@ function formatGoalsLine(n) {
   const v = Number(n);
   if (!Number.isFinite(v)) return "2.5";
   return Number.isInteger(v) ? String(v) : String(v).replace(/\.0$/, "");
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} matchOdds
+ * @param {"over" | "under"} kind
+ */
+function formatPostedTotalsLine(matchOdds, kind) {
+  const totalLine =
+    matchOdds?.totalLine != null && String(matchOdds.totalLine).trim() !== ""
+      ? String(matchOdds.totalLine).trim()
+      : "";
+  if (!totalLine) return "";
+  const sideOdds =
+    kind === "under"
+      ? readWcMatchMoneylineAmerican(matchOdds?.totalUnder)
+      : readWcMatchMoneylineAmerican(matchOdds?.totalOver);
+  const sideLabel = kind === "under" ? "under" : "over";
+  if (!sideOdds) return `Posted ${totalLine} total.`;
+  const implied = americanOddsImplied(sideOdds);
+  const pct =
+    implied > 0 ? ` (~${(implied * 100).toFixed(1)}% implied)` : "";
+  return `Posted ${totalLine} total — ${sideLabel} ${sideOdds}${pct}.`;
+}
+
+function parseTotalsKindFromLean(lean) {
+  const t = String(lean || "");
+  if (/\bunder\b/i.test(t)) return "under";
+  if (/\bover\b/i.test(t)) return "over";
+  return null;
 }
 
 /**
@@ -467,6 +501,10 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
   if (shouldUseWcCrossGroupValuePrebuilt(question, wcIntent)) return false;
   if (shouldUseWcGroupSlatePrebuilt(question, wcIntent)) return false;
   if (!isWcMatchupAltMarketFollowUp(question)) return false;
+  if (shouldBlockMatchupAltPrebuiltAfterPlayerPivot(question, opts.history)) return false;
+  if (isWcTotalsExplainFollowUp(question) && !extractPriorTotalsLeanFromHistory(opts.history)) {
+    return false;
+  }
 
   const pair =
     resolveWcFixturePairFromQuestion(question, {
@@ -781,6 +819,10 @@ function pickWcFixtureAltFollowUpLean(row) {
   const groupClause = row.group ? ` in Group ${row.group}` : "";
   const priorTotals = extractPriorTotalsLeanFromHistory(row.history);
 
+  if (isWcTotalsExplainFollowUp(q) && priorTotals?.line) {
+    return formatTotalsLeanHeadline(priorTotals.kind, priorTotals.line);
+  }
+
   if (isWcMatchupOtherSideFollowUp(q)) {
     const flipped = flipPriorTotalsLeanFromHistory(row.history);
     if (flipped) return flipped;
@@ -834,13 +876,8 @@ function pickWcFixtureAltFollowUpLean(row) {
       question: q,
       passOnMlPrefix: false,
     });
-    if (priorTotals?.line) {
-      const sameLean =
-        fresh.kind === priorTotals.kind &&
-        formatGoalsLine(fresh.line) === formatGoalsLine(priorTotals.line);
-      if (/\bover or under goals\b/i.test(q) || sameLean) {
-        return flipPriorTotalsLeanFromHistory(row.history) || fresh.headline;
-      }
+    if (priorTotals?.line && /\bover or under goals\b/i.test(q)) {
+      return flipPriorTotalsLeanFromHistory(row.history) || fresh.headline;
     }
     return fresh.headline;
   }
@@ -912,7 +949,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     history: opts.history,
   }).replace(/^lean:\s*/i, "");
   const lean = altFollowUp
-    ? isWcMatchupOtherSideFollowUp(routingQ)
+    ? isWcMatchupOtherSideFollowUp(routingQ) || isWcTotalsExplainFollowUp(routingQ)
       ? altLeanText
       : `Pass on ML — ${altLeanText}`
     : pickWcFixturePrebuiltLean({
@@ -956,7 +993,11 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     teamStats: opts.teamStats,
   });
 
-  const whyNow = buildWcFixturePrebuiltWhyNow({
+  const priorTotalsExplain =
+    isWcTotalsExplainFollowUp(routingQ) && extractPriorTotalsLeanFromHistory(opts.history);
+  const totalsKind = parseTotalsKindFromLean(lean) || priorTotalsExplain?.kind || "under";
+
+  const whyNowRow = {
     homeName,
     awayName,
     group,
@@ -972,7 +1013,16 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     awayScore: opts.match?.awayScore,
     status: opts.match?.status,
     matchOdds,
-  }).trim();
+    favName,
+    homeStats,
+    awayStats,
+  };
+
+  const whyNow = (
+    priorTotalsExplain
+      ? buildWcTotalsExplainWhyNow({ ...whyNowRow, totalsKind: priorTotalsExplain.kind })
+      : buildWcFixturePrebuiltWhyNow(whyNowRow)
+  ).trim();
 
   const totalsPlay =
     playHeadline && /\b(?:over|under)\s+\d/i.test(playHeadline) ? playHeadline : null;
@@ -980,14 +1030,11 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     matchOdds?.totalLine != null && String(matchOdds.totalLine).trim() !== ""
       ? String(matchOdds.totalLine).trim()
       : null;
-  const postedTotalOver =
-    matchOdds?.totalOver != null && String(matchOdds.totalOver).trim() !== ""
-      ? String(matchOdds.totalOver).trim()
-      : null;
 
   const line = altFollowUp
-    ? totalsPlay && postedTotalLine && postedTotalOver
-      ? `Posted ${postedTotalLine} total — over ${postedTotalOver}.`
+    ? totalsPlay && postedTotalLine
+      ? formatPostedTotalsLine(matchOdds, totalsKind) ||
+        `${home} vs ${away} — ${mlCall}`.slice(0, 200)
       : `${home} vs ${away} — ${mlCall}`.slice(0, 200)
     : playHeadline && /\b(under|over)\s+\d/i.test(playHeadline)
       ? ""
@@ -997,7 +1044,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
           ? `Market: ${homeName} ${market.homePct}% · Draw ${market.drawPct}% · ${awayName} ${market.awayPct}%.`
           : "";
 
-  const deep = buildWcFixturePrebuiltDeep({
+  let deep = buildWcFixturePrebuiltDeep({
     homeName,
     awayName,
     favName,
@@ -1010,6 +1057,13 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     homeStats,
     awayStats,
   }).trim();
+
+  if (priorTotalsExplain) {
+    const posted = formatPostedTotalsLine(matchOdds, priorTotalsExplain.kind);
+    if (posted && !/posted\s+\d/i.test(deep)) {
+      deep = `${posted}\n\n${deep}`;
+    }
+  }
 
   const edge = buildWcFixturePrebuiltEdge({
     homeName,
@@ -1028,6 +1082,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     line: line.slice(0, 200),
     deep,
     breakdownAvailable: Boolean(deep.trim()),
+    breakdownDefaultExpanded: Boolean(priorTotalsExplain),
     whyNow,
     edge,
     modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
@@ -1036,6 +1091,26 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     teamStats: opts.teamStats || undefined,
     timestamp: new Date().toISOString(),
   };
+}
+
+function buildWcTotalsExplainWhyNow(row) {
+  const kind = row.totalsKind === "under" ? "under" : "over";
+  const lineMatch = String(row.lean || row.playHeadline || "").match(
+    /\b(under|over)\s+(\d+\.?\d*)/i,
+  );
+  const line = lineMatch?.[2] || "2.5";
+  const side = kind === "under" ? "Under" : "Over";
+  const groupTail = row.group ? ` in Group ${row.group}` : "";
+
+  if (kind === "under") {
+    const favLabel = String(row.favName || row.homeName || "").trim();
+    const mlNote = row.homeMl
+      ? `${favLabel} ${row.homeMl} can still win 1-0 or 1-1 — you're betting low tempo, not against them.`
+      : `${favLabel} can win without a shootout — low tempo is the bet, not a fade.`;
+    return `${side} ${line} cashes when ${row.awayName} packs in and the chance count stays down${groupTail}; ${mlNote}`;
+  }
+
+  return `${side} ${line} needs real tempo — ${row.homeName} has to turn control into multiple goals${groupTail}, not just a single flurry.`;
 }
 
 /**

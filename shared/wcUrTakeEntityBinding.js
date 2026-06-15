@@ -4,7 +4,7 @@
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
-import { classifyWcQuestionIntent, WC_INTENT } from "./wcUrTakeIntent.js";
+import { classifyWcQuestionIntent, resolveContinuationEntities, WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
 import { resolveWcPlayerNationFromQuestion, resolveWcPlayerPropFixtureTeams } from "./wcPlayerPropFixture.js";
 

@@ -50,11 +50,28 @@ export function isWcMatchupOtherSideFollowUp(question) {
 }
 
 /**
+ * User wants reasoning on a totals lean already given — not a new market pick.
+ * @param {string} question
+ */
+export function isWcTotalsExplainFollowUp(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (!/\b(?:under|over)\s+\d+\.?\d*/i.test(q)) return false;
+  return (
+    /\b(?:why|how come|explain|what makes you|help me understand|reason for|break down|walk me through)\b/i.test(
+      q,
+    ) ||
+    /^(?:why|explain)\b/i.test(q)
+  );
+}
+
+/**
  * @param {string} question
  */
 export function isWcMatchupAltMarketFollowUp(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcTotalsExplainFollowUp(q)) return true;
   if (isWcMatchupOtherSideFollowUp(q)) return true;
   if (
     /\bbest bet\b[^.]{0,48}\bbesides\b[^.]{0,48}(?:the\s+)?(?:moneyline|ml)\b/i.test(q) ||

@@ -8,6 +8,27 @@ import { buildWcGroupSlatePrebuiltStructured } from "./wcGroupComposition.js";
 import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
 import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_CARD_CONTRACT_GOLDEN_CASES } from "./wcCardContractGolden.fixture.js";
+
+test("buildWcCompactStructured — explain history sets breakdownDefaultExpanded", () => {
+  const row = WC_CARD_CONTRACT_GOLDEN_CASES.find((c) => c.id === "thread-pivot-props-then-totals");
+  assert.ok(row);
+  const compact = buildWcCompactStructured({
+    question: row.question,
+    wcIntent: WC_INTENT.MATCHUP,
+    summary: "Under 2.5 — low tempo script holds.",
+    deep: "Posted Under 2.5 -114. WINS IF: 0-0, 1-0, 1-1.",
+    history: row.history,
+    structuredSeed: {
+      callType: "matchup",
+      lean: "Pass on ML — Lean Under 2.5 goals",
+      whyNow: "Under 2.5 cashes on a low-event script even if Belgium control.",
+      breakdownAvailable: true,
+    },
+  });
+  assert.equal(compact.breakdownDefaultExpanded, true);
+  assert.doesNotMatch(String(compact.whyNow || ""), /…$/);
+});
 
 test("buildWcCompactStructured — whyNow stays short when deep is long", () => {
   const deep =

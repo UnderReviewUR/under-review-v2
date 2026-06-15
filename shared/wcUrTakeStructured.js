@@ -26,8 +26,11 @@ const FAIR_PRICE_RE =
  * @param {string} question
  */
 function finishWcStructuredForDelivery(out, intent, question) {
+  const keepExpanded = Boolean(out.breakdownDefaultExpanded);
   const repaired = repairWcGroupSlateStructuredLine(out);
-  return ensureWcCardFaceNumericWhy(repaired, question, { wcIntent: intent });
+  const finalized = ensureWcCardFaceNumericWhy(repaired, question, { wcIntent: intent });
+  if (keepExpanded) finalized.breakdownDefaultExpanded = true;
+  return finalized;
 }
 
 /**

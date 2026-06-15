@@ -7022,6 +7022,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         deep: responseDeep,
         playerMarketTier: tier,
         structuredSeed: structuredResponse,
+        history: normalizedUrTakeHistoryForGate,
       });
       if (structuredResponse && typeof structuredResponse === "object") {
         structuredResponse = normalizeWcStructuredForDelivery(

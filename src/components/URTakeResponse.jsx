@@ -36,6 +36,7 @@ import {
   formatWcAdvancementMarketContextLine,
   getWcAdvancementMarketContextLabel,
 } from "../../shared/wcAdvancementMarket.js";
+import { shouldAutoExpandWcBreakdown } from "../../shared/wcFollowUpExplain.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -94,6 +95,7 @@ export default function URTakeResponse({
   line: wcLine = null,
   deep: wcDeep = null,
   breakdownAvailable = false,
+  breakdownDefaultExpanded = false,
   predictionSlots = [],
   nbaRelevance = null,
   focusLayout = false,
@@ -423,8 +425,11 @@ export default function URTakeResponse({
         auditFootnote={auditFootnote}
         breakdownDefaultExpanded={
           focusLayout &&
-          (callType === "group_slate" || callType === "advancement") &&
-          wcFace.breakdownAvailable
+          wcFace.breakdownAvailable &&
+          (Boolean(breakdownDefaultExpanded) ||
+            callType === "group_slate" ||
+            callType === "advancement" ||
+            shouldAutoExpandWcBreakdown(userQuestion, breakdownDefaultExpanded))
         }
         fallbackSummary={
           wcTakeCardHasVisibleContent({

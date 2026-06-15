@@ -88,6 +88,57 @@ test("extractPriorTotalsLeanFromHistory reads last assistant totals lean", () =>
   assert.deepEqual(prior, { kind: "over", line: "4.5" });
 });
 
+test("buildWcFixtureMatchupPrebuiltStructured why-under follow-up reaffirms prior Under lean", () => {
+  const history = [
+    { role: "user", content: "Best bet on BEL vs EGY if I only know the moneyline?" },
+    {
+      role: "assistant",
+      structured: { lean: "Pass on ML — Lean Under 2.5 goals", call: "Lean Under 2.5 goals" },
+    },
+  ];
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "BEL",
+    away: "EGY",
+    group: "G",
+    question: "why under 2.5 goals?",
+    match: {
+      odds: {
+        home: { moneyline: "-140" },
+        away: { moneyline: "+380" },
+        draw: { moneyline: "+260" },
+        totalLine: 2.5,
+        totalOver: "-106",
+        totalUnder: "-114",
+      },
+    },
+    history,
+  });
+  assert.match(structured?.call || "", /Under 2\.5/i);
+  assert.doesNotMatch(structured?.call || "", /Over 2\.5/i);
+  const first = buildWcFixtureMatchupPrebuiltStructured({
+    home: "BEL",
+    away: "EGY",
+    group: "G",
+    question: "Best bet on BEL vs EGY if I only know the moneyline?",
+    match: {
+      odds: {
+        home: { moneyline: "-140" },
+        away: { moneyline: "+380" },
+        draw: { moneyline: "+260" },
+        totalLine: 2.5,
+        totalOver: "-106",
+        totalUnder: "-114",
+      },
+    },
+  });
+  assert.notEqual(structured?.whyNow, first?.whyNow);
+  assert.match(structured?.whyNow || "", /low tempo|packs in|cashes when/i);
+  assert.doesNotMatch(structured?.whyNow || "", /rarely blows teams out/i);
+  assert.equal(structured?.breakdownDefaultExpanded, true);
+  assert.match(structured?.deep || "", /WINS IF:/i);
+  assert.match(structured?.deep || "", /under -114/i);
+});
+
 test("buildWcFixtureMatchupPrebuiltStructured Over or under goals flips prior totals lean", () => {
   const history = [
     { content: "Best bet on GER vs CUW if I only know the moneyline?" },

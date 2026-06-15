@@ -17,6 +17,28 @@ test("resolveRequiredEntities — this matchup inherits prior fixture teams", ()
   assert.deepEqual(entities.sort(), ["SWE", "TUN"]);
 });
 
+test("resolveRequiredEntities — continuation inherits teams from prior turn", () => {
+  const history = [
+    { role: "user", content: "Best bet on BEL vs EGY if I only know the moneyline?" },
+    {
+      role: "assistant",
+      structured: {
+        callType: "matchup",
+        call: "Belgium -140 to win",
+        lean: "Pass on ML — Lean Under 2.5 goals",
+        fixtureHome: "BEL",
+        fixtureAway: "EGY",
+      },
+    },
+  ];
+  const entities = resolveRequiredEntities(
+    "What's the other side?",
+    history,
+    WC_INTENT.CONTINUATION,
+  );
+  assert.deepEqual(entities.sort(), ["BEL", "EGY"]);
+});
+
 test("resolveWcPlayerPropFixtureTeams — this game from assistant structured fixture", () => {
   const history = [
     { role: "user", content: "Best bet on SWE vs TUN if I only know the moneyline?" },
