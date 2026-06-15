@@ -2638,6 +2638,17 @@ export default async function handler(req, res) {
     chatHistory: incomingHistory,
   });
 
+  // Daily-take cron already picked sport + question from live slates — do not let
+  // shared abbrev slugs (e.g. MIA @ PHI) override MLB → NBA text routing.
+  if (
+    dailyTakePipeline &&
+    uiSportHintForRouting &&
+    uiSportHintForRouting !== "generic" &&
+    uiSportHintForRouting !== "image_review"
+  ) {
+    sportHint = uiSportHintForRouting.toLowerCase();
+  }
+
   if (
     uiSportHintForRouting === "worldcup" ||
     questionMentionsWorldCup(question) ||

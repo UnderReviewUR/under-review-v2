@@ -50,10 +50,11 @@ import {
 } from "../../../shared/wcDataConfidence.js";
 import { mergeWcFollowUpChips } from "../../../shared/wcUrTakeFollowUps.js";
 import { inferWorldCupFromPlayerMarketQuestion } from "../../../shared/wcUrTakeKeywords.js";
-import { isGenericWcPlayerPropQuestion, isWcPlayerMarketIntent } from "../../../shared/wcUrTakePlayerMarket.js";
+import { isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion, isWcPlayerMarketIntent } from "../../../shared/wcUrTakePlayerMarket.js";
 import {
   classifyWcVerdictForUi,
   getVerdictNextLine,
+  isWcStructuredPlayerMarketCard,
   resolveWcIntentFromMessage,
   resolveWcVerdictFromQuestion,
 } from "../../../shared/wcUrTakeVerdict.js";
@@ -64,6 +65,7 @@ import {
   resolveNbaVerdictFromQuestion,
 } from "../../../shared/nbaUrTakeVerdict.js";
 import { WC_INTENT, classifyWcQuestionIntent, isWcRulesQuestion } from "../../../shared/wcUrTakeIntent.js";
+import { extractLatestUserTurnForRouting } from "../../../shared/urTakeSportRouting.js";
 import { shouldShowUrTakeClientFailureDebug } from "../../lib/urTakeClientFailureDebug.js";
 import { buildNbaUrTakeContextBar } from "../../lib/nbaUrTakeContextBar.js";
 import { detectParlayIntent } from "../../../shared/detectParlayIntent.js";
@@ -1744,13 +1746,14 @@ function coerceStructuredForUrTakeCard(raw) {
 /** Coerce WC structured card shape from question intent when API/card shape drifts. */
 function coerceWcStructuredForIntent(structured, userQuestion = "", message = null) {
   if (!structured || typeof structured !== "object") return structured;
-  const q = String(userQuestion || message?.userQuestion || message?.question || "").trim();
-  const classified = classifyWcQuestionIntent(q);
+  const rawQ = String(userQuestion || message?.userQuestion || message?.question || "").trim();
+  const q = extractLatestUserTurnForRouting(rawQ);
+  const structuredPlayerMarket = isWcStructuredPlayerMarketCard(structured);
   const intent =
-    classified !== WC_INTENT.UNCLASSIFIED && classified !== WC_INTENT.CONTINUATION
-      ? classified
-      : resolveWcIntentFromMessage(message, q) ||
-        (isWcRulesQuestion(q) ? WC_INTENT.RULES : classified);
+    (structuredPlayerMarket ? WC_INTENT.PLAYER_PROP : null) ||
+    resolveWcIntentFromMessage(message, q) ||
+    classifyWcQuestionIntent(q) ||
+    WC_INTENT.UNCLASSIFIED;
 
   if (intent === WC_INTENT.RULES || isWcRulesQuestion(q)) {
     return {
@@ -1760,7 +1763,13 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
       edge: structured.edge || "Factual tournament rules — not a betting pick.",
     };
   }
-  if (intent === WC_INTENT.MATCHUP || /\b(vs\.?|versus|who advances)\b/i.test(q)) {
+  if (
+    (intent === WC_INTENT.MATCHUP ||
+      /\b(vs\.?|versus|who advances)\b/i.test(q)) &&
+    !structuredPlayerMarket &&
+    !isWcFixtureScopedPlayerMarketQuestion(q) &&
+    !isWcPlayerMarketIntent(intent)
+  ) {
     return {
       ...structured,
       sport: "worldcup",
@@ -2112,7 +2121,7 @@ function UrTakeAiBubble({
         {m.image && <img src={m.image} alt="" className="bubble-img" />}
         <UrTakeSectionErrorBoundary
           label="ur_take_structured_card"
-          key={String(m.msgId || `struct-${summaryText.slice(0, 48)}`)}
+          key={`${String(m.msgId || "struct")}:${String(s.lean || "").slice(0, 64)}`}
           fallback={structuredFallback}
         >
           <URTakeResponse

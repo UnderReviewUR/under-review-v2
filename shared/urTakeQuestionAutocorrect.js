@@ -52,6 +52,7 @@ export function autocorrectUrTakeQuestion(text) {
     }
   }
 
-  out = out.replace(/\s{2,}/g, " ").trim();
+  // Collapse repeated spaces/tabs only — never merge newlines (breaks client Follow-up: routing).
+  out = out.replace(/[^\S\n]{2,}/g, " ").trim();
   return { text: out, corrections: [...new Set(corrections)] };
 }

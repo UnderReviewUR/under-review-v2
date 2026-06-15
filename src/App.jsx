@@ -75,6 +75,11 @@ import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from 
 import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
+import {
+  isWcStructuredPlayerMarketCard,
+  resolveWcIntentFromMessage,
+} from "../shared/wcUrTakeVerdict.js";
+import { extractLatestUserTurnForRouting } from "../shared/urTakeSportRouting.js";
 import { formatWcCompactDisplayText } from "../shared/wcUrTakeCompactDelivery.js";
 import {
   buildWcHomePromoCard,
@@ -297,24 +302,11 @@ function structuredPayloadFromApi(data) {
 }
 
 function resolveWcIntentForBubble(question, apiIntent = "") {
-  const q = String(question || "").trim();
-  if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
-  const classified = classifyWcQuestionIntent(q);
-  if (
-    classified === WC_INTENT.GOLDEN_BOOT ||
-    classified === WC_INTENT.TOP_SCORER ||
-    classified === WC_INTENT.PLAYER_PROP
-  ) {
-    return classified;
-  }
-  if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
-  if (/\bmispriced\b/i.test(q) || /\+\d{3,}/.test(q)) return WC_INTENT.ENTITY_PRICING;
-  if (classified === WC_INTENT.STRUCTURAL || classified === WC_INTENT.RULES) {
-    return classified;
-  }
-  const fromApi = String(apiIntent || "").toUpperCase();
-  if (fromApi) return fromApi;
-  return classified !== WC_INTENT.UNCLASSIFIED ? classified : "";
+  return (
+    resolveWcIntentFromMessage({ wcIntent: apiIntent }, question) ||
+    classifyWcQuestionIntent(extractLatestUserTurnForRouting(question)) ||
+    ""
+  );
 }
 
 /** Prevent React crashes / stringify failures from odd API `structured` shapes (common after golf reads). */
@@ -335,7 +327,10 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
   const isWcPlayerMarket =
     wcIntent === WC_INTENT.PLAYER_PROP ||
     wcIntent === WC_INTENT.GOLDEN_BOOT ||
-    wcIntent === WC_INTENT.TOP_SCORER;
+    wcIntent === WC_INTENT.TOP_SCORER ||
+    callType.startsWith("player_market") ||
+    callType === "player_prop" ||
+    Boolean(raw.playerMarketTier);
   const isWcBubble =
     wcIntent === WC_INTENT.STRUCTURAL ||
     wcIntent === WC_INTENT.ENTITY_PRICING ||
@@ -2267,7 +2262,11 @@ ${themeCss}
         sport: "worldcup",
         edge: structuredForBubble.edge || "Factual tournament rules — not a betting pick.",
       };
-    } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.MATCHUP) {
+    } else if (
+      structuredForBubble &&
+      resolvedWcIntent === WC_INTENT.MATCHUP &&
+      !isWcStructuredPlayerMarketCard(structuredForBubble)
+    ) {
       structuredForBubble = {
         ...structuredForBubble,
         callType: "matchup",

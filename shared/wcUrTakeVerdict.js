@@ -9,7 +9,11 @@ import {
   isWcRulesQuestion,
 } from "./wcUrTakeIntent.js";
 import { isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
-import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+import {
+  isWcFixtureScopedPlayerMarketQuestion,
+  isWcPlayerMarketIntent,
+} from "./wcUrTakePlayerMarket.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"GROUP_SLATE"|"GENERAL"} WcUrTakeVerdict */
 
@@ -23,13 +27,35 @@ const EDGE_RE = /\b(mispriced|structural value|longshot value|actionable edge)\b
  * @returns {string | null}
  */
 export function resolveWcIntentFromMessage(message, userQuestion = "") {
-  const q = String(
+  const rawQ = String(
     message?.question || message?.userQuestion || userQuestion || "",
   ).trim();
+  const q = extractLatestUserTurnForRouting(rawQ);
+
+  const direct = String(
+    message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "",
+  ).toUpperCase();
+  if (
+    direct &&
+    direct !== WC_INTENT.UNCLASSIFIED &&
+    direct !== WC_INTENT.CONTINUATION
+  ) {
+    return direct;
+  }
 
   if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
+  if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
+
+  const classified = classifyWcQuestionIntent(q);
+  if (isWcPlayerMarketIntent(classified)) return classified;
+
   if (isTournamentWinnerQuestion(q)) return WC_INTENT.ENTITY_PRICING;
-  if (/\b(vs\.?|versus|who advances)\b/i.test(q)) return WC_INTENT.MATCHUP;
+  if (
+    /\b(vs\.?|versus|who advances)\b/i.test(q) &&
+    !isWcFixtureScopedPlayerMarketQuestion(q)
+  ) {
+    return WC_INTENT.MATCHUP;
+  }
   if (
     /\bmispriced\b/i.test(q) ||
     /\+\d{3,}/.test(q) ||
@@ -38,10 +64,6 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
     return WC_INTENT.ENTITY_PRICING;
   }
 
-  const direct = message?.wcIntent || message?.urTakeTelemetry?.wcIntent;
-  if (direct) return String(direct);
-
-  const classified = classifyWcQuestionIntent(q);
   if (
     classified !== WC_INTENT.UNCLASSIFIED &&
     classified !== WC_INTENT.CONTINUATION
@@ -49,6 +71,21 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
     return classified;
   }
   return null;
+}
+
+/**
+ * True when API/card structured is a fixture player-market take (not matchup O/U).
+ * @param {object | null | undefined} structured
+ */
+export function isWcStructuredPlayerMarketCard(structured) {
+  if (!structured || typeof structured !== "object") return false;
+  const callType = String(structured.callType || "").toLowerCase();
+  if (callType.startsWith("player_market") || callType === "player_prop") {
+    return true;
+  }
+  if (structured.playerMarketTier) return true;
+  const lean = String(structured.lean || "").trim();
+  return /^\s*\d+\.\s+/m.test(lean);
 }
 
 /** @param {string} question @param {object | null | undefined} message */

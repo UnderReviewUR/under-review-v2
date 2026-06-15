@@ -7,7 +7,7 @@ import {
   readStoredDailyTake,
 } from "./_dailyTakePreview.js";
 
-const PREVIEW_TRIM_VERSION = 3;
+const PREVIEW_TRIM_VERSION = 4;
 
 /**
  * @param {Record<string, unknown> | null | undefined} cached

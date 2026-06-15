@@ -18,6 +18,13 @@ test("autocorrectUrTakeQuestion — worldcup token", () => {
   assert.match(r.text, /breakout player/i);
 });
 
+test("autocorrectUrTakeQuestion — preserves contextual follow-up newlines", () => {
+  const raw =
+    "User: Best bet on ESP vs CPV if I only know the moneyline?\n\nFollow-up:\nwho is most likely to score?";
+  const r = autocorrectUrTakeQuestion(raw);
+  assert.ok(r.text.includes("\n\nFollow-up:\n"), r.text);
+});
+
 test("questionMentionsWorldCup — after autocorrect", () => {
   const { text } = autocorrectUrTakeQuestion("wrld cup picks");
   assert.ok(questionMentionsWorldCup(text));

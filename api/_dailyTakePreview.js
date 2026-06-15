@@ -6,7 +6,7 @@ import { getNbaFinalsSeriesState } from "../shared/nbaFinalsUtils.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
 const STORAGE_PREFIX = "daily_take:v2:";
-const PREVIEW_TRIM_VERSION = 3;
+const PREVIEW_TRIM_VERSION = 4;
 
 export function getEtDateKey(d = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
