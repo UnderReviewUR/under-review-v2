@@ -176,7 +176,15 @@ const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 
 /** Match total goals O/U — not a player-prop ask. */
 const WC_MATCH_TOTALS_RE =
-  /\b(?:over|under)\s+\d+(?:\.\d+)?\s+goals?\b|\bgoals?\s+(?:over|under)\s+\d+(?:\.\d+)?\b|\b(?:hit|reach|see)\s+over\s+\d+(?:\.\d+)?\s+goals?\b/i;
+  /\b(?:over|under)\s+\d+(?:\.\d+)?(?:\s+goals?)?\b|\bgoals?\s+(?:over|under)\s+\d+(?:\.\d+)?\b|\b(?:hit|reach|see)\s+over\s+\d+(?:\.\d+)?(?:\s+goals?)?\b/i;
+
+function isWcPlayerPropOuAsk(question) {
+  const q = String(question || "");
+  return (
+    /\b(?:shots?|sot|assists?|cards?|tackles?|saves?)\b/i.test(q) &&
+    /\b(?:over|under)\s+\d+(?:\.\d+)?/i.test(q)
+  );
+}
 
 /**
  * @param {string} question
@@ -184,9 +192,11 @@ const WC_MATCH_TOTALS_RE =
 export function isWcMatchTotalsQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcPlayerPropOuAsk(q)) return false;
   if (WC_MATCH_TOTALS_RE.test(q)) return true;
-  if (/\b(?:has|have)\s+over\s+\d+(?:\.\d+)?\s+goals?\b/i.test(q)) return true;
-  if (/\bsafe to bet\b[\s\S]{0,80}\bover\s+\d+(?:\.\d+)?\s+goals?\b/i.test(q)) return true;
+  if (/\b(?:has|have)\s+over\s+\d+(?:\.\d+)?(?:\s+goals?)?\b/i.test(q)) return true;
+  if (/\bsafe to bet\b[\s\S]{0,80}\bover\s+\d+(?:\.\d+)?(?:\s+goals?)?\b/i.test(q)) return true;
+  if (/\bthoughts?\s+(?:on\s+)?(?:the\s+)?(?:over|under)\s+\d+(?:\.\d+)?/i.test(q)) return true;
   return false;
 }
 

@@ -66,7 +66,7 @@ export function isWcMatchupAltMarketFollowUp(question) {
   if (/\bboth teams to advance\b/i.test(q)) return true;
   if (/\bover or under goals\b/i.test(q)) return true;
   if (isWcMatchTotalsQuestion(q)) return true;
-  if (/\b(?:over|under)\s+\d+\.?\d*\s*goals?\??\s*$/i.test(q)) return true;
+  if (/\b(?:over|under)\s+\d+\.?\d*(?:\s*goals?)?\??\s*$/i.test(q)) return true;
   return false;
 }
 

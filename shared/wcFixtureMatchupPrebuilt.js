@@ -17,7 +17,7 @@ import {
   resolveMatchWinProbabilityBar,
 } from "./wcMatchMoneylineProbs.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
-import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_INTENT, isWcMatchTotalsQuestion } from "./wcUrTakeIntent.js";
 import {
   isWcFixtureScopedPlayerMarketQuestion,
   isWcPlayerMarketIntent,
@@ -71,6 +71,9 @@ function isWcLiveMatchStatus(status) {
  */
 export function isWcFixturePrebuiltBlockedForLivePlay(question, match) {
   const q = String(question || "");
+  if (isWcMatchTotalsQuestion(q) || isWcMatchupAltMarketFollowUp(q)) {
+    return false;
+  }
   if (WC_LIVE_ANGLE_RE.test(q) || isWcLiveDominanceQuestion(q)) return true;
   if (match && isWcLiveMatchStatus(match.status)) return true;
   const hs = Number(match?.homeScore);
@@ -220,14 +223,18 @@ export function pickWcFixtureTotalsAlternateLean(row) {
     }
   }
 
-  const userOu = q.match(/\b(under|over)\s+(\d+\.?\d*)\s*goals?\b/i);
+  const userOu =
+    q.match(/\b(under|over)\s+(\d+\.?\d*)(?:\s+goals?)?\b/i) ||
+    q.match(/\bthoughts?\s+(?:on\s+)?(?:the\s+)?(over|under)\s+(\d+\.?\d*)\b/i);
   if (userOu) {
-    const headline = `Lean ${userOu[1]} ${userOu[2]} goals`;
+    const side = userOu[1].toLowerCase();
+    const lineNum = userOu[2];
+    const headline = `Lean ${side === "over" ? "Over" : "Under"} ${lineNum} goals`;
     return {
       lean: row.passOnMlPrefix === false ? `${headline}.` : `Pass on ML — ${headline} — cleaner angle than the ML.`,
       headline,
       kind: userOu[1].toLowerCase() === "over" ? "over" : "under",
-      line: userOu[2],
+      line: lineNum,
     };
   }
 

@@ -364,6 +364,48 @@ test("prepareWcCardFaceDisplay both-advance follow-up uses advance headline not 
   assert.doesNotMatch(face.headline, /to win/i);
 });
 
+test("live ESP vs CPV over 3.5 follow-up routes through alt prebuilt at 0-0 live", () => {
+  const q =
+    "Is this due to a slow start? I imagine Spain start putting together goals. Thoughts on over 3.5?";
+  const history = [
+    { role: "user", content: "Best live angle on ESP vs CPV right now?" },
+    {
+      role: "assistant",
+      content: "Lean Under 2.5 goals",
+      wcMatchTeams: { home: "ESP", away: "CPV" },
+    },
+  ];
+  assert.equal(
+    shouldUseWcFixtureMatchupAltFollowUpPrebuilt(q, WC_INTENT.MATCHUP, {
+      isConversationFollowUp: true,
+      hasKvFixture: true,
+      history,
+      match: { status: "live", homeScore: 0, awayScore: 0 },
+    }),
+    true,
+  );
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "ESP",
+    away: "CPV",
+    group: "H",
+    question: q,
+    match: {
+      status: "live",
+      homeScore: 0,
+      awayScore: 0,
+      odds: {
+        home: { moneyline: "-450" },
+        away: { moneyline: "+1200" },
+        draw: { moneyline: "+550" },
+        totalLine: 2.5,
+        provider: "draftkings",
+      },
+    },
+    history,
+  });
+  assert.match(structured?.lean || structured?.call || "", /over 3\.5/i);
+});
+
 test("live NED vs JPN at 2-1 blocks prebuilt under 2.5 on live-angle prompt", () => {
   assert.equal(
     shouldUseWcFixtureMatchupPrebuilt({

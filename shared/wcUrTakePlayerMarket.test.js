@@ -91,6 +91,17 @@ test("isWcMatchTotalsQuestion — Spain over 3.5 routes to MATCHUP not player pr
   assert.equal(classifyWcQuestionIntent(q, history), WC_INTENT.MATCHUP);
 });
 
+test("isWcMatchTotalsQuestion — thoughts on over 3.5 without goals word", () => {
+  const q =
+    "Is this due to a slow start? I imagine Spain start putting together goals. Thoughts on over 3.5?";
+  const history = [
+    { role: "user", content: "Best live angle on ESP vs CPV right now?" },
+    { role: "assistant", content: "Lean Under 2.5 goals", wcMatchTeams: { home: "ESP", away: "CPV" } },
+  ];
+  assert.equal(isWcMatchTotalsQuestion(q), true);
+  assert.equal(classifyWcQuestionIntent(q, history), WC_INTENT.MATCHUP);
+});
+
 test("classifyWcQuestionIntent — team match goals is score prediction not player prop", () => {
   assert.equal(
     classifyWcQuestionIntent("How many goals will Spain score today?"),
