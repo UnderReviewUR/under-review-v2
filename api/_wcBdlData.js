@@ -37,8 +37,9 @@ import {
   WC_MATCH_DETAIL_LIVE_TTL_SECONDS,
   WC_MATCH_DETAIL_PRE_TTL_SECONDS,
 } from "../shared/wc2026Constants.js";
-import { WC_MATCH_PLAYER_PROPS_KV_KEY, WC_MATCH_PLAYER_PROPS_TTL_SECONDS, WC_PLAYERS_KV_KEY, WC_PLAYERS_TTL_SECONDS } from "../shared/wc2026PlayerConstants.js";
+import { WC_MATCH_PLAYER_PROPS_KV_KEY, WC_MATCH_PLAYER_PROPS_TTL_SECONDS, WC_PLAYERS_KV_KEY, WC_PLAYERS_TTL_SECONDS, WC_GOLDEN_BOOT_KV_KEY, WC_GOLDEN_BOOT_TTL_SECONDS } from "../shared/wc2026PlayerConstants.js";
 import { WC_MATCH_PLAYER_PROP_MARKET_KEYS } from "../shared/wcMatchPlayerProps.js";
+import { extractBdlGoldenBootRowsFromFutures } from "../shared/wcBdlGoldenBoot.js";
 import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdds.js";
 import { fetchEspnAllMatches } from "./_wcEspn.js";
 
@@ -578,6 +579,52 @@ export async function scrapeAndCacheWcBdlOutrights() {
   );
 
   return { ok: true, count: Object.keys(sanitized).length, source: "balldontlie" };
+}
+
+/**
+ * Probe BDL /odds/futures for player Golden Boot markets (GOAT — before ESPN/scrape).
+ */
+export async function scrapeAndCacheWcBdlGoldenBoot() {
+  if (!hasWcBdlApiKey()) return { ok: false, error: "missing_api_key", rows: [] };
+
+  const res = await bdlFifaFetch("/odds/futures", { "seasons[]": 2026 });
+  if (!res.ok) return { ok: false, error: res.error, rows: [] };
+
+  const rawRows = Array.isArray(res.data?.data) ? res.data.data : [];
+  const marketTypes = [...new Set(rawRows.map((r) => String(r?.market_type || "").trim()).filter(Boolean))];
+  const rows = extractBdlGoldenBootRowsFromFutures(rawRows);
+
+  console.log(
+    JSON.stringify({
+      event: "wc_bdl_golden_boot_probe",
+      rawRowCount: rawRows.length,
+      marketTypes,
+      goldenBootRowCount: rows.length,
+    }),
+  );
+
+  if (!rows.length) {
+    return {
+      ok: false,
+      error: "bdl_no_golden_boot_futures",
+      rows: [],
+      marketTypes,
+      bdlExhausted: true,
+    };
+  }
+
+  const nowMs = Date.now();
+  const payload = {
+    lastUpdated: nowMs,
+    market: "golden_boot",
+    source: "balldontlie",
+    booksUsed: ["balldontlie"],
+    rows,
+    bdlMarketTypes: marketTypes.filter((mt) => /goal|scorer|boot|golden/i.test(mt)),
+  };
+  await setDurableJson(WC_GOLDEN_BOOT_KV_KEY, payload, { ttlSeconds: WC_GOLDEN_BOOT_TTL_SECONDS });
+
+  return { ok: true, rows, source: "balldontlie", rowCount: rows.length };
 }
 
 /**

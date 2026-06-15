@@ -160,6 +160,8 @@ const CONTINUATION_SIGNAL_RE =
 const WC_TEAM_GOALS_RE =
   /\b(which team|what team|team will|nation will|country will|national team|teams score)\b/i;
 
+const WC_TEAM_MATCH_GOALS_COUNT_RE = /\bhow many goals\b/i;
+
 const WC_GOLDEN_BOOT_RE = /\b(golden boot|boot winner|top goalscorer|top goal scorer)\b/i;
 
 const WC_GOLDEN_GLOVE_RE = /\b(golden glove|glove winner|best goalkeeper|goalkeeper of the tournament)\b/i;
@@ -211,11 +213,29 @@ export function isWcScorePredictionQuestion(question) {
  * @param {string} question
  * @returns {typeof WC_INTENT.PLAYER_PROP | typeof WC_INTENT.GOLDEN_BOOT | typeof WC_INTENT.TOP_SCORER | null}
  */
+/**
+ * Nation/team total goals in a match — not a player-prop ask.
+ * @param {string} question
+ */
+export function isWcTeamMatchGoalsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!WC_TEAM_MATCH_GOALS_COUNT_RE.test(q)) return false;
+  return extractMentionedWcTeams(q).length >= 1;
+}
+
 export function classifyWcPlayerMarketIntent(question) {
   const q = String(question || "").trim();
   const ql = q.toLowerCase();
   if (!q) return null;
   if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
+  if (isWcTeamMatchGoalsQuestion(q)) return null;
+
+  if (WC_GOLDEN_BOOT_RE.test(ql)) return WC_INTENT.GOLDEN_BOOT;
+  if (WC_GOLDEN_GLOVE_RE.test(ql)) return WC_INTENT.GOLDEN_GLOVE;
+  if (/\b(which player|what player)\b/i.test(ql)) return WC_INTENT.PLAYER_PROP;
+  if (WC_TOP_SCORER_RE.test(ql)) return WC_INTENT.TOP_SCORER;
+  if (WC_WHO_WILL_SCORE_RE.test(ql)) return WC_INTENT.TOP_SCORER;
+  if (/\b(goal scorer|score more goals)\b/i.test(ql)) return WC_INTENT.TOP_SCORER;
 
   if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
 
@@ -229,11 +249,6 @@ export function classifyWcPlayerMarketIntent(question) {
   }
 
   if (WC_PLAYER_PROP_RE.test(ql)) return WC_INTENT.PLAYER_PROP;
-  if (WC_GOLDEN_GLOVE_RE.test(ql)) return WC_INTENT.GOLDEN_GLOVE;
-  if (WC_GOLDEN_BOOT_RE.test(ql)) return WC_INTENT.GOLDEN_BOOT;
-  if (WC_TOP_SCORER_RE.test(ql)) return WC_INTENT.TOP_SCORER;
-  if (WC_WHO_WILL_SCORE_RE.test(ql)) return WC_INTENT.TOP_SCORER;
-  if (/\b(goal scorer|score more goals)\b/i.test(ql)) return WC_INTENT.TOP_SCORER;
 
   return null;
 }
@@ -318,6 +333,10 @@ export function classifyWcQuestionIntent(question, history = []) {
   }
 
   if (isWcScorePredictionQuestion(q)) {
+    return WC_INTENT.SCORE_PREDICTION;
+  }
+
+  if (isWcTeamMatchGoalsQuestion(q)) {
     return WC_INTENT.SCORE_PREDICTION;
   }
 

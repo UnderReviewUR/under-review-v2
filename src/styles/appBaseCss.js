@@ -3265,6 +3265,30 @@ export const baseCss = `
   .app.has-docked main.screen.wc-screen--docked-chat.wc-screen--premium{
     padding:0;
   }
+  .wc-docked-topbar{
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:6px 16px 4px;
+    border-bottom:1px solid rgba(196,165,116,0.12);
+  }
+  .wc-docked-home-back{
+    margin-bottom:0 !important;
+    color:var(--wc-premium-accent, #C4A574) !important;
+    letter-spacing:0.14em;
+    min-height:36px;
+    padding:4px 0;
+  }
+  .wc-docked-topbar__label{
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--wc-premium-muted, #8A8478);
+    flex-shrink:0;
+  }
   .wc-docked-context-bar{
     flex-shrink:0;
     margin:0;

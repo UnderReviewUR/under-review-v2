@@ -73,6 +73,7 @@ import { readWcGoldenGloveFromKv } from "./_wcGoldenGloveOdds.js";
 import { buildWcPlayerBioPromptBlock } from "../shared/wcPlayerBio.js";
 import { buildResolvedWcPlayerRegistry } from "../shared/wcPlayerRegistry.js";
 import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
+import { prefetchWcGoatDataForUrTake } from "./_wcGoatUrTakePrefetch.js";
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
@@ -775,19 +776,27 @@ export function formatWcRulesOnlyPromptBlock(ctx) {
  * @returns {Promise<object|null>}
  */
 async function loadWorldCupGroupsPayload() {
+  const preferGoat = isWcGoatPrimaryEnabled();
+  if (preferGoat) {
+    return getGroupsPayload({ preferGoat: true });
+  }
   const cached = await getDurableJson("wc2026_groups");
   if (cached?.groups && Object.keys(cached.groups).length) {
     return cached;
   }
-  return getGroupsPayload({ preferGoat: isWcGoatPrimaryEnabled() });
+  return getGroupsPayload({ preferGoat: false });
 }
 
 async function loadWorldCupMatchesPayload() {
+  const preferGoat = isWcGoatPrimaryEnabled();
+  if (preferGoat) {
+    return getMatchesPayload({ preferGoat: true });
+  }
   const cached = await getDurableJson("wc2026_matches");
   if (cached?.matches?.length) {
     return cached;
   }
-  return getMatchesPayload({ preferGoat: isWcGoatPrimaryEnabled() });
+  return getMatchesPayload({ preferGoat: false });
 }
 
 /**
@@ -812,9 +821,17 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const nowMs = Date.now();
 
   if (!liteFollowUp) {
-    void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
-      console.warn("[wc-context] lazy warm failed:", warmErr?.message);
-    });
+    if (isWcGoatPrimaryEnabled()) {
+      await prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 5000, runId: "urtake-context" }).catch(
+        (warmErr) => {
+          console.warn("[wc-context] GOAT prefetch failed:", warmErr?.message);
+        },
+      );
+    } else {
+      void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
+        console.warn("[wc-context] lazy warm failed:", warmErr?.message);
+      });
+    }
   }
 
   const [groupsPayload, matchesPayload, outrightsKv] = await Promise.all([

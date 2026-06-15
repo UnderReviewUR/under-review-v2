@@ -28,3 +28,10 @@ test("WorldCupScreen declares dock/chat flags before hooks reference them", () =
   assert.ok(highlightEffect > wcTakeDecl, "wcTakeLoading used in highlight effect before declaration");
   assert.ok(dockedLayoutEffect > urDockedDecl, "urDockedChat used in layout effect before declaration");
 });
+
+test("WorldCupScreen exposes browse-home back control in docked chat", () => {
+  const src = readFileSync(screenPath, "utf8");
+  assert.match(src, /onResetWcBrowseHome/);
+  assert.match(src, /wc-docked-home-back/);
+  assert.match(src, /WORLD CUP HOME/);
+});

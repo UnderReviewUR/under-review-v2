@@ -61,6 +61,55 @@ test("questionAsksForWcPlayerMarket — golden boot", () => {
   assert.equal(classifyWcPlayerMarketIntent("Best golden boot value?"), WC_INTENT.GOLDEN_BOOT);
 });
 
+test("classifyWcQuestionIntent — Golden Boot pick question is GOLDEN_BOOT not PLAYER_PROP", () => {
+  const q = "Golden Boot pick for World Cup 2026 – who scores most and why?";
+  assert.equal(classifyWcQuestionIntent(q), WC_INTENT.GOLDEN_BOOT);
+  assert.equal(extractWcNamedPlayerFromQuestion(q), null);
+});
+
+test("extractWcNamedPlayerFromQuestion — host nations read is not a player name", () => {
+  assert.equal(extractWcNamedPlayerFromQuestion("What's your read on the host nations?"), null);
+  assert.equal(
+    classifyWcQuestionIntent("What's your read on the host nations?"),
+    WC_INTENT.GENERAL,
+  );
+});
+
+test("classifyWcQuestionIntent — team match goals is score prediction not player prop", () => {
+  assert.equal(
+    classifyWcQuestionIntent("How many goals will Spain score today?"),
+    WC_INTENT.SCORE_PREDICTION,
+  );
+  assert.equal(extractWcNamedPlayerFromQuestion("How many goals will Spain score today?"), null);
+});
+
+test("resolveWcPlayerMarketAnswer — fixture scorer intel when match props missing", () => {
+  const resolved = resolveWcPlayerMarketAnswer(
+    "who is most likely to score?",
+    WC_INTENT.PLAYER_PROP,
+    {
+      conversationHistory: [
+        { role: "user", content: "France vs Spain moneyline — who wins?" },
+        { role: "assistant", content: "Lean France.", wcMatchTeams: { home: "FRA", away: "ESP" } },
+      ],
+    },
+    {
+      goldenBoot: {
+        rows: [
+          { name: "Kylian Mbappé", nationAbbr: "FRA", americanOdds: "+600" },
+          { name: "Lamine Yamal", nationAbbr: "ESP", americanOdds: "+900" },
+        ],
+      },
+      matchPlayerProps: null,
+    },
+  );
+  assert.equal(resolved.forcePass, true);
+  assert.match(String(resolved.structured?.lean || ""), /Mbappé/i);
+  assert.match(String(resolved.structured?.lean || ""), /Yamal/i);
+  assert.doesNotMatch(String(resolved.structured?.lean || ""), /lines loading/i);
+  assert.doesNotMatch(String(resolved.structured?.lean || ""), /no actionable line/i);
+});
+
 test("resolveWcPlayerMarketResponse — with KV does not force pass", () => {
   const ctx = mockWcContextWithPlayerMarkets({ wcIntent: WC_INTENT.PLAYER_PROP });
   const resolved = resolveWcPlayerMarketResponse(

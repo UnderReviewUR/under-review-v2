@@ -73,6 +73,7 @@ import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuest
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
 import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "../shared/wcUrTakeKeywords.js";
 import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
+import { shouldResetWorldCupBrowseHome } from "./lib/wcBrowseHomeNav.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
 import {
@@ -3769,9 +3770,29 @@ ${themeCss}
     setSelectedNflPlayer(null);
   }, [screen, tab]);
 
+  const resetWorldCupBrowseHome = useCallback(() => {
+    setWcMsgs([]);
+    setWcInput("");
+    requestAnimationFrame(() => {
+      wcScreenRef.current?.scrollTo?.({ top: 0, behavior: "instant" });
+      wcBarRef.current?.scrollTo?.({ top: 0, behavior: "instant" });
+    });
+  }, []);
+
   const goWorldCup = useCallback(
     (nav = null) => {
-      if (screen !== "worldcup" || tab !== "worldcup") {
+      const alreadyOnWc = screen === "worldcup" && tab === "worldcup";
+      if (
+        shouldResetWorldCupBrowseHome({
+          alreadyOnWc,
+          wcMsgCount: wcMsgs.length,
+          nav,
+        })
+      ) {
+        resetWorldCupBrowseHome();
+        return;
+      }
+      if (!alreadyOnWc) {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
       if (nav && typeof nav === "object") {
@@ -3787,7 +3808,7 @@ ${themeCss}
       setSelectedPlayer(null);
       setSelectedNflPlayer(null);
     },
-    [screen, tab],
+    [screen, tab, wcMsgs.length, resetWorldCupBrowseHome],
   );
 
   const goWorldCupMatchesToday = useCallback(() => {
@@ -5155,6 +5176,7 @@ ${themeCss}
             }
             wcHomePromoCard={wcHomePromoCard}
             focusSession={wcFocusSession}
+            onResetWcBrowseHome={resetWorldCupBrowseHome}
           />
         )}
 

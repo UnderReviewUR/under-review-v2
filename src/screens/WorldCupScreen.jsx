@@ -77,6 +77,7 @@ export default function WorldCupScreen({
   onOpenWcXiNotice = null,
   wcHomePromoCard = null,
   focusSession = false,
+  onResetWcBrowseHome = null,
 }) {
   const [mainTab, setMainTab] = useState("matches");
   const [matchSubTab, setMatchSubTab] = useState("upcoming");
@@ -478,6 +479,18 @@ export default function WorldCupScreen({
     >
       {urDockedChat ? (
         <>
+          <div className="wc-docked-topbar">
+            <button
+              type="button"
+              className="wc-docked-home-back detail-back"
+              onClick={() => onResetWcBrowseHome?.()}
+            >
+              ← WORLD CUP HOME
+            </button>
+            {!focusSession ? (
+              <span className="wc-docked-topbar__label">UR Take</span>
+            ) : null}
+          </div>
           <p
             className={`wc-docked-context-bar${focusSession ? " wc-docked-context-bar--focus-hidden" : ""}`}
             aria-hidden={focusSession ? true : undefined}

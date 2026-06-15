@@ -3,6 +3,7 @@
  */
 
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
+import { getSetPieceTakersForNation } from "../src/data/wc2026SetPieceTakers.js";
 import { sortGoldenBootRows } from "./wcPlayerOddsFreshness.js";
 import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
 import {
@@ -27,6 +28,8 @@ import {
   isGenericWcPlayerPropQuestion,
   isWcFixturePlayerPropsQuestion,
   repairWcPlayerPropPassCard,
+  finalizeWcPlayerPropStructured,
+  isWcFixtureScopedPlayerMarketQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
@@ -282,6 +285,93 @@ export function buildWcTopGoalscorersListStructured(
 }
 
 /**
+ * Fixture scorer intel when posted anytime lines are missing — PK takers + Golden Boot board.
+ * @param {string} question
+ * @param {WcPlayerMarketTier} tier
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ */
+export function buildWcFixtureScorerIntelStructured(question, tier, kvBlocks, wcContext) {
+  const teams = resolveWcPlayerPropFixtureTeams(
+    String(question || ""),
+    wcContext?.conversationHistory || [],
+    wcContext,
+  );
+  if (teams.length < 2) return null;
+
+  const home = String(teams[0] || "").toUpperCase();
+  const away = String(teams[1] || "").toUpperCase();
+  let gbRows = goldenBootRowsFromKv(kvBlocks?.goldenBoot, 40);
+  if (gbRows.length < 2) {
+    gbRows = sortGoldenBootRows(WC_GOLDEN_BOOT_SEED_ROWS, 12);
+  }
+
+  /** @type {Array<{ name: string, nationAbbr: string, americanOdds?: string, note: string }>} */
+  const picks = [];
+
+  for (const abbr of [home, away]) {
+    const setPieces = getSetPieceTakersForNation(abbr);
+    const nationRows = gbRows.filter((r) => String(r.nationAbbr || "").toUpperCase() === abbr);
+    const pkName = setPieces?.penaltyTaker?.trim();
+    const gbLead = nationRows[0];
+    const primaryName = pkName || gbLead?.name;
+    if (!primaryName) continue;
+    const odds =
+      (pkName && nationRows.find((r) => r.name === pkName)?.americanOdds) ||
+      gbLead?.americanOdds ||
+      "";
+    const note = pkName ? "PK taker" : "Golden Boot board";
+    picks.push({
+      name: primaryName,
+      nationAbbr: abbr,
+      americanOdds: odds,
+      note,
+    });
+    const alt = nationRows.find((r) => r.name !== primaryName);
+    if (alt) {
+      picks.push({
+        name: alt.name,
+        nationAbbr: abbr,
+        americanOdds: alt.americanOdds,
+        note: "scoring threat",
+      });
+    }
+  }
+
+  if (picks.length < 2) return null;
+
+  const numbered = picks
+    .slice(0, 5)
+    .map((r, i) => {
+      const oddsBit = r.americanOdds ? ` ${r.americanOdds}` : "";
+      return `${i + 1}. ${r.name} (${r.nationAbbr})${oddsBit} — ${r.note}`;
+    })
+    .join("\n");
+  const lead = picks[0];
+  const meta = tierMetaFor(tier);
+
+  return finalizeWcPlayerPropStructured(
+    {
+      sport: "worldcup",
+      callType: meta.callType,
+      playerMarketTier: tier,
+      fixtureHome: home,
+      fixtureAway: away,
+      call: `${lead.name} — top scoring path (${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)})`,
+      lean: numbered,
+      whyNow: `Anytime scorer lines are not posted for this fixture yet — UR ranks ${lead.name} first on PK duty and tournament scoring role.`,
+      edge:
+        lead.americanOdds && picks[1]
+          ? `Alt: ${picks[1].name} ${picks[1].americanOdds || ""}`.trim()
+          : "Re-check when match lines post for priced anytime legs.",
+      confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
+      analysis: String(question || "").trim(),
+    },
+    question,
+  );
+}
+
+/**
  * Deterministic numbered fixture player-prop card from MATCH PLAYER PROPS KV.
  * @param {string} question
  * @param {WcPlayerMarketTier} tier
@@ -506,7 +596,9 @@ export function resolveWcPlayerMarketAnswer(
   const fixtureTeams = resolveWcPlayerPropFixtureTeams(questionStr, history, wcContext);
   const questionTeams = extractMentionedWcTeams(questionStr);
   const isFixturePlayerPropAsk =
-    isGenericWcPlayerPropQuestion(questionStr) || detectParlayIntent(questionStr);
+    isGenericWcPlayerPropQuestion(questionStr) ||
+    detectParlayIntent(questionStr) ||
+    isWcFixtureScopedPlayerMarketQuestion(questionStr);
   const genericSlateProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
     isFixturePlayerPropAsk &&
@@ -524,10 +616,15 @@ export function resolveWcPlayerMarketAnswer(
     question: questionStr,
     teams: fixtureTeams.length >= 2 ? fixtureTeams : questionTeams,
   });
+  const wcContextWithHistory = { ...wcContext, conversationHistory: history, requiredEntities: fixtureTeams };
+  const fixtureIntelStructured =
+    fixturePlayerProps && !freshMatchProps
+      ? buildWcFixtureScorerIntelStructured(questionStr, tier, kvBlocks, wcContextWithHistory)
+      : null;
   const forcePass =
     (tier === WC_PLAYER_MARKET_TIER.THIN && knownNames.length === 0) ||
     (genericSlateProps && !freshMatchProps) ||
-    (fixturePlayerProps && !freshMatchProps);
+    (fixturePlayerProps && !freshMatchProps && !fixtureIntelStructured);
 
   const base = {
     tier,
@@ -579,6 +676,40 @@ export function resolveWcPlayerMarketAnswer(
         forcePass: true,
         structured,
         responseText: `${structured.lean}\n\n${structured.whyNow}`,
+      };
+    }
+  }
+
+  if (fixtureIntelStructured) {
+    return {
+      ...base,
+      forcePass: true,
+      structured: fixtureIntelStructured,
+      responseText: `${fixtureIntelStructured.lean}\n\n${fixtureIntelStructured.whyNow}`,
+    };
+  }
+
+  if (
+    questionStr &&
+    (wcIntent === WC_INTENT.GOLDEN_BOOT || wcIntent === WC_INTENT.TOP_SCORER) &&
+    goldenBootRowCount(kvBlocks?.goldenBoot) > 0
+  ) {
+    const prebuilt = buildWcPlayerMarketPrebuiltStructured(
+      questionStr,
+      wcIntent,
+      tier,
+      kvBlocks?.goldenBoot,
+      {
+        matchPlayerProps: kvBlocks?.matchPlayerProps,
+        wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
+      },
+    );
+    if (prebuilt) {
+      return {
+        ...base,
+        forcePass: true,
+        structured: prebuilt,
+        responseText: `${prebuilt.lean}\n\n${prebuilt.whyNow}`,
       };
     }
   }

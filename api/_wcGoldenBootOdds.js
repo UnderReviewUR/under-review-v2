@@ -32,6 +32,7 @@ import {
   WC_GOLDEN_BOOT_MIN_VERIFIED_ROWS,
 } from "../shared/wcGoldenBootWriteQA.js";
 import { WC_GOLDEN_BOOT_SOURCE_COUNT } from "../shared/wcGoldenBootSourceRegistry.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
 /**
  * @param {Record<string, unknown>} payload
@@ -56,6 +57,28 @@ async function writeGoldenBootKv(payload) {
 export async function scrapeAndCacheWcGoldenBoot() {
   const nowMs = Date.now();
   const cached = await getDurableJson(WC_GOLDEN_BOOT_KV_KEY);
+
+  if (isWcGoatPrimaryEnabled()) {
+    const { scrapeAndCacheWcBdlGoldenBoot } = await import("./_wcBdlData.js");
+    const bdl = await scrapeAndCacheWcBdlGoldenBoot();
+    if (bdl?.ok && bdl?.rows?.length) {
+      return {
+        ok: true,
+        rows: bdl.rows,
+        source: "balldontlie",
+        booksUsed: ["balldontlie"],
+        servedStale: false,
+        error: null,
+      };
+    }
+    console.log(
+      JSON.stringify({
+        event: "wc_golden_boot_bdl_exhausted",
+        error: bdl?.error || "no_rows",
+        marketTypes: bdl?.marketTypes || [],
+      }),
+    );
+  }
 
   const [espn, bookResults] = await Promise.all([
     fetchEspnGoldenBootFutures(),

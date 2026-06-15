@@ -218,16 +218,28 @@ export async function getMatchesPayload(opts = {}) {
   }
 
   // User GETs must not block on live BDL pagination — cron/warmup refreshes KV.
-  if (kv?.matches?.length && kvRealCount >= 50 && !kv.stale) {
+  // GOAT-primary: do not serve ESPN KV when BDL is available.
+  const kvSourceIsBdl = String(kv?.source || "").toLowerCase().startsWith("balldontlie");
+  if (kv?.matches?.length && kvRealCount >= 50 && !kv.stale && (!preferGoat || kvSourceIsBdl)) {
     return buildMatchesPayloadFromKv(kv, nowMs);
   }
 
   if (preferGoat) {
     const goat = await getGoatMatchesPayload();
     if (goat.ok && goat.matches?.length) {
+      const payload = {
+        matches: goat.matches,
+        lastUpdated: goat.lastUpdated,
+        source: "balldontlie",
+      };
+      await setDurableJson("wc2026_matches", payload, { ttlSeconds: MATCHES_TTL });
       const matches = attachMatchListOddsFreshness(goat.matches, goat.lastUpdated, nowMs);
       return { ...goat, matches };
     }
+  }
+
+  if (kv?.matches?.length && kvRealCount >= 50 && !kv.stale) {
+    return buildMatchesPayloadFromKv(kv, nowMs);
   }
 
   if (kv?.matches?.length && kvRealCount >= 50) {

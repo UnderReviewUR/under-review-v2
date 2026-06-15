@@ -5,6 +5,8 @@
 import { getDurableJson, getKvStoreHealth } from "./_durableStore.js";
 import { readWcOutrightsFromKv, scrapeAndCacheWcOutrights, scrapeAndCacheWcStandingsAndFixtures } from "./_wcData.js";
 import { scrapeAndCacheWcGoldenBoot } from "./_wcGoldenBootOdds.js";
+import { scrapeAndCacheWcBdlGoldenBoot } from "./_wcBdlData.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcGoldenGlove } from "./_wcGoldenGloveOdds.js";
 import { scrapeAndCacheWcTournamentSim } from "./_wcTournamentSimData.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
@@ -116,7 +118,14 @@ export async function maybeWarmWcUrTakeKv(nowMs = Date.now(), opts = {}) {
 
     try {
       if (task === "golden_boot") {
-        await withTimeout(scrapeAndCacheWcGoldenBoot(), taskTimeout, "golden_boot");
+        if (isWcGoatPrimaryEnabled()) {
+          const bdl = await withTimeout(scrapeAndCacheWcBdlGoldenBoot(), taskTimeout, "bdl_golden_boot");
+          if (!bdl?.ok) {
+            await withTimeout(scrapeAndCacheWcGoldenBoot(), taskTimeout, "golden_boot");
+          }
+        } else {
+          await withTimeout(scrapeAndCacheWcGoldenBoot(), taskTimeout, "golden_boot");
+        }
       } else if (task === "golden_glove") {
         await withTimeout(scrapeAndCacheWcGoldenGlove(), taskTimeout, "golden_glove");
       } else if (task === "tournament_sim") {

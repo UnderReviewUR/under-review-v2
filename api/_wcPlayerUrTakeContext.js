@@ -6,7 +6,10 @@ import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import { readWcMatchPlayerPropsForEvent, ensureWcBdlMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
+import { getDurableJson } from "./_durableStore.js";
+import { isWcGoatPrimaryEnabled, shouldPreferBdlRefreshOverKv } from "../shared/wcBdlPolicy.js";
+import { WC_PLAYERS_KV_KEY } from "../shared/wc2026PlayerConstants.js";
 import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
 import {
   topRegistryAssists,
@@ -40,6 +43,19 @@ import {
   adjustGoldenBootOdds,
   formatAdjustedGoldenBootForPrompt,
 } from "../shared/wcGoldenBootAdjusted.js";
+
+/**
+ * @param {number} [nowMs]
+ */
+async function ensureWcBdlPlayersCatalogForUrTake(nowMs = Date.now()) {
+  if (!isWcGoatPrimaryEnabled()) return { skipped: true };
+  const playersKv = await getDurableJson(WC_PLAYERS_KV_KEY);
+  if (!shouldPreferBdlRefreshOverKv(playersKv)) {
+    return { skipped: true, source: playersKv?.source || null };
+  }
+  const r = await scrapeAndCacheWcBdlReferenceCatalog();
+  return { refreshed: Boolean(r?.ok), source: "balldontlie_players_rosters", players: r?.players ?? 0 };
+}
 
 /**
  * @param {number} [nowMs]
@@ -77,6 +93,21 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     }
   }
 
+  const fixtureTeams =
+    wcEventId && Array.isArray(opts.matches)
+      ? (() => {
+          const m = opts.matches.find((row) => String(row?.id) === String(wcEventId));
+          if (m?.homeTeam && m?.awayTeam) {
+            return { homeTeam: String(m.homeTeam), awayTeam: String(m.awayTeam) };
+          }
+          const pinned = resolveWcPlayerPropFixtureTeams(question, history, teamContext);
+          if (pinned.length >= 2) {
+            return { homeTeam: pinned[0], awayTeam: pinned[1] };
+          }
+          return {};
+        })()
+      : {};
+
   const loadMatchProps =
     Boolean(wcEventId) &&
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
@@ -86,6 +117,10 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
       detectParlayIntent(question) ||
       isGenericWcPlayerPropQuestion(question));
 
+  if (isWcGoatPrimaryEnabled()) {
+    await ensureWcBdlPlayersCatalogForUrTake(nowMs).catch(() => null);
+  }
+
   const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
     readWcPlayersFromKv(),
     readWcGoldenBootFromKv(nowMs),
@@ -93,13 +128,14 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     loadMatchProps
       ? (async () => {
           if (isWcGoatPrimaryEnabled()) {
-            const live = await ensureWcBdlMatchPlayerPropsForEvent(wcEventId);
+            const live = await ensureWcBdlMatchPlayerPropsForEvent(wcEventId, fixtureTeams);
             if (live) return live;
           }
           return readWcMatchPlayerPropsForEvent(wcEventId, nowMs);
         })()
       : Promise.resolve(null),
   ]);
+
   return { players, goldenBoot, injuries, matchPlayerProps, wcEventId };
 }
 

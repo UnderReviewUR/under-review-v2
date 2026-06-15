@@ -7,6 +7,7 @@ import {
   WC_INTENT,
   classifyWcPlayerMarketIntent,
 } from "./wcUrTakeIntent.js";
+import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 import {
   resolveWcPlayerMarketAnswer,
@@ -675,7 +676,36 @@ const WC_PLAYER_PROP_LEAD_WORDS = new Set([
   "player",
   "props",
   "prop",
+  "golden",
+  "boot",
+  "world",
+  "cup",
 ]);
+
+const WC_AWARD_FALSE_POSITIVE_RE =
+  /\b(golden boot|golden glove|world cup|boot pick|boot winner|top goalscorer|top goal scorer)\b/i;
+
+/**
+ * @param {string} name
+ * @param {string} [question]
+ */
+function isWcNationOrAwardFalsePositive(name, question = "") {
+  const n = String(name || "").trim();
+  if (!n) return true;
+  if (WC_AWARD_FALSE_POSITIVE_RE.test(n)) return true;
+  const teams = extractMentionedWcTeams(n);
+  if (teams.length >= 1) {
+    const norm = n.toLowerCase();
+    for (const t of WC_2026_TEAMS) {
+      if (String(t.name || "").toLowerCase() === norm) return true;
+      if (String(t.abbreviation || "").toLowerCase() === norm) return true;
+    }
+  }
+  if (WC_AWARD_FALSE_POSITIVE_RE.test(String(question || "")) && /\bpick\b/i.test(n)) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * Named player in a prop ask — null for slate/generic questions ("best player props today").
@@ -685,29 +715,36 @@ export function extractWcNamedPlayerFromQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return null;
 
+  if (/\b(your read on|read on the|outlook on)\b/i.test(q)) return null;
+  if (/\bhost nations?\b/i.test(q) && !/\bwill\b/i.test(q)) return null;
+
   const willScore = q.match(
     /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+score\b/i,
   );
-  if (willScore?.[1]) return willScore[1].trim();
+  if (willScore?.[1] && !isWcNationOrAwardFalsePositive(willScore[1], q)) {
+    return willScore[1].trim();
+  }
 
   const propFor = q.match(
     /\b(?:prop|scorer|shots?)\s+for\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\b/i,
   );
   if (propFor?.[1] && !WC_PLAYER_PROP_LEAD_WORDS.has(propFor[1].toLowerCase())) {
-    return propFor[1].trim();
+    if (!isWcNationOrAwardFalsePositive(propFor[1], q)) return propFor[1].trim();
   }
 
-  const lead = q.match(/^([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)/)?.[1]?.toLowerCase();
+  const normalized = q.replace(/^(what|who|how)['']s\b/i, "$1");
+  const lead = normalized.match(/^([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)/)?.[1]?.toLowerCase();
   if (!lead || WC_PLAYER_PROP_LEAD_WORDS.has(lead)) return null;
 
-  const m = q.match(
-    /^([A-Za-zÀ-ÿ][\wÀ-ÿ' -]*?)(?:\s+(?:\d|o\/u|over|under|to\s+)|\s*\d+\.?\d*|\?|$)/i,
+  const m = normalized.match(
+    /^([A-Za-zÀ-ÿ][\wÀ-ÿ' -]*?)(?:\s+(?:\d|o\/u|over|under|to\s+(?:score|record|have|get))\b)/i,
   );
   const raw = String(m?.[1] || "").trim();
   if (!raw || raw.length < 2) return null;
   const name = raw.split(/\s+/).slice(0, 3).join(" ");
   const first = name.split(/\s+/)[0]?.toLowerCase();
   if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) return null;
+  if (isWcNationOrAwardFalsePositive(name, q)) return null;
   return name;
 }
 
@@ -754,6 +791,8 @@ const WC_FIXTURE_PLAYER_MARKET_ASK_RE =
 export function isWcFixtureScopedPlayerMarketQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (WC_AWARD_FALSE_POSITIVE_RE.test(q)) return false;
+  if (/\bhow many goals\b/i.test(q) && extractMentionedWcTeams(q).length) return false;
   if (extractWcNamedPlayerFromQuestion(q)) return true;
   if (isWcFixturePlayerPropsQuestion(q)) return true;
   if (isGenericWcPlayerPropQuestion(q)) return true;

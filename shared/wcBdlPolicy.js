@@ -30,6 +30,17 @@ export function isWcBdlSource(source) {
   );
 }
 
+/**
+ * When GOAT primary is on, refresh KV if cached payload is ESPN/scrape/static — not BDL.
+ * @param {{ source?: string, sourceTier?: string } | null | undefined} kvPayload
+ */
+export function shouldPreferBdlRefreshOverKv(kvPayload) {
+  if (!isWcGoatPrimaryEnabled()) return false;
+  if (!kvPayload) return true;
+  const source = String(kvPayload.source || kvPayload.sourceTier || "").trim();
+  return !isWcBdlSource(source);
+}
+
 /** Book HTML scrapes are disabled for player markets when GOAT primary is on. */
 export function shouldUseWcBookScrapeForPlayerMarkets() {
   return !isWcGoatPrimaryEnabled();

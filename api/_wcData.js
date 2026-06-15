@@ -42,7 +42,7 @@ import {
   fetchOpenFootballWc2026Schedule,
   validateEspnScheduleAgainstOpenFootball,
 } from "../shared/wcOpenFootballSchedule.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { isWcGoatPrimaryEnabled, isWcBdlSource } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcBdlStandingsAndFixtures, looksLikeWcEspnEventId } from "./_wcBdlData.js";
 import {
   loadFinalizedWcMatchDetailIds as loadFinalizedWcMatchDetailIdsFromCache,
@@ -304,6 +304,21 @@ export async function ensureWcScheduleInKv(nowMs = Date.now()) {
   const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
   const existing = Array.isArray(kv?.matches) ? kv.matches : [];
   const realCount = existing.filter((m) => m?.id != null && !String(m.id).startsWith("wc-promo-")).length;
+
+  if (realCount >= 50 && isWcGoatPrimaryEnabled() && !isWcBdlSource(kv?.source)) {
+    const bdl = await scrapeAndCacheWcBdlStandingsAndFixtures();
+    if (bdl?.ok) {
+      const refreshed = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
+      return {
+        ok: true,
+        matches: refreshed?.matches || existing,
+        lastUpdated: refreshed?.lastUpdated ?? nowMs,
+        source: refreshed?.source || "balldontlie",
+        cached: false,
+      };
+    }
+  }
+
   if (realCount >= 50) {
     return {
       ok: true,

@@ -12,6 +12,7 @@ import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructure
 import {
   buildWcFixturePlayerParlayStructured,
   buildWcFixturePlayerPropsListStructured,
+  buildWcFixtureScorerIntelStructured,
   resolveWcPlayerMarketTier,
   tierMetaFor,
   WC_PLAYER_MARKET_TIER,
@@ -221,15 +222,32 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   }
 
   if (!structuredResponse) {
+    structuredResponse = buildWcFixtureScorerIntelStructured(
+      String(question || ""),
+      tier,
+      kvBlocks,
+      syntheticContext,
+    );
+    if (structuredResponse) {
+      passKind = "player_props_intel";
+    }
+  }
+
+  if (!structuredResponse) {
+    const loadFailed = Boolean(loadMeta.failed);
+    const hasEvent = Boolean(resolvedEventId);
+    if (!hasEvent || loadFailed) {
+      return { handled: false };
+    }
     structuredResponse = buildWcPlayerPropsLoadingStructured(
       String(question || ""),
       pinned,
       resolvedEventId,
     );
     passKind = "player_props_loading";
-  } else {
-    structuredResponse = finalizeWcPlayerPropStructured(structuredResponse, String(question || ""));
   }
+
+  structuredResponse = finalizeWcPlayerPropStructured(structuredResponse, String(question || ""));
 
   let responseText =
     formatWcCompactDisplayText(structuredResponse, structuredResponse.lean) || "";
