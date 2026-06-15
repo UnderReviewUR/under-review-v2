@@ -9,6 +9,9 @@ export const WC_ADVANCEMENT_MARKET = {
   TOURNAMENT_WINNER: "tournament_winner",
   GROUP_WINNER: "group_winner",
   GROUP_ESCAPE: "group_escape",
+  WIN_ALL_GROUP_GAMES: "win_all_group_games",
+  FINISH_BOTTOM: "finish_bottom",
+  STAGE_OF_ELIMINATION: "stage_of_elimination",
   ROUND_OF_32: "r32",
   ROUND_OF_16: "r16",
   QUARTERFINALS: "qf",
@@ -35,6 +38,15 @@ const FINAL_RE =
 
 const GROUP_ESCAPE_RE =
   /\b(advance from (?:the )?group|qualify(?: for)?(?: the)? knockout|get (?:out|through) of (?:the )?group|escape (?:the )?group|advance from group stage|make it out of (?:the )?group|to advance from group|advance out of (?:the )?group|get out of the group)\b/i;
+
+const WIN_ALL_GROUP_GAMES_RE =
+  /\b(win all (?:three|3|their)? group games?|sweep (?:the )?group|win every group (?:game|match)|3-0 in group)\b/i;
+
+const FINISH_BOTTOM_RE =
+  /\b(finish (?:last|bottom)|last (?:place )?in (?:the )?group|bottom of (?:the )?group)\b/i;
+
+const STAGE_OF_ELIMINATION_RE =
+  /\b(stage of elimination|eliminated in|where (?:do|does|will).{0,24}finish)\b/i;
 
 const GENERIC_ADVANCE_RE =
   /\b(reach(?:es)?|make(?:s)? it to|get(?:s)? to)\s+(?:the\s+)?(?:knockout|knockouts|knockout stage)\b/i;
@@ -76,6 +88,18 @@ export function classifyWcAdvancementMarket(question) {
 
   if (isWcGroupWinnerQuestion(q)) {
     return WC_ADVANCEMENT_MARKET.GROUP_WINNER;
+  }
+
+  if (WIN_ALL_GROUP_GAMES_RE.test(q)) {
+    return WC_ADVANCEMENT_MARKET.WIN_ALL_GROUP_GAMES;
+  }
+
+  if (FINISH_BOTTOM_RE.test(q)) {
+    return WC_ADVANCEMENT_MARKET.FINISH_BOTTOM;
+  }
+
+  if (STAGE_OF_ELIMINATION_RE.test(q)) {
+    return WC_ADVANCEMENT_MARKET.STAGE_OF_ELIMINATION;
   }
 
   if (R16_RE.test(q) || /\breach(?:es)?\s+(?:the\s+)?round of 16\b/i.test(q)) {
@@ -142,6 +166,12 @@ export function wcAdvancementMarketMeta(market) {
       return { key: "groupWinPct", label: "win the group", shortLabel: "Group winner" };
     case WC_ADVANCEMENT_MARKET.GROUP_ESCAPE:
       return { key: "advancePct", label: "advance from group", shortLabel: "Group advancement" };
+    case WC_ADVANCEMENT_MARKET.WIN_ALL_GROUP_GAMES:
+      return { key: "groupSweepPct", label: "win all group games", shortLabel: "Group sweep" };
+    case WC_ADVANCEMENT_MARKET.FINISH_BOTTOM:
+      return { key: "finishBottomPct", label: "finish bottom of group", shortLabel: "Finish bottom" };
+    case WC_ADVANCEMENT_MARKET.STAGE_OF_ELIMINATION:
+      return { key: "elimStagePct", label: "stage of elimination", shortLabel: "Elimination stage" };
     case WC_ADVANCEMENT_MARKET.ROUND_OF_32:
       return { key: "r32Pct", label: "reach Round of 32", shortLabel: "Round of 32" };
     case WC_ADVANCEMENT_MARKET.ROUND_OF_16:

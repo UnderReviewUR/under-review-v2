@@ -4,6 +4,7 @@
  */
 import { bdlFetch } from "./_balldontlie.js";
 import { tagStructuralImpactAtIngestion } from "../shared/structuralAngleValidation.js";
+import { isMlbBdlPaidTierEnabled } from "../shared/mlbBdlPolicy.js";
 
 const MAX_GAME_PAGES = 12;
 const MAX_LINEUP_PAGES = 8;
@@ -151,7 +152,7 @@ export async function fetchBdlMlbTodayTomorrowGames(bdlKey, todayEtYmd, tomorrow
 
   const gameIds = [...new Set(rawGames.map((g) => g.id).filter((id) => id != null))];
   let lineupRows = [];
-  if (gameIds.length > 0) {
+  if (isMlbBdlPaidTierEnabled() && gameIds.length > 0) {
     const idChunks = [];
     for (let i = 0; i < gameIds.length; i += 12) idChunks.push(gameIds.slice(i, i + 12));
     for (const chunk of idChunks) {

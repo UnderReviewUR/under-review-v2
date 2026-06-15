@@ -163,7 +163,9 @@ export function computeGroupPathComparisons(opts = {}) {
 
   const paths = [
     { path: "advance from group", key: "advancePct", bdl: "qualify_from_group" },
-    { path: "win group", key: "groupWinPct", bdl: "win_group" },
+    { path: "win group", key: "groupWinPct", bdl: "group_winner" },
+    { path: "win all group games", key: "groupSweepPct", bdl: "win_all_group_games" },
+    { path: "finish bottom", key: "finishBottomPct", bdl: "finish_bottom" },
     { path: "reach Round of 16", key: "r16Pct", bdl: "to_reach_round_of_16" },
   ];
 

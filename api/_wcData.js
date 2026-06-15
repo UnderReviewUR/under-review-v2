@@ -44,6 +44,8 @@ import {
 } from "../shared/wcOpenFootballSchedule.js";
 import { isWcGoatPrimaryEnabled, isWcBdlSource } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcBdlStandingsAndFixtures, looksLikeWcEspnEventId } from "./_wcBdlData.js";
+import { bdlFifaFetch } from "./_wcBdlFifa.js";
+import { normalizeBdlFifaMatchRow } from "./_wcBdlNormalize.js";
 import {
   loadFinalizedWcMatchDetailIds as loadFinalizedWcMatchDetailIdsFromCache,
   markWcMatchFinalizedInCache,
@@ -66,15 +68,26 @@ function isWcLiveMatchStatus(status) {
  * @param {Array<Record<string, unknown>>} patches
  */
 export function mergeWcLiveScorePatches(matches, patches) {
-  const patchById = new Map(
-    (patches || [])
-      .filter((p) => p?.id != null)
-      .map((p) => [String(p.id), p]),
-  );
+  const patchById = new Map();
+  const patchByBdlId = new Map();
+  const patchByFixtureKey = new Map();
+  for (const p of patches || []) {
+    if (!p) continue;
+    if (p.id != null) patchById.set(String(p.id), p);
+    if (p.bdlMatchId != null) patchByBdlId.set(String(p.bdlMatchId), p);
+    if (p.homeTeam && p.awayTeam && p.date) {
+      patchByFixtureKey.set(`${p.homeTeam}-${p.awayTeam}-${p.date}`, p);
+    }
+  }
   let changed = false;
   const out = (matches || []).map((m) => {
     const id = m?.id != null ? String(m.id) : "";
-    const patch = id ? patchById.get(id) : null;
+    const patch =
+      (id ? patchById.get(id) : null) ||
+      (m?.bdlMatchId != null ? patchByBdlId.get(String(m.bdlMatchId)) : null) ||
+      (m?.homeTeam && m?.awayTeam && m?.date
+        ? patchByFixtureKey.get(`${m.homeTeam}-${m.awayTeam}-${m.date}`)
+        : null);
     if (!patch) return m;
     const next = {
       ...m,
@@ -92,6 +105,81 @@ export function mergeWcLiveScorePatches(matches, patches) {
     return next;
   });
   return { matches: out, changed };
+}
+
+/**
+ * Lightweight live refresh — BDL match rows for in-progress fixtures (GOAT-primary).
+ * @param {Record<string, unknown> | null | undefined} kv
+ * @param {number} [nowMs]
+ */
+export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
+  if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
+    return { kv, refreshed: false, checked: false, source: "balldontlie" };
+  }
+  const hasLive = kv.matches.some((m) => isWcLiveMatchStatus(m.status));
+  if (!hasLive) return { kv, refreshed: false, checked: false, source: "balldontlie" };
+
+  const lastCheck = Number(kv.liveCheckedAt || kv.lastUpdated || 0);
+  if (nowMs - lastCheck < WC_LIVE_SCORE_CHECK_INTERVAL_MS) {
+    return { kv, refreshed: false, checked: false, source: "balldontlie" };
+  }
+
+  const nextCheckedAt = nowMs;
+  const todayEt = wcTodayEtYmd(nowMs);
+  const res = await bdlFifaFetch("/matches", { "seasons[]": 2026, per_page: 100 });
+  if (!res.ok) {
+    const throttled = { ...kv, liveCheckedAt: nextCheckedAt };
+    await setDurableJson(WC_MATCHES_KV_KEY, throttled, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+    return { kv: throttled, refreshed: false, checked: true, source: "balldontlie", error: res.error };
+  }
+
+  const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  const patches = rows
+    .map((row) => normalizeBdlFifaMatchRow(row, nowMs))
+    .filter((norm) => norm && (norm.date === todayEt || isWcLiveMatchStatus(norm.status)))
+    .map((norm) => ({
+      id: norm.id,
+      bdlMatchId: norm.bdlMatchId,
+      homeTeam: norm.homeTeam,
+      awayTeam: norm.awayTeam,
+      date: norm.date,
+      homeScore: norm.homeScore,
+      awayScore: norm.awayScore,
+      status: norm.status,
+    }));
+
+  const { matches, changed } = mergeWcLiveScorePatches(kv.matches, patches);
+  const nextKv = {
+    ...kv,
+    matches,
+    liveCheckedAt: nextCheckedAt,
+    ...(changed ? { lastUpdated: nowMs } : {}),
+  };
+  await setDurableJson(WC_MATCHES_KV_KEY, nextKv, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
+  if (changed) {
+    console.log(
+      JSON.stringify({
+        event: "wc_live_scores_refreshed",
+        source: "balldontlie",
+        liveCount: matches.filter((m) => isWcLiveMatchStatus(m.status)).length,
+        checkedAt: nextCheckedAt,
+      }),
+    );
+  }
+  return { kv: nextKv, refreshed: changed, checked: true, source: "balldontlie" };
+}
+
+/**
+ * Live score refresh — BDL when GOAT-primary, ESPN fallback.
+ * @param {Record<string, unknown> | null | undefined} kv
+ * @param {number} [nowMs]
+ */
+export async function refreshWcLiveScores(kv, nowMs = Date.now()) {
+  if (isWcGoatPrimaryEnabled() && isWcBdlSource(kv?.source)) {
+    const bdl = await refreshWcLiveScoresFromBdl(kv, nowMs);
+    if (bdl.refreshed || bdl.checked) return bdl;
+  }
+  return refreshWcLiveScoresFromEspn(kv, nowMs);
 }
 
 /**

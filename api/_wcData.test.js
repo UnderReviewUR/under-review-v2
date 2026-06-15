@@ -58,3 +58,33 @@ test("mergeWcLiveScorePatches updates live scores by event id", () => {
   assert.equal(changed, true);
   assert.equal(matches[0].awayScore, 2);
 });
+
+test("mergeWcLiveScorePatches matches BDL id when ESPN event id differs", () => {
+  const { matches, changed } = mergeWcLiveScorePatches(
+    [
+      {
+        id: "13",
+        bdlMatchId: 13,
+        homeTeam: "ESP",
+        awayTeam: "CPV",
+        date: "2026-06-15",
+        homeScore: 0,
+        awayScore: 0,
+        status: "live",
+      },
+    ],
+    [
+      {
+        bdlMatchId: 13,
+        homeTeam: "ESP",
+        awayTeam: "CPV",
+        date: "2026-06-15",
+        homeScore: 1,
+        awayScore: 0,
+        status: "live",
+      },
+    ],
+  );
+  assert.equal(changed, true);
+  assert.equal(matches[0].homeScore, 1);
+});

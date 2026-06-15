@@ -21,6 +21,10 @@ export const WC_MATCH_PLAYER_PROP_MARKET_KEYS = [
   "player_assists_ou",
   "player_shots_ou",
   "player_sot_ou",
+  "player_shots_each_half",
+  "player_sot_each_half",
+  "player_saves_ou",
+  "player_tackles_ou",
   "player_card",
   "player_red_card",
 ];
@@ -34,6 +38,10 @@ export const WC_MATCH_PLAYER_PROP_PROMPT_LABELS = {
   player_assists_ou: "PLAYER ASSISTS (O/U)",
   player_shots_ou: "PLAYER SHOTS (O/U)",
   player_sot_ou: "PLAYER SHOTS ON TARGET (O/U)",
+  player_shots_each_half: "PLAYER SHOTS EACH HALF",
+  player_sot_each_half: "PLAYER SOT EACH HALF",
+  player_saves_ou: "PLAYER SAVES (O/U)",
+  player_tackles_ou: "PLAYER TACKLES (O/U)",
   player_card: "PLAYER TO RECEIVE A CARD",
   player_red_card: "PLAYER TO RECEIVE A RED CARD",
 };

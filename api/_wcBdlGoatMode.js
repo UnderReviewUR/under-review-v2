@@ -14,7 +14,7 @@ import {
   bdlFifaFetch,
   bdlFifaFetchPaginated,
   fetchAllMatchesBdl,
-  BDL_GOAT_RATE_LIMIT_MS,
+  getBdlRequestDelayMs,
   sleepMs,
 } from "./_wcBdlFifa.js";
 import { attachBdlMoneylinesToMatches } from "./_wcBdlNormalize.js";
@@ -79,7 +79,7 @@ export async function getGoatMatchesPayload() {
   const oddsPaginated = await bdlFifaFetchPaginated(
     "/odds",
     { "seasons[]": 2026, per_page: 100 },
-    { maxPages: 15, delayMs: BDL_GOAT_RATE_LIMIT_MS },
+    { maxPages: 15, delayMs: getBdlRequestDelayMs() },
   );
   if (oddsPaginated.ok) {
     matches = attachBdlMoneylinesToMatches(matches, oddsPaginated.rows, nowMs);
@@ -175,7 +175,7 @@ export async function buildWcGoatProbeReport(opts = {}) {
   const sampleQuestion =
     String(opts.sampleQuestion || "Will the USMNT reach the Round of 16?").trim();
   const throttle = opts.throttle !== false;
-  const delayMs = throttle ? BDL_GOAT_RATE_LIMIT_MS : 0;
+  const delayMs = throttle ? getBdlRequestDelayMs() : 0;
 
   const keyPresent = Boolean(getEnv("BALLDONTLIE_API_KEY")?.trim());
   let requestCount = 0;

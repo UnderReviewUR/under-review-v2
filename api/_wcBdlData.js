@@ -6,8 +6,8 @@ import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import {
   bdlFifaFetch,
   bdlFifaFetchPaginated,
-  BDL_GOAT_RATE_LIMIT_MS,
   fetchAllMatchesBdl,
+  getBdlRequestDelayMs,
   normalizeBdlPlayerRow,
   normalizeBdlRosterRow,
 } from "./_wcBdlFifa.js";
@@ -148,7 +148,8 @@ export async function scrapeAndCacheWcBdlStandingsAndFixtures() {
   if (!standingsRes.ok) errors.push(`standings: ${standingsRes.error}`);
   else if (!Object.keys(groups).length) errors.push("standings: empty");
 
-  const matchesFetched = await fetchAllMatchesBdl({ delayMs: BDL_GOAT_RATE_LIMIT_MS });
+  const bdlDelayMs = getBdlRequestDelayMs();
+  const matchesFetched = await fetchAllMatchesBdl({ delayMs: bdlDelayMs });
   /** @type {Array<Record<string, unknown>>} */
   let bdlMatches = [];
   for (const row of matchesFetched.matches || []) {
@@ -173,7 +174,7 @@ export async function scrapeAndCacheWcBdlStandingsAndFixtures() {
 
   const oddsPaginated = await bdlFifaFetchPaginated("/odds", { "seasons[]": 2026, per_page: 100 }, {
     maxPages: 15,
-    delayMs: BDL_GOAT_RATE_LIMIT_MS,
+    delayMs: bdlDelayMs,
   });
   if (oddsPaginated.ok) {
     bdlMatches = attachBdlMoneylinesToMatches(bdlMatches, oddsPaginated.rows, nowMs);

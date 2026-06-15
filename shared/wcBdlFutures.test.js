@@ -7,6 +7,7 @@ import {
   getBdlFuturesPrice,
   normalizeBdlFuturesRow,
   pickBestVendorOffer,
+  WC_ADVANCEMENT_TO_BDL_MARKET,
 } from "./wcBdlFutures.js";
 import { WC_ADVANCEMENT_MARKET } from "./wcAdvancementMarket.js";
 
@@ -78,8 +79,21 @@ test("buildWcBdlFuturesPromptBlock binds R16 not outright", () => {
   assert.doesNotMatch(block, /\+1300/);
 });
 
-test("buildWcBdlFuturesPromptBlock returns null without seed", () => {
-  assert.equal(buildWcBdlFuturesPromptBlock(null, "Will USA win?", ["USA"]), null);
+test("getBdlFuturesPrice resolves BDL group_winner market type", () => {
+  const index = buildBdlFuturesIndex([
+    {
+      market_type: "group_winner",
+      subject: { abbreviation: "ESP", name: "Spain" },
+      vendor: "draftkings",
+      american_odds: -180,
+    },
+  ]);
+  assert.equal(getBdlFuturesPrice(index.byMarketType, "group_winner", "ESP")?.american, -180);
+  assert.equal(
+    getBdlFuturesPrice(index.byMarketType, WC_ADVANCEMENT_TO_BDL_MARKET[WC_ADVANCEMENT_MARKET.GROUP_WINNER], "ESP")
+      ?.american,
+    -180,
+  );
 });
 
 test("formatWcBdlAdvancePriceAttribution cites BDL GOAT vendor line", () => {

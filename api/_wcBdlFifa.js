@@ -3,12 +3,15 @@
  */
 
 import { getEnv } from "./_env.js";
-import { formatWcMatchGroupLetter } from "../shared/wcMatchFieldDisplay.js";
+import { formatWcMatchFieldText, formatWcMatchGroupLetter } from "../shared/wcMatchFieldDisplay.js";
+import { getBdlRequestDelayMs } from "../shared/wcBdlPolicy.js";
 
 export const BDL_FIFA_BASE = "https://api.balldontlie.io/fifa/worldcup/v1";
 
-/** GOAT trial: 5 requests/min — stay under limit with 13s spacing. */
-export const BDL_GOAT_RATE_LIMIT_MS = 13_000;
+/** @deprecated use getBdlRequestDelayMs() */
+export const BDL_GOAT_RATE_LIMIT_MS = getBdlRequestDelayMs();
+
+export { getBdlRequestDelayMs } from "../shared/wcBdlPolicy.js";
 
 export function buildBdlQueryString(params = {}) {
   const parts = [];
@@ -170,6 +173,7 @@ export function normalizeBdlMatchRow(row) {
   const dateRaw =
     row.date || row.match_date || row.start_time || row.kickoff || row.datetime || "";
   const timeRaw = row.time || row.kickoff_time || "";
+  const stadiumObj = row.stadium && typeof row.stadium === "object" ? row.stadium : null;
   return {
     id: row.id ?? row.match_id ?? `${homeTeam}-${awayTeam}-${dateRaw}`,
     bdlMatchId: row.id ?? row.match_id ?? null,
@@ -180,10 +184,10 @@ export function normalizeBdlMatchRow(row) {
     status: normalizeMatchStatus(row.status || row.match_status || row.state),
     date: String(dateRaw).slice(0, 10),
     time: String(timeRaw || String(dateRaw).slice(11, 16) || ""),
-    stadium: String(row.stadium || row.venue || row.venue_name || "").trim(),
-    city: String(row.city || row.venue_city || "").trim(),
+    stadium: formatWcMatchFieldText(stadiumObj?.name || row.stadium || row.venue),
+    city: formatWcMatchFieldText(stadiumObj?.city || row.city || row.venue_city),
     group: formatWcMatchGroupLetter(row.group || row.group_name || row.group_letter || ""),
-    round: String(row.round || row.stage || row.phase || "").trim(),
+    round: formatWcMatchFieldText(row.round_name || row.stage?.name || row.round || row.stage || ""),
     commenceTs: Date.parse(String(dateRaw)) || null,
     source: "balldontlie",
     odds: row.odds || undefined,

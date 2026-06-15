@@ -12,8 +12,13 @@ import {
 /** BDL market_type → internal advancement market (null = not advancement-scoped). */
 export const BDL_FUTURES_MARKET_TYPES = {
   outright: WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER,
+  group_winner: WC_ADVANCEMENT_MARKET.GROUP_WINNER,
+  /** @deprecated BDL uses `group_winner`; kept for stale KV seeds */
   win_group: WC_ADVANCEMENT_MARKET.GROUP_WINNER,
   qualify_from_group: WC_ADVANCEMENT_MARKET.GROUP_ESCAPE,
+  win_all_group_games: WC_ADVANCEMENT_MARKET.WIN_ALL_GROUP_GAMES,
+  finish_bottom: WC_ADVANCEMENT_MARKET.FINISH_BOTTOM,
+  stage_of_elimination: WC_ADVANCEMENT_MARKET.STAGE_OF_ELIMINATION,
   to_reach_round_of_16: WC_ADVANCEMENT_MARKET.ROUND_OF_16,
   to_reach_quarters: WC_ADVANCEMENT_MARKET.QUARTERFINALS,
   to_reach_semis: WC_ADVANCEMENT_MARKET.SEMIFINALS,
@@ -23,8 +28,11 @@ export const BDL_FUTURES_MARKET_TYPES = {
 /** Advancement market → BDL market_type for price lookup. */
 export const WC_ADVANCEMENT_TO_BDL_MARKET = {
   [WC_ADVANCEMENT_MARKET.TOURNAMENT_WINNER]: "outright",
-  [WC_ADVANCEMENT_MARKET.GROUP_WINNER]: "win_group",
+  [WC_ADVANCEMENT_MARKET.GROUP_WINNER]: "group_winner",
   [WC_ADVANCEMENT_MARKET.GROUP_ESCAPE]: "qualify_from_group",
+  [WC_ADVANCEMENT_MARKET.WIN_ALL_GROUP_GAMES]: "win_all_group_games",
+  [WC_ADVANCEMENT_MARKET.FINISH_BOTTOM]: "finish_bottom",
+  [WC_ADVANCEMENT_MARKET.STAGE_OF_ELIMINATION]: "stage_of_elimination",
   [WC_ADVANCEMENT_MARKET.ROUND_OF_16]: "to_reach_round_of_16",
   [WC_ADVANCEMENT_MARKET.ROUND_OF_32]: "to_reach_round_of_16",
   [WC_ADVANCEMENT_MARKET.QUARTERFINALS]: "to_reach_quarters",
@@ -128,7 +136,11 @@ export function pickBestVendorOffer(offers) {
 export function getBdlFuturesPrice(byMarketType, marketType, teamAbbr) {
   const abbr = String(teamAbbr || "").trim().toUpperCase();
   if (!abbr || !marketType) return null;
-  return byMarketType?.[marketType]?.[abbr] || null;
+  const direct = byMarketType?.[marketType]?.[abbr];
+  if (direct) return direct;
+  if (marketType === "group_winner") return byMarketType?.win_group?.[abbr] || null;
+  if (marketType === "win_group") return byMarketType?.group_winner?.[abbr] || null;
+  return null;
 }
 
 /**

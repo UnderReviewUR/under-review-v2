@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import {
   isWcBdlSource,
   shouldPreferBdlRefreshOverKv,
+  getBdlRequestDelayMs,
+  BDL_FREE_TIER_REQUEST_DELAY_MS,
+  BDL_GOAT_TIER_REQUEST_DELAY_MS,
 } from "./wcBdlPolicy.js";
 
 test("isWcBdlSource recognizes BDL variants", () => {
@@ -19,4 +22,20 @@ test("shouldPreferBdlRefreshOverKv returns false when GOAT off", () => {
   assert.equal(shouldPreferBdlRefreshOverKv({ source: "espn" }), false);
   if (prev === undefined) delete process.env.WC_BDL_GOAT_PRIMARY;
   else process.env.WC_BDL_GOAT_PRIMARY = prev;
+});
+
+test("getBdlRequestDelayMs defaults to GOAT tier pacing", () => {
+  const keys = ["WC_BDL_REQUEST_DELAY_MS", "WC_BDL_FREE_TIER"];
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  for (const k of keys) delete process.env[k];
+  assert.equal(getBdlRequestDelayMs(), BDL_GOAT_TIER_REQUEST_DELAY_MS);
+  process.env.WC_BDL_FREE_TIER = "1";
+  assert.equal(getBdlRequestDelayMs(), BDL_FREE_TIER_REQUEST_DELAY_MS);
+  delete process.env.WC_BDL_FREE_TIER;
+  process.env.WC_BDL_REQUEST_DELAY_MS = "250";
+  assert.equal(getBdlRequestDelayMs(), 250);
+  for (const [k, v] of Object.entries(saved)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
 });

@@ -4,9 +4,37 @@
  * Default: ON when BALLDONTLIE_API_KEY is set.
  * Disable: WC_BDL_GOAT_PRIMARY=0
  * Force ON:  WC_BDL_GOAT_PRIMARY=1
+ *
+ * Request pacing (BDL tier):
+ * - GOAT paid: 600 req/min (default delay 50ms between paginated calls)
+ * - Free: 5 req/min — set WC_BDL_FREE_TIER=1 (13s spacing)
+ * - Override: WC_BDL_REQUEST_DELAY_MS
  */
 
 import { getEnv } from "../api/_env.js";
+
+/** Free-tier BDL FIFA pacing — 5 requests/min. */
+export const BDL_FREE_TIER_REQUEST_DELAY_MS = 13_000;
+
+/** Default spacing for GOAT (600 req/min). */
+export const BDL_GOAT_TIER_REQUEST_DELAY_MS = 50;
+
+/**
+ * Delay between paginated BDL FIFA requests.
+ * @returns {number}
+ */
+export function getBdlRequestDelayMs() {
+  const explicit = String(getEnv("WC_BDL_REQUEST_DELAY_MS") || "").trim();
+  if (explicit !== "") {
+    const n = Number(explicit);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  const freeTier = String(getEnv("WC_BDL_FREE_TIER") || "").trim().toLowerCase();
+  if (freeTier === "1" || freeTier === "true" || freeTier === "yes") {
+    return BDL_FREE_TIER_REQUEST_DELAY_MS;
+  }
+  return BDL_GOAT_TIER_REQUEST_DELAY_MS;
+}
 
 export function hasWcBdlApiKey() {
   return Boolean(String(getEnv("BALLDONTLIE_API_KEY") || "").trim());

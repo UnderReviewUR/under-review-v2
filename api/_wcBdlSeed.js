@@ -7,8 +7,8 @@ import { getEnv } from "./_env.js";
 import {
   bdlFifaFetch,
   bdlFifaFetchPaginated,
-  BDL_GOAT_RATE_LIMIT_MS,
   fetchAllMatchesBdl,
+  getBdlRequestDelayMs,
   normalizeBdlPlayerRow,
   normalizeBdlRosterRow,
 } from "./_wcBdlFifa.js";
@@ -36,7 +36,7 @@ export async function readWcBdlGoatSeedFromKv(nowMs = Date.now()) {
  */
 export async function scrapeAndCacheWcBdlGoatSeed(opts = {}) {
   const started = Date.now();
-  const delayMs = opts.delayMs ?? BDL_GOAT_RATE_LIMIT_MS;
+  const delayMs = opts.delayMs ?? getBdlRequestDelayMs();
   const apiKey = getEnv("BALLDONTLIE_API_KEY") || "";
   if (!apiKey) {
     return { ok: false, error: "missing_api_key", hint: "Set BALLDONTLIE_API_KEY for GOAT trial" };

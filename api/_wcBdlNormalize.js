@@ -27,15 +27,14 @@ export const BDL_PROP_TO_MARKET = {
   shots_on_target: "player_sot_ou",
   card: "player_card",
   red_card: "player_red_card",
+  saves: "player_saves_ou",
+  tackles: "player_tackles_ou",
+  shot_each_half: "player_shots_each_half",
+  shot_on_target_each_half: "player_sot_each_half",
 };
 
 /** Documented on BDL but not yet mapped to UR Take card markets. */
-export const BDL_PROP_TYPES_NOT_YET_MAPPED = [
-  "saves",
-  "shot_each_half",
-  "shot_on_target_each_half",
-  "tackles",
-];
+export const BDL_PROP_TYPES_NOT_YET_MAPPED = [];
 
 const VENDOR_PRIORITY = ["draftkings", "fanduel", "betmgm", "caesars"];
 

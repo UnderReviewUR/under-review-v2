@@ -14,6 +14,7 @@ import {
 } from "./_mlbEspnProbables.js";
 import { buildSportDataCoverage } from "./_dataCoverage.js";
 import { logOddsApiUsage } from "./_oddsApiUsageLog.js";
+import { isMlbBdlPaidTierEnabled, isMlbBdlGamesEnabled } from "../shared/mlbBdlPolicy.js";
 
 /** MLB BDL merge here is slate/games/props/injuries — no NBA-style `/v1/stats` per-player game log sort in this route; recent pitcher/hitter logs would need the same nested-date fallback pattern as `bdlNestedGameRowDateMs` in `_balldontlie.js`. */
 
@@ -250,7 +251,7 @@ async function getMlbGamesWithPitchers() {
   if (cached) return cached;
 
   const bdlKey = getEnv("BALLDONTLIE_API_KEY");
-  if (bdlKey) {
+  if (bdlKey && isMlbBdlGamesEnabled()) {
     const bundle = await getMlbBdlSlateBundle(bdlKey);
     if (bundle?.todayGames?.length) {
       const mapped = bundle.todayGames.map((g) =>
@@ -361,7 +362,7 @@ async function getMlbTomorrowGamesWithPitchers() {
   if (cached) return cached;
 
   const bdlKey = getEnv("BALLDONTLIE_API_KEY");
-  if (bdlKey) {
+  if (bdlKey && isMlbBdlGamesEnabled()) {
     const bundle = await getMlbBdlSlateBundle(bdlKey);
     if (bundle?.tomorrowGames?.length) {
       const mapped = bundle.tomorrowGames.map((g) =>
@@ -668,9 +669,10 @@ async function assembleMlbBoardData() {
   const BDL_KEY = getEnv("BALLDONTLIE_API_KEY");
   const slateHasOddsProps = propLinesOdds.length > 0;
   const slateHasOddsTotals = Object.keys(gameTotalsOdds || {}).length > 0;
-  const shouldTryBdl = Boolean(BDL_KEY && gamesWithPark.length > 0);
+  const shouldTryBdlPaid =
+    Boolean(BDL_KEY && gamesWithPark.length > 0 && isMlbBdlPaidTierEnabled());
   const slateFromBdl = gamesWithPark.some((g) => g.source === "balldontlie_mlb");
-  if (shouldTryBdl && (!slateHasOddsProps || !slateHasOddsTotals)) {
+  if (shouldTryBdlPaid && (!slateHasOddsProps || !slateHasOddsTotals)) {
     const bundle = await getMlbBdlSlateBundle(BDL_KEY);
     const teamIds = bundle?.teamIds || [];
     const [bdlProps, bdlTotals, bdlInj] = await Promise.all([
@@ -685,12 +687,24 @@ async function assembleMlbBoardData() {
       JSON.stringify({
         event: "mlb_board_bdl",
         slateFromBdl,
+        bdlPaidTier: isMlbBdlPaidTierEnabled(),
         oddsPropsEmpty: !slateHasOddsProps,
         oddsTotalsEmpty: !slateHasOddsTotals,
         games: gamesWithPark.length,
         bdlProps: bdlProps.length,
         bdlTotals: Object.keys(bdlTotals || {}).length,
         injuries: injuries.length,
+      }),
+    );
+  } else if (BDL_KEY && gamesWithPark.length > 0 && !isMlbBdlPaidTierEnabled()) {
+    console.log(
+      JSON.stringify({
+        event: "mlb_board_bdl_free_tier",
+        slateFromBdl,
+        note: "BDL games only — odds/props/injuries via Odds API + ESPN (set MLB_BDL_PAID=1 to re-enable BDL odds)",
+        games: gamesWithPark.length,
+        oddsProps: propLinesOdds.length,
+        oddsTotals: Object.keys(gameTotalsOdds || {}).length,
       }),
     );
   }
