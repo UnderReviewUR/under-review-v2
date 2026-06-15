@@ -18,7 +18,10 @@ import {
 } from "./wcMatchMoneylineProbs.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
-import { isWcPlayerMarketIntent } from "./wcUrTakePlayerMarket.js";
+import {
+  isWcFixtureScopedPlayerMarketQuestion,
+  isWcPlayerMarketIntent,
+} from "./wcUrTakePlayerMarket.js";
 import {
   buildWcSimAttributionLabel,
   extractWcModelAttributionPrefix,
@@ -46,6 +49,7 @@ function isWcNonFixtureMatchupQuestion(question) {
   if (!q) return false;
   if (detectParlayIntent(q)) return true;
   if (detectWcSgpComboIntent(q)) return true;
+  if (isWcFixtureScopedPlayerMarketQuestion(q)) return true;
   if (
     /\b(player parlay|parlay props?|player props?|goalscorer|golden boot|anytime scorer|shots on target|assists?)\b/i.test(
       q,
@@ -400,6 +404,38 @@ export function resolveWcFixturePairFromHistory(history = []) {
     }
   }
   return null;
+}
+
+/**
+ * @param {Array<{ role?: string, structured?: object }>} [history]
+ */
+export function getLastAssistantStructuredFromHistory(history = []) {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const turn = history[i];
+    if (turn?.role === "assistant" && turn?.structured && typeof turn.structured === "object") {
+      return turn.structured;
+    }
+  }
+  return null;
+}
+
+/**
+ * True when the next card would repeat the prior assistant lean/call verbatim (follow-up UX bug).
+ * @param {object | null | undefined} structured
+ * @param {Array<{ role?: string, structured?: object }>} [history]
+ */
+export function isDuplicateWcStructuredCard(structured, history = []) {
+  const prior = getLastAssistantStructuredFromHistory(history);
+  if (!prior || !structured || typeof structured !== "object") return false;
+  const normalize = (s) =>
+    String(s || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  const priorKey = normalize(prior.lean || prior.call);
+  const nextKey = normalize(structured.lean || structured.call);
+  return priorKey.length >= 12 && priorKey === nextKey;
 }
 
 /**

@@ -135,6 +135,7 @@ import {
 } from "../../shared/wcMatchProbabilityQuestion.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
+  isDuplicateWcStructuredCard,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
@@ -226,7 +227,7 @@ import {
 import { extractMentionedWcTeams } from "../../shared/wcUrTakeKeywords.js";
 import {
   isWcPlayerMarketIntent,
-  isGenericWcPlayerPropQuestion,
+  isWcFixtureScopedPlayerMarketQuestion,
   resolveWcPlayerMarketResponse,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier } from "../../shared/wcPlayerMarketResolve.js";
@@ -2751,6 +2752,13 @@ export default async function handler(req, res) {
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
+    if (
+      isConversationFollowUp &&
+      !isWcPlayerMarketIntent(wcIntent) &&
+      isWcFixtureScopedPlayerMarketQuestion(routingQuestion)
+    ) {
+      wcIntent = WC_INTENT.PLAYER_PROP;
+    }
     if (isWcPlayerMarketIntent(wcIntent) || detectParlayIntent(routingQuestion)) {
       sportHint = "worldcup";
     }
@@ -2983,7 +2991,7 @@ export default async function handler(req, res) {
     }
     if (
       isWcPlayerMarketIntent(wcIntent) ||
-      (isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) ||
+      isWcFixtureScopedPlayerMarketQuestion(routingQuestion) ||
       (detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
     ) {
       wcFixtureMatchupPrebuiltEarly = null;
@@ -5783,7 +5791,7 @@ You are responding to a Pro subscriber. Apply the following:
       !(
         isWcPlayerMarketIntent(wcIntent) ||
         wcIntent === WC_INTENT.PLAYER_PROP ||
-        (isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) ||
+        isWcFixtureScopedPlayerMarketQuestion(routingQuestion) ||
         (detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
       ) &&
       (wcFixtureMatchupPrebuiltEarly ||
@@ -5824,7 +5832,13 @@ You are responding to a Pro subscriber. Apply the following:
           wcEventId: wcRelevanceLog.wcEventId,
           history: normalizedUrTakeHistoryForGate,
         }).catch(() => null));
-      if (prebuilt) {
+      if (
+        prebuilt &&
+        !(
+          isConversationFollowUp &&
+          isDuplicateWcStructuredCard(prebuilt, normalizedUrTakeHistoryForGate)
+        )
+      ) {
         structuredResponse = prebuilt;
         responseText = formatWcCompactDisplayText(prebuilt, prebuilt.lean);
         responseDeep = null;

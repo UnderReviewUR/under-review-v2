@@ -18,7 +18,7 @@ import {
 } from "../../shared/wcPlayerMarketResolve.js";
 import {
   finalizeWcPlayerPropStructured,
-  isGenericWcPlayerPropQuestion,
+  isWcFixtureScopedPlayerMarketQuestion,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { resolveWcFixturePairFromHistory } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
@@ -45,12 +45,15 @@ export function shouldRunWcPlayerPropsFastPath(
   const q = String(routingQuestion || "").trim();
   if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
   if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return true;
-  if (!isConversationFollowUp) return false;
-  if (!isGenericWcPlayerPropQuestion(q) && !detectParlayIntent(q)) return false;
-  const teams = resolveWcPlayerPropFixtureTeams(q, history, { conversationHistory: history });
-  if (teams.length >= 2) return true;
-  const pair = resolveWcFixturePairFromHistory(history);
-  return Boolean(pair?.home && pair?.away);
+  if (isWcFixtureScopedPlayerMarketQuestion(q)) {
+    const teams = resolveWcPlayerPropFixtureTeams(q, history, { conversationHistory: history });
+    if (teams.length >= 2) return true;
+    if (isConversationFollowUp) {
+      const pair = resolveWcFixturePairFromHistory(history);
+      return Boolean(pair?.home && pair?.away);
+    }
+  }
+  return false;
 }
 
 /**

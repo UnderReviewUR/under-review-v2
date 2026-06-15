@@ -7,7 +7,9 @@ import {
 } from "./wcPlayerMarketResolve.js";
 import { resolveMatchPlayerPropsEventForTeams } from "./wcMatchPlayerProps.js";
 import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlayerPropsSeed.js";
-import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_INTENT, classifyWcPlayerMarketIntent } from "./wcUrTakeIntent.js";
+import { isWcFixtureScopedPlayerMarketQuestion } from "./wcUrTakePlayerMarket.js";
+import { isDuplicateWcStructuredCard } from "./wcFixtureMatchupPrebuilt.js";
 
 const kvRoot = {
   byEventId: {
@@ -176,4 +178,25 @@ test("resolveWcPlayerMarketAnswer — 4 player parlay uses deterministic legs", 
   assert.equal(resolved.forcePass, true);
   assert.match(resolved.structured?.call || "", /4-leg player parlay/i);
   assert.equal((String(resolved.structured?.lean || "").match(/\n/g) || []).length + 1, 4);
+});
+
+test("isWcFixtureScopedPlayerMarketQuestion — scorer and pass leader follow-ups", () => {
+  const q =
+    "Who's most likely to score from each team? And who will lead each team in passes?";
+  assert.equal(isWcFixtureScopedPlayerMarketQuestion(q), true);
+  assert.equal(classifyWcPlayerMarketIntent(q), WC_INTENT.PLAYER_PROP);
+});
+
+test("isDuplicateWcStructuredCard — blocks verbatim lean repeat", () => {
+  const history = [
+    { role: "assistant", structured: { lean: "Lean Under 2.5 goals" } },
+  ];
+  assert.equal(
+    isDuplicateWcStructuredCard({ lean: "Lean Under 2.5 goals" }, history),
+    true,
+  );
+  assert.equal(
+    isDuplicateWcStructuredCard({ lean: "1. Player A anytime scorer +500" }, history),
+    false,
+  );
 });

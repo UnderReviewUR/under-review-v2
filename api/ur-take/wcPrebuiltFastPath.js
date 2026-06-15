@@ -25,10 +25,12 @@ import {
 } from "../../shared/wcTakeRetentionQA.js";
 import {
   isGenericWcPlayerPropQuestion,
+  isWcFixtureScopedPlayerMarketQuestion,
   isWcPlayerMarketIntent,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
 import { WC_INTENT } from "../../shared/wcUrTakeIntent.js";
+import { isDuplicateWcStructuredCard } from "../../shared/wcFixtureMatchupPrebuilt.js";
 
 /**
  * Deliver World Cup prebuilt takes without building prompts or calling Anthropic.
@@ -161,6 +163,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     !isWcPlayerMarketIntent(wcIntent) &&
     wcIntent !== WC_INTENT.PLAYER_PROP &&
     !(isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) &&
+    !isWcFixtureScopedPlayerMarketQuestion(routingQuestion) &&
     !(detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
   ) {
     structuredResponse = wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly;
@@ -168,6 +171,13 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
   }
 
   if (!structuredResponse) return { handled: false };
+
+  if (
+    isConversationFollowUp &&
+    isDuplicateWcStructuredCard(structuredResponse, normalizedUrTakeHistoryForGate)
+  ) {
+    return { handled: false };
+  }
 
   let responseText =
     formatWcCompactDisplayText(structuredResponse, structuredResponse.lean) || "";

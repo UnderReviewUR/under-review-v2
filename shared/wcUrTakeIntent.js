@@ -15,7 +15,11 @@ import {
   isWcMatchProbabilityQuestion,
   isWcPlayerParlaySlateQuestion,
 } from "./wcMatchProbabilityQuestion.js";
-import { isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "./wcUrTakePlayerMarket.js";
+import {
+  isWcFixturePlayerPropsQuestion,
+  isGenericWcPlayerPropQuestion,
+  isWcFixtureScopedPlayerMarketQuestion,
+} from "./wcUrTakePlayerMarket.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
@@ -212,6 +216,8 @@ export function classifyWcPlayerMarketIntent(question) {
   const ql = q.toLowerCase();
   if (!q) return null;
   if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
+
+  if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
 
   if (isWcPlayerParlaySlateQuestion(q)) return WC_INTENT.PLAYER_PROP;
   if (detectWcSgpComboIntent(q)) return WC_INTENT.PLAYER_PROP;

@@ -744,6 +744,22 @@ export function isWcFixturePlayerPropsQuestion(question) {
   return /\b(vs\.?|versus)\b/i.test(q);
 }
 
+const WC_FIXTURE_PLAYER_MARKET_ASK_RE =
+  /\b(?:most likely to score|likely (?:goal)?scorers?|who(?:'s| is|'ll| will)?\s+(?:most likely to )?score|score from each team|scorer from each|each team.{0,48}(?:score|scorer)|lead.{0,28}(?:team.{0,20})?(?:in )?pass|pass leader|most passes|key passes)\b/i;
+
+/**
+ * Fixture-scoped player-market asks without saying "player props" (scorers, pass leaders, etc.).
+ * @param {string} question
+ */
+export function isWcFixtureScopedPlayerMarketQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (extractWcNamedPlayerFromQuestion(q)) return true;
+  if (isWcFixturePlayerPropsQuestion(q)) return true;
+  if (isGenericWcPlayerPropQuestion(q)) return true;
+  return WC_FIXTURE_PLAYER_MARKET_ASK_RE.test(q);
+}
+
 /**
  * @param {string} question
  */
