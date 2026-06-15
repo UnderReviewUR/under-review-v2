@@ -48,10 +48,8 @@ export function shouldRunWcPlayerPropsFastPath(
   if (isWcFixtureScopedPlayerMarketQuestion(q)) {
     const teams = resolveWcPlayerPropFixtureTeams(q, history, { conversationHistory: history });
     if (teams.length >= 2) return true;
-    if (isConversationFollowUp) {
-      const pair = resolveWcFixturePairFromHistory(history);
-      return Boolean(pair?.home && pair?.away);
-    }
+    const pair = resolveWcFixturePairFromHistory(history);
+    return Boolean(pair?.home && pair?.away);
   }
   return false;
 }
