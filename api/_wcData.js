@@ -175,9 +175,18 @@ export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
  * @param {number} [nowMs]
  */
 export async function refreshWcLiveScores(kv, nowMs = Date.now()) {
+  if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
+    return { kv, refreshed: false, checked: false };
+  }
+  const hasLive = kv.matches.some((m) => isWcLiveMatchStatus(m.status));
+  if (!hasLive) return { kv, refreshed: false, checked: false };
+
   if (isWcGoatPrimaryEnabled() && isWcBdlSource(kv?.source)) {
     const bdl = await refreshWcLiveScoresFromBdl(kv, nowMs);
-    if (bdl.refreshed || bdl.checked) return bdl;
+    if (bdl.refreshed) return bdl;
+    const espn = await refreshWcLiveScoresFromEspn(bdl.kv, nowMs, { force: true });
+    if (espn.refreshed) return espn;
+    return bdl.checked ? bdl : espn;
   }
   return refreshWcLiveScoresFromEspn(kv, nowMs);
 }
@@ -187,7 +196,7 @@ export async function refreshWcLiveScores(kv, nowMs = Date.now()) {
  * @param {Record<string, unknown> | null | undefined} kv
  * @param {number} [nowMs]
  */
-export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now()) {
+export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now(), opts = {}) {
   if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
     return { kv, refreshed: false, checked: false };
   }
@@ -195,7 +204,7 @@ export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now()) {
   if (!hasLive) return { kv, refreshed: false, checked: false };
 
   const lastCheck = Number(kv.liveCheckedAt || kv.lastUpdated || 0);
-  if (nowMs - lastCheck < WC_LIVE_SCORE_CHECK_INTERVAL_MS) {
+  if (!opts.force && nowMs - lastCheck < WC_LIVE_SCORE_CHECK_INTERVAL_MS) {
     return { kv, refreshed: false, checked: false };
   }
 

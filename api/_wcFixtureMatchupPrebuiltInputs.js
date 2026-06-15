@@ -2,7 +2,7 @@
  * Resolve match + sim inputs for WC fixture matchup prebuilt cards.
  */
 
-import { readWcMatchesFromKv } from "./_wcData.js";
+import { readWcMatchesFromKv, refreshWcLiveScores } from "./_wcData.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { selectFixturesForQuestion } from "./_wcUrTakeContext.js";
 import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.js";
@@ -68,10 +68,16 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   }
   if (!pair?.home || !pair?.away) return null;
 
-  const [matchesKv, simRow] = await Promise.all([
+  const [matchesKvRaw, simRow] = await Promise.all([
     readWcMatchesFromKv().catch(() => null),
     readWcTournamentSimFromKv(undefined, nowMs).catch(() => null),
   ]);
+
+  let matchesKv = matchesKvRaw;
+  if (matchesKv?.matches?.length) {
+    const liveRefresh = await refreshWcLiveScores(matchesKv, nowMs);
+    matchesKv = liveRefresh.kv;
+  }
 
   let matches = Array.isArray(matchesKv?.matches) ? matchesKv.matches : [];
   if (!matches.length) {

@@ -2779,7 +2779,15 @@ export default async function handler(req, res) {
     if (isWcPlayerMarketIntent(wcIntent) || detectParlayIntent(routingQuestion)) {
       sportHint = "worldcup";
     }
-    wcRequiredEntities = resolveRequiredEntities(routingQuestion, incomingHistory, wcIntent);
+    try {
+      wcRequiredEntities = resolveRequiredEntities(routingQuestion, incomingHistory, wcIntent);
+    } catch (entityErr) {
+      console.warn(
+        "[ur-take] resolveRequiredEntities failed:",
+        entityErr?.message || entityErr,
+      );
+      wcRequiredEntities = extractMentionedWcTeams(String(question || ""));
+    }
     wcRelevanceLog.wcIntent = wcIntent;
     wcRelevanceLog.mentionedTeams = extractMentionedWcTeams(String(question || ""));
     wcRelevanceLog.requiredEntities = wcRequiredEntities;

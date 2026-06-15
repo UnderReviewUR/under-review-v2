@@ -4,7 +4,7 @@
  */
 
 import { getDurableJson } from "./_durableStore.js";
-import { readWcMatchDetailFromKv, readWcOutrightsFromKv } from "./_wcData.js";
+import { readWcMatchDetailFromKv, readWcOutrightsFromKv, refreshWcLiveScores } from "./_wcData.js";
 import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
 import { getEnv } from "./_env.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
@@ -792,9 +792,16 @@ async function loadWorldCupMatchesPayload() {
   if (preferGoat) {
     return getMatchesPayload({ preferGoat: true });
   }
-  const cached = await getDurableJson("wc2026_matches");
-  if (cached?.matches?.length) {
-    return cached;
+  const nowMs = Date.now();
+  let kv = await getDurableJson("wc2026_matches");
+  if (kv?.matches?.length) {
+    const liveRefresh = await refreshWcLiveScores(kv, nowMs);
+    kv = liveRefresh.kv;
+    return {
+      matches: kv.matches,
+      lastUpdated: kv.lastUpdated,
+      source: kv.source || "espn",
+    };
   }
   return getMatchesPayload({ preferGoat: false });
 }
