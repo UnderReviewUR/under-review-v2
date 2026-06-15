@@ -28,6 +28,7 @@ import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 import {
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
+  kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
   WC_MATCH_PLAYER_PROP_PROMPT_LABELS,
@@ -98,6 +99,155 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
       : Promise.resolve(null),
   ]);
   return { players, goldenBoot, injuries, matchPlayerProps, wcEventId };
+}
+
+const MATCH_PROPS_MEMORY_CACHE = new Map();
+const MATCH_PROPS_MEMORY_CACHE_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * @param {object | null | undefined} kvBlocks
+ * @param {object} [opts]
+ */
+function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
+  if (!kvBlocks?.matchPlayerProps) return false;
+  const history = Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [];
+  const teams = resolveWcPlayerPropFixtureTeams(String(opts.question || ""), history, {
+    requiredEntities: opts.requiredEntities,
+    conversationHistory: history,
+  });
+  const eventId = String(kvBlocks?.wcEventId || opts.wcEventId || "").trim();
+  if (
+    !kvHasFreshMatchPlayerProps(kvBlocks.matchPlayerProps, {
+      eventId,
+      question: String(opts.question || ""),
+      teams,
+      nowMs: opts.nowMs,
+    })
+  ) {
+    return false;
+  }
+  return matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "anytime_scorer", 6).length >= 2;
+}
+
+function readMatchPropsMemoryCache(eventId) {
+  const key = String(eventId || "").trim();
+  if (!key) return null;
+  const hit = MATCH_PROPS_MEMORY_CACHE.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > MATCH_PROPS_MEMORY_CACHE_TTL_MS) {
+    MATCH_PROPS_MEMORY_CACHE.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+function writeMatchPropsMemoryCache(eventId, payload) {
+  const key = String(eventId || "").trim();
+  if (!key || !payload) return;
+  MATCH_PROPS_MEMORY_CACHE.set(key, { at: Date.now(), payload });
+}
+
+/**
+ * Eager KV load with retry/backoff for cold Vercel starts (BDL hydrate can lag first read).
+ * @param {number} [nowMs]
+ * @param {Parameters<typeof loadWcPlayerMarketKvBlocks>[1]} [opts]
+ * @param {{ maxRetries?: number, backoffMs?: number, timeoutMs?: number }} [retryOpts]
+ */
+export async function loadWcPlayerMarketKvBlocksWithRetry(
+  nowMs = Date.now(),
+  opts = {},
+  retryOpts = {},
+) {
+  const maxRetries = retryOpts.maxRetries ?? 3;
+  const backoffMs = retryOpts.backoffMs ?? 600;
+  const timeoutMs = retryOpts.timeoutMs ?? 6500;
+  const start = Date.now();
+  const eventIdHint = String(opts.wcEventId || "").trim();
+
+  if (eventIdHint) {
+    const cached = readMatchPropsMemoryCache(eventIdHint);
+    if (cached && wcPlayerMarketKvBlocksAreUsable(cached, { ...opts, wcEventId: eventIdHint, nowMs })) {
+      return {
+        ...cached,
+        loadMeta: { attempts: 0, coldStart: false, fromCache: true, loadMs: 0, failed: false },
+      };
+    }
+  }
+
+  /** @type {Awaited<ReturnType<typeof loadWcPlayerMarketKvBlocks>> | null} */
+  let last = null;
+  /** @type {Error | null} */
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const elapsed = Date.now() - start;
+    if (elapsed >= timeoutMs) break;
+    try {
+      const remaining = Math.max(400, timeoutMs - elapsed);
+      last = await Promise.race([
+        loadWcPlayerMarketKvBlocks(nowMs, opts),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("wc_player_props_kv_timeout")), remaining);
+        }),
+      ]);
+      const eventId = String(last?.wcEventId || eventIdHint || "").trim();
+      if (eventId && wcPlayerMarketKvBlocksAreUsable(last, { ...opts, wcEventId: eventId, nowMs })) {
+        writeMatchPropsMemoryCache(eventId, last);
+        const loadMs = Date.now() - start;
+        console.log(
+          JSON.stringify({
+            event: "wc_player_props_kv_loaded",
+            wcEventId: eventId,
+            attempt,
+            loadMs,
+            coldStart: attempt > 0,
+          }),
+        );
+        return {
+          ...last,
+          loadMeta: {
+            attempts: attempt + 1,
+            coldStart: attempt > 0,
+            fromCache: false,
+            loadMs,
+            failed: false,
+          },
+        };
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+    }
+    if (attempt < maxRetries && Date.now() - start < timeoutMs) {
+      await new Promise((r) => setTimeout(r, backoffMs * (attempt + 1)));
+    }
+  }
+
+  const loadMs = Date.now() - start;
+  console.error(
+    JSON.stringify({
+      event: "wc_player_props_kv_failed",
+      wcEventId: eventIdHint || last?.wcEventId || null,
+      attempts: maxRetries + 1,
+      loadMs,
+      error: lastError?.message || "no_usable_rows",
+    }),
+  );
+  return {
+    ...(last || {
+      players: null,
+      goldenBoot: null,
+      injuries: null,
+      matchPlayerProps: null,
+      wcEventId: eventIdHint || null,
+    }),
+    loadMeta: {
+      attempts: maxRetries + 1,
+      coldStart: true,
+      fromCache: false,
+      loadMs,
+      failed: true,
+    },
+  };
 }
 
 /**

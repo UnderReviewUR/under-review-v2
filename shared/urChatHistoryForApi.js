@@ -3,6 +3,11 @@
  */
 
 import { stripUrTakeDeadEndCopy } from "./urTakeSportRouting.js";
+import {
+  isWcNumberedPlayerPropLean,
+  WC_PLAYER_PROP_LIST_LEAN_MAX_CHARS,
+  LEAN_MAX_CHARS,
+} from "./urTakeLean.js";
 
 /**
  * @param {string} input
@@ -78,9 +83,13 @@ export function sliceChatHistoryStructured(structured) {
   if (!structured || typeof structured !== "object") return undefined;
 
   const s = structured;
+  const leanRaw = s.lean != null ? String(s.lean) : "";
+  const leanCap = isWcNumberedPlayerPropLean(leanRaw)
+    ? WC_PLAYER_PROP_LIST_LEAN_MAX_CHARS
+    : LEAN_MAX_CHARS;
   const row = {
     call: s.call != null ? String(s.call).slice(0, 400) : undefined,
-    lean: s.lean != null ? String(s.lean).slice(0, 120) : undefined,
+    lean: leanRaw ? leanRaw.slice(0, leanCap) : undefined,
     whyNow: s.whyNow != null ? String(s.whyNow).slice(0, 600) : undefined,
     edge: s.edge != null ? String(s.edge).slice(0, 600) : undefined,
     callType: s.callType != null ? String(s.callType).slice(0, 64) : undefined,
@@ -96,6 +105,7 @@ export function sliceChatHistoryStructured(structured) {
         : undefined,
     fixtureHome: s.fixtureHome != null ? String(s.fixtureHome).slice(0, 8) : undefined,
     fixtureAway: s.fixtureAway != null ? String(s.fixtureAway).slice(0, 8) : undefined,
+    wcEventId: s.wcEventId != null ? String(s.wcEventId).slice(0, 16) : undefined,
   };
 
   const pruned = Object.fromEntries(
@@ -132,6 +142,8 @@ export function buildChatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
     }
     if (m.wcEventId != null && String(m.wcEventId).trim()) {
       row.wcEventId = String(m.wcEventId).trim();
+    } else if (structured?.wcEventId != null && String(structured.wcEventId).trim()) {
+      row.wcEventId = String(structured.wcEventId).trim();
     }
 
     cleaned.push(row);

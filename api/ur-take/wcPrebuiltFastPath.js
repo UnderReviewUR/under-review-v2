@@ -23,6 +23,12 @@ import {
   isWcTomorrowOrSlateBetQuestion,
   shouldUseWcGroupValuePushBackPrebuilt,
 } from "../../shared/wcTakeRetentionQA.js";
+import {
+  isGenericWcPlayerPropQuestion,
+  isWcPlayerMarketIntent,
+} from "../../shared/wcUrTakePlayerMarket.js";
+import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
+import { WC_INTENT } from "../../shared/wcUrTakeIntent.js";
 
 /**
  * Deliver World Cup prebuilt takes without building prompts or calling Anthropic.
@@ -150,7 +156,13 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
       structuredResponse = prebuilt;
       passKind = "group_slate";
     }
-  } else if (wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly) {
+  } else if (
+    (wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly) &&
+    !isWcPlayerMarketIntent(wcIntent) &&
+    wcIntent !== WC_INTENT.PLAYER_PROP &&
+    !(isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) &&
+    !(detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
+  ) {
     structuredResponse = wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly;
     passKind = wcFixtureAltFollowUpPrebuiltEarly ? "fixture_alt_follow_up" : "fixture_matchup";
   }

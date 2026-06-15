@@ -4,6 +4,7 @@ import { sendUrTakeJson } from "./responseDelivery.js";
 import { releaseUrTakeGateQuotaIfNeeded } from "./gateQuotaLifecycle.js";
 import { tryUrTakeEarlyPaths } from "./earlyPaths.js";
 import { tryDeliverWcPrebuiltFastPath } from "./wcPrebuiltFastPath.js";
+import { tryDeliverWcPlayerPropsFastPath } from "./wcPlayerPropsFastPath.js";
 import { resolveMlbDecisionMode } from "./mlb/decisionMode.js";
 import { contextJsonForModel } from "./prompt/contextJson.js";
 import { extractAnthropicText } from "./prompt/anthropicText.js";
@@ -118,7 +119,7 @@ import {
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
-import { loadWcPlayerMarketKvBlocks } from "../_wcPlayerUrTakeContext.js";
+import { loadWcPlayerMarketKvBlocksWithRetry } from "../_wcPlayerUrTakeContext.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
@@ -225,6 +226,7 @@ import {
 import { extractMentionedWcTeams } from "../../shared/wcUrTakeKeywords.js";
 import {
   isWcPlayerMarketIntent,
+  isGenericWcPlayerPropQuestion,
   resolveWcPlayerMarketResponse,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier } from "../../shared/wcPlayerMarketResolve.js";
@@ -2979,7 +2981,11 @@ export default async function handler(req, res) {
         console.warn("[ur-take] fixture matchup prebuilt resolve failed:", fixtureErr?.message);
       }
     }
-    if (isWcPlayerMarketIntent(wcIntent)) {
+    if (
+      isWcPlayerMarketIntent(wcIntent) ||
+      (isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) ||
+      (detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
+    ) {
       wcFixtureMatchupPrebuiltEarly = null;
       wcFixtureAltFollowUpPrebuiltEarly = null;
     }
@@ -3062,14 +3068,18 @@ export default async function handler(req, res) {
           const playerEventId = String(
             wcContext.wcEventId || wcEventIdTrimmed || "",
           ).trim();
-          const playerMarketKv = await loadWcPlayerMarketKvBlocks(Date.now(), {
-            wcEventId: playerEventId || null,
-            wcIntent,
-            question: routingQuestion,
-            matches: wcContext.allMatches || [],
-            conversationHistory: normalizedUrTakeHistoryForGate,
-            requiredEntities: wcRequiredEntities,
-          });
+          const playerMarketKv = await loadWcPlayerMarketKvBlocksWithRetry(
+            Date.now(),
+            {
+              wcEventId: playerEventId || null,
+              wcIntent,
+              question: routingQuestion,
+              matches: wcContext.allMatches || [],
+              conversationHistory: normalizedUrTakeHistoryForGate,
+              requiredEntities: wcRequiredEntities,
+            },
+            { maxRetries: 3, backoffMs: 600, timeoutMs: 6500 },
+          );
           const playerEventIdResolved = playerMarketKv.wcEventId || playerEventId || null;
           wcContext.wcEventId = playerEventIdResolved;
           wcContext.playerMarketKv = {
@@ -3119,6 +3129,33 @@ export default async function handler(req, res) {
     }
   }
   if (sportHint === "worldcup") {
+    const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath({
+      sportHint,
+      res,
+      requestId,
+      requestStart,
+      question,
+      routingQuestion,
+      wcIntent,
+      wcRequiredEntities,
+      wcForbiddenEntities,
+      wcStrengthTags,
+      wcRelevanceLog,
+      wcContext,
+      isConversationFollowUp,
+      normalizedUrTakeHistoryForGate,
+      intent,
+      gateQuotaEmail,
+      gateQuotaSessionId,
+      setGateQuotaDelivered: (v) => {
+        gateQuotaDelivered = v;
+      },
+      extractTakeFromResponse,
+      userEmail,
+      appendTakeForUser,
+    });
+    if (wcPlayerPropsFast.handled) return;
+
     const wcPrebuiltFast = await tryDeliverWcPrebuiltFastPath({
       sportHint,
       res,
@@ -5480,12 +5517,12 @@ You are responding to a Pro subscriber. Apply the following:
         wcIntent,
         wcContext,
       );
-      if (wcPlayerResolved.forcePass) {
+      if (wcPlayerResolved.forcePass || wcPlayerResolved.structured) {
         structuredResponse = wcPlayerResolved.structured;
         responseText = wcPlayerResolved.responseText;
         responseDeep = wcPlayerResolved.responseDeep;
         responseFormat = effectiveStructuredModeRequested ? "structured" : "plain";
-        wcPlayerMarketPassUsed = true;
+        wcPlayerMarketPassUsed = Boolean(wcPlayerResolved.structured);
         wcRelevanceLog.playerMarketTier =
           wcPlayerResolved.playerMarketTier || wcRelevanceLog.playerMarketTier;
         console.log(
@@ -5743,6 +5780,12 @@ You are responding to a Pro subscriber. Apply the following:
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
       !wcRunnerUpFollowUpPassUsed &&
+      !(
+        isWcPlayerMarketIntent(wcIntent) ||
+        wcIntent === WC_INTENT.PLAYER_PROP ||
+        (isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) ||
+        (detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
+      ) &&
       (wcFixtureMatchupPrebuiltEarly ||
         wcFixtureAltFollowUpPrebuiltEarly ||
         (!isConversationFollowUp &&
@@ -7199,6 +7242,18 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     }
     if (sportHint === "worldcup" && structuredResponse?.playerMarketTier) {
       responseBody.playerMarketTier = structuredResponse.playerMarketTier;
+    }
+    if (sportHint === "worldcup") {
+      const debugEventId =
+        structuredResponse?.wcEventId ||
+        wcContext?.wcEventId ||
+        wcRelevanceLog?.wcEventId ||
+        null;
+      if (debugEventId) responseBody.wcEventId = String(debugEventId);
+      if (structuredResponse?.callType) responseBody.callType = structuredResponse.callType;
+      if (wcContext?.playerMarketKv?.loadMeta?.coldStart != null) {
+        responseBody.coldStart = Boolean(wcContext.playerMarketKv.loadMeta.coldStart);
+      }
     }
 
     gateQuotaDelivered = true;

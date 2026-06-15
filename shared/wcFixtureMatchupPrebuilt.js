@@ -383,7 +383,12 @@ export function resolveWcFixturePairFromHistory(history = []) {
         home: String(s.fixtureHome).toUpperCase(),
         away: String(s.fixtureAway).toUpperCase(),
         group: String(s.groupLetter || "").toUpperCase(),
-        eventId: turn?.wcEventId ? String(turn.wcEventId) : null,
+        eventId:
+          turn?.wcEventId != null
+            ? String(turn.wcEventId)
+            : s?.wcEventId != null
+              ? String(s.wcEventId)
+              : null,
       };
     }
     if (turn?.wcMatchTeams?.home && turn?.wcMatchTeams?.away) {
