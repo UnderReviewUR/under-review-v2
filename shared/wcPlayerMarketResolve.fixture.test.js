@@ -10,6 +10,7 @@ import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlay
 import { WC_INTENT, classifyWcPlayerMarketIntent } from "./wcUrTakeIntent.js";
 import { isWcFixtureScopedPlayerMarketQuestion } from "./wcUrTakePlayerMarket.js";
 import { isDuplicateWcStructuredCard } from "./wcFixtureMatchupPrebuilt.js";
+import { resolveWcPlayerPropFixtureTeams } from "./wcPlayerPropFixture.js";
 
 const kvRoot = {
   byEventId: {
@@ -185,6 +186,20 @@ test("isWcFixtureScopedPlayerMarketQuestion — scorer and pass leader follow-up
     "Who's most likely to score from each team? And who will lead each team in passes?";
   assert.equal(isWcFixtureScopedPlayerMarketQuestion(q), true);
   assert.equal(classifyWcPlayerMarketIntent(q), WC_INTENT.PLAYER_PROP);
+});
+
+test("resolveWcPlayerPropFixtureTeams — scorer follow-up pins SWE/TUN from history", () => {
+  const history = [
+    {
+      role: "assistant",
+      structured: { fixtureHome: "SWE", fixtureAway: "TUN", wcEventId: "760424" },
+    },
+  ];
+  const teams = resolveWcPlayerPropFixtureTeams(
+    "Who's most likely to score from each team? And who will lead each team in passes?",
+    history,
+  );
+  assert.deepEqual(teams, ["SWE", "TUN"]);
 });
 
 test("isDuplicateWcStructuredCard — blocks verbatim lean repeat", () => {

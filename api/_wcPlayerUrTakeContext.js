@@ -20,7 +20,7 @@ import {
   WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
-import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
+import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { resolveWcEventIdForFixtureTeams, resolveWcPlayerPropSlateFixtureTeams, resolveWcPlayerPropFixtureTeams } from "../shared/wcPlayerPropFixture.js";
 import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
@@ -66,6 +66,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
 
   const shouldPinFixtureFromQuestion =
     isWcFixturePlayerPropsQuestion(question) ||
+    isWcFixtureScopedPlayerMarketQuestion(question) ||
     detectParlayIntent(question) ||
     (opts.wcIntent === WC_INTENT.PLAYER_PROP && isGenericWcPlayerPropQuestion(question));
 
@@ -81,6 +82,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
       isWcLiveDominanceQuestion(question) ||
       isWcFixturePlayerPropsQuestion(question) ||
+      isWcFixtureScopedPlayerMarketQuestion(question) ||
       detectParlayIntent(question) ||
       isGenericWcPlayerPropQuestion(question));
 

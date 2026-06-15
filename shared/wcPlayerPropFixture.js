@@ -3,7 +3,7 @@
  */
 
 import { WC_FULL_SQUADS } from "../src/data/wc2026FullSquadsSeed.js";
-import { extractWcPlayerPropNameHint } from "./wcUrTakePlayerMarket.js";
+import { extractWcPlayerPropNameHint, isWcFixtureScopedPlayerMarketQuestion } from "./wcUrTakePlayerMarket.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 import { matchPlayerPropRowsFromEvent } from "./wcMatchPlayerProps.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
@@ -287,7 +287,11 @@ export function resolveWcPlayerPropFixtureTeams(question, history = [], wcContex
       ? wcContext.conversationHistory
       : [];
 
-  if (WC_PLAYER_PROP_THIS_FIXTURE_RE.test(q) || /\bplayer props?\b/i.test(q)) {
+  if (
+    WC_PLAYER_PROP_THIS_FIXTURE_RE.test(q) ||
+    /\bplayer props?\b/i.test(q) ||
+    isWcFixtureScopedPlayerMarketQuestion(q)
+  ) {
     const pair = resolveWcFixturePairFromHistory(hist);
     if (pair?.home && pair?.away) {
       return [String(pair.home).toUpperCase(), String(pair.away).toUpperCase()];
