@@ -431,3 +431,31 @@ test("shouldUseWcGroupValuePushBackPrebuilt — aligned favorite pushback", () =
     false,
   );
 });
+
+test("synthesizeWcCardFaceNumericWhy — totals lean avoids group win % as sim path", () => {
+  const structured = {
+    call: "Lean Over 2.5 goals",
+    lean: "Pass on ML — Lean Over 2.5 goals",
+    line: "Posted 2.5 total — over -110.",
+    deep:
+      "UR model win bar: Spain 88% · Draw 5% · Cape Verde 7%.\nGroup paths: Spain advances 92.0% · Cape Verde 7.0% in UR sims.",
+    whyNow: "0-0 live — Spain is creating chances but need 3 more goals from here.",
+  };
+  const why = synthesizeWcCardFaceNumericWhy(structured);
+  assert.match(why, /posted 2\.5 total/i);
+  assert.doesNotMatch(why, /7%/);
+});
+
+test("ensureWcCardFaceNumericWhy — totals keeps live why not bogus sim path", () => {
+  const out = ensureWcCardFaceNumericWhy(
+    {
+      call: "Lean Over 2.5 goals",
+      lean: "Pass on ML — Lean Over 2.5 goals",
+      deep: "Group paths: Spain advances 92.0% · Cape Verde 7.0% in UR sims.",
+      whyNow: "",
+    },
+    "Over 2.5 goals in play?",
+    { wcIntent: "MATCHUP" },
+  );
+  assert.doesNotMatch(String(out?.whyNow || ""), /Sims: 7%/);
+});

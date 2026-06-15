@@ -756,6 +756,11 @@ function wcAmericanImpliedPct(american) {
   return Math.round((Math.abs(n) / (Math.abs(n) + 100)) * 1000) / 10;
 }
 
+function isWcMatchTotalsStructured(structured) {
+  const blob = [structured?.call, structured?.lean, structured?.callType].filter(Boolean).join(" ");
+  return /\b(?:over|under)\s+\d+(?:\.\d+)?\s*goals?\b/i.test(blob);
+}
+
 /**
  * @param {Record<string, unknown> | null | undefined} structured
  * @param {string} [question]
@@ -799,6 +804,26 @@ export function synthesizeWcCardFaceNumericWhy(structured, question = "") {
     .filter(Boolean)
     .join("\n");
 
+  if (isWcMatchTotalsStructured(structured)) {
+    const posted = blob.match(
+      /posted\s+(\d+\.?\d*)\s+total[^.\n]{0,32}(?:over|under)\s+([+-]\d+)/i,
+    );
+    if (posted) {
+      const implied = wcAmericanImpliedPct(posted[2]);
+      const pct = implied != null ? ` (~${implied}% implied)` : "";
+      return `Posted ${posted[1]} total — book ${posted[2]}${pct}.`;
+    }
+    const totalGoals = blob.match(/total\s+(\d+\.?\d*)\s*goals?[^.\n]{0,24}over\s+([+-]\d+)/i);
+    if (totalGoals) {
+      const implied = wcAmericanImpliedPct(totalGoals[2]);
+      const pct = implied != null ? ` (~${implied}% implied)` : "";
+      return `Posted ${totalGoals[1]} total — over ${totalGoals[2]}${pct}.`;
+    }
+    const whyNow = String(structured?.whyNow || "").trim();
+    if (whyNow && !/^sims:/i.test(whyNow)) return whyNow.slice(0, 140);
+    return "";
+  }
+
   const leg = blob.match(/over\s+(\d+(?:\.\d+)?)\s+(?:at\s+|[·\-–—]\s*)([+-]\d+)/i);
   if (leg) {
     const implied = wcAmericanImpliedPct(leg[2]);
@@ -808,8 +833,8 @@ export function synthesizeWcCardFaceNumericWhy(structured, question = "") {
 
   const odds = blob.match(/\b(-1[0-9]{2}|\+[1-9]\d{2,4})\b/)?.[0];
   const simPct =
-    blob.match(/(?:sim(?:s)?|UR)[^.\n]{0,40}(\d+\.?\d*)\s*%/i)?.[1] ||
-    blob.match(/(\d+\.?\d*)\s*%\s+(?:advance|win|qf|reach|group)/i)?.[1];
+    blob.match(/(?:UR\s+)?sims?[^.\n]{0,48}(\d+\.?\d*)\s*%/i)?.[1] ||
+    blob.match(/(\d+\.?\d*)\s*%\s+(?:to\s+)?advance(?:\s+from|\s+in|\b)/i)?.[1];
   const marketPct = blob.match(/(?:market|implies)[^.\n]{0,32}~?(\d+\.?\d*)\s*%/i)?.[1];
 
   if (odds && simPct) {

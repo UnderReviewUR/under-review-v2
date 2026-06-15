@@ -874,10 +874,27 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     winBar,
     market,
     bothAdvanceAssessment,
+    homeScore: opts.match?.homeScore,
+    awayScore: opts.match?.awayScore,
+    status: opts.match?.status,
+    matchOdds,
   }).slice(0, 400);
 
+  const totalsPlay =
+    playHeadline && /\b(?:over|under)\s+\d/i.test(playHeadline) ? playHeadline : null;
+  const postedTotalLine =
+    matchOdds?.totalLine != null && String(matchOdds.totalLine).trim() !== ""
+      ? String(matchOdds.totalLine).trim()
+      : null;
+  const postedTotalOver =
+    matchOdds?.totalOver != null && String(matchOdds.totalOver).trim() !== ""
+      ? String(matchOdds.totalOver).trim()
+      : null;
+
   const line = altFollowUp
-    ? `${home} vs ${away} — ${mlCall}`.slice(0, 200)
+    ? totalsPlay && postedTotalLine && postedTotalOver
+      ? `Posted ${postedTotalLine} total — over ${postedTotalOver}.`
+      : `${home} vs ${away} — ${mlCall}`.slice(0, 200)
     : playHeadline && /\b(under|over)\s+\d/i.test(playHeadline)
       ? ""
       : winBar?.teamA?.winPct != null
@@ -939,14 +956,38 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
  *   drawMl?: string | null,
  *   winBar?: { teamA?: { winPct?: number }, teamB?: { winPct?: number }, draw?: number } | null,
  *   market?: { homePct?: number, drawPct?: number, awayPct?: number } | null,
+ *   bothAdvanceAssessment?: ReturnType<typeof assessWcBothTeamsAdvanceFixture>,
+ *   homeScore?: number | null,
+ *   awayScore?: number | null,
+ *   status?: string | null,
+ *   matchOdds?: Record<string, unknown>,
  * }} row
  */
 function buildWcFixturePrebuiltWhyNow(row) {
   const groupClause = row.group ? ` Group ${row.group}` : "";
+  const hs = Number(row.homeScore);
+  const as = Number(row.awayScore);
+  const goalsLive =
+    Number.isFinite(hs) && Number.isFinite(as) ? Math.max(0, hs + as) : null;
+  const livePlay =
+    isWcLiveMatchStatus(row.status) || (goalsLive != null && goalsLive > 0);
+
   if (/over \d/i.test(row.lean || row.playHeadline || "")) {
+    if (livePlay && goalsLive != null) {
+      const lineAsk = String(row.playHeadline || row.lean || "").match(/over\s+(\d+\.?\d*)/i)?.[1];
+      const need = lineAsk ? Math.max(0, Math.ceil(Number(lineAsk) - goalsLive)) : null;
+      const clockNote =
+        need != null && need > 0
+          ? `need ${need} more goal${need === 1 ? "" : "s"} from here`
+          : "already through the number";
+      return `${hs}-${as} live — ${row.homeName} is creating chances but ${clockNote}; tempo vs clock is the cap.`;
+    }
     return `Heavy favorite script${groupClause} — ${row.homeName} should control the ball; ${row.awayName} sits deep but the posted total is high when the gap is this wide.`;
   }
   if (/under 2\.5/i.test(row.lean || row.playHeadline || "")) {
+    if (livePlay && goalsLive != null) {
+      return `${hs}-${as} live — ${goalsLive >= 3 ? "Under 2.5 is dead" : `${row.awayName} sitting in; ${row.homeName} still hunting a breakthrough`}.`;
+    }
     return `Tight${groupClause} opener — ${row.awayName} sits deep and ${row.homeName} rarely blows teams out in Game 1.`;
   }
   if (/under \d/i.test(row.lean || row.playHeadline || "")) {

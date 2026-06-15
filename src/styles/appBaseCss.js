@@ -1956,7 +1956,7 @@ export const baseCss = `
   }
   .chat-thread--focus .ur-imessage-user-row .bubble--imessage-user--caption{
     max-width:100%;
-    padding:10px 0 14px;
+    padding:10px 16px 14px;
     text-align:left;
   }
   .ur-focus-user-text{
@@ -1983,7 +1983,7 @@ export const baseCss = `
   .wc-take-card--focus.ur-v2-card{
     border-left:none !important;
     background:transparent !important;
-    padding:10px 14px 14px 22px !important;
+    padding:10px 16px 14px 16px !important;
   }
   .wc-take-card--focus .wc-take-play-block{
     display:flex;
@@ -2187,7 +2187,8 @@ export const baseCss = `
     background:transparent;
   }
   .screen--ur-focus .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card{
-    padding-left:22px;
+    padding-left:16px;
+    padding-right:16px;
   }
 
   .ur-thread-upgrade-nudge{
@@ -3412,8 +3413,22 @@ export const baseCss = `
   .wc-detail-meta,.wc-detail-xi,.wc-detail-muted{font-size:12px;color:var(--muted);margin:0 0 10px;}
   .wc-detail-section{margin:12px 0;}
   .wc-detail-section h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);}
-  .wc-detail-stat-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;font-size:13px;margin-bottom:6px;}
-  .wc-detail-stat-label{text-align:center;color:var(--muted);font-size:11px;}
+  .wc-detail-stat-row{
+    display:grid;
+    grid-template-columns:minmax(2.5rem,1fr) minmax(6.5rem,auto) minmax(2.5rem,1fr);
+    gap:12px;
+    align-items:center;
+    font-size:13px;
+    margin-bottom:6px;
+  }
+  .wc-detail-stat-val{
+    font-variant-numeric:tabular-nums;
+    font-weight:600;
+    min-width:2ch;
+  }
+  .wc-detail-stat-val:first-child{text-align:right;justify-self:stretch;padding-right:4px;}
+  .wc-detail-stat-val:last-child{text-align:left;justify-self:stretch;padding-left:4px;}
+  .wc-detail-stat-label{text-align:center;color:var(--muted);font-size:11px;padding:0 2px;}
   .wc-detail-props-list{list-style:none;margin:0;padding:0;}
   .wc-detail-pre-match{margin-top:4px;}
   .wc-detail-team-row{display:flex;align-items:center;justify-content:center;gap:12px;margin:8px 0 10px;}
