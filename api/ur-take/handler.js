@@ -175,6 +175,7 @@ import {
   classifyWcQuestionIntent,
   isWcGroupSlateQuestion,
   isWcGroupStructureQuestion,
+  isWcMatchTotalsQuestion,
   shouldInjectStaticRules,
   WC_FOLLOW_UP_SYSTEM_APPENDIX,
   WC_INTENT,
@@ -2765,6 +2766,7 @@ export default async function handler(req, res) {
     wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
     if (
       !isWcPlayerMarketIntent(wcIntent) &&
+      !isWcMatchTotalsQuestion(routingQuestion) &&
       isWcFixtureScopedPlayerMarketQuestion(routingQuestion) &&
       (isConversationFollowUp || (Array.isArray(incomingHistory) && incomingHistory.length > 1))
     ) {
