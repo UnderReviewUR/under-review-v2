@@ -1164,6 +1164,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         wcIntent,
         question,
         matches,
+        conversationHistory: ctx.conversationHistory,
+        requiredEntities: mentionedTeams,
       });
       const playerEventId = playerMarketKv.wcEventId || wcEventIdTrimmed;
       ctx.wcEventId = playerEventId;

@@ -94,6 +94,8 @@ export function sliceChatHistoryStructured(structured) {
       s.primaryMispriceGroupLetter != null
         ? String(s.primaryMispriceGroupLetter).slice(0, 2)
         : undefined,
+    fixtureHome: s.fixtureHome != null ? String(s.fixtureHome).slice(0, 8) : undefined,
+    fixtureAway: s.fixtureAway != null ? String(s.fixtureAway).slice(0, 8) : undefined,
   };
 
   const pruned = Object.fromEntries(
@@ -121,6 +123,16 @@ export function buildChatHistoryForApi(msgs, { maxMessages = 6 } = {}) {
 
     const structured = sliceChatHistoryStructured(m.structured);
     if (structured) row.structured = structured;
+
+    if (m.wcMatchTeams?.home && m.wcMatchTeams?.away) {
+      row.wcMatchTeams = {
+        home: String(m.wcMatchTeams.home).trim(),
+        away: String(m.wcMatchTeams.away).trim(),
+      };
+    }
+    if (m.wcEventId != null && String(m.wcEventId).trim()) {
+      row.wcEventId = String(m.wcEventId).trim();
+    }
 
     cleaned.push(row);
   }

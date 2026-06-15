@@ -20,9 +20,10 @@ import {
   WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
-import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion } from "../shared/wcUrTakePlayerMarket.js";
+import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { resolveWcEventIdForFixtureTeams, resolveWcPlayerPropSlateFixtureTeams, resolveWcPlayerPropFixtureTeams } from "../shared/wcPlayerPropFixture.js";
+import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
 import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 import {
   formatMatchPlayerPropRowForPrompt,
@@ -47,13 +48,28 @@ import {
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
   const question = String(opts.question || "");
   let wcEventId = String(opts.wcEventId || "").trim() || null;
+  const history = Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [];
+  const teamContext = {
+    requiredEntities: Array.isArray(opts.requiredEntities)
+      ? opts.requiredEntities
+      : extractMentionedWcTeams(question),
+    conversationHistory: history,
+  };
 
-  if (!wcEventId && (isWcFixturePlayerPropsQuestion(question) || detectParlayIntent(question)) && Array.isArray(opts.matches)) {
-    const teams = resolveWcPlayerPropFixtureTeams(
-      question,
-      opts.conversationHistory || [],
-      { requiredEntities: extractMentionedWcTeams(question) },
-    );
+  if (!wcEventId) {
+    const historyPair = resolveWcFixturePairFromHistory(history);
+    if (historyPair?.eventId) {
+      wcEventId = String(historyPair.eventId).trim() || null;
+    }
+  }
+
+  const shouldPinFixtureFromQuestion =
+    isWcFixturePlayerPropsQuestion(question) ||
+    detectParlayIntent(question) ||
+    (opts.wcIntent === WC_INTENT.PLAYER_PROP && isGenericWcPlayerPropQuestion(question));
+
+  if (!wcEventId && shouldPinFixtureFromQuestion && Array.isArray(opts.matches)) {
+    const teams = resolveWcPlayerPropFixtureTeams(question, history, teamContext);
     if (teams.length >= 2) {
       wcEventId = resolveWcEventIdForFixtureTeams(opts.matches, teams[0], teams[1]);
     }
@@ -64,7 +80,8 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
       isWcLiveDominanceQuestion(question) ||
       isWcFixturePlayerPropsQuestion(question) ||
-      detectParlayIntent(question));
+      detectParlayIntent(question) ||
+      isGenericWcPlayerPropQuestion(question));
 
   const [players, goldenBoot, injuries, matchPlayerProps] = await Promise.all([
     readWcPlayersFromKv(),

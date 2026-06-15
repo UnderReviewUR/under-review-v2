@@ -1501,6 +1501,15 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
     if (sport) row.sport = sport;
     const structured = sliceChatHistoryStructured(h.structured);
     if (structured) row.structured = structured;
+    if (h.wcMatchTeams?.home && h.wcMatchTeams?.away) {
+      row.wcMatchTeams = {
+        home: String(h.wcMatchTeams.home).trim(),
+        away: String(h.wcMatchTeams.away).trim(),
+      };
+    }
+    if (h.wcEventId != null && String(h.wcEventId).trim()) {
+      row.wcEventId = String(h.wcEventId).trim();
+    }
     out.push(row);
   }
   const merged = [];
@@ -1513,6 +1522,8 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
         last.structured = m.structured;
       }
       if (m.sport) last.sport = m.sport;
+      if (m.wcMatchTeams) last.wcMatchTeams = m.wcMatchTeams;
+      if (m.wcEventId) last.wcEventId = m.wcEventId;
       continue;
     }
     merged.push({ ...m });
@@ -3057,6 +3068,7 @@ export default async function handler(req, res) {
             question: routingQuestion,
             matches: wcContext.allMatches || [],
             conversationHistory: normalizedUrTakeHistoryForGate,
+            requiredEntities: wcRequiredEntities,
           });
           const playerEventIdResolved = playerMarketKv.wcEventId || playerEventId || null;
           wcContext.wcEventId = playerEventIdResolved;

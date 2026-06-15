@@ -106,6 +106,39 @@ test("resolveWcPlayerMarketAnswer — follow-up this matchup uses requiredEntiti
   assert.match(resolved.structured?.lean || "", /^1\./m);
 });
 
+test("resolveWcPlayerMarketAnswer — follow-up this game uses history structured fixture", () => {
+  const eventPayload = {
+    ...WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT["760416"],
+    eventId: "760416",
+    lastUpdated: Date.now(),
+  };
+  const resolved = resolveWcPlayerMarketAnswer(
+    "best player props for this game?",
+    WC_INTENT.PLAYER_PROP,
+    {
+      wcEventId: "760416",
+      conversationHistory: [
+        { role: "user", content: "Best bet on FRA vs BRA tonight?" },
+        {
+          role: "assistant",
+          content: "Lean Under 2.5 goals on FRA vs BRA",
+          structured: { fixtureHome: "FRA", fixtureAway: "BRA" },
+        },
+      ],
+    },
+    {
+      matchPlayerProps: eventPayload,
+      wcEventId: "760416",
+      goldenBoot: { rows: [{ name: "Mbappé", americanOdds: "+600" }] },
+    },
+  );
+  assert.equal(resolved.forcePass, true);
+  assert.match(resolved.structured?.lean || "", /^1\./m);
+  assert.ok(["FRA", "BRA"].includes(resolved.structured?.fixtureHome));
+  assert.ok(["FRA", "BRA"].includes(resolved.structured?.fixtureAway));
+  assert.notEqual(resolved.structured?.fixtureHome, resolved.structured?.fixtureAway);
+});
+
 test("buildWcFixturePlayerParlayStructured — four legs from KV", () => {
   const eventPayload = {
     ...WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT["760416"],
