@@ -6,6 +6,7 @@ import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+import { isWcLiveBetTimingQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
@@ -368,6 +369,14 @@ export function classifyWcQuestionIntent(question, history = []) {
   }
 
   if (isWcMatchTotalsQuestion(q)) {
+    return WC_INTENT.MATCHUP;
+  }
+
+  if (
+    isWcLiveBetTimingQuestion(q) &&
+    Array.isArray(history) &&
+    history.length > 0
+  ) {
     return WC_INTENT.MATCHUP;
   }
 

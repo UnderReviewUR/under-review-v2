@@ -10,6 +10,8 @@ import {
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
+  shouldUseWcLiveBetTimingPrebuilt,
+  buildWcLiveBetTimingPrebuiltStructured,
 } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
@@ -404,6 +406,32 @@ test("live ESP vs CPV over 3.5 follow-up routes through alt prebuilt at 0-0 live
     history,
   });
   assert.match(structured?.lean || structured?.call || "", /over 3\.5/i);
+});
+
+test("live bet timing follow-up reaffirms prior Over 1.5 lean at 0-0 second half", () => {
+  const q =
+    "When's the best time to place the bet? The second half just started. 0-0 is the score";
+  const history = [
+    { role: "user", content: "Best live angle on ESP vs CPV right now?" },
+    { role: "assistant", content: "Lean Under 2.5 goals", wcMatchTeams: { home: "ESP", away: "CPV" } },
+    { role: "user", content: "What's the chances there's over 1.5 goals scored?" },
+    { role: "assistant", content: "Lean Over 1.5 goals", wcMatchTeams: { home: "ESP", away: "CPV" } },
+  ];
+  assert.equal(
+    shouldUseWcLiveBetTimingPrebuilt(q, { isConversationFollowUp: true, history }),
+    true,
+  );
+  const structured = buildWcLiveBetTimingPrebuiltStructured({
+    home: "ESP",
+    away: "CPV",
+    group: "H",
+    question: q,
+    match: { status: "live", homeScore: 0, awayScore: 0 },
+    history,
+  });
+  assert.match(structured?.call || "", /over 1\.5/i);
+  assert.match(structured?.whyNow || "", /0-0|second-half|lock live/i);
+  assert.doesNotMatch(structured?.lean || "", /no actionable line yet/i);
 });
 
 test("live NED vs JPN at 2-1 blocks prebuilt under 2.5 on live-angle prompt", () => {

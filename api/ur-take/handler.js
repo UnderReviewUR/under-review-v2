@@ -135,10 +135,12 @@ import {
 } from "../../shared/wcMatchProbabilityQuestion.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
+  buildWcLiveBetTimingPrebuiltStructured,
   isDuplicateWcStructuredCard,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
+  shouldUseWcLiveBetTimingPrebuilt,
 } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
   isGoldenEvalMode,
@@ -2728,6 +2730,8 @@ export default async function handler(req, res) {
   let wcFixtureMatchupPrebuiltEarly = null;
   /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcFixtureMatchupPrebuiltStructured> | null} */
   let wcFixtureAltFollowUpPrebuiltEarly = null;
+  /** @type {import("../../shared/wcFixtureMatchupPrebuilt.js").ReturnType<typeof buildWcLiveBetTimingPrebuiltStructured> | null} */
+  let wcLiveBetTimingPrebuiltEarly = null;
   /** @type {Record<string, { advancePct?: number }> | null} */
   let wcFixturePrebuiltTeamStats = null;
   /** @type {{ wcIntent: string | null, mentionedTeams: string[], requiredEntities: string[], knockoutRulesInjected: boolean, structuralEdgeInjected: boolean, playerPropDetected: boolean, wcEventId: string | null, qaEntityMatch: string | null, qaIntentMatch: string | null, qaPlayerMatch: string | null }} */
@@ -2947,7 +2951,17 @@ export default async function handler(req, res) {
         wcEventId: wcEventIdTrimmed,
         history: normalizedUrTakeHistoryForGate,
       });
-    if (wcFixturePrebuiltCandidate || wcFixtureAltFollowUpCandidate) {
+    const wcLiveBetTimingCandidate =
+      !wcCrossGroupPrebuiltEarly &&
+      !wcRunnerUpFollowUpQuestion &&
+      !detectParlayIntent(routingQuestion) &&
+      isConversationFollowUp &&
+      shouldUseWcLiveBetTimingPrebuilt(routingQuestion, {
+        isConversationFollowUp,
+        history: normalizedUrTakeHistoryForGate,
+        wcEventId: wcEventIdTrimmed,
+      });
+    if (wcFixturePrebuiltCandidate || wcFixtureAltFollowUpCandidate || wcLiveBetTimingCandidate) {
       try {
         const nowMs = Date.now();
         const inputs = await resolveWcFixtureMatchupPrebuiltInputs({
@@ -2959,19 +2973,41 @@ export default async function handler(req, res) {
         });
         if (inputs) {
           wcFixturePrebuiltTeamStats = inputs.teamStats || null;
-          const built = buildWcFixtureMatchupPrebuiltStructured({
-            home: inputs.home,
-            away: inputs.away,
-            group: inputs.group,
-            question: String(question || ""),
-            match: inputs.match,
-            teamStats: inputs.teamStats,
-            simLastUpdated: inputs.simLastUpdated,
-            nowMs: inputs.nowMs,
-            history: normalizedUrTakeHistoryForGate,
-          });
+          const built = wcLiveBetTimingCandidate
+            ? buildWcLiveBetTimingPrebuiltStructured({
+                home: inputs.home,
+                away: inputs.away,
+                group: inputs.group,
+                question: String(question || ""),
+                match: inputs.match,
+                history: normalizedUrTakeHistoryForGate,
+                simLastUpdated: inputs.simLastUpdated,
+                nowMs: inputs.nowMs,
+              })
+            : buildWcFixtureMatchupPrebuiltStructured({
+                home: inputs.home,
+                away: inputs.away,
+                group: inputs.group,
+                question: String(question || ""),
+                match: inputs.match,
+                teamStats: inputs.teamStats,
+                simLastUpdated: inputs.simLastUpdated,
+                nowMs: inputs.nowMs,
+                history: normalizedUrTakeHistoryForGate,
+              });
           if (built) {
-            if (wcFixtureAltFollowUpCandidate) {
+            if (wcLiveBetTimingCandidate) {
+              wcLiveBetTimingPrebuiltEarly = built;
+              console.log(
+                JSON.stringify({
+                  event: "ur_take_wc_live_bet_timing_prebuilt_early",
+                  sport: "worldcup",
+                  wcIntent,
+                  home: inputs.home,
+                  away: inputs.away,
+                }),
+              );
+            } else if (wcFixtureAltFollowUpCandidate) {
               wcFixtureAltFollowUpPrebuiltEarly = built;
               console.log(
                 JSON.stringify({
@@ -3009,12 +3045,14 @@ export default async function handler(req, res) {
     ) {
       wcFixtureMatchupPrebuiltEarly = null;
       wcFixtureAltFollowUpPrebuiltEarly = null;
+      wcLiveBetTimingPrebuiltEarly = null;
     }
     if (
       !wcTomorrowSlatePrebuiltEarly &&
       !wcCrossGroupPrebuiltEarly &&
       !wcFixtureMatchupPrebuiltEarly &&
-      !wcFixtureAltFollowUpPrebuiltEarly
+      !wcFixtureAltFollowUpPrebuiltEarly &&
+      !wcLiveBetTimingPrebuiltEarly
     ) {
       try {
         wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
@@ -3054,7 +3092,11 @@ export default async function handler(req, res) {
         matchDetails: [],
         groups: {},
       };
-    } else if (wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly) {
+    } else if (
+      wcFixtureMatchupPrebuiltEarly ||
+      wcFixtureAltFollowUpPrebuiltEarly ||
+      wcLiveBetTimingPrebuiltEarly
+    ) {
       wcContext = {
         source: "worldcup_fixture_matchup_prebuilt",
         promptBlock: "",
@@ -3195,6 +3237,7 @@ export default async function handler(req, res) {
       wcTomorrowSlatePrebuiltEarly,
       wcFixtureMatchupPrebuiltEarly,
       wcFixtureAltFollowUpPrebuiltEarly,
+      wcLiveBetTimingPrebuiltEarly,
       wcRunnerUpFollowUpQuestion,
       isConversationFollowUp,
       normalizedUrTakeHistoryForGate,
@@ -5809,6 +5852,7 @@ You are responding to a Pro subscriber. Apply the following:
       ) &&
       (wcFixtureMatchupPrebuiltEarly ||
         wcFixtureAltFollowUpPrebuiltEarly ||
+        wcLiveBetTimingPrebuiltEarly ||
         (!isConversationFollowUp &&
           shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
             isConversationFollowUp,
@@ -5839,6 +5883,7 @@ You are responding to a Pro subscriber. Apply the following:
       const prebuilt =
         wcFixtureMatchupPrebuiltEarly ||
         wcFixtureAltFollowUpPrebuiltEarly ||
+        wcLiveBetTimingPrebuiltEarly ||
         (await buildWcFixtureMatchupPrebuiltFromInputs({
           question: String(question || ""),
           mentionedTeams: wcRelevanceLog.mentionedTeams,
@@ -5864,8 +5909,13 @@ You are responding to a Pro subscriber. Apply the following:
             wcIntent,
             home: prebuilt.fixtureHome,
             away: prebuilt.fixtureAway,
-            early: Boolean(wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly),
+            early: Boolean(
+              wcFixtureMatchupPrebuiltEarly ||
+                wcFixtureAltFollowUpPrebuiltEarly ||
+                wcLiveBetTimingPrebuiltEarly,
+            ),
             altFollowUp: Boolean(wcFixtureAltFollowUpPrebuiltEarly),
+            liveBetTiming: Boolean(wcLiveBetTimingPrebuiltEarly),
           }),
         );
       }

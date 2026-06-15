@@ -32,7 +32,7 @@ import {
 } from "./wcGroupComposition.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcMatchupAltMarketFollowUp, isWcMatchupOtherSideFollowUp } from "./wcMatchBettingPrompt.js";
-import { isWcLiveDominanceQuestion } from "./wcLiveMatchQuestion.js";
+import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, parseLiveScoreFromQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
@@ -479,6 +479,100 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
   const fromHistory = resolveWcFixturePairFromHistory(opts.history);
   if (fromHistory?.home === pair.home && fromHistory?.away === pair.away) return true;
   return isWcPromoFixturePair(pair.home, pair.away);
+}
+
+/**
+ * @param {string} question
+ * @param {{
+ *   isConversationFollowUp?: boolean,
+ *   history?: Array<unknown>,
+ *   wcEventId?: string | null,
+ * }} [opts]
+ */
+export function shouldUseWcLiveBetTimingPrebuilt(question, opts = {}) {
+  if (!opts.isConversationFollowUp) return false;
+  if (!isWcLiveBetTimingQuestion(question)) return false;
+  const pair = resolveWcFixturePairFromHistory(opts.history);
+  if (!pair?.home || !pair?.away) return false;
+  if (!extractPriorTotalsLeanFromHistory(opts.history)) return false;
+  return true;
+}
+
+/**
+ * @param {{
+ *   home: string,
+ *   away: string,
+ *   group?: string,
+ *   question?: string,
+ *   match?: Record<string, unknown>,
+ *   history?: Array<unknown>,
+ *   simLastUpdated?: number | null,
+ *   nowMs?: number,
+ * }} opts
+ */
+export function buildWcLiveBetTimingPrebuiltStructured(opts = {}) {
+  const home = String(opts.home || "").trim().toUpperCase();
+  const away = String(opts.away || "").trim().toUpperCase();
+  const question = String(opts.question || "").trim();
+  const prior = extractPriorTotalsLeanFromHistory(opts.history);
+  if (!home || !away || !prior?.line) return null;
+
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const parsed = parseLiveScoreFromQuestion(question);
+  const hs = parsed?.home ?? Number(opts.match?.homeScore);
+  const as = parsed?.away ?? Number(opts.match?.awayScore);
+  const goals =
+    Number.isFinite(hs) && Number.isFinite(as) ? Math.max(0, hs + as) : null;
+  const secondHalf = /\b(?:second|2nd)\s+half\b/i.test(question);
+  const side = prior.kind;
+  const line = prior.line;
+  const lineNum = Number(line);
+  const headline =
+    side === "over"
+      ? `Lean Over ${line} goals — lock live now`
+      : `Lean Under ${line} goals — lock live now`;
+
+  let whyNow = "";
+  if (side === "over") {
+    const need = Number.isFinite(lineNum) ? Math.max(0, Math.ceil(lineNum - (goals ?? 0))) : null;
+    if (goals === 0 && secondHalf) {
+      whyNow = `0-0 at second-half kickoff — ${homeName} already had the volume; first goal usually shortens Over ${line} before you lock this price.`;
+    } else if (need != null && need <= 1) {
+      whyNow = `One more goal cashes Over ${line} — live now beats waiting if ${homeName} scores next.`;
+    } else if (need != null) {
+      whyNow = `Need ${need} more goals — lock live while ${homeName}'s chances still match the posted Over ${line}.`;
+    } else {
+      whyNow = `Stay on Over ${line} — live price beats waiting if ${homeName} breaks through first.`;
+    }
+  } else if (goals != null && goals >= 3) {
+    whyNow = `${hs}-${as} — Under ${line} is dead; re-ask for a live alt line.`;
+  } else if (goals === 0 && secondHalf) {
+    whyNow = `Still 0-0 into the second half — Under ${line} tightens after every goal; lock before ${homeName} breaks through.`;
+  } else if (goals != null) {
+    whyNow = `${hs}-${as} live — protect Under ${line} while ${awayName} keeps the scoreboard tight.`;
+  } else {
+    whyNow = `Lock Under ${line} live while the scoreboard still cooperates — waiting for a ${homeName} goal shortens the price.`;
+  }
+
+  return {
+    sport: "worldcup",
+    callType: "matchup",
+    groupLetter: String(opts.group || opts.match?.group || "").trim().toUpperCase() || undefined,
+    fixtureHome: home,
+    fixtureAway: away,
+    lean: headline.slice(0, 120),
+    call: headline.slice(0, 100),
+    line: "",
+    deep: "",
+    breakdownAvailable: false,
+    whyNow: whyNow.slice(0, 400),
+    edge: `Timing play on prior Over/Under ${line} lean — not a new market.`,
+    modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
+    confidence: "Medium",
+    caveats: [],
+    timestamp: new Date().toISOString(),
+  };
 }
 
 /**

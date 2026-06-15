@@ -55,6 +55,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     wcTomorrowSlatePrebuiltEarly,
     wcFixtureMatchupPrebuiltEarly,
     wcFixtureAltFollowUpPrebuiltEarly,
+    wcLiveBetTimingPrebuiltEarly,
     wcRunnerUpFollowUpQuestion,
     isConversationFollowUp,
     normalizedUrTakeHistoryForGate,
@@ -159,15 +160,21 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
       passKind = "group_slate";
     }
   } else if (
-    (wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly) &&
+    (wcFixtureMatchupPrebuiltEarly ||
+      wcFixtureAltFollowUpPrebuiltEarly ||
+      wcLiveBetTimingPrebuiltEarly) &&
     !isWcPlayerMarketIntent(wcIntent) &&
     wcIntent !== WC_INTENT.PLAYER_PROP &&
     !(isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) &&
     !isWcFixtureScopedPlayerMarketQuestion(routingQuestion) &&
     !(detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
   ) {
-    structuredResponse = wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly;
-    passKind = wcFixtureAltFollowUpPrebuiltEarly ? "fixture_alt_follow_up" : "fixture_matchup";
+    structuredResponse = wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly || wcLiveBetTimingPrebuiltEarly;
+    passKind = wcLiveBetTimingPrebuiltEarly
+      ? "live_bet_timing"
+      : wcFixtureAltFollowUpPrebuiltEarly
+        ? "fixture_alt_follow_up"
+        : "fixture_matchup";
   }
 
   if (!structuredResponse) return { handled: false };
