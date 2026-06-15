@@ -359,7 +359,7 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
     fixtureAway: awayAbbr,
     call: `${lead.name} anytime scorer ${lead.americanOdds}`,
     lean: numbered,
-    whyNow: `Posted anytime scorer lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)} in VERIFIED CONTEXT.`,
+    whyNow: `Posted anytime scorer lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)}.`,
     edge:
       picked.length >= 2
         ? `${picked[1].name} ${picked[1].americanOdds} is the alternate if ${lead.name} sits.`

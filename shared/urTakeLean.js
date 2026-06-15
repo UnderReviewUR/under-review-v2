@@ -1,9 +1,18 @@
 /** @typedef {{ call?: string, whyNow?: string, lean?: string }} LeanSynthesisInput */
 
 export const LEAN_MAX_CHARS = 120;
+/** WC fixture player-prop numbered lists (multi-leg lean). */
+export const WC_PLAYER_PROP_LIST_LEAN_MAX_CHARS = 800;
 
 /** Soft QA — model should match; Pass / No play are single-clause. */
 export const LEAN_CONTRACT_PATTERN = /^Lean:\s*.+\./;
+
+/**
+ * @param {string} text
+ */
+export function isWcNumberedPlayerPropLean(text) {
+  return /^\s*\d+\.\s+/m.test(String(text || "").trim());
+}
 
 /**
  * Truncate at word boundary — never mid-word (card face readability).
@@ -51,7 +60,12 @@ function firstSentence(text) {
  */
 export function synthesizeLeanLine(input) {
   const existing = String(input?.lean || "").trim();
-  if (existing) return truncateLeanAtWord(existing, LEAN_MAX_CHARS);
+  if (existing) {
+    if (isWcNumberedPlayerPropLean(existing)) {
+      return truncateLeanAtWord(existing, WC_PLAYER_PROP_LIST_LEAN_MAX_CHARS);
+    }
+    return truncateLeanAtWord(existing, LEAN_MAX_CHARS);
+  }
 
   const call = String(input?.call || "").trim();
   if (/^Lean:\s/i.test(call)) return truncateLeanAtWord(call, LEAN_MAX_CHARS);

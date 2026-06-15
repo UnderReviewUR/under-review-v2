@@ -363,7 +363,9 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     s.confidence = clip(s.confidence, 120) || "High";
   } else if (isWcPlayerMarket) {
     s.sport = "worldcup";
-    s.lean = clip(s.lean, 120);
+    const leanRaw = String(raw.lean || "").trim();
+    const numberedPropList = /^\s*\d+\.\s+/m.test(leanRaw);
+    s.lean = clip(s.lean, numberedPropList ? 800 : 120);
     s.call = clip(s.call, 100) || "—";
     s.whyNow = clip(s.whyNow, 320);
     s.edge = clip(s.edge, 160);

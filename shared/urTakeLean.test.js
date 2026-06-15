@@ -50,3 +50,15 @@ test("truncateLeanAtWord avoids mid-word cut", () => {
   assert.doesNotMatch(out, / navigat(?:ing)? a l$/);
   assert.match(out, /…$/);
 });
+
+test("synthesizeLeanLine preserves numbered WC player prop lists", () => {
+  const lean = [
+    "1. Victor Lindelöf anytime scorer +1100",
+    "2. Viktor Gyökeres anytime scorer +123",
+    "3. Dylan Bronn anytime scorer +1600",
+    "4. Ellyes Skhiri anytime scorer +1300",
+  ].join("\n");
+  const out = synthesizeLeanLine({ lean });
+  assert.match(out, /4\. Ellyes Skhiri/);
+  assert.ok(out.length > 120);
+});
