@@ -2284,7 +2284,8 @@ ${themeCss}
       const preserveWcSlateCallType =
         entityCallType === "group_slate" ||
         entityCallType === "advancement" ||
-        entityCallType === "matchup";
+        entityCallType === "matchup" ||
+        entityCallType === "tomorrow_slate";
       structuredForBubble = {
         ...structuredForBubble,
         callType: preserveWcSlateCallType ? structuredForBubble.callType : "analysis",
@@ -2293,7 +2294,8 @@ ${themeCss}
     } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
       const { playerMarketTier: _drop, ...rest } = structuredForBubble;
       const ct = String(structuredForBubble.callType || "").toLowerCase();
-      const slateLike = ct === "group_slate" || ct === "advancement";
+      const slateLike =
+        ct === "group_slate" || ct === "advancement" || ct === "tomorrow_slate";
       structuredForBubble = {
         ...rest,
         sport: "worldcup",

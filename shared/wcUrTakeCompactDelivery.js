@@ -928,6 +928,8 @@ function buildWcCompactStructuredBody(opts = {}) {
       tomorrowFixtureCount: seed.tomorrowFixtureCount,
       tomorrowFixtures: seed.tomorrowFixtures,
       tomorrowSlateAngles: seed.tomorrowSlateAngles,
+      slateDay: seed.slateDay,
+      slateEtDate: seed.slateEtDate,
       fixtureHome: seed.fixtureHome,
       fixtureAway: seed.fixtureAway,
       auditFootnote: seed.auditFootnote || null,

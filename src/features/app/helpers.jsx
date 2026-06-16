@@ -1769,6 +1769,7 @@ function coerceStructuredForUrTakeCard(raw) {
           .filter((a) => a.label)
       : [],
     slateDay: raw.slateDay != null ? String(raw.slateDay) : null,
+    slateEtDate: raw.slateEtDate != null ? String(raw.slateEtDate) : null,
     tomorrowFixtureCount:
       typeof raw.tomorrowFixtureCount === "number" && Number.isFinite(raw.tomorrowFixtureCount)
         ? raw.tomorrowFixtureCount
@@ -1811,7 +1812,12 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
   }
   if (intent === WC_INTENT.ENTITY_PRICING) {
     const ct = String(structured.callType || "").toLowerCase();
-    if (ct === "group_slate" || ct === "advancement" || ct === "matchup") {
+    if (
+      ct === "group_slate" ||
+      ct === "advancement" ||
+      ct === "matchup" ||
+      ct === "tomorrow_slate"
+    ) {
       return {
         ...structured,
         sport: "worldcup",

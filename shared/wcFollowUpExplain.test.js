@@ -14,6 +14,9 @@ import {
   shouldBlockMatchupAltPrebuiltAfterPlayerPivot,
   applyWcFollowUpExplainDelivery,
   shouldAutoExpandWcBreakdown,
+  isWcSlateDrilldownFollowUp,
+  extractLastAssistantSlateStructured,
+  buildWcSlateDrilldownFollowUpStructured,
 } from "./wcFollowUpExplain.js";
 import { classifyWcQuestionIntent, WC_INTENT } from "./wcUrTakeIntent.js";
 import { scoreWcFollowUpRouting } from "./wcCardContractScorer.js";
@@ -132,4 +135,28 @@ test("applyWcFollowUpExplainDelivery repairs repeat why and expands breakdown", 
 test("shouldAutoExpandWcBreakdown true for explain questions", () => {
   assert.equal(shouldAutoExpandWcBreakdown("why under 2.5 goals?"), true);
   assert.equal(shouldAutoExpandWcBreakdown("best bet BEL vs EGY"), false);
+});
+
+test("slate drilldown follow-up detects go deeper on each", () => {
+  const history = [
+    { role: "user", content: "goal totals for each match today?" },
+    {
+      role: "assistant",
+      structured: {
+        callType: "group_slate",
+        tomorrowSlateAngles: [
+          { label: "France vs Senegal", lean: "Under 2.5 goals" },
+          { label: "Iraq vs Norway", lean: "Over 1.5 goals" },
+        ],
+        deep: "Match: France vs Senegal\nLean: Under 2.5 goals",
+        breakdownAvailable: true,
+      },
+    },
+  ];
+  assert.equal(isWcSlateDrilldownFollowUp("go deeper on each of these", history), true);
+  const rebuilt = buildWcSlateDrilldownFollowUpStructured(
+    extractLastAssistantSlateStructured(history),
+  );
+  assert.equal(rebuilt?.callType, "tomorrow_slate");
+  assert.equal(rebuilt?.breakdownDefaultExpanded, true);
 });

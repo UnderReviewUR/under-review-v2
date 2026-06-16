@@ -91,7 +91,9 @@ export default function WcTakeCard({
   const deepFull = String(breakdownTextFull || breakdownText || "").trim();
   const deepPreview = String(breakdownText || "").trim();
   const showBreakdownToggle = Boolean(breakdownAvailable && deepFull);
-  const breakdownLabel = pickWcBreakdownLabel(callType);
+  const breakdownLabel = pickWcBreakdownLabel(callType, {
+    slateAngles: slateListFace?.rows,
+  });
   const breakdownBody =
     fullBreakdownExpanded || !breakdownTruncated ? deepFull : deepPreview;
   const showFullBreakdownCta =

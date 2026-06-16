@@ -24,6 +24,11 @@ import {
   shouldUseWcGroupValuePushBackPrebuilt,
 } from "../../shared/wcTakeRetentionQA.js";
 import {
+  buildWcSlateDrilldownFollowUpStructured,
+  extractLastAssistantSlateStructured,
+  isWcSlateDrilldownFollowUp,
+} from "../../shared/wcFollowUpExplain.js";
+import {
   isGenericWcPlayerPropQuestion,
   isWcFixtureScopedPlayerMarketQuestion,
   isWcPlayerMarketIntent,
@@ -74,7 +79,17 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
   let structuredResponse = null;
   let passKind = null;
 
+  if (isConversationFollowUp && isWcSlateDrilldownFollowUp(routingQuestion, normalizedUrTakeHistoryForGate)) {
+    const slatePrior = extractLastAssistantSlateStructured(normalizedUrTakeHistoryForGate);
+    const rebuilt = buildWcSlateDrilldownFollowUpStructured(slatePrior);
+    if (rebuilt) {
+      structuredResponse = rebuilt;
+      passKind = "slate_drilldown";
+    }
+  }
+
   if (
+    !structuredResponse &&
     isConversationFollowUp &&
     shouldUseWcGroupValuePushBackPrebuilt(routingQuestion, normalizedUrTakeHistoryForGate, {
       isConversationFollowUp: true,

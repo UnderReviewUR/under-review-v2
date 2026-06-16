@@ -31,10 +31,13 @@ export const UR_TAKE_FULL_BREAKDOWN_LABEL = "Full breakdown";
 /**
  * @param {string} [callType]
  */
-export function pickWcBreakdownLabel(callType = "") {
-  return String(callType || "").toLowerCase() === "tomorrow_slate"
-    ? UR_TAKE_FULL_BREAKDOWN_LABEL
-    : UR_TAKE_BREAKDOWN_LABEL;
+export function pickWcBreakdownLabel(callType = "", opts = {}) {
+  const ct = String(callType || "").toLowerCase();
+  const slateAngles = Array.isArray(opts.slateAngles) ? opts.slateAngles : [];
+  if (ct === "tomorrow_slate" || slateAngles.length >= 2) {
+    return UR_TAKE_FULL_BREAKDOWN_LABEL;
+  }
+  return UR_TAKE_BREAKDOWN_LABEL;
 }
 
 const WC_SLATE_COUNT_WORDS = [
@@ -615,7 +618,9 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const focusLayout = Boolean(opts.focusLayout);
   const ct = String(opts.callType || "").toLowerCase();
   const premiumBreakdownCall = ct === "group_slate" || ct === "advancement";
-  const selfContainedSlateBreakdown = ct === "tomorrow_slate";
+  const hasSlateAngles =
+    Array.isArray(opts.tomorrowSlateAngles) && opts.tomorrowSlateAngles.length >= 2;
+  const selfContainedSlateBreakdown = ct === "tomorrow_slate" || hasSlateAngles;
   const fullWhy = sanitizeWcUserFacingProse(String(opts.why || "").trim());
   const fullWatch = sanitizeWcUserFacingProse(String(opts.watchFor || "").trim());
   const fullPlay = String(opts.thePlay || "").trim();

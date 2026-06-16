@@ -368,6 +368,10 @@ test("formatWcSlateListLean prefers prediction pick", () => {
 
 test("pickWcBreakdownLabel tomorrow_slate uses Full breakdown", () => {
   assert.equal(pickWcBreakdownLabel("tomorrow_slate"), UR_TAKE_FULL_BREAKDOWN_LABEL);
+  assert.equal(
+    pickWcBreakdownLabel("group_slate", { slateAngles: [{ label: "A" }, { label: "B" }] }),
+    UR_TAKE_FULL_BREAKDOWN_LABEL,
+  );
 });
 
 test("prepareWcCardFaceDisplay tomorrow_slate list face hides paragraph why", () => {

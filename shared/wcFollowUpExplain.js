@@ -126,6 +126,18 @@ export function resolveWcFollowUpSubject(history, question) {
   if (/\bgo\s+deeper\b/i.test(q)) {
     const listPrior = extractLastAssistantStructured(history, { callType: "goalscorers_list" });
     if (listPrior) return { kind: "list_drilldown", priorStructured: listPrior };
+    const slatePrior = extractLastAssistantSlateStructured(history);
+    if (slatePrior && /\b(?:each|all|these|every|board|slate|match(?:es)?)\b/i.test(q)) {
+      return { kind: "slate_drilldown", priorStructured: slatePrior };
+    }
+  }
+
+  if (
+    isWcCardContractExplainFollowUp(q) &&
+    /\b(?:each|all|these|every|board|slate|match(?:es)?)\b/i.test(q)
+  ) {
+    const slatePrior = extractLastAssistantSlateStructured(history);
+    if (slatePrior) return { kind: "slate_drilldown", priorStructured: slatePrior };
   }
 
   if (isWcMatchupOtherSideFollowUp(q)) {
@@ -137,6 +149,55 @@ export function resolveWcFollowUpSubject(history, question) {
   }
 
   return { kind: null, priorStructured: prior };
+}
+
+/**
+ * @param {Array<{ role?: string, structured?: Record<string, unknown> }>} history
+ */
+export function extractLastAssistantSlateStructured(history) {
+  if (!Array.isArray(history)) return null;
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const turn = history[i];
+    if (turn?.role !== "assistant" || !turn.structured || typeof turn.structured !== "object") {
+      continue;
+    }
+    const s = turn.structured;
+    const ct = String(s.callType || "").toLowerCase();
+    const angles = Array.isArray(s.tomorrowSlateAngles) ? s.tomorrowSlateAngles : [];
+    const deep = String(s.deep || "").trim();
+    if (ct === "tomorrow_slate" || angles.length >= 2 || /\bMatch:\s+\S/im.test(deep)) {
+      return s;
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} question
+ * @param {Array<unknown>} history
+ */
+export function isWcSlateDrilldownFollowUp(question, history) {
+  const subject = resolveWcFollowUpSubject(history, question);
+  return subject.kind === "slate_drilldown" && Boolean(subject.priorStructured);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} priorStructured
+ */
+export function buildWcSlateDrilldownFollowUpStructured(priorStructured) {
+  if (!priorStructured || typeof priorStructured !== "object") return null;
+  const angles = Array.isArray(priorStructured.tomorrowSlateAngles)
+    ? priorStructured.tomorrowSlateAngles
+    : [];
+  const deep = String(priorStructured.deep || "").trim();
+  if (angles.length < 2 && !/\bMatch:\s+\S/im.test(deep)) return null;
+  return {
+    ...priorStructured,
+    sport: "worldcup",
+    callType: "tomorrow_slate",
+    breakdownDefaultExpanded: true,
+    breakdownAvailable: true,
+  };
 }
 
 /**

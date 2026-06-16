@@ -540,7 +540,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
         call,
         line,
         whyNow,
-        deep: [line, whyNow].filter(Boolean).join("\n\n"),
+        deep: line && line === whyNow ? line : [line, whyNow].filter(Boolean).join("\n\n"),
         fixtureCard: null,
         marketBoardMode,
       });
