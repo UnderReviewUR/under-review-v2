@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UR Take preview — before commit</title>
+  <style>
+    :root {
+      --bg: #07080c;
+      --surface: #0c0e14;
+      --soft: #e8eaef;
+      --muted: #8b93a7;
+      --cyan: #00f5e9;
+      --border: #1a1f2e;
+      --mono: Consolas, "Courier New", monospace;
+      --body: system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--body);
+      background: var(--bg);
+      color: var(--soft);
+      padding: 16px 14px 56px;
+    }
+    .wrap { max-width: 420px; margin: 0 auto; }
+    h1 { font-size: 1.05rem; margin: 0 0 6px; }
+    .sub { font-size: 0.84rem; color: var(--muted); margin: 0 0 20px; line-height: 1.5; }
+    .scenario {
+      margin-bottom: 28px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .scenario:last-child { border-bottom: none; margin-bottom: 0; }
+    .scenario-tag {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      margin-bottom: 6px;
+    }
+    .scenario h2 {
+      font-size: 0.95rem;
+      margin: 0 0 12px;
+      font-weight: 600;
+    }
+    .user-q {
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+      margin-bottom: 10px;
+    }
+    .thread { display: flex; flex-direction: column; gap: 12px; }
+    .user {
+      align-self: flex-end;
+      max-width: 92%;
+      background: #1a2233;
+      border-radius: 14px 14px 4px 14px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .take-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      background: #0a0d12;
+    }
+    .take-intro { font-size: 15px; font-weight: 600; margin: 0 0 10px; }
+    .slate-list { margin: 0 0 12px; padding: 0; list-style: none; }
+    .slate-list li {
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(26, 31, 46, 0.85);
+    }
+    .slate-list li:last-child { border-bottom: none; }
+    .slate-list .lean { color: #b8c0d4; }
+    .matchup-line { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .matchup-lean { font-size: 14px; color: #b8c0d4; margin-bottom: 12px; }
+    .take-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 11px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(0, 245, 233, 0.45);
+      background: rgba(0, 245, 233, 0.08);
+      color: var(--cyan);
+      font-family: inherit;
+    }
+    .breakdown-panel {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .breakdown-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(0, 245, 233, 0.55);
+      margin-bottom: 10px;
+    }
+    .match-block {
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(26, 31, 46, 0.7);
+    }
+    .match-block:last-child { margin: 0; padding: 0; border: none; }
+    .match-title { font-weight: 600; font-size: 13px; margin-bottom: 3px; }
+    .match-meta { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .match-lean { font-size: 12px; color: var(--cyan); margin-bottom: 4px; }
+    .match-why { font-size: 12px; line-height: 1.45; color: #b8c0d4; }
+    .talk {
+      padding: 11px 13px;
+      background: rgba(12, 14, 20, 0.92);
+      border: 1px solid rgba(0, 245, 233, 0.22);
+      border-radius: 12px 12px 12px 4px;
+    }
+    .talk-label {
+      display: block;
+      margin-bottom: 6px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+      color: rgba(0, 245, 233, 0.65);
+    }
+    .talk-body { font-size: 14px; line-height: 1.5; }
+    .footer {
+      margin-top: 24px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .footer strong { color: var(--soft); }
+    .pill {
+      display: inline-block;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 99px;
+      background: rgba(0, 245, 233, 0.12);
+      color: var(--cyan);
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Before you commit — open this file locally</h1>
+    <p class="sub">
+      Double-click this file in File Explorer. No server. Mockup of target UX — not live prod yet.
+    </p>
+
+    <!-- SCENARIO A: 4-match slate -->
+    <section class="scenario">
+      <div class="scenario-tag">A · 4 matches today</div>
+      <h2>Slate — goal totals</h2>
+      <p class="user-q">User: “best goal totals on today's slate?”</p>
+      <div class="thread">
+        <div class="take-card">
+          <p class="take-intro">Four World Cup matches today:</p>
+          <ul class="slate-list">
+            <li>France vs Senegal<span class="lean"> — lean Under 2.5 goals</span></li>
+            <li>Iraq vs Norway<span class="lean"> — lean Over 1.5 goals</span></li>
+            <li>Argentina vs Algeria<span class="lean"> — lean Over 2.5 goals</span></li>
+            <li>Austria vs Jordan<span class="lean"> — lean Under 2.5 goals</span></li>
+          </ul>
+          <div class="take-btn"><span>Full breakdown</span><span>›</span></div>
+          <div class="breakdown-panel">
+            <div class="breakdown-label">Expanded · all 4 matches</div>
+            <div class="match-block">
+              <div class="match-title">France vs Senegal (Group I)</div>
+              <div class="match-meta">3:00 PM ET · Total 2.5</div>
+              <div class="match-lean">Lean: Under 2.5</div>
+              <div class="match-why">Senegal low block; France controls but openers stay tight.</div>
+            </div>
+            <div class="match-block">
+              <div class="match-title">Iraq vs Norway (Group I)</div>
+              <div class="match-meta">6:00 PM ET · Total 1.5</div>
+              <div class="match-lean">Lean: Over 1.5</div>
+              <div class="match-why">Norway pushes tempo; Iraq chases if behind.</div>
+            </div>
+            <div class="match-block">
+              <div class="match-title">Argentina vs Algeria (Group J)</div>
+              <div class="match-meta">9:00 PM ET · Total 2.5</div>
+              <div class="match-lean">Lean: Over 2.5</div>
+              <div class="match-why">Higher ceiling — attack pace both ways.</div>
+            </div>
+            <div class="match-block">
+              <div class="match-title">Austria vs Jordan (Group J)</div>
+              <div class="match-meta">9:00 PM ET · Total 2.5</div>
+              <div class="match-lean">Lean: Under 2.5</div>
+              <div class="match-why">Methodical Austria; Jordan compact early.</div>
+            </div>
+          </div>
+        </div>
+        <div class="user">why under on France Senegal?</div>
+        <div class="talk">
+          <span class="talk-label">Reply · optional</span>
+          <div class="talk-body">You're not fading France — slow script, low chance count. (Doesn't re-list the other three games.)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENARIO B: 3-match slate -->
+    <section class="scenario">
+      <div class="scenario-tag">B · 3 matches today</div>
+      <h2>Same pattern — N lines, N blocks</h2>
+      <p class="user-q">User: “goal totals for each match today?”</p>
+      <div class="take-card">
+        <p class="take-intro">Three World Cup matches today:</p>
+        <ul class="slate-list">
+          <li>England vs Ghana<span class="lean"> — lean Under 2.5 goals</span></li>
+          <li>USA vs Australia<span class="lean"> — lean Over 2.5 goals</span></li>
+          <li>Qatar vs Switzerland<span class="lean"> — lean Under 2.5 goals</span></li>
+        </ul>
+        <div class="take-btn"><span>Full breakdown</span><span>›</span></div>
+        <div class="breakdown-panel">
+          <div class="breakdown-label">Expanded · all 3 matches</div>
+          <div class="match-block">
+            <div class="match-title">England vs Ghana</div>
+            <div class="match-lean">Lean: Under 2.5</div>
+            <div class="match-why">…</div>
+          </div>
+          <div class="match-block">
+            <div class="match-title">USA vs Australia</div>
+            <div class="match-lean">Lean: Over 2.5</div>
+            <div class="match-why">…</div>
+          </div>
+          <div class="match-block">
+            <div class="match-title">Qatar vs Switzerland</div>
+            <div class="match-lean">Lean: Under 2.5</div>
+            <div class="match-why">…</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENARIO C: 1 match -->
+    <section class="scenario">
+      <div class="scenario-tag">C · 1 match only</div>
+      <h2>Matchup card — not a list</h2>
+      <p class="user-q">User: “France vs Senegal — worth the under?”</p>
+      <div class="take-card">
+        <div class="matchup-line">France vs Senegal</div>
+        <div class="matchup-lean">Lean: Under 2.5 goals</div>
+        <div class="take-btn"><span>Full breakdown</span><span>›</span></div>
+        <div class="breakdown-panel">
+          <div class="breakdown-label">Expanded · this match only</div>
+          <div class="match-block">
+            <div class="match-title">France vs Senegal (Group I)</div>
+            <div class="match-meta">Kickoff · book total · sim path</div>
+            <div class="match-lean">Lean: Under 2.5 goals</div>
+            <div class="match-why">Full match read — odds, tempo, XI context, why the total is the play.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCENARIO D: weekend -->
+    <section class="scenario">
+      <div class="scenario-tag">D · weekend slate <span class="pill">needs routing in prod</span></div>
+      <h2>Friday 3pm — “goal totals this weekend”</h2>
+      <p class="user-q">User: “provide goal totals across this weekend's slate”</p>
+      <div class="take-card">
+        <p class="take-intro">Six World Cup matches this weekend:</p>
+        <ul class="slate-list">
+          <li>Sat · Match 1<span class="lean"> — lean Over 2.5</span></li>
+          <li>Sat · Match 2<span class="lean"> — lean Under 2.5</span></li>
+          <li>Sat · Match 3<span class="lean"> — lean Under 2.5</span></li>
+          <li>Sun · Match 4<span class="lean"> — lean Over 1.5</span></li>
+          <li>Sun · Match 5<span class="lean"> — lean Under 2.5</span></li>
+          <li>Sun · Match 6<span class="lean"> — lean Over 2.5</span></li>
+        </ul>
+        <div class="take-btn"><span>Full breakdown</span><span>›</span></div>
+        <div class="breakdown-panel">
+          <div class="breakdown-label">Expanded · all 6 — one scroll</div>
+          <div class="match-why" style="margin:0;">Sat + Sun blocks grouped; user never asks six times.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="footer">
+      <strong>If this looks right,</strong> commit would be two chunks:<br />
+      1) Slate list face + full breakdown for today/tomorrow (3–4 match days)<br />
+      2) Weekend window + Talk mode (optional second commit)<br /><br />
+      <strong>Not in this preview:</strong> live data, real Claude, prod routing.
+    </div>
+  </div>
+</body>
+</html>

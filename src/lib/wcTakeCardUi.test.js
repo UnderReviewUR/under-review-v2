@@ -12,6 +12,10 @@ import {
   prepareWcCardFaceDisplay,
   wcLineSlotIsNumericDelta,
   wcTakeCardHasVisibleContent,
+  buildWcSlateListFace,
+  formatWcSlateListLean,
+  pickWcBreakdownLabel,
+  UR_TAKE_FULL_BREAKDOWN_LABEL,
 } from "./wcTakeCardUi.js";
 
 const USA_PAR_DEEP =
@@ -339,4 +343,55 @@ test("wcTakeCardHasVisibleContent — empty structured face is not visible", () 
     }),
     true,
   );
+});
+
+test("buildWcSlateListFace formats multi-match list intro and rows", () => {
+  const face = buildWcSlateListFace({
+    slateDay: "today",
+    angles: [
+      { label: "France vs Senegal", lean: "Under 2.5 goals" },
+      { label: "Iraq vs Norway", lean: "Over 1.5 goals" },
+    ],
+  });
+  assert.ok(face);
+  assert.equal(face.intro, "Two World Cup matches today:");
+  assert.equal(face.rows.length, 2);
+  assert.equal(face.rows[0].lean, "lean Under 2.5 goals");
+});
+
+test("formatWcSlateListLean prefers prediction pick", () => {
+  assert.match(
+    formatWcSlateListLean("Under 2.5", "France to win (+120 ML)"),
+    /France to win/,
+  );
+});
+
+test("pickWcBreakdownLabel tomorrow_slate uses Full breakdown", () => {
+  assert.equal(pickWcBreakdownLabel("tomorrow_slate"), UR_TAKE_FULL_BREAKDOWN_LABEL);
+});
+
+test("prepareWcCardFaceDisplay tomorrow_slate list face hides paragraph why", () => {
+  const face = prepareWcCardFaceDisplay({
+    lean: "4 goal-total leans on today's slate — lead France vs Senegal: Lean Under 2.5 goals",
+    call: "4 goal-total leans — lead France vs Senegal",
+    why: "Today's slate (2026-06-16) — 4 matches. France vs Senegal: Under 2.5",
+    breakdown: `Today's World Cup slate (2026-06-16) — 4 matches
+
+Match: France vs Senegal (Group I)
+Lean: Under 2.5 goals`,
+    breakdownAvailable: true,
+    focusLayout: false,
+    callType: "tomorrow_slate",
+    slateDay: "today",
+    tomorrowSlateAngles: [
+      { label: "France vs Senegal", lean: "Under 2.5 goals" },
+      { label: "England vs Ghana", lean: "Under 2.5 goals" },
+      { label: "USA vs Australia", lean: "Over 2.5 goals" },
+      { label: "Qatar vs Switzerland", lean: "Under 2.5 goals" },
+    ],
+  });
+  assert.ok(face.slateListFace);
+  assert.equal(face.headline, "Four World Cup matches today:");
+  assert.equal(face.sections.why, "");
+  assert.equal(face.breakdownAvailable, true);
 });

@@ -33,8 +33,74 @@ export const UR_TAKE_FULL_BREAKDOWN_LABEL = "Full breakdown";
  */
 export function pickWcBreakdownLabel(callType = "") {
   return String(callType || "").toLowerCase() === "tomorrow_slate"
-    ? UR_TAKE_SLATE_BREAKDOWN_LABEL
+    ? UR_TAKE_FULL_BREAKDOWN_LABEL
     : UR_TAKE_BREAKDOWN_LABEL;
+}
+
+const WC_SLATE_COUNT_WORDS = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+];
+
+/**
+ * @param {string} lean
+ * @param {string} [predictionPick]
+ */
+export function formatWcSlateListLean(lean, predictionPick) {
+  const pick = String(predictionPick || "").trim();
+  if (pick) return pick;
+  const raw = String(lean || "")
+    .replace(/^lean:\s*/i, "")
+    .replace(/^pass on ml\s*[—-]\s*/i, "")
+    .trim();
+  if (!raw) return "";
+  if (/^lean\b/i.test(raw)) return raw;
+  return `lean ${raw}`;
+}
+
+/**
+ * Scannable list face for multi-match WC slates.
+ * @param {{
+ *   angles?: Array<{ label?: string, lean?: string, predictionPick?: string | null }>,
+ *   slateDay?: "today" | "tomorrow" | string,
+ *   fixtureCount?: number,
+ * }} opts
+ * @returns {{ intro: string, rows: Array<{ label: string, lean: string }> } | null}
+ */
+export function buildWcSlateListFace(opts = {}) {
+  const angles = Array.isArray(opts.angles) ? opts.angles : [];
+  const count = angles.length || Number(opts.fixtureCount) || 0;
+  if (count < 2) return null;
+
+  const slateDay = opts.slateDay === "tomorrow" ? "tomorrow" : "today";
+  const countWord =
+    count > 0 && count < WC_SLATE_COUNT_WORDS.length
+      ? WC_SLATE_COUNT_WORDS[count]
+      : String(count);
+  const intro = `${countWord.charAt(0).toUpperCase()}${countWord.slice(1)} World Cup ${
+    count === 1 ? "match" : "matches"
+  } ${slateDay}:`;
+
+  const rows = angles
+    .map((a) => {
+      const label = String(a?.label || "").trim();
+      const lean = formatWcSlateListLean(a?.lean, a?.predictionPick);
+      if (!label) return null;
+      return { label, lean };
+    })
+    .filter(Boolean);
+
+  if (rows.length < 2) return null;
+  return { intro, rows };
 }
 
 /** Collapsed thread teaser only — active card face shows full why. */
@@ -468,6 +534,7 @@ export function pickWcCardHeadline(opts = {}) {
  * @param {{ headline?: string, sections?: { why?: string, watchFor?: string, thePlay?: string }, breakdownText?: string, breakdownAvailable?: boolean, modelAttribution?: string | null, statSlots?: object[], predictionSlots?: object[] }} opts
  */
 export function wcTakeCardHasVisibleContent(opts = {}) {
+  if (opts.slateListFace?.rows?.length) return true;
   const headline = String(opts.headline || "").trim();
   if (headline && headline !== "—" && headline !== "—.") return true;
   const sections = opts.sections || {};
@@ -555,7 +622,16 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const fullDeep = String(opts.breakdown || "").trim();
   const lineSlot = String(opts.lineSlot || "").trim();
 
-  const headline = pickWcCardHeadline({
+  const slateListFace =
+    selfContainedSlateBreakdown
+      ? buildWcSlateListFace({
+          angles: opts.tomorrowSlateAngles,
+          slateDay: opts.slateDay,
+          fixtureCount: opts.tomorrowFixtureCount,
+        })
+      : null;
+
+  let headline = pickWcCardHeadline({
     lean: opts.lean,
     call: opts.call,
     why: fullWhy,
@@ -565,6 +641,9 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     question: opts.question,
     callType: opts.callType,
   });
+  if (slateListFace) {
+    headline = slateListFace.intro;
+  }
 
   const playerMarketCt =
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
@@ -572,9 +651,11 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const numberedPropList = playerMarketCt && /^\s*\d+\.\s+/m.test(leanStr);
 
   const whyFace =
-    focusLayout && numberedPropList
-      ? sanitizeWcUserFacingProse(fullWhy || leanStr)
-      : fullWhy;
+    slateListFace
+      ? ""
+      : focusLayout && numberedPropList
+        ? sanitizeWcUserFacingProse(fullWhy || leanStr)
+        : fullWhy;
 
   const watchFace = focusLayout ? "" : fullWatch;
 
@@ -645,6 +726,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
 
   return {
     headline,
+    slateListFace,
     sections: {
       why: whyFace,
       watchFor: watchFace,

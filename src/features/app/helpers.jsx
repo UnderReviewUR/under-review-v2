@@ -1755,6 +1755,24 @@ function coerceStructuredForUrTakeCard(raw) {
       raw.auditFootnote != null && String(raw.auditFootnote).trim()
         ? String(raw.auditFootnote).trim()
         : null,
+    tomorrowSlateAngles: Array.isArray(raw.tomorrowSlateAngles)
+      ? raw.tomorrowSlateAngles
+          .filter((a) => a && typeof a === "object")
+          .map((a) => ({
+            label: String(a.label ?? "").trim(),
+            lean: String(a.lean ?? "").trim(),
+            predictionPick:
+              a.predictionPick != null && String(a.predictionPick).trim()
+                ? String(a.predictionPick).trim()
+                : null,
+          }))
+          .filter((a) => a.label)
+      : [],
+    slateDay: raw.slateDay != null ? String(raw.slateDay) : null,
+    tomorrowFixtureCount:
+      typeof raw.tomorrowFixtureCount === "number" && Number.isFinite(raw.tomorrowFixtureCount)
+        ? raw.tomorrowFixtureCount
+        : null,
   };
 }
 
@@ -1973,6 +1991,7 @@ function UrTakeAiBubble({
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const hideTakeExtras = Boolean(focusSession);
+  const isTalkBubble = String(m.deliveryMode || "").toLowerCase() === "talk";
   const dockFollowUps = getFollowUpSuggestions(m, userQuestion, buildUrTakeHistoryFromMsgs(msgs, msgIndex));
   const summaryText = stripEmbeddedFollowUpQuestions(
     stripLeadingUrTakeDisclaimersForDisplay(m.text),
@@ -2071,6 +2090,18 @@ function UrTakeAiBubble({
             onUrTakeRetry={onUrTakeRetry}
             onUpgradePromptClick={onUpgradePromptClick}
           />
+        </div>
+      </>
+    );
+  }
+
+  if (isTalkBubble) {
+    return (
+      <>
+        {m.image && <img src={m.image} alt="" className="bubble-img" />}
+        <div className="ur-talk-bubble-wrap">
+          <span className="ur-talk-bubble-label">Reply</span>
+          <div className="ur-talk-bubble-body">{renderMessage(summaryText)}</div>
         </div>
       </>
     );
@@ -2191,6 +2222,9 @@ function UrTakeAiBubble({
             cardCollapsed={cardCollapsed}
             modelAttribution={s.modelAttribution}
             auditFootnote={s.auditFootnote}
+            tomorrowSlateAngles={s.tomorrowSlateAngles}
+            slateDay={s.slateDay}
+            tomorrowFixtureCount={s.tomorrowFixtureCount}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

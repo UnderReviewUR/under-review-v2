@@ -78,6 +78,7 @@ export default function WcTakeCard({
   fallbackSummary = "",
   auditFootnote = "",
   callType = "",
+  slateListFace = null,
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
   const [fullBreakdownExpanded, setFullBreakdownExpanded] = useState(false);
@@ -109,6 +110,7 @@ export default function WcTakeCard({
     modelAttribution,
     statSlots,
     predictionSlots: slots,
+    slateListFace,
   });
   const fallbackBody = String(fallbackSummary || "").trim();
 
@@ -166,7 +168,25 @@ export default function WcTakeCard({
         </div>
       ) : null}
 
-      {headline ? <WcPlayHeadline text={headline} focusLayout={effectiveFocusLayout} /> : null}
+      {headline && !slateListFace?.rows?.length ? (
+        <WcPlayHeadline text={headline} focusLayout={effectiveFocusLayout} />
+      ) : null}
+
+      {slateListFace?.rows?.length ? (
+        <div className="wc-take-slate-list-face">
+          <p className="wc-take-slate-list-intro">{slateListFace.intro}</p>
+          <ul className="wc-take-slate-list">
+            {slateListFace.rows.map((row) => (
+              <li key={row.label} className="wc-take-slate-list-item">
+                <span className="wc-take-slate-list-match">{row.label}</span>
+                {row.lean ? (
+                  <span className="wc-take-slate-list-lean"> — {row.lean}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {effectiveFocusLayout && sections?.why ? (
         <p className="wc-take-context-line">{sections.why}</p>

@@ -5,6 +5,8 @@ import { releaseUrTakeGateQuotaIfNeeded } from "./gateQuotaLifecycle.js";
 import { tryUrTakeEarlyPaths } from "./earlyPaths.js";
 import { tryDeliverWcPrebuiltFastPath } from "./wcPrebuiltFastPath.js";
 import { tryDeliverWcPlayerPropsFastPath } from "./wcPlayerPropsFastPath.js";
+import { tryDeliverUrTakeTalk } from "./talkDelivery.js";
+import { resolveUrTakeDeliveryMode } from "../../shared/urTakeDeliveryMode.js";
 import { resolveMlbDecisionMode } from "./mlb/decisionMode.js";
 import { contextJsonForModel } from "./prompt/contextJson.js";
 import { extractAnthropicText } from "./prompt/anthropicText.js";
@@ -3255,6 +3257,38 @@ export default async function handler(req, res) {
       }
     }
   }
+
+  if (
+    resolveUrTakeDeliveryMode({
+      sportHint,
+      wcIntent,
+      question: routingQuestion,
+      history: normalizedUrTakeHistoryForGate,
+      isConversationFollowUp,
+      hasImage,
+    }) === "talk"
+  ) {
+    const talkDelivered = await tryDeliverUrTakeTalk({
+      res,
+      requestId,
+      question: String(question || ""),
+      history: normalizedUrTakeHistoryForGate,
+      sportHint,
+      wcIntent,
+      anthropicApiKey: ANTHROPIC_API_KEY,
+      anthropicModel: ANTHROPIC_MODEL,
+      gateQuotaEmail,
+      gateQuotaSessionId,
+      setGateQuotaDelivered: (v) => {
+        gateQuotaDelivered = v;
+      },
+    });
+    if (talkDelivered.handled) {
+      await releaseUrTakeGateQuotaIfNeeded(gateQuotaReservation, gateQuotaDelivered);
+      return;
+    }
+  }
+
   if (sportHint === "worldcup") {
     const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath({
       sportHint,

@@ -104,6 +104,9 @@ export default function URTakeResponse({
   showWcCautionBanner = true,
   modelAttribution = null,
   auditFootnote = null,
+  tomorrowSlateAngles = null,
+  slateDay = null,
+  tomorrowFixtureCount = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -390,6 +393,9 @@ export default function URTakeResponse({
       lineSlot: lineSlotValue,
       callType,
       question: userQuestion,
+      tomorrowSlateAngles: Array.isArray(tomorrowSlateAngles) ? tomorrowSlateAngles : [],
+      slateDay: slateDay || null,
+      tomorrowFixtureCount,
     });
     const wcSections = {
       ...wcFace.sections,
@@ -422,6 +428,7 @@ export default function URTakeResponse({
         focusLayout={focusLayout}
         collapsed={cardCollapsed}
         callType={callType}
+        slateListFace={wcFace.slateListFace}
         modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
         auditFootnote={auditFootnote}
         breakdownDefaultExpanded={

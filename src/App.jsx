@@ -2234,6 +2234,8 @@ ${themeCss}
     const structuredRaw = structuredPayloadFromApi(data);
     const wcIntentFromApi = String(data.wcIntent || "").toUpperCase();
     const resolvedWcIntent = resolveWcIntentForBubble(text, wcIntentFromApi);
+    const isTalkDelivery = String(data.deliveryMode || "").toLowerCase() === "talk";
+
     let structuredForBubble = structuredRaw
       ? sanitizeStructuredBubbleShape(structuredRaw, {
           wcIntent: resolvedWcIntent,
@@ -2243,6 +2245,10 @@ ${themeCss}
             String(data.nbaRelevance?.focusedGamePhase || "").toLowerCase() === "live",
         })
       : null;
+
+    if (isTalkDelivery) {
+      structuredForBubble = null;
+    }
 
     const snagPhrase = "The feed hit a snag on that one";
     const isApiSuccessFallback =
@@ -2413,6 +2419,7 @@ ${themeCss}
       deepText: normalizedDisplay.responseDeep,
       ...(data.dataConfidence ? { dataConfidence: data.dataConfidence } : {}),
       ...(structuredForBubble ? { structured: structuredForBubble } : {}),
+      ...(isTalkDelivery ? { deliveryMode: "talk" } : {}),
       ...(data.estimatedEdge && typeof data.estimatedEdge === "object"
         ? { estimatedEdge: data.estimatedEdge }
         : {}),

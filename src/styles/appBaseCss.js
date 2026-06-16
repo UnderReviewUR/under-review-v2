@@ -2321,6 +2321,28 @@ export const baseCss = `
   }
   .ur-take-ai-panel--visual{padding:0;margin-bottom:12px;}
   .bubble.ai{margin-left:0;margin-right:0;max-width:none;width:100%;background:var(--surface);border:1px solid var(--border);color:var(--soft);border-bottom-left-radius:6px;box-sizing:border-box;}
+  .ur-talk-bubble-wrap{
+    width:100%;
+    padding:12px 14px;
+    background:rgba(12,14,20,0.92);
+    border:1px solid rgba(0,245,233,0.22);
+    border-radius:12px 12px 12px 4px;
+    box-sizing:border-box;
+  }
+  .ur-talk-bubble-label{
+    display:inline-block;
+    margin-bottom:8px;
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:1.6px;
+    text-transform:uppercase;
+    color:rgba(0,245,233,0.65);
+  }
+  .ur-talk-bubble-body{
+    font-size:15px;
+    line-height:1.55;
+    color:var(--soft);
+  }
   /* Host is toggled in helpers.jsx when the thread renders URTakeResponse — beats theme .bubble.ai without :has(). */
   .app .bubble.ai.ur-take-response-bubble-host{
     max-width:none;
@@ -3503,6 +3525,35 @@ export const baseCss = `
     letter-spacing:0.02em;margin:0 0 12px;padding:0 16px;color:var(--text);
     overflow-wrap:break-word;word-break:break-word;
   }
+  .wc-take-slate-list-face{
+    margin:0 0 12px;
+    padding:0 16px;
+  }
+  .wc-take-slate-list-intro{
+    margin:0 0 10px;
+    font-family:var(--display-font);
+    font-size:15px;
+    font-weight:600;
+    line-height:1.35;
+    color:var(--text);
+  }
+  .wc-take-slate-list{
+    margin:0;
+    padding:0;
+    list-style:none;
+  }
+  .wc-take-slate-list-item{
+    font-size:14px;
+    line-height:1.5;
+    padding:6px 0;
+    border-bottom:1px solid rgba(26,31,46,0.85);
+    color:var(--soft);
+    overflow-wrap:break-word;
+    word-break:break-word;
+  }
+  .wc-take-slate-list-item:last-child{border-bottom:none;padding-bottom:0;}
+  .wc-take-slate-list-match{font-weight:500;color:var(--text);}
+  .wc-take-slate-list-lean{color:#b8c0d4;}
   .wc-take-stat-grid{margin-bottom:4px;}
   .wc-take-row{
     margin-bottom:12px;padding:0 16px 12px;border-bottom:1px solid var(--border-2);
