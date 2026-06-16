@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMatchDetailMeta, buildStaticGroupsFallback, mergeWcLiveScorePatches } from "./_wcData.js";
+import {
+  buildMatchDetailMeta,
+  buildStaticGroupsFallback,
+  mergeWcLiveScorePatches,
+  shouldCheckWcLiveScores,
+} from "./_wcData.js";
 
 test("buildStaticGroupsFallback returns 12 groups with corrected teams", () => {
   const groups = buildStaticGroupsFallback();
@@ -87,4 +92,71 @@ test("mergeWcLiveScorePatches matches BDL id when ESPN event id differs", () => 
   );
   assert.equal(changed, true);
   assert.equal(matches[0].homeScore, 1);
+});
+
+test("shouldCheckWcLiveScores runs before KV marks a fixture live at kickoff", () => {
+  const kickoff = Date.parse("2026-06-16T01:00:00.000Z"); // 9pm ET Jun 15
+  const nowMs = kickoff + 10 * 60 * 1000;
+  const kv = {
+    matches: [
+      {
+        id: 16,
+        homeTeam: "IRN",
+        awayTeam: "NZL",
+        status: "NS",
+        date: "2026-06-16",
+        time: "01:00",
+        commenceTs: kickoff,
+      },
+    ],
+  };
+  assert.equal(shouldCheckWcLiveScores(kv, nowMs), true);
+});
+
+test("shouldCheckWcLiveScores skips far-future scheduled fixtures", () => {
+  const nowMs = Date.parse("2026-06-15T18:00:00-04:00");
+  const kv = {
+    matches: [
+      {
+        id: 38,
+        homeTeam: "BEL",
+        awayTeam: "IRN",
+        status: "NS",
+        date: "2026-06-21",
+        time: "19:00",
+        commenceTs: Date.parse("2026-06-21T23:00:00Z"),
+      },
+    ],
+  };
+  assert.equal(shouldCheckWcLiveScores(kv, nowMs), false);
+});
+
+test("mergeWcLiveScorePatches promotes NS to live by team pair when dates differ", () => {
+  const { matches, changed } = mergeWcLiveScorePatches(
+    [
+      {
+        id: 16,
+        homeTeam: "IRN",
+        awayTeam: "NZL",
+        date: "2026-06-16",
+        homeScore: null,
+        awayScore: null,
+        status: "NS",
+      },
+    ],
+    [
+      {
+        homeTeam: "IRN",
+        awayTeam: "NZL",
+        date: "2026-06-15",
+        homeScore: 0,
+        awayScore: 0,
+        status: "live",
+      },
+    ],
+  );
+  assert.equal(changed, true);
+  assert.equal(matches[0].status, "live");
+  assert.equal(matches[0].homeScore, 0);
+  assert.equal(matches[0].awayScore, 0);
 });

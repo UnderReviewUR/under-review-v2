@@ -37,7 +37,12 @@ import { sanitizeWcTournamentWinnerOutrights } from "../shared/wc2026OutrightOdd
 import { scrapeAllWcOutrightsAggregators } from "./_wcScrapeOutrightsAggregators.js";
 import { WC_OUTRIGHTS_AGGREGATOR_COUNT } from "../shared/wcOutrightsAggregatorRegistry.js";
 import { deriveWcDataConfidence } from "../shared/wcDataConfidence.js";
-import { resolveWcMatchEtDate, wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
+import {
+  resolveWcMatchEtDate,
+  resolveWcMatchKickoffMs,
+  wcMatchDatesIncludeYmd,
+  wcTodayEtYmd,
+} from "../shared/wcKickoffDisplay.js";
 import {
   fetchOpenFootballWc2026Schedule,
   validateEspnScheduleAgainstOpenFootball,
@@ -62,6 +67,38 @@ function isWcLiveMatchStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
 }
 
+const WC_PRE_KICKOFF_CHECK_MS = 15 * 60 * 1000;
+const WC_POST_KICKOFF_CHECK_MS = 4 * 60 * 60 * 1000;
+
+function isWcScheduledLikeStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
+}
+
+/**
+ * Whether to hit BDL/ESPN for live score patches — not only when KV already says live.
+ * @param {Record<string, unknown> | null | undefined} kv
+ * @param {number} [nowMs]
+ */
+export function shouldCheckWcLiveScores(kv, nowMs = Date.now()) {
+  if (!kv?.matches?.length) return false;
+  const todayEt = wcTodayEtYmd(nowMs);
+  for (const m of kv.matches) {
+    if (isWcLiveMatchStatus(m.status)) return true;
+    if (!isWcScheduledLikeStatus(m.status)) continue;
+    if (!wcMatchDatesIncludeYmd(m, todayEt)) continue;
+    const kickoff = resolveWcMatchKickoffMs(m);
+    if (!Number.isFinite(kickoff)) return true;
+    if (
+      kickoff <= nowMs + WC_PRE_KICKOFF_CHECK_MS &&
+      kickoff >= nowMs - WC_POST_KICKOFF_CHECK_MS
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Patch today's ESPN scoreboard rows onto the cached match list (scores + status only).
  * @param {Array<Record<string, unknown>>} matches
@@ -71,12 +108,16 @@ export function mergeWcLiveScorePatches(matches, patches) {
   const patchById = new Map();
   const patchByBdlId = new Map();
   const patchByFixtureKey = new Map();
+  const patchByPairKey = new Map();
   for (const p of patches || []) {
     if (!p) continue;
     if (p.id != null) patchById.set(String(p.id), p);
     if (p.bdlMatchId != null) patchByBdlId.set(String(p.bdlMatchId), p);
     if (p.homeTeam && p.awayTeam && p.date) {
       patchByFixtureKey.set(`${p.homeTeam}-${p.awayTeam}-${p.date}`, p);
+    }
+    if (p.homeTeam && p.awayTeam) {
+      patchByPairKey.set(`${p.homeTeam}-${p.awayTeam}`, p);
     }
   }
   let changed = false;
@@ -87,6 +128,9 @@ export function mergeWcLiveScorePatches(matches, patches) {
       (m?.bdlMatchId != null ? patchByBdlId.get(String(m.bdlMatchId)) : null) ||
       (m?.homeTeam && m?.awayTeam && m?.date
         ? patchByFixtureKey.get(`${m.homeTeam}-${m.awayTeam}-${m.date}`)
+        : null) ||
+      (m?.homeTeam && m?.awayTeam
+        ? patchByPairKey.get(`${m.homeTeam}-${m.awayTeam}`)
         : null);
     if (!patch) return m;
     const next = {
@@ -116,8 +160,9 @@ export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
   if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
     return { kv, refreshed: false, checked: false, source: "balldontlie" };
   }
-  const hasLive = kv.matches.some((m) => isWcLiveMatchStatus(m.status));
-  if (!hasLive) return { kv, refreshed: false, checked: false, source: "balldontlie" };
+  if (!shouldCheckWcLiveScores(kv, nowMs)) {
+    return { kv, refreshed: false, checked: false, source: "balldontlie" };
+  }
 
   const lastCheck = Number(kv.liveCheckedAt || kv.lastUpdated || 0);
   if (nowMs - lastCheck < WC_LIVE_SCORE_CHECK_INTERVAL_MS) {
@@ -126,6 +171,17 @@ export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
 
   const nextCheckedAt = nowMs;
   const todayEt = wcTodayEtYmd(nowMs);
+  // #region agent log
+  console.log(
+    JSON.stringify({
+      event: "wc_live_score_check",
+      source: "balldontlie",
+      todayEt,
+      hypothesisId: "H1",
+      sessionId: "925a15",
+    }),
+  );
+  // #endregion
   const res = await bdlFifaFetch("/matches", { "seasons[]": 2026, per_page: 100 });
   if (!res.ok) {
     const throttled = { ...kv, liveCheckedAt: nextCheckedAt };
@@ -136,7 +192,10 @@ export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
   const rows = Array.isArray(res.data?.data) ? res.data.data : [];
   const patches = rows
     .map((row) => normalizeBdlFifaMatchRow(row, nowMs))
-    .filter((norm) => norm && (norm.date === todayEt || isWcLiveMatchStatus(norm.status)))
+    .filter(
+      (norm) =>
+        norm && (wcMatchDatesIncludeYmd(norm, todayEt) || isWcLiveMatchStatus(norm.status)),
+    )
     .map((norm) => ({
       id: norm.id,
       bdlMatchId: norm.bdlMatchId,
@@ -178,8 +237,9 @@ export async function refreshWcLiveScores(kv, nowMs = Date.now()) {
   if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
     return { kv, refreshed: false, checked: false };
   }
-  const hasLive = kv.matches.some((m) => isWcLiveMatchStatus(m.status));
-  if (!hasLive) return { kv, refreshed: false, checked: false };
+  if (!shouldCheckWcLiveScores(kv, nowMs)) {
+    return { kv, refreshed: false, checked: false };
+  }
 
   if (isWcGoatPrimaryEnabled() && isWcBdlSource(kv?.source)) {
     const bdl = await refreshWcLiveScoresFromBdl(kv, nowMs);
@@ -200,8 +260,9 @@ export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now(), opts =
   if (!kv?.matches?.length || !isWcTournamentWindow(nowMs)) {
     return { kv, refreshed: false, checked: false };
   }
-  const hasLive = kv.matches.some((m) => isWcLiveMatchStatus(m.status));
-  if (!hasLive) return { kv, refreshed: false, checked: false };
+  if (!shouldCheckWcLiveScores(kv, nowMs)) {
+    return { kv, refreshed: false, checked: false };
+  }
 
   const lastCheck = Number(kv.liveCheckedAt || kv.lastUpdated || 0);
   if (!opts.force && nowMs - lastCheck < WC_LIVE_SCORE_CHECK_INTERVAL_MS) {
@@ -209,6 +270,17 @@ export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now(), opts =
   }
 
   const ymd = wcTodayEtYmd(nowMs).replace(/-/g, "");
+  // #region agent log
+  console.log(
+    JSON.stringify({
+      event: "wc_live_score_check",
+      source: "espn",
+      ymd,
+      hypothesisId: "H1",
+      sessionId: "925a15",
+    }),
+  );
+  // #endregion
   const board = await fetchEspnScoreboardForDate(ymd);
   const nextCheckedAt = nowMs;
   if (!board.ok) {
