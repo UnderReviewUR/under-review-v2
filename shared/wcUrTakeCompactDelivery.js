@@ -933,6 +933,19 @@ function buildWcCompactStructuredBody(opts = {}) {
     };
   }
 
+  if (
+    seed?.callType === "matchup" &&
+    seed?.call &&
+    /\bto win\b/i.test(String(seed.call)) &&
+    seed?.lean
+  ) {
+    const seedDeep = String(seed.deep || deepRaw).trim();
+    return {
+      ...seed,
+      deep: capWcDeepWords(seedDeep || deep, 220),
+    };
+  }
+
   if (wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP) {
     return buildWcPredictionsRoundupStructured({
       summary,

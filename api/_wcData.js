@@ -171,17 +171,6 @@ export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
 
   const nextCheckedAt = nowMs;
   const todayEt = wcTodayEtYmd(nowMs);
-  // #region agent log
-  console.log(
-    JSON.stringify({
-      event: "wc_live_score_check",
-      source: "balldontlie",
-      todayEt,
-      hypothesisId: "H1",
-      sessionId: "925a15",
-    }),
-  );
-  // #endregion
   const res = await bdlFifaFetch("/matches", { "seasons[]": 2026, per_page: 100 });
   if (!res.ok) {
     const throttled = { ...kv, liveCheckedAt: nextCheckedAt };
@@ -270,17 +259,6 @@ export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now(), opts =
   }
 
   const ymd = wcTodayEtYmd(nowMs).replace(/-/g, "");
-  // #region agent log
-  console.log(
-    JSON.stringify({
-      event: "wc_live_score_check",
-      source: "espn",
-      ymd,
-      hypothesisId: "H1",
-      sessionId: "925a15",
-    }),
-  );
-  // #endregion
   const board = await fetchEspnScoreboardForDate(ymd);
   const nextCheckedAt = nowMs;
   if (!board.ok) {

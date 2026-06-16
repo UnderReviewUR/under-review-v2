@@ -8,6 +8,7 @@ import { buildWcGroupSlatePrebuiltStructured } from "./wcGroupComposition.js";
 import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
 import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { buildWcLiveMatchWinnerPrebuiltStructured } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_CARD_CONTRACT_GOLDEN_CASES } from "./wcCardContractGolden.fixture.js";
 
 test("buildWcCompactStructured — explain history sets breakdownDefaultExpanded", () => {
@@ -319,4 +320,52 @@ test("buildWcCompactStructured — group_slate seed preserves auditFootnote", ()
     },
   });
   assert.equal(compact.auditFootnote, footnote);
+});
+
+test("buildWcCompactStructured — live match-winner prebuilt seed passthrough under GENERAL", () => {
+  const seed = buildWcLiveMatchWinnerPrebuiltStructured({
+    home: "IRN",
+    away: "NZL",
+    question: "Who wins?",
+    match: {
+      homeTeam: "IRN",
+      awayTeam: "NZL",
+      homeScore: 1,
+      awayScore: 1,
+      status: "live",
+      minute: 45,
+      group: "G",
+      odds: {
+        home: { moneyline: "+125" },
+        away: { moneyline: "+380" },
+        draw: { moneyline: "+210" },
+      },
+    },
+  });
+  assert.ok(seed?.call?.includes("to win"));
+
+  const compact = buildWcCompactStructured({
+    question: "Who wins?",
+    wcIntent: WC_INTENT.GENERAL,
+    summary: `Lean: ${seed.call}`,
+    deep: null,
+    structuredSeed: seed,
+    history: [
+      { role: "user", content: "Best live angle on IRN vs NZL right now?" },
+      {
+        role: "assistant",
+        structured: {
+          callType: "matchup",
+          fixtureHome: "IRN",
+          fixtureAway: "NZL",
+          call: "Iran +180 to win",
+          lean: "Iran +180 to win",
+        },
+      },
+    ],
+  });
+
+  assert.match(compact.lean, /to win/i);
+  assert.doesNotMatch(compact.lean, /no actionable line/i);
+  assert.equal(compact.call, seed.call);
 });
