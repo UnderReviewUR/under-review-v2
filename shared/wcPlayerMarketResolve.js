@@ -27,6 +27,9 @@ import {
   buildWcPlayerPropPassHeadline,
   isGenericWcPlayerPropQuestion,
   isWcFixturePlayerPropsQuestion,
+  isWcPerTeamPlayerPropsQuestion,
+  extractWcPerTeamPlayerPropCount,
+  prefersWcFixtureScorerIntelFallback,
   repairWcPlayerPropPassCard,
   finalizeWcPlayerPropStructured,
   isWcFixtureScopedPlayerMarketQuestion,
@@ -343,7 +346,8 @@ export function buildWcFixtureScorerIntelStructured(question, tier, kvBlocks, wc
   const numbered = picks
     .slice(0, 5)
     .map((r, i) => {
-      const oddsBit = r.americanOdds ? ` ${r.americanOdds}` : "";
+      const oddsBit =
+        r.americanOdds && r.note !== "PK taker" ? ` ${r.americanOdds}` : "";
       return `${i + 1}. ${r.name} (${r.nationAbbr})${oddsBit} — ${r.note}`;
     })
     .join("\n");
@@ -359,7 +363,7 @@ export function buildWcFixtureScorerIntelStructured(question, tier, kvBlocks, wc
       fixtureAway: away,
       call: `${lead.name} — top scoring path (${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)})`,
       lean: numbered,
-      whyNow: `Anytime scorer lines are not posted for this fixture yet — UR ranks ${lead.name} first on PK duty and tournament scoring role.`,
+      whyNow: `Match anytime scorer board not in feed yet — UR ranks ${lead.name} first on PK duty and tournament scoring role until prices post.`,
       edge:
         lead.americanOdds && picks[1]
           ? `Alt: ${picks[1].name} ${picks[1].americanOdds || ""}`.trim()
@@ -417,28 +421,53 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
     byTeam.away = rows.filter((r) => !byTeam.home.includes(r));
   }
 
+  const perTeamAsk = isWcPerTeamPlayerPropsQuestion(question);
+  const perSide = perTeamAsk ? extractWcPerTeamPlayerPropCount(question) : 3;
+  const homePicks = byTeam.home.slice(0, perSide);
+  const awayPicks = byTeam.away.slice(0, perSide);
+
   /** @type {typeof rows} */
-  const picked = [];
-  const perSide = 3;
-  for (let i = 0; i < perSide && i < byTeam.home.length; i += 1) picked.push(byTeam.home[i]);
-  for (let i = 0; i < perSide && i < byTeam.away.length; i += 1) picked.push(byTeam.away[i]);
+  const picked = [...homePicks, ...awayPicks];
   if (picked.length < 2) {
     for (const r of rows) {
-      if (picked.length >= 5) break;
+      if (picked.length >= perSide * 2) break;
       if (!picked.includes(r)) picked.push(r);
     }
   }
   if (picked.length < 2) return null;
   if (!eventPayload || !isMatchPlayerPropsFresh(eventPayload)) return null;
 
-  const numbered = picked
-    .slice(0, 5)
-    .map((r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`)
-    .join("\n");
-  const lead = picked[0];
-  const meta = tierMetaFor(tier);
   const homeAbbr = String(eventPayload?.homeTeam || teams[0] || "").toUpperCase();
   const awayAbbr = String(eventPayload?.awayTeam || teams[1] || "").toUpperCase();
+  const homeLabel = wcMatchupTeamDisplayName(homeAbbr);
+  const awayLabel = wcMatchupTeamDisplayName(awayAbbr);
+
+  let numbered;
+  if (perTeamAsk && homePicks.length && awayPicks.length) {
+    const homeLines = homePicks.map(
+      (r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`,
+    );
+    const awayLines = awayPicks.map(
+      (r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`,
+    );
+    numbered = [
+      `${homeLabel} (${homeAbbr})`,
+      ...homeLines,
+      `${awayLabel} (${awayAbbr})`,
+      ...awayLines,
+    ].join("\n");
+  } else {
+    numbered = picked
+      .slice(0, perSide * 2)
+      .map((r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`)
+      .join("\n");
+  }
+
+  const lead = picked[0];
+  const meta = tierMetaFor(tier);
+  const call = perTeamAsk
+    ? `${perSide} props per side — ${homeLabel} vs ${awayLabel}`
+    : `${lead.name} anytime scorer ${lead.americanOdds}`;
 
   return {
     sport: "worldcup",
@@ -447,7 +476,7 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
     wcEventId: eventId || undefined,
     fixtureHome: homeAbbr,
     fixtureAway: awayAbbr,
-    call: `${lead.name} anytime scorer ${lead.americanOdds}`,
+    call,
     lean: numbered,
     whyNow: `Posted anytime scorer lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)}.`,
     edge:
@@ -618,7 +647,9 @@ export function resolveWcPlayerMarketAnswer(
   });
   const wcContextWithHistory = { ...wcContext, conversationHistory: history, requiredEntities: fixtureTeams };
   const fixtureIntelStructured =
-    fixturePlayerProps && !freshMatchProps
+    fixturePlayerProps &&
+    !freshMatchProps &&
+    prefersWcFixtureScorerIntelFallback(questionStr)
       ? buildWcFixtureScorerIntelStructured(questionStr, tier, kvBlocks, wcContextWithHistory)
       : null;
   const forcePass =

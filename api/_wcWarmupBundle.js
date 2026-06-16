@@ -14,6 +14,8 @@ import { scrapeAndCacheWcPlayers } from "./_wcPlayersData.js";
 import { scrapeAndCacheWcInjuries } from "./_wcInjuriesData.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcBdlStandingsAndFixtures, scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
+import { readWcMatchesFromKv } from "./_wcData.js";
+import { warmWcBdlMatchPlayerPropsForMatches } from "./_wcBdlMatchPropsWarm.js";
 
 /**
  * @param {string} [kind] — all | golden_boot | sim | outrights | standings | players
@@ -57,6 +59,12 @@ export async function runWcWarmupBundle(kind = "all", nowMs = Date.now()) {
   }
   if (k === "all" || k === "injuries") {
     await run("injuries", () => scrapeAndCacheWcInjuries());
+  }
+  if ((k === "all" || k === "match_props" || k === "match_player_props") && isWcGoatPrimaryEnabled()) {
+    await run("match_player_props", async () => {
+      const kv = await readWcMatchesFromKv(nowMs);
+      return warmWcBdlMatchPlayerPropsForMatches(kv?.matches || [], nowMs, { maxMatches: 48 });
+    });
   }
 
   const ok = Object.values(results).every((r) => r && typeof r === "object" && r.ok !== false);

@@ -28,9 +28,11 @@ import {
   WC_STANDINGS_SCRAPE_INTERVAL_MS,
   WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026Constants.js";
+import { hasWcBdlApiKey } from "../shared/wcBdlPolicy.js";
 import {
   WC_GOLDEN_BOOT_SCRAPE_INTERVAL_MS,
   WC_INJURIES_SCRAPE_INTERVAL_MS,
+  WC_MATCH_PROPS_WARM_INTERVAL_MS,
   WC_PLAYERS_SCRAPE_INTERVAL_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import { GOAL_EDITORIAL_SCRAPE_INTERVAL_MS } from "./_goalBettingData.js";
@@ -449,6 +451,15 @@ export async function collectWcScrapeTargets(nowMs = Date.now()) {
     priority: WC_SCRAPE_PRIORITY.TOURNAMENT_SIM,
     meta: { kind: "tournament_sim", fixedIntervalMs: WC_TOURNAMENT_SIM_SCRAPE_INTERVAL_MS },
   });
+  if (hasWcBdlApiKey()) {
+    out.push({
+      sport: "wc_match_props",
+      gameId: "bdl_match_props_warm",
+      gameStartMs: noonEtMs,
+      priority: WC_SCRAPE_PRIORITY.PLAYERS,
+      meta: { kind: "match_player_props", fixedIntervalMs: WC_MATCH_PROPS_WARM_INTERVAL_MS },
+    });
+  }
   const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
   const matches = Array.isArray(kv?.matches) ? kv.matches : [];
   const hasRealFixtures = matches.some((m) => m?.id != null && !String(m.id).startsWith("wc-promo-"));

@@ -12,7 +12,11 @@ import {
   isWcGenericPlayerPropSubjectName,
   isWcPlayerMarketIntent,
 } from "./wcUrTakePlayerMarket.js";
-import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
+import { getVerdictFollowUpChips, getVerdictNextLine } from "./wcUrTakeVerdict.js";
+import {
+  prependWcTakeAwareFollowUpChips,
+  resolveWcTakeAwareNextLine,
+} from "./wcTakeAwareFollowUps.js";
 import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
 import { wcGroupLetterForTeam } from "./wcGroupComposition.js";
 import {
@@ -322,7 +326,18 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
  * @param {object | null | undefined} message
  * @param {string} [userQuestion]
  */
-export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
+export function resolveWcFollowUpNextLine(verdict, message, userQuestion = "") {
+  const base = getVerdictNextLine(verdict);
+  return resolveWcTakeAwareNextLine(base, message, userQuestion) || base;
+}
+
+/**
+ * @param {import("./wcUrTakeVerdict.js").WcUrTakeVerdict} verdict
+ * @param {object | null | undefined} message
+ * @param {string} [userQuestion]
+ * @param {object[]} [history]
+ */
+export function mergeWcFollowUpChips(verdict, message, userQuestion = "", history = []) {
   const q = String(userQuestion || message?.userQuestion || "").trim();
   const wcIntent = String(message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "");
   const blob = [
@@ -350,7 +365,7 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
       out.push(s);
       if (out.length >= 3) break;
     }
-    return out;
+    return prependWcTakeAwareFollowUpChips(out, message, q, history);
   }
 
   const context = getWcContextFollowUpChips(message, userQuestion);
@@ -367,5 +382,5 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "") {
     out.push(s);
     if (out.length >= 3) break;
   }
-  return out;
+  return prependWcTakeAwareFollowUpChips(out, message, q, history);
 }

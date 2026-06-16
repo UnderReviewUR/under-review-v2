@@ -15,7 +15,16 @@ import {
   isWcPlayerMarketIntent,
 } from "./wcUrTakePlayerMarket.js";
 
-/** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"GROUP_SLATE"|"GENERAL"} WcUrTakeVerdict */
+/** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"RULES_FACTUAL"|"MATCHUP"|"PLAYER_MARKET_PASS"|"PLAYER_MARKET_POSTED"|"GROUP_SLATE"|"GENERAL"} WcUrTakeVerdict */
+
+/**
+ * @param {object | null | undefined} structured
+ */
+function hasPostedWcMatchPlayerProps(structured) {
+  if (!structured || typeof structured !== "object") return false;
+  if (/Posted anytime scorer lines/i.test(String(structured.whyNow || ""))) return true;
+  return /^\s*\d+\.\s+.+anytime scorer\s+[+-]\d+/im.test(String(structured.lean || ""));
+}
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value|no actionable)\b/i;
@@ -122,9 +131,11 @@ export function classifyWcVerdictForUi(message, userQuestion = "") {
     callType === "player_market_squad" ||
     callType === "player_market_verified"
   ) {
+    if (hasPostedWcMatchPlayerProps(s)) return "PLAYER_MARKET_POSTED";
     return "PLAYER_MARKET_PASS";
   }
   if (isWcPlayerMarketIntent(wcIntent)) {
+    if (hasPostedWcMatchPlayerProps(s)) return "PLAYER_MARKET_POSTED";
     return "PLAYER_MARKET_PASS";
   }
   if (wcIntent === WC_INTENT.MATCHUP || callType === "matchup") {
@@ -195,6 +206,12 @@ export function getVerdictFollowUpChips(verdict) {
         "Best group stage bet?",
         "Who lifts the trophy?",
       ];
+    case "PLAYER_MARKET_POSTED":
+      return [
+        "4 player parlay for this matchup?",
+        "Who wins this matchup?",
+        "Over or under goals?",
+      ];
     case "GROUP_SLATE":
       return [
         "Which group is the runner-up value?",
@@ -223,6 +240,8 @@ export function getVerdictNextLine(verdict) {
       return "Next: what's the clearest angle on this matchup?";
     case "PLAYER_MARKET_PASS":
       return "Next: try a team or group angle while lineups are pending.";
+    case "PLAYER_MARKET_POSTED":
+      return "Next: build a parlay around the top lean.";
     case "GROUP_SLATE":
       return "Next: what would need to change for this group pick?";
     default:

@@ -783,6 +783,44 @@ export function isWcFixturePlayerPropsQuestion(question) {
   return /\b(vs\.?|versus)\b/i.test(q);
 }
 
+/**
+ * User wants N props listed per side (e.g. "3 top player props from each team").
+ * @param {string} question
+ */
+export function isWcPerTeamPlayerPropsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q || !/\bplayer props?\b/i.test(q)) return false;
+  return /\b(?:from |for |on )?each team\b/i.test(q);
+}
+
+/**
+ * @param {string} question
+ * @param {number} [defaultCount]
+ */
+export function extractWcPerTeamPlayerPropCount(question, defaultCount = 3) {
+  const q = String(question || "").trim();
+  const m = q.match(/\b(\d+)\s+(?:top\s+)?player props?\s+(?:from\s+)?each team\b/i);
+  if (m) return Math.min(5, Math.max(1, parseInt(m[1], 10)));
+  if (isWcPerTeamPlayerPropsQuestion(q)) return defaultCount;
+  return defaultCount;
+}
+
+/**
+ * Role/scorer intel when match lines are missing — not generic "what player props?" asks.
+ * @param {string} question
+ */
+export function prefersWcFixtureScorerIntelFallback(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (isGenericWcPlayerPropQuestion(q) && !WC_FIXTURE_PLAYER_MARKET_ASK_RE.test(q)) {
+    return false;
+  }
+  return (
+    WC_FIXTURE_PLAYER_MARKET_ASK_RE.test(q) ||
+    (isWcFixtureScopedPlayerMarketQuestion(q) && !isGenericWcPlayerPropQuestion(q))
+  );
+}
+
 const WC_FIXTURE_PLAYER_MARKET_ASK_RE =
   /\b(?:most likely to score|likely (?:goal)?scorers?|who(?:'s| is|'ll| will)?\s+(?:most likely to )?score|score from each team|scorer from each|each team.{0,48}(?:score|scorer)|lead.{0,28}(?:team.{0,20})?(?:in )?pass|pass leader|most passes|key passes)\b/i;
 

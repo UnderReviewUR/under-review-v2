@@ -3,6 +3,8 @@
  * Elo stays internal; model sees strength tags only.
  */
 
+import { getTodayStr } from "./ur-take/prompt/today.js";
+import { wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
 import { getDurableJson } from "./_durableStore.js";
 import { readWcMatchDetailFromKv, readWcOutrightsFromKv, refreshWcLiveScores } from "./_wcData.js";
 import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
@@ -536,12 +538,16 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     "WORLD CUP 2026 — VERIFIED CONTEXT (use for all answers; do not claim missing tournament data)",
     `Tournament: ${ctx.tournament}`,
     `Hosts: ${(ctx.hosts || []).join(", ")}`,
+    `Today (US Eastern): ${ctx.todayEt || getTodayStr()}`,
     `Dates: ${ctx.dateRange}`,
     `Phase: ${phase}`,
+    ctx.completedGroupMatches != null
+      ? `Group-stage matches completed: ${ctx.completedGroupMatches}`
+      : null,
     "",
     formatWorldCupPhaseRules(phase),
     "",
-  ];
+  ].filter((line) => line !== null);
 
   if (ctx.knockoutAppendix) {
     lines.push(ctx.knockoutAppendix, "");
@@ -1111,8 +1117,13 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     groupMispriceTopGroups,
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
+    todayEt: getTodayStr(),
+    todayEtYmd: wcTodayEtYmd(nowMs),
     dateRange: "June 11 — July 19, 2026",
     phase,
+    completedGroupMatches: matches.filter((m) =>
+      /^(ft|final|finished)$/i.test(String(m?.status || "").trim()),
+    ).length,
     wcIntent,
     requiredEntities: mentionedTeams,
     conversationHistory: Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [],

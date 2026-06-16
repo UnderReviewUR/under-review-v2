@@ -28,6 +28,7 @@ import {
   WC_OUTRIGHTS_KV_KEY,
 } from "../shared/wc2026Constants.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
+import { warmWcBdlMatchPlayerPropsForMatches } from "./_wcBdlMatchPropsWarm.js";
 
 const PREFETCH_STEP_TIMEOUT_MS = 4000;
 
@@ -133,6 +134,15 @@ export async function prefetchWcGoatDataForUrTake(nowMs = Date.now(), opts = {})
     const r = await scrapeAndCacheWcOutrights();
     await scrapeAndCacheWcBdlGoatSeed().catch(() => null);
     return { refreshed: Boolean(r?.ok), sourceTier: r?.sourceTier || r?.source || null };
+  });
+
+  await runStep("bdl_match_player_props_warm", async () => {
+    const matchesKv = await getDurableJson(WC_MATCHES_KV_KEY);
+    const matches = Array.isArray(matchesKv?.matches) ? matchesKv.matches : [];
+    if (!matches.length) {
+      return { skipped: true, reason: "no_matches" };
+    }
+    return warmWcBdlMatchPlayerPropsForMatches(matches, nowMs, { maxMatches: 12 });
   });
 
   await runStep("bdl_golden_boot_probe", async () => {

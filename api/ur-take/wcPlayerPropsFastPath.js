@@ -19,7 +19,10 @@ import {
 } from "../../shared/wcPlayerMarketResolve.js";
 import {
   finalizeWcPlayerPropStructured,
+  isGenericWcPlayerPropQuestion,
   isWcFixtureScopedPlayerMarketQuestion,
+  isWcPerTeamPlayerPropsQuestion,
+  prefersWcFixtureScorerIntelFallback,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { resolveWcFixturePairFromHistory } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
@@ -169,7 +172,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       conversationHistory: history,
       requiredEntities: fixtureTeams.length >= 2 ? fixtureTeams : wcRequiredEntities,
     },
-    { maxRetries: 3, backoffMs: 600, timeoutMs: 6500 },
+    { maxRetries: 2, backoffMs: 400 },
   );
 
   const loadMeta = kvBlocks.loadMeta || {
@@ -243,7 +246,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
-  if (!structuredResponse) {
+  if (!structuredResponse && prefersWcFixtureScorerIntelFallback(routingQ)) {
     structuredResponse = buildWcFixtureScorerIntelStructured(
       String(question || ""),
       tier,
@@ -256,17 +259,20 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   }
 
   if (!structuredResponse) {
-    const loadFailed = Boolean(loadMeta.failed);
     const hasEvent = Boolean(resolvedEventId);
-    if (!hasEvent || loadFailed) {
+    const genericPropsAsk =
+      isGenericWcPlayerPropQuestion(routingQ) ||
+      isWcPerTeamPlayerPropsQuestion(routingQ);
+    if (hasEvent && (genericPropsAsk || !loadMeta.failed)) {
+      structuredResponse = buildWcPlayerPropsLoadingStructured(
+        String(question || ""),
+        pinned,
+        resolvedEventId,
+      );
+      passKind = "player_props_loading";
+    } else if (!hasEvent || loadMeta.failed) {
       return { handled: false };
     }
-    structuredResponse = buildWcPlayerPropsLoadingStructured(
-      String(question || ""),
-      pinned,
-      resolvedEventId,
-    );
-    passKind = "player_props_loading";
   }
 
   structuredResponse = finalizeWcPlayerPropStructured(structuredResponse, String(question || ""));

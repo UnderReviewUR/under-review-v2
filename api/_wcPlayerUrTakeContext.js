@@ -140,7 +140,9 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
 }
 
 const MATCH_PROPS_MEMORY_CACHE = new Map();
-const MATCH_PROPS_MEMORY_CACHE_TTL_MS = 10 * 60 * 1000;
+/** GOAT: short TTL — BDL is live source; KV is write-through cache only. */
+const MATCH_PROPS_MEMORY_CACHE_TTL_MS = 90 * 1000;
+const MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS = 14_000;
 
 /**
  * @param {object | null | undefined} kvBlocks
@@ -196,13 +198,13 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
   opts = {},
   retryOpts = {},
 ) {
-  const maxRetries = retryOpts.maxRetries ?? 3;
-  const backoffMs = retryOpts.backoffMs ?? 600;
-  const timeoutMs = retryOpts.timeoutMs ?? 6500;
+  const maxRetries = retryOpts.maxRetries ?? (isWcGoatPrimaryEnabled() ? 2 : 3);
+  const backoffMs = retryOpts.backoffMs ?? 400;
+  const timeoutMs = retryOpts.timeoutMs ?? (isWcGoatPrimaryEnabled() ? MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS : 6500);
   const start = Date.now();
   const eventIdHint = String(opts.wcEventId || "").trim();
 
-  if (eventIdHint) {
+  if (eventIdHint && !isWcGoatPrimaryEnabled()) {
     const cached = readMatchPropsMemoryCache(eventIdHint);
     if (cached && wcPlayerMarketKvBlocksAreUsable(cached, { ...opts, wcEventId: eventIdHint, nowMs })) {
       return {

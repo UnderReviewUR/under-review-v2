@@ -176,6 +176,33 @@ const WC_PLAYER_PROP_RE =
 
 const WC_WHO_WILL_SCORE_RE = /\bwho will score\b/i;
 
+/**
+ * Tournament-wide top scorer — not fixture/match player props.
+ * @param {string} question
+ */
+export function isWcTournamentTopScorerQuestion(question) {
+  const q = String(question || "").trim();
+  const ql = q.toLowerCase();
+  if (!q) return false;
+  if (WC_GOLDEN_BOOT_RE.test(ql)) return true;
+  if (/\b(player props?|anytime scorer|this match|this game|this fixture|tonight'?s? match)\b/i.test(ql)) {
+    return false;
+  }
+  if (/\b(vs\.?|versus)\b/i.test(ql) && extractMentionedWcTeams(q).length >= 2) return false;
+  if (/\b(world cup|the tournament|this tournament|in the cup|wc 2026|tournament)\b/i.test(ql)) {
+    return (
+      WC_TOP_SCORER_RE.test(ql) ||
+      WC_WHO_WILL_SCORE_RE.test(ql) ||
+      /\b(goal scorer|score more goals|score the most goals)\b/i.test(ql)
+    );
+  }
+  if (/\bscore the most goals\b/i.test(ql)) return true;
+  if (WC_TOP_SCORER_RE.test(ql) && /\bmost goals\b/i.test(ql) && !/\b(match|game|fixture|tonight)\b/i.test(ql)) {
+    return true;
+  }
+  return false;
+}
+
 /** Match total goals O/U — not a player-prop ask. */
 const WC_MATCH_TOTALS_RE =
   /\b(?:over|under)\s+\d+(?:\.\d+)?(?:\s+goals?)?\b|\bgoals?\s+(?:over|under)\s+\d+(?:\.\d+)?\b|\b(?:hit|reach|see)\s+over\s+\d+(?:\.\d+)?(?:\s+goals?)?\b/i;
@@ -262,9 +289,7 @@ export function classifyWcPlayerMarketIntent(question) {
   if (WC_GOLDEN_BOOT_RE.test(ql)) return WC_INTENT.GOLDEN_BOOT;
   if (WC_GOLDEN_GLOVE_RE.test(ql)) return WC_INTENT.GOLDEN_GLOVE;
   if (/\b(which player|what player)\b/i.test(ql)) return WC_INTENT.PLAYER_PROP;
-  if (WC_TOP_SCORER_RE.test(ql)) return WC_INTENT.TOP_SCORER;
-  if (WC_WHO_WILL_SCORE_RE.test(ql)) return WC_INTENT.TOP_SCORER;
-  if (/\b(goal scorer|score more goals)\b/i.test(ql)) return WC_INTENT.TOP_SCORER;
+  if (isWcTournamentTopScorerQuestion(q)) return WC_INTENT.TOP_SCORER;
 
   if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
 

@@ -48,12 +48,11 @@ import {
   wcDataConfidenceChipLabel,
   wcDataConfidenceNeedsCaution,
 } from "../../../shared/wcDataConfidence.js";
-import { mergeWcFollowUpChips } from "../../../shared/wcUrTakeFollowUps.js";
+import { mergeWcFollowUpChips, resolveWcFollowUpNextLine } from "../../../shared/wcUrTakeFollowUps.js";
 import { inferWorldCupFromPlayerMarketQuestion } from "../../../shared/wcUrTakeKeywords.js";
 import { isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion, isWcPlayerMarketIntent } from "../../../shared/wcUrTakePlayerMarket.js";
 import {
   classifyWcVerdictForUi,
-  getVerdictNextLine,
   isWcStructuredPlayerMarketCard,
   resolveWcIntentFromMessage,
   resolveWcVerdictFromQuestion,
@@ -1054,8 +1053,18 @@ function polishFollowUpList(list) {
   return list.map((t) => polishUrTakeFollowUpPhrase(String(t || "").trim())).filter(Boolean).slice(0, 3);
 }
 
+/** @param {object[]} msgs @param {number} msgIndex */
+function buildUrTakeHistoryFromMsgs(msgs, msgIndex) {
+  if (!Array.isArray(msgs) || msgIndex <= 0) return [];
+  return msgs.slice(0, msgIndex).map((row) => ({
+    role: row?.role === "user" ? "user" : "assistant",
+    content: row?.text || "",
+    structured: row?.structured,
+  }));
+}
+
 /** Prefer API followUps when present; otherwise derive three chips from answer text (parlay / O-U / slate / default). */
-export function getFollowUpSuggestions(message, userQuestion = "") {
+export function getFollowUpSuggestions(message, userQuestion = "", conversationHistory = []) {
   const apiRaw = Array.isArray(message?.followUps) ? message.followUps : [];
   const api = apiRaw.map((t) => String(t).trim()).filter(Boolean);
 
@@ -1069,7 +1078,7 @@ export function getFollowUpSuggestions(message, userQuestion = "") {
 
   if (treatAsWorldCup) {
     const verdict = resolveWcVerdictFromQuestion(q, message);
-    const merged = mergeWcFollowUpChips(verdict, message, q);
+    const merged = mergeWcFollowUpChips(verdict, message, q, conversationHistory);
     if (api.length >= 2) {
       return polishFollowUpList(mergeFollowUpChips(api.slice(0, 3), merged).slice(0, 3));
     }
@@ -1155,7 +1164,11 @@ export function getLastAiFollowUpDockSource(msgs) {
   for (let i = msgs.length - 1; i >= 0; i--) {
     const m = msgs[i];
     if (!m || m.loading || m.role !== "ai") continue;
-    const followUps = getFollowUpSuggestions(m, resolvePriorUserQuestionForAi(msgs, i));
+    const followUps = getFollowUpSuggestions(
+      m,
+      resolvePriorUserQuestionForAi(msgs, i),
+      buildUrTakeHistoryFromMsgs(msgs, i),
+    );
     return {
       msgId: m.msgId,
       followUps,
@@ -1646,15 +1659,16 @@ function wcStructuredFallbackSummaryText(structured, summaryText) {
 }
 
 /** Inline continuation nudge after a completed UR Take (all answer shapes). */
-function UrTakeNextContinuationLine({ message = null, userQuestion = "" }) {
+function UrTakeNextContinuationLine({ message = null, userQuestion = "", conversationHistory = [] }) {
   const sport = String(message?.sport || message?.urTakeTelemetry?.sport || "").toLowerCase();
   const q = String(userQuestion || message?.userQuestion || "").trim();
   const line =
     sport === "worldcup"
-      ? getVerdictNextLine(resolveWcVerdictFromQuestion(q, message))
+      ? resolveWcFollowUpNextLine(resolveWcVerdictFromQuestion(q, message), message, userQuestion)
       : sport === "nba"
         ? getNbaVerdictNextLine(resolveNbaVerdictFromQuestion(q, message))
         : "Next: what's one thing that could break this?";
+  void conversationHistory;
   return <p className="ur-take-next-line">{line}</p>;
 }
 
@@ -1959,7 +1973,7 @@ function UrTakeAiBubble({
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const hideTakeExtras = Boolean(focusSession);
-  const dockFollowUps = getFollowUpSuggestions(m, userQuestion);
+  const dockFollowUps = getFollowUpSuggestions(m, userQuestion, buildUrTakeHistoryFromMsgs(msgs, msgIndex));
   const summaryText = stripEmbeddedFollowUpQuestions(
     stripLeadingUrTakeDisclaimersForDisplay(m.text),
     dockFollowUps,
@@ -2029,7 +2043,13 @@ function UrTakeAiBubble({
             userQuestion={nbaFinalsCardProps.userQuestion}
           />
         </UrTakeSectionErrorBoundary>
-        {!hideTakeExtras ? <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} /> : null}
+        {!hideTakeExtras ? (
+          <UrTakeNextContinuationLine
+            message={m}
+            userQuestion={userQuestion}
+            conversationHistory={buildUrTakeHistoryFromMsgs(msgs, msgIndex)}
+          />
+        ) : null}
         {!hideTakeExtras ? wcConfidenceChip : null}
         {!hideTakeExtras ? trustChips : null}
         {!hideTakeExtras ? betSignalRow : null}
@@ -2182,7 +2202,13 @@ function UrTakeAiBubble({
           onViewWcMatch={onViewWcMatch}
           message={m}
         />
-        {!hideTakeExtras ? <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} /> : null}
+        {!hideTakeExtras ? (
+          <UrTakeNextContinuationLine
+            message={m}
+            userQuestion={userQuestion}
+            conversationHistory={buildUrTakeHistoryFromMsgs(msgs, msgIndex)}
+          />
+        ) : null}
         {!hideTakeExtras ? wcConfidenceChip : null}
         {!hideTakeExtras ? trustChips : null}
         {!hideTakeExtras ? betSignalRow : null}
@@ -2224,7 +2250,11 @@ function UrTakeAiBubble({
             })}
           </div>
         </div>
-        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
+        <UrTakeNextContinuationLine
+          message={m}
+          userQuestion={userQuestion}
+          conversationHistory={buildUrTakeHistoryFromMsgs(msgs, msgIndex)}
+        />
         {wcConfidenceChip}
         {trustChips}
         {betSignalRow}
@@ -2252,7 +2282,11 @@ function UrTakeAiBubble({
             <UrTakeShareButton headline={plainHeadline} bodyChunks={[summaryText]} />
           </div>
         </div>
-        <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} />
+        <UrTakeNextContinuationLine
+          message={m}
+          userQuestion={userQuestion}
+          conversationHistory={buildUrTakeHistoryFromMsgs(msgs, msgIndex)}
+        />
         {wcConfidenceChip}
         {trustChips}
         {showTrack ? (
@@ -2350,7 +2384,13 @@ function UrTakeAiBubble({
             confidence={parsed.confidence}
             compactBubble={true}
           />
-          {!hideTakeExtras ? <UrTakeNextContinuationLine message={m} userQuestion={userQuestion} /> : null}
+          {!hideTakeExtras ? (
+          <UrTakeNextContinuationLine
+            message={m}
+            userQuestion={userQuestion}
+            conversationHistory={buildUrTakeHistoryFromMsgs(msgs, msgIndex)}
+          />
+        ) : null}
 
           {(m.deepText || showTrack) && (
             <div

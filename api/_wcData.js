@@ -743,6 +743,15 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
       console.warn("[wc-match-bundle] sim refresh after FT failed:", simErr?.message || simErr);
     }
     try {
+      if (isWcGoatPrimaryEnabled()) {
+        await scrapeAndCacheWcBdlStandingsAndFixtures().catch(() => null);
+      } else {
+        await scrapeAndCacheWcStandingsAndFixtures().catch(() => null);
+      }
+    } catch (standingsErr) {
+      console.warn("[wc-match-bundle] standings refresh after FT failed:", standingsErr?.message || standingsErr);
+    }
+    try {
       const detail = await readWcMatchDetailFromKv(id);
       if (detail) {
         const { cacheWcMatchAdvancedStatsFromDetail } = await import("./_wcMatchAdvancedStats.js");

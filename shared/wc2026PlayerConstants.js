@@ -84,6 +84,9 @@ export const WC_PLAYERS_SCRAPE_INTERVAL_MS = 12 * 60 * 60 * 1000;
 
 export const WC_GOLDEN_BOOT_SCRAPE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
+/** Cron: BDL match player props warm for all upcoming NS fixtures (GOAT). */
+export const WC_MATCH_PROPS_WARM_INTERVAL_MS = 10 * 60 * 1000;
+
 
 
 /** Cron: injuries aggregator. */
