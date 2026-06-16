@@ -12,6 +12,7 @@ import {
   runWcCardContractSingleTurnGate,
   runWcCardContractThreadGate,
 } from "../shared/wcCardContractGate.js";
+import { runWcFanReliabilityAudit } from "../shared/wcFanReliabilityAudit.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -54,7 +55,16 @@ const totalPass = single.pass + thread.pass;
 const totalFail = single.fail + thread.fail;
 console.log(`\n${totalPass}/${totalPass + totalFail} gate checks passed`);
 
-if (totalFail > 0) {
+console.log("\n=== Fan reliability audit (session failure modes) ===\n");
+const fan = runWcFanReliabilityAudit();
+for (const row of fan.rows) {
+  console.log(
+    `${row.ok ? "PASS" : "FAIL"}  ${row.id.padEnd(42)} ${row.ok ? "" : row.issues.join(", ")}`,
+  );
+}
+console.log(`\n${fan.pass}/${fan.pass + fan.fail} fan reliability checks passed`);
+
+if (totalFail > 0 || fan.fail > 0) {
   console.error("\nWC Card Contract gate FAILED");
   process.exitCode = 1;
 } else {

@@ -22,6 +22,7 @@
     "audit:wc-card-contract:live:threads": "node scripts/run-wc-card-contract-live-threads.mjs",
     "audit:wc-card-contract:handler:threads": "node scripts/run-wc-card-contract-handler-threads.mjs",
     "audit:wc-card-contract:pre-release": "node scripts/run-wc-card-contract-gate.mjs",
+    "audit:wc-fan-reliability": "node scripts/run-wc-fan-reliability-audit.mjs",
     "verify:wc-outrights": "node scripts/verify-wc-outrights-alignment.mjs",
     "format": "prettier --write \"src/**/*.{js,jsx}\" \"api/**/*.js\" \"scripts/**/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{js,jsx}\" \"api/**/*.js\"",

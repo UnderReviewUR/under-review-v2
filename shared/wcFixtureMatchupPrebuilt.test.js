@@ -12,6 +12,9 @@ import {
   shouldUseWcFixtureMatchupPrebuilt,
   shouldUseWcLiveBetTimingPrebuilt,
   buildWcLiveBetTimingPrebuiltStructured,
+  shouldUseWcLiveMatchWinnerPrebuilt,
+  buildWcLiveMatchWinnerPrebuiltStructured,
+  pickWcLiveMatchWinnerCall,
 } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
@@ -572,5 +575,86 @@ test("4 player parlay for named fixture does not use matchup prebuilt", () => {
       ],
     }),
     false,
+  );
+});
+
+const IRN_NZL_LIVE = {
+  id: 16,
+  homeTeam: "IRN",
+  awayTeam: "NZL",
+  homeScore: 0,
+  awayScore: 1,
+  status: "live",
+  minute: 7,
+  group: "G",
+  odds: {
+    home: { moneyline: "-130" },
+    away: { moneyline: "+425" },
+    draw: { moneyline: "+225" },
+  },
+};
+
+test("shouldUseWcLiveMatchWinnerPrebuilt for live who wins", () => {
+  const q = "Who wins IRN vs NZL?";
+  assert.ok(
+    shouldUseWcLiveMatchWinnerPrebuilt(q, WC_INTENT.MATCHUP, {
+      hasKvFixture: true,
+      match: IRN_NZL_LIVE,
+    }),
+  );
+  assert.ok(
+    !shouldUseWcLiveMatchWinnerPrebuilt("Best live angle on IRN vs NZL right now?", WC_INTENT.MATCHUP, {
+      hasKvFixture: true,
+      match: IRN_NZL_LIVE,
+    }),
+  );
+  assert.ok(
+    !shouldUseWcFixtureMatchupPrebuilt(q, WC_INTENT.MATCHUP, {
+      hasKvFixture: true,
+      match: IRN_NZL_LIVE,
+    }),
+  );
+});
+
+test("buildWcLiveMatchWinnerPrebuiltStructured leans score leader ML", () => {
+  const structured = buildWcLiveMatchWinnerPrebuiltStructured({
+    home: "IRN",
+    away: "NZL",
+    question: "Who wins IRN vs NZL?",
+    match: IRN_NZL_LIVE,
+  });
+  assert.ok(structured);
+  assert.match(structured.call, /New Zealand \+425 to win/i);
+  assert.doesNotMatch(structured.lean, /both teams to advance/i);
+  assert.match(structured.whyNow, /leads 1-0/i);
+});
+
+test("pickWcLiveMatchWinnerCall uses pre-match favorite when level", () => {
+  const call = pickWcLiveMatchWinnerCall({
+    home: "MEX",
+    away: "RSA",
+    homeMl: "-240",
+    awayMl: "+650",
+    homeScore: 0,
+    awayScore: 0,
+  });
+  assert.match(call, /Mexico.*-240 to win/i);
+});
+
+test("shouldUseWcLiveMatchWinnerPrebuilt for thread follow-up who wins", () => {
+  const history = [
+    { role: "user", content: "Best live angle on IRN vs NZL right now?" },
+    {
+      role: "assistant",
+      structured: { fixtureHome: "IRN", fixtureAway: "NZL", callType: "matchup" },
+    },
+  ];
+  assert.ok(
+    shouldUseWcLiveMatchWinnerPrebuilt("Who wins?", WC_INTENT.MATCHUP, {
+      isConversationFollowUp: true,
+      history,
+      hasKvFixture: true,
+      match: IRN_NZL_LIVE,
+    }),
   );
 });

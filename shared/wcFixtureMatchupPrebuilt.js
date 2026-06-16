@@ -613,6 +613,187 @@ export function buildWcLiveBetTimingPrebuiltStructured(opts = {}) {
   };
 }
 
+/** @param {Record<string, unknown> | null | undefined} match */
+export function isWcLiveFixtureForMatchWinner(match) {
+  if (!match || typeof match !== "object") return false;
+  if (isWcLiveMatchStatus(match.status)) return true;
+  const hs = Number(match.homeScore);
+  const as = Number(match.awayScore);
+  return Number.isFinite(hs) && Number.isFinite(as) && hs + as > 0;
+}
+
+/**
+ * Live in-play "who wins" / vs — match ML only (never group-advance futures).
+ * @param {string} question
+ * @param {string} [wcIntent]
+ * @param {{
+ *   isConversationFollowUp?: boolean,
+ *   wcRunnerUpFollowUpQuestion?: boolean,
+ *   mentionedTeams?: string[],
+ *   wcEventId?: string | null,
+ *   hasKvFixture?: boolean,
+ *   match?: Record<string, unknown> | null,
+ *   history?: Array<unknown>,
+ * }} [opts]
+ */
+export function shouldUseWcLiveMatchWinnerPrebuilt(question, wcIntent, opts = {}) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (opts.wcRunnerUpFollowUpQuestion) return false;
+  if (WC_LIVE_ANGLE_RE.test(q) || isWcLiveDominanceQuestion(q)) return false;
+  if (isWcLiveBetTimingQuestion(q)) return false;
+  if (isWcMatchupAltMarketFollowUp(q)) return false;
+  if (isWcMatchProbabilityQuestion(q)) return false;
+  if (detectParlayIntent(q) || detectWcSgpComboIntent(q)) return false;
+  if (isWcPlayerMarketIntent(wcIntent)) return false;
+  if (shouldUseWcCrossGroupValuePrebuilt(q, wcIntent)) return false;
+  if (shouldUseWcGroupSlatePrebuilt(q, wcIntent)) return false;
+  if (
+    isWcAdvancementMarketQuestion(q) &&
+    !/\b(vs\.?|versus|who wins|match winner|moneyline)\b/i.test(q)
+  ) {
+    return false;
+  }
+  if (!isWcMatchWinnerQuestion(q) && !isWcMoneylineBestBetQuestion(q)) return false;
+
+  const pair =
+    resolveWcFixturePairFromQuestion(q, {
+      mentionedTeams: opts.mentionedTeams,
+      wcEventId: opts.wcEventId,
+    }) || (opts.isConversationFollowUp ? resolveWcFixturePairFromHistory(opts.history) : null);
+  if (!pair?.home || !pair?.away) return false;
+  if (opts.match && !isWcLiveFixtureForMatchWinner(opts.match)) return false;
+  if (opts.wcEventId || opts.hasKvFixture) return true;
+  return isWcPromoFixturePair(pair.home, pair.away);
+}
+
+/**
+ * @param {{
+ *   home: string,
+ *   away: string,
+ *   homeMl: string,
+ *   awayMl: string,
+ *   homeScore?: number | null,
+ *   awayScore?: number | null,
+ *   minute?: number | string | null,
+ * }} row
+ */
+export function pickWcLiveMatchWinnerCall(row) {
+  const home = String(row.home || "").trim().toUpperCase();
+  const away = String(row.away || "").trim().toUpperCase();
+  const homeMl = String(row.homeMl || "").trim();
+  const awayMl = String(row.awayMl || "").trim();
+  const hs = Number(row.homeScore);
+  const as = Number(row.awayScore);
+
+  if (Number.isFinite(hs) && Number.isFinite(as) && hs !== as) {
+    const leader =
+      hs > as
+        ? { abbr: home, odds: homeMl, name: wcMatchupTeamDisplayName(home) }
+        : { abbr: away, odds: awayMl, name: wcMatchupTeamDisplayName(away) };
+    if (leader.odds) return `${leader.name} ${leader.odds} to win`;
+  }
+
+  const fav = pickMlFavorite(homeMl, awayMl, home, away);
+  return `${wcMatchupTeamDisplayName(fav.abbr)} ${fav.odds} to win`;
+}
+
+/**
+ * @param {{
+ *   homeName: string,
+ *   awayName: string,
+ *   homeScore?: number | null,
+ *   awayScore?: number | null,
+ *   minute?: number | string | null,
+ * }} row
+ */
+export function buildWcLiveMatchWinnerWhyNow(row) {
+  const hs = Number(row.homeScore);
+  const as = Number(row.awayScore);
+  const minute =
+    row.minute != null && String(row.minute).trim() !== "" ? String(row.minute).trim() : null;
+  const minSuffix = minute ? ` after ${minute}${String(minute).includes("'") ? "" : "'"} minutes` : " live";
+
+  if (Number.isFinite(hs) && Number.isFinite(as)) {
+    if (hs === as) {
+      return `${row.homeName} and ${row.awayName} are level ${hs}-${as}${minSuffix} — this is a match-winner lean, not a group-advance futures play.`;
+    }
+    const leader = hs > as ? row.homeName : row.awayName;
+    const trailer = hs > as ? row.awayName : row.homeName;
+    return `${leader} leads ${Math.max(hs, as)}-${Math.min(hs, as)}${minSuffix}; ${trailer} needs a goal to flip the script.`;
+  }
+  return `Match is live — lean from the posted moneyline for this fixture, not group-stage futures.`;
+}
+
+/**
+ * @param {{
+ *   home: string,
+ *   away: string,
+ *   group?: string,
+ *   question?: string,
+ *   match?: Record<string, unknown> | null,
+ *   simLastUpdated?: number | null,
+ *   nowMs?: number,
+ * }} opts
+ */
+export function buildWcLiveMatchWinnerPrebuiltStructured(opts = {}) {
+  const home = String(opts.home || "").trim().toUpperCase();
+  const away = String(opts.away || "").trim().toUpperCase();
+  const match = opts.match && typeof opts.match === "object" ? opts.match : null;
+  if (!home || !away || !match || !isWcLiveFixtureForMatchWinner(match)) return null;
+
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const seedOdds = getWcFixtureMlSeed(home, away);
+  const matchOdds =
+    match.odds && typeof match.odds === "object" ? match.odds : seedOdds;
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+  if (!homeMl || !awayMl) return null;
+
+  const hs = Number(match.homeScore);
+  const as = Number(match.awayScore);
+  const call = pickWcLiveMatchWinnerCall({
+    home,
+    away,
+    homeMl,
+    awayMl,
+    homeScore: hs,
+    awayScore: as,
+    minute: match.minute,
+  });
+  const whyNow = buildWcLiveMatchWinnerWhyNow({
+    homeName,
+    awayName,
+    homeScore: hs,
+    awayScore: as,
+    minute: match.minute,
+  });
+  const scoreLine =
+    Number.isFinite(hs) && Number.isFinite(as) ? `${hs}-${as}` : "live";
+  const deep = `Live match winner only — score ${scoreLine}. Group-advance futures and "both teams advance" are a different market.`;
+
+  return {
+    sport: "worldcup",
+    callType: "matchup",
+    groupLetter: String(opts.group || match.group || "").trim().toUpperCase() || undefined,
+    fixtureHome: home,
+    fixtureAway: away,
+    lean: call.slice(0, 120),
+    call: call.slice(0, 100),
+    line: "",
+    deep,
+    breakdownAvailable: true,
+    breakdownDefaultExpanded: false,
+    whyNow,
+    edge: "Watch for red cards or VAR — live ML moves fast after either.",
+    modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
+    confidence: "Medium",
+    caveats: [],
+    timestamp: new Date().toISOString(),
+  };
+}
+
 /**
  * @param {string} question
  * @param {string} [wcIntent]
