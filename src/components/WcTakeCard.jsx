@@ -3,13 +3,17 @@ import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 import { extractWcMatchupPlayHeadline } from "../../shared/wcMatchupWinnerLine.js";
-import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, UR_TAKE_BREAKDOWN_LABEL, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
+import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, pickWcBreakdownLabel, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
   if (!raw) return null;
-  const playHeadline = extractWcMatchupPlayHeadline(raw);
+  const isSlateSummary =
+    /\d+\s+(?:goal-total|spread)\s+leans?\b/i.test(raw) ||
+    /\d+\s+angles?\s+on\b/i.test(raw) ||
+    /\d+\s+match predictions?\b/i.test(raw);
+  const playHeadline = isSlateSummary ? "" : extractWcMatchupPlayHeadline(raw);
   const body = (playHeadline || raw.replace(/^pass on ml\s*[—-]\s*/i, "")).replace(/^lean:\s*/i, "").trim();
   const isPass = /^pass/i.test(body) || /^fade/i.test(body);
   if (focusLayout) {
@@ -73,6 +77,7 @@ export default function WcTakeCard({
   breakdownDefaultExpanded = false,
   fallbackSummary = "",
   auditFootnote = "",
+  callType = "",
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
   const [fullBreakdownExpanded, setFullBreakdownExpanded] = useState(false);
@@ -85,6 +90,7 @@ export default function WcTakeCard({
   const deepFull = String(breakdownTextFull || breakdownText || "").trim();
   const deepPreview = String(breakdownText || "").trim();
   const showBreakdownToggle = Boolean(breakdownAvailable && deepFull);
+  const breakdownLabel = pickWcBreakdownLabel(callType);
   const breakdownBody =
     fullBreakdownExpanded || !breakdownTruncated ? deepFull : deepPreview;
   const showFullBreakdownCta =
@@ -221,13 +227,13 @@ export default function WcTakeCard({
             setFullBreakdownExpanded(false);
           }}
         >
-          {UR_TAKE_BREAKDOWN_LABEL}
+          {breakdownLabel}
         </button>
       ) : null}
 
       {showBreakdownToggle && breakdownExpanded ? (
         <div className="wc-take-breakdown-panel">
-          <div className="wc-take-breakdown-label">{UR_TAKE_BREAKDOWN_LABEL}</div>
+          <div className="wc-take-breakdown-label">{breakdownLabel}</div>
           <UrTakeBreakdownBody text={breakdownBody} />
           {showFullBreakdownCta ? (
             <button

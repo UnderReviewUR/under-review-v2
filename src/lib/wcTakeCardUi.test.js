@@ -281,6 +281,25 @@ MATCH ODDS: Qatar +1300 · Draw +600 · Switzerland -475`;
   assert.doesNotMatch(face.breakdownText, /1\) Qatar vs Switzerland/);
   assert.doesNotMatch(face.breakdownText, /Watch the scoreboard after 60 minutes/);
   assert.match(face.breakdownText, /Match: Qatar vs Switzerland/);
+  assert.equal(face.breakdownAvailable, true);
+});
+
+test("prepareWcCardFaceDisplay tomorrow_slate goal-total board keeps slate headline", () => {
+  const face = prepareWcCardFaceDisplay({
+    lean: "4 goal-total leans on today's slate — lead France vs Senegal: Lean Under 2.5 goals",
+    call: "4 goal-total leans — lead France vs Senegal",
+    why: "Today's slate (2026-06-16) — 4 matches. France vs Senegal: Under 2.5 · England vs Ghana: Under 2.5",
+    breakdown: `Today's World Cup slate (2026-06-16) — 4 matches
+
+Match: France vs Senegal (Group I)
+Lean: Under 2.5 goals`,
+    breakdownAvailable: true,
+    focusLayout: true,
+    callType: "tomorrow_slate",
+  });
+  assert.match(face.headline, /4 goal-total leans/i);
+  assert.doesNotMatch(face.headline, /^Under 2\.5 goals$/i);
+  assert.equal(face.breakdownAvailable, true);
 });
 
 test("prepareWcCardFaceDisplay exposes full breakdown when preview is truncated", () => {

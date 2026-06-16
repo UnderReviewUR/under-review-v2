@@ -131,3 +131,38 @@ export function capWcDeepWords(text, maxWords = 600) {
   return `${words.slice(0, maxWords).join(" ")}…`;
 }
 
+/**
+ * Word-cap deep copy without flattening paragraph breaks (slate / group boards).
+ * @param {string} text
+ * @param {number} [maxWords]
+ */
+export function capWcStructuredDeep(text, maxWords = 600) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  if (!raw.includes("\n")) return capWcDeepWords(raw, maxWords);
+
+  const blocks = raw
+    .split(/\n\n+/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  if (!blocks.length) return capWcDeepWords(raw, maxWords);
+
+  let wordCount = 0;
+  /** @type {string[]} */
+  const kept = [];
+  for (const block of blocks) {
+    const blockWords = block.split(/\s+/).filter(Boolean);
+    if (!blockWords.length) continue;
+    if (wordCount + blockWords.length > maxWords) {
+      const remaining = maxWords - wordCount;
+      if (remaining > 10) {
+        kept.push(`${blockWords.slice(0, remaining).join(" ")}…`);
+      }
+      break;
+    }
+    kept.push(block);
+    wordCount += blockWords.length;
+  }
+  return kept.join("\n\n");
+}
+

@@ -133,6 +133,58 @@ test("buildWcTomorrowSlatePrebuiltStructured — goal totals board per match tod
   assert.doesNotMatch(String(card.lean || ""), /no actionable line/i);
 });
 
+test("morning slate ignores premature FT before kickoff and surfaces per-match preview", () => {
+  const nowMs = Date.parse("2026-06-16T14:42:00Z");
+  const matches = [
+    {
+      homeTeam: "FRA",
+      awayTeam: "SEN",
+      group: "I",
+      date: "2026-06-16",
+      time: "15:00 ET",
+      status: "FT",
+      odds: { totalLine: "2.5", totalUnder: "-110" },
+    },
+    {
+      homeTeam: "FRA",
+      awayTeam: "SEN",
+      group: "I",
+      date: "2026-06-16",
+      time: "15:00 ET",
+      status: "NS",
+      odds: { totalLine: "2.5", totalUnder: "-110" },
+    },
+    {
+      homeTeam: "ENG",
+      awayTeam: "GHA",
+      group: "L",
+      date: "2026-06-16",
+      time: "18:00 ET",
+      status: "NS",
+      odds: { totalLine: "2.5", totalUnder: "-125" },
+    },
+    {
+      homeTeam: "USA",
+      awayTeam: "AUS",
+      group: "D",
+      date: "2026-06-16",
+      time: "21:00 ET",
+      status: "NS",
+      odds: { totalLine: "2.5", totalOver: "-105" },
+    },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "Best goal total bets for each world cup game today?",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.doesNotMatch(String(card.whyNow || ""), /1 final/i);
+  assert.match(String(card.whyNow || ""), /France vs Senegal/i);
+  assert.match(String(card.call || ""), /goal-total leans/i);
+  assert.match(String(card.deep || ""), /\n\nMatch:/);
+});
+
 test("today's slate question resolves Jun 13 fixtures not tomorrow", () => {
   const nowMs = Date.parse("2026-06-13T14:41:00Z");
   const matches = [

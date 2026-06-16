@@ -421,6 +421,7 @@ export default function URTakeResponse({
         predictionSlots={wcPredictionSlotRows}
         focusLayout={focusLayout}
         collapsed={cardCollapsed}
+        callType={callType}
         modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
         auditFootnote={auditFootnote}
         breakdownDefaultExpanded={

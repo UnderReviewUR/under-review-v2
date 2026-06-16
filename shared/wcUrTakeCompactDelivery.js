@@ -29,6 +29,7 @@ import {
 } from "./wcPredictionsRoundup.js";
 import {
   capWcDeepWords,
+  capWcStructuredDeep,
   splitWcSentences,
 } from "./wcSentenceBoundaries.js";
 import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
@@ -878,7 +879,7 @@ function buildWcCompactStructuredBody(opts = {}) {
 
   if (seed?.callType === "group_slate" && seed?.lean && seed?.call) {
     const seedDeep = String(seed.deep || "").trim();
-    const mergedDeep = capWcDeepWords(deep || seedDeep, 900);
+    const mergedDeep = capWcStructuredDeep(deep || seedDeep, 900);
     const pathLine = String(seed.line || "").trim();
     return {
       sport: "worldcup",
@@ -907,7 +908,7 @@ function buildWcCompactStructuredBody(opts = {}) {
 
   if (seed?.callType === "tomorrow_slate" && seed?.lean && seed?.call) {
     const seedDeep = String(seed.deep || "").trim();
-    const mergedDeep = capWcDeepWords(deep || seedDeep, 900);
+    const mergedDeep = capWcStructuredDeep(deep || seedDeep, 3600);
     const hasBreakdown =
       Boolean(seed.breakdownAvailable) || Boolean(mergedDeep && mergedDeep.length > 40);
     return {

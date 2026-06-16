@@ -25,7 +25,17 @@ import {
 } from "../../shared/wcTakeRetentionQA.js";
 
 export const UR_TAKE_BREAKDOWN_LABEL = "More detail";
+export const UR_TAKE_SLATE_BREAKDOWN_LABEL = "View full board";
 export const UR_TAKE_FULL_BREAKDOWN_LABEL = "Full breakdown";
+
+/**
+ * @param {string} [callType]
+ */
+export function pickWcBreakdownLabel(callType = "") {
+  return String(callType || "").toLowerCase() === "tomorrow_slate"
+    ? UR_TAKE_SLATE_BREAKDOWN_LABEL
+    : UR_TAKE_BREAKDOWN_LABEL;
+}
 
 /** Collapsed thread teaser only — active card face shows full why. */
 export const WC_COLLAPSED_THREAD_WHY_WORDS = 16;
@@ -397,6 +407,20 @@ export function pickWcCardHeadline(opts = {}) {
   }
 
   if (ct === "group_slate" || ct === "tomorrow_slate" || ct === "advancement") {
+    if (ct === "tomorrow_slate") {
+      const slateSummary =
+        (/\d+\s+(?:goal-total|spread)\s+leans?\b/i.test(leanRaw) && leanRaw) ||
+        (/\d+\s+(?:goal-total|spread|angles?|match(?:es)?\s+predictions?)\b/i.test(call) && call) ||
+        (/\d+\s+angles?\s+on\b/i.test(leanRaw) && leanRaw) ||
+        (/slate\s*[—-]\s*lead\b/i.test(leanRaw) && leanRaw) ||
+        "";
+      if (slateSummary && !/^pass\b/i.test(slateSummary)) {
+        return capWcCardFaceField(slateSummary.replace(/^lean:\s*/i, ""), {
+          maxWords: WC_FACE_HEADLINE_WORDS,
+          maxSentences: 1,
+        });
+      }
+    }
     if (ct === "tomorrow_slate" && call && /\bmatch predictions?\b/i.test(call)) {
       return capWcCardFaceField(call, {
         maxWords: WC_FACE_HEADLINE_WORDS,
@@ -491,7 +515,14 @@ export function wcDeepAddsReaderValue(deep, whyNow = "", watchFor = "") {
   const d = sanitizeWcUserFacingProse(String(deep || "").trim());
   if (!d || d.length < 40) return false;
   if (detectWcDeepMetaLeak(d)) return false;
-  if (/^Angle:/im.test(d) || /^Match:/im.test(d) || /^Sim vs market:/im.test(d)) return true;
+  if (
+    /^Angle:/im.test(d) ||
+    /^Match:/im.test(d) ||
+    /\bMatch:\s+\S/im.test(d) ||
+    /^Sim vs market:/im.test(d)
+  ) {
+    return true;
+  }
 
   const norm = (s) =>
     String(s || "")
@@ -606,8 +637,11 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const breakdownTruncated = wcBreakdownPreviewIsTruncated(breakdownFull, breakdownPreview);
 
   const breakdownAvailable =
-    (Boolean(opts.breakdownAvailable) || breakdownFull.length > whyFace.length + 24) &&
-    wcDeepAddsReaderValue(breakdownFull, fullWhy, fullWatch);
+    (selfContainedSlateBreakdown &&
+      breakdownFull.length > 80 &&
+      (Boolean(opts.breakdownAvailable) || /\bMatch:\s+\S/im.test(breakdownFull))) ||
+    ((Boolean(opts.breakdownAvailable) || breakdownFull.length > whyFace.length + 24) &&
+      wcDeepAddsReaderValue(breakdownFull, fullWhy, fullWatch));
 
   return {
     headline,

@@ -19,7 +19,12 @@ import {
 import { buildStaticPromoMatchesFallback, GROUP_STAGE_OPENERS } from "./wc2026PromoFixtures.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import { parseWcKickoffEtMs, formatWcKickoffDisplay, hasExplicitWcSlateDate, resolveWcMatchSlateEtDate, wcMatchIsEarlyEtMorningKickoff, wcMatchOnEtBroadcastSlateDay, wcTodayEtYmd } from "./wcKickoffDisplay.js";
-import { isWcFinishedMatchStatus, isWcLiveMatchStatus, isWcScheduledMatchStatus } from "./wcFeaturedMatch.js";
+import {
+  getWcMatchCommenceMs,
+  isWcFinishedMatchStatus,
+  isWcLiveMatchStatus,
+  isWcScheduledMatchStatus,
+} from "./wcFeaturedMatch.js";
 import {
   extractWcSlateDayFromQuestion,
   isWcSlateOutcomePredictionQuestion,
@@ -125,11 +130,61 @@ function slateDayCopy(slateDay) {
 }
 
 /**
+ * @param {string} lean
+ */
+function shortenWcSlateLean(lean) {
+  return String(lean || "")
+    .replace(/^lean:\s*/i, "")
+    .replace(/^pass on ml\s*[—-]\s*/i, "")
+    .trim()
+    .slice(0, 36);
+}
+
+/**
+ * Compact per-match leans for the card face.
  * @param {Array<Record<string, unknown>>} angles
- * @param {{ slateDay?: "today" | "tomorrow", slateYmd?: string, predictionMode?: boolean, count?: number, dayCopy?: string }} opts
+ * @param {number} [max]
+ */
+export function buildWcSlateFacePreview(angles, max = 3) {
+  const rows = (angles || []).slice(0, max).map((a) => {
+    const label = String(a?.label || "").trim();
+    const lean = shortenWcSlateLean(a?.lean);
+    if (!label) return "";
+    return lean ? `${label}: ${lean}` : label;
+  });
+  const preview = rows.filter(Boolean).join(" · ");
+  const extra = (angles || []).length - max;
+  if (extra > 0 && preview) return `${preview} · +${extra} more`;
+  return preview;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {string} slateYmd
+ * @param {number} nowMs
+ */
+export function countWcVerifiedFinishedOnSlate(matches, slateYmd, nowMs = Date.now()) {
+  const ymd = String(slateYmd || "").trim();
+  if (!ymd) return 0;
+  const seen = new Set();
+  return (matches || []).filter((m) => {
+    if (!isWcFinishedMatchStatus(m?.status)) return false;
+    if (!wcMatchOnEtBroadcastSlateDay(m, ymd)) return false;
+    if (getWcMatchCommenceMs(m) > nowMs) return false;
+    const key = `${String(m?.homeTeam || "").toUpperCase()}|${String(m?.awayTeam || "").toUpperCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).length;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} angles
+ * @param {{ slateDay?: "today" | "tomorrow", slateYmd?: string, predictionMode?: boolean, count?: number, remainingCount?: number, dayCopy?: string }} opts
  */
 function buildWcSlateWhyNowIntro(angles, opts = {}) {
   const count = Number(opts.count) || (Array.isArray(angles) ? angles.length : 0);
+  const remainingCount = Number(opts.remainingCount) || count;
   const finishedCount = Number(opts.finishedCount) || 0;
   const slateYmd = String(opts.slateYmd || "").trim();
   const dayCopy = String(opts.dayCopy || slateDayCopy(opts.slateDay === "today" ? "today" : "tomorrow"));
@@ -146,12 +201,15 @@ function buildWcSlateWhyNowIntro(angles, opts = {}) {
 
   const finishedBit =
     finishedCount > 0
-      ? `${finishedCount} final · ${count} remaining`
-      : `${count} ${count === 1 ? "match" : "matches"}`;
+      ? `${finishedCount} final · ${remainingCount} remaining`
+      : `${remainingCount} ${remainingCount === 1 ? "match" : "matches"}`;
   const intro = `${dayCopy.charAt(0).toUpperCase()}${dayCopy.slice(1)} slate (${slateYmd}) — ${finishedBit}.`;
+  const preview = buildWcSlateFacePreview(angles);
   return predictionMode
     ? `${intro} Kickoffs show ET and Central.`.slice(0, 220)
-    : `${intro} Full board in the breakdown.`.slice(0, 220);
+    : preview
+      ? `${intro} ${preview}`.slice(0, 220)
+      : `${intro} Full board in the breakdown.`.slice(0, 220);
 }
 
 /**
@@ -567,9 +625,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const { slateYmd, matches: slateMatches } = resolveWcSlateMatches(matches, nowMs, slateDay);
   if (!slateMatches.length) return null;
 
-  const finishedTodayCount = (matches || []).filter(
-    (m) => isWcFinishedMatchStatus(m?.status) && wcMatchOnEtBroadcastSlateDay(m, slateYmd),
-  ).length;
+  const finishedTodayCount = countWcVerifiedFinishedOnSlate(matches, slateYmd, nowMs);
 
   const angles = buildWcTomorrowSlateMatchAngles(slateMatches, opts);
   const featuredFx = pickWcTomorrowFeaturedFixture(slateMatches);
@@ -620,6 +676,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
     slateYmd,
     predictionMode,
     count,
+    remainingCount: count,
     finishedCount: finishedTodayCount,
     dayCopy,
   });
@@ -647,9 +704,21 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
       ? count > 1
         ? `${count} match predictions on ${dayCopy} slate`
         : featuredAngle.call
-      : count > 1
-        ? `${count} angles on ${dayCopy} slate — lead ${featuredLabel}`
-        : featuredAngle.call
+      : marketBoardMode === "totals"
+        ? count > 1
+          ? `${count} goal-total leans — lead ${featuredLabel}`
+          : featuredAngle.call
+        : marketBoardMode === "spreads"
+          ? count > 1
+            ? `${count} spread leans — lead ${featuredLabel}`
+            : featuredAngle.call
+          : marketBoardMode === "both"
+            ? count > 1
+              ? `${count} spread + total leans — lead ${featuredLabel}`
+              : featuredAngle.call
+            : count > 1
+              ? `${count} angles on ${dayCopy} slate — lead ${featuredLabel}`
+              : featuredAngle.call
     ).slice(0, 100),
     line: featuredAngle.line || base.line || "",
     whyNow,
