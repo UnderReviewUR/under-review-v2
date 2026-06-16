@@ -6,7 +6,10 @@ import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { getTomorrowEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
+  formatPostedTotalsLine,
   getWcFixtureMlSeed,
+  pickWcFixtureSpreadLean,
+  pickWcFixtureTotalsAlternateLean,
 } from "./wcFixtureMatchupPrebuilt.js";
 import {
   devigWcMatchMoneylineProbs,
@@ -21,6 +24,7 @@ import {
   extractWcSlateDayFromQuestion,
   isWcSlateOutcomePredictionQuestion,
   isWcTomorrowOrSlateBetQuestion,
+  resolveWcSlateMarketBoardMode,
 } from "./wcTakeRetentionQA.js";
 
 function isScheduled(status) {
@@ -401,6 +405,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
   const nowMs = Number(opts.nowMs) || Date.now();
   const predictionMode =
     Boolean(opts.predictionMode) || isWcSlateOutcomePredictionQuestion(question);
+  const marketBoardMode = resolveWcSlateMarketBoardMode(question);
   /** @type {Array<Record<string, unknown>>} */
   const angles = [];
 
@@ -416,6 +421,73 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
     const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
     const kickoff = formatWcKickoffDisplay(fx, { alwaysShowCentral: true });
     const match = attachSeedOdds(fx);
+
+    if (marketBoardMode) {
+      const homeMl = readWcMatchMoneylineAmerican(match?.odds?.home);
+      const awayMl = readWcMatchMoneylineAmerican(match?.odds?.away);
+      const spread =
+        marketBoardMode === "spreads" || marketBoardMode === "both"
+          ? pickWcFixtureSpreadLean({ home, away, matchOdds: match?.odds })
+          : null;
+      const totals =
+        marketBoardMode === "totals" || marketBoardMode === "both"
+          ? pickWcFixtureTotalsAlternateLean({
+              home,
+              away,
+              homeMl,
+              awayMl,
+              matchOdds: match?.odds,
+              question,
+              passOnMlPrefix: false,
+            })
+          : null;
+
+      let lean = "";
+      let call = "";
+      let line = "";
+      let whyNow = "";
+      if (spread && totals) {
+        lean = `${spread.headline} · ${totals.headline || totals.lean}`.slice(0, 140);
+        call = lean.slice(0, 100);
+        line = [spread.bookLine, formatPostedTotalsLine(match?.odds, totals.kind || "under")]
+          .filter(Boolean)
+          .join(" · ");
+        whyNow =
+          formatPostedTotalsLine(match?.odds, totals.kind || "under") ||
+          spread.bookLine ||
+          `${label} — posted lines from book board.`;
+      } else if (spread) {
+        lean = spread.headline || spread.lean;
+        call = lean.slice(0, 100);
+        line = spread.bookLine || "";
+        whyNow = spread.bookLine
+          ? `Posted handicap: ${spread.bookLine}.`
+          : `${label} — handicap not in feed yet.`;
+      } else if (totals) {
+        lean = totals.headline || totals.lean;
+        call = lean.slice(0, 100);
+        line = formatPostedTotalsLine(match?.odds, totals.kind || "under") || "";
+        whyNow =
+          line ||
+          `${label} — UR sim lean until goal total posts.`;
+      }
+
+      angles.push({
+        home,
+        away,
+        group,
+        label,
+        kickoff,
+        lean: stripLeanPrefix(lean),
+        call,
+        line,
+        whyNow,
+        deep: [line, whyNow].filter(Boolean).join("\n\n"),
+        fixtureCard: null,
+        marketBoardMode,
+      });
+      continue;
+    }
 
     const card = buildWcFixtureMatchupPrebuiltStructured({
       home,
@@ -486,6 +558,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const slateDay = extractWcSlateDayFromQuestion(question);
   const dayCopy = slateDayCopy(slateDay);
   const predictionMode = isWcSlateOutcomePredictionQuestion(question);
+  const marketBoardMode = resolveWcSlateMarketBoardMode(question);
   let matches = Array.isArray(opts.matches) ? opts.matches : [];
   if (!matches.length) {
     matches = buildStaticPromoMatchesFallback(nowMs);
@@ -517,6 +590,21 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
             120,
           )
         : `${featuredLabel}: ${featuredAngle.predictionPick || featuredAngle.lean}`.slice(0, 120))
+    : marketBoardMode === "spreads"
+      ? `${count} spread leans on ${dayCopy} slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
+          0,
+          120,
+        )
+      : marketBoardMode === "totals"
+        ? `${count} goal-total leans on ${dayCopy} slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
+            0,
+            120,
+          )
+        : marketBoardMode === "both"
+          ? `${count} spread + total leans on ${dayCopy} slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
+              0,
+              120,
+            )
     : count > 1
       ? `${count} angles on ${dayCopy} slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
           0,

@@ -100,6 +100,39 @@ test("multi-match KV slate builds one angle per fixture", () => {
   assert.match(String(card?.lean || ""), /3 angles on tomorrow's slate/i);
 });
 
+test("buildWcTomorrowSlatePrebuiltStructured — goal totals board per match today", () => {
+  const nowMs = Date.parse("2026-06-16T14:00:00Z");
+  const matches = [
+    {
+      homeTeam: "FRA",
+      awayTeam: "SEN",
+      group: "I",
+      date: "2026-06-16",
+      time: "15:00 ET",
+      status: "NS",
+      odds: { totalLine: "2.5", totalOver: "-110", totalUnder: "-110", home: { moneyline: "-130" }, away: { moneyline: "+350" } },
+    },
+    {
+      homeTeam: "ENG",
+      awayTeam: "GHA",
+      group: "L",
+      date: "2026-06-16",
+      time: "18:00 ET",
+      status: "NS",
+      odds: { totalLine: "2.5", totalOver: "+105", totalUnder: "-125", home: { moneyline: "-165" }, away: { moneyline: "+420" } },
+    },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "what are the best goal totals per match today?",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.match(String(card.lean || ""), /goal-total leans/i);
+  assert.match(String(card.deep || ""), /Under 2\.5|Over 2\.5/i);
+  assert.doesNotMatch(String(card.lean || ""), /no actionable line/i);
+});
+
 test("today's slate question resolves Jun 13 fixtures not tomorrow", () => {
   const nowMs = Date.parse("2026-06-13T14:41:00Z");
   const matches = [

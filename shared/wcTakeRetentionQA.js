@@ -592,12 +592,51 @@ export function isWcSlateOutcomePredictionQuestion(question) {
 }
 
 /**
+ * Multi-match slate spread / goal-total board ("best spreads for each match today").
+ * @param {string} question
+ */
+export function isWcSlateMarketBoardQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|parlay prop)\b/i.test(q)) {
+    return false;
+  }
+  const hasDay = /\b(today'?s?|tomorrow'?s?)\b/i.test(q);
+  const hasWc = /\bworld cup\b/i.test(q);
+  const hasMultiMatch =
+    /\b(each|every|all|per)\b[\s\S]{0,48}\b(game|match|fixture)s?\b/i.test(q) ||
+    /\b(game|match|fixture)s?\b[\s\S]{0,40}\b(today|tomorrow)\b/i.test(q) ||
+    (hasDay && /\b(slate|fixtures?|matches?|games?)\b/i.test(q));
+  if (!hasMultiMatch) return false;
+  const marketAsk =
+    /\b(spreads?|handicaps?|asian handicap|goal\s*totals?|totals?|over\/under|o\/u)\b/i.test(q);
+  if (!marketAsk) return false;
+  return hasDay || hasWc;
+}
+
+/**
+ * @param {string} question
+ * @returns {"spreads" | "totals" | "both" | null}
+ */
+export function resolveWcSlateMarketBoardMode(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!isWcSlateMarketBoardQuestion(q)) return null;
+  const wantsSpread = /\b(spreads?|handicaps?|asian handicap|handicap)\b/i.test(q);
+  const wantsTotals = /\b(goal\s*totals?|totals?|over\/under|o\/u)\b/i.test(q);
+  if (wantsSpread && wantsTotals) return "both";
+  if (wantsSpread) return "spreads";
+  if (wantsTotals) return "totals";
+  return "totals";
+}
+
+/**
  * Broad slate picks ("sneaky bets tomorrow") — route to fast cross-group prebuilt, not full LLM.
  * @param {string} question
  */
 export function isWcTomorrowOrSlateBetQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
+  if (isWcSlateMarketBoardQuestion(q)) return true;
   if (isWcSlateOutcomePredictionQuestion(q)) return true;
   if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|player parlays|parlay prop)\b/i.test(q)) return false;
   if (/\boutright\b/i.test(q) && !/\b(tomorrow|today'?s?|slate|matches)\b/i.test(q)) return false;

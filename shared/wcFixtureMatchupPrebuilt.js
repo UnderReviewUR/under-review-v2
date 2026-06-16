@@ -182,7 +182,7 @@ function formatGoalsLine(n) {
  * @param {Record<string, unknown> | null | undefined} matchOdds
  * @param {"over" | "under"} kind
  */
-function formatPostedTotalsLine(matchOdds, kind) {
+export function formatPostedTotalsLine(matchOdds, kind) {
   const totalLine =
     matchOdds?.totalLine != null && String(matchOdds.totalLine).trim() !== ""
       ? String(matchOdds.totalLine).trim()
@@ -211,6 +211,49 @@ function parseTotalsKindFromLean(lean) {
  * Alternate totals lean from posted lines + favorite strength (not a blanket Under 2.5).
  * @param {{ home: string, away: string, homeMl: string, awayMl: string, matchOdds?: Record<string, unknown>, question?: string, passOnMlPrefix?: boolean }}
  */
+/**
+ * Asian handicap / spread lean from posted match odds (BDL GOAT).
+ * @param {{ home: string, away: string, matchOdds?: Record<string, unknown> }}
+ */
+export function pickWcFixtureSpreadLean({ home, away, matchOdds }) {
+  const homeAbbr = String(home || "").toUpperCase();
+  const awayAbbr = String(away || "").toUpperCase();
+  const homeName = wcMatchupTeamDisplayName(homeAbbr);
+  const awayName = wcMatchupTeamDisplayName(awayAbbr);
+  const lineRaw = matchOdds?.spreadHomeLine;
+  const odds = readWcMatchMoneylineAmerican(matchOdds?.spreadHome);
+  const line =
+    lineRaw != null && String(lineRaw).trim() !== "" ? String(lineRaw).trim() : null;
+  if (!line || !odds) {
+    return {
+      lean: `Watch handicap lines on ${homeName} vs ${awayName} when posted.`,
+      headline: `Lines pending — ${homeName} vs ${awayName}`,
+      bookLine: "",
+    };
+  }
+  const lineNum = Number.parseFloat(line);
+  const homeFav =
+    Number.isFinite(lineNum) && lineNum < 0
+      ? true
+      : Number.isFinite(lineNum) && lineNum > 0
+        ? false
+        : (() => {
+            const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+            const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+            const fav = pickMlFavorite(homeMl, awayMl, homeAbbr, awayAbbr);
+            return fav.abbr === homeAbbr;
+          })();
+  const teamName = homeFav ? homeName : awayName;
+  const signedLine =
+    Number.isFinite(lineNum) && lineNum > 0 ? `+${line}` : line.replace(/^\+/, "");
+  const headline = `Lean ${teamName} ${signedLine} (${odds})`;
+  return {
+    lean: headline,
+    headline,
+    bookLine: `${homeName} ${line} ${odds}`,
+  };
+}
+
 export function pickWcFixtureTotalsAlternateLean(row) {
   const q = String(row.question || "");
   const hs = Number(row.homeScore);

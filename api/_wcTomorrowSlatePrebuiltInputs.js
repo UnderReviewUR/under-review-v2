@@ -15,7 +15,7 @@ import { buildWcTomorrowSlatePrebuiltStructured } from "../shared/wcTomorrowSlat
  */
 async function loadWcMatchesForTomorrowSlate(nowMs = Date.now()) {
   try {
-    const payload = await getMatchesPayload({ preferGoat: false, preferEspn: true });
+    const payload = await getMatchesPayload();
     if (Array.isArray(payload?.matches) && payload.matches.length) {
       return payload.matches;
     }
