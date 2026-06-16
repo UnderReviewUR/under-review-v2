@@ -21,6 +21,7 @@ import {
   finalizeWcPlayerPropStructured,
   isGenericWcPlayerPropQuestion,
   isWcFixtureScopedPlayerMarketQuestion,
+  isWcGoalkeeperPropsQuestion,
   isWcPerTeamPlayerPropsQuestion,
   prefersWcFixtureScorerIntelFallback,
 } from "../../shared/wcUrTakePlayerMarket.js";
@@ -207,6 +208,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     wcIntent: WC_INTENT.PLAYER_PROP,
   });
 
+  const gkPropsAsk = isWcGoalkeeperPropsQuestion(routingQ);
   const propRows = matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "anytime_scorer", 6);
   let structuredResponse = null;
   let passKind = "player_props_loading";
@@ -226,7 +228,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
-  if (!structuredResponse && propRows.length >= 2) {
+  if (!structuredResponse && (propRows.length >= 2 || gkPropsAsk)) {
     if (detectParlayIntent(routingQ)) {
       structuredResponse = buildWcFixturePlayerParlayStructured(
         String(question || ""),

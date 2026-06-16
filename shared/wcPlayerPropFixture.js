@@ -3,7 +3,11 @@
  */
 
 import { WC_FULL_SQUADS } from "../src/data/wc2026FullSquadsSeed.js";
-import { extractWcPlayerPropNameHint, isWcFixtureScopedPlayerMarketQuestion } from "./wcUrTakePlayerMarket.js";
+import {
+  extractWcPlayerPropNameHint,
+  isWcFixtureScopedPlayerMarketQuestion,
+  isWcGoalkeeperPropsQuestion,
+} from "./wcUrTakePlayerMarket.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 import { matchPlayerPropRowsFromEvent } from "./wcMatchPlayerProps.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
@@ -89,6 +93,7 @@ export function resolveWcPlayerNationFromQuestion(question) {
  */
 export function detectWcPlayerPropMarketKey(question) {
   const q = String(question || "").trim();
+  if (isWcGoalkeeperPropsQuestion(q)) return "player_saves_ou";
   if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) return "player_goal_or_assist";
   if (/\bshots?\s+on\s+target\b|\bsot\b/i.test(q)) return "player_sot_ou";
   if (/\d+\.?\d*\s*shots?\b/i.test(q) || /\bshots?\s*(?:o\/u|over|under)\b/i.test(q)) {

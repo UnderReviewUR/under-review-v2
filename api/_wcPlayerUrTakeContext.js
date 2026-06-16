@@ -23,7 +23,7 @@ import {
   WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
-import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion } from "../shared/wcUrTakePlayerMarket.js";
+import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion, isWcGoalkeeperPropsQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { resolveWcEventIdForFixtureTeams, resolveWcPlayerPropSlateFixtureTeams, resolveWcPlayerPropFixtureTeams } from "../shared/wcPlayerPropFixture.js";
 import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
@@ -151,7 +151,8 @@ const MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS = 14_000;
 function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
   if (!kvBlocks?.matchPlayerProps) return false;
   const history = Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [];
-  const teams = resolveWcPlayerPropFixtureTeams(String(opts.question || ""), history, {
+  const question = String(opts.question || "");
+  const teams = resolveWcPlayerPropFixtureTeams(question, history, {
     requiredEntities: opts.requiredEntities,
     conversationHistory: history,
   });
@@ -159,12 +160,15 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
   if (
     !kvHasFreshMatchPlayerProps(kvBlocks.matchPlayerProps, {
       eventId,
-      question: String(opts.question || ""),
+      question,
       teams,
       nowMs: opts.nowMs,
     })
   ) {
     return false;
+  }
+  if (isWcGoalkeeperPropsQuestion(question)) {
+    return matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_saves_ou", 2).length >= 1;
   }
   return matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "anytime_scorer", 6).length >= 2;
 }

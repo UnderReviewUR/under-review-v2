@@ -28,6 +28,10 @@ export const WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT = {
       player_sot_ou: [
         { name: "Vinícius Júnior", americanOdds: "-115", nationAbbr: "BRA", line: "1.5", side: "over" },
       ],
+      player_saves_ou: [
+        { name: "Brice Lauriche Samba", americanOdds: "-110", nationAbbr: "FRA", line: "3.5", side: "over" },
+        { name: "Ederson", americanOdds: "+105", nationAbbr: "BRA", line: "2.5", side: "over" },
+      ],
       player_card: [
         { name: "Casemiro", americanOdds: "+280", nationAbbr: "BRA", side: "yes" },
       ],

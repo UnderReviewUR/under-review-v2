@@ -587,6 +587,13 @@ export function formatWcPlayerMarketPassLabel(wcIntent) {
  */
 export function formatWcPlayerMarketPromptRules(wcIntent, question = "") {
   const label = formatWcPlayerMarketPassLabel(wcIntent);
+  if (isWcGoalkeeperPropsQuestion(question)) {
+    return `FIXTURE GOALKEEPER PROPS (binding):
+  User asked for goalkeeper / keeper props on this match — NOT outfield scorers.
+  Use PLAYER SAVES (O/U) from MATCH PLAYER PROPS when posted; cite starter GK names only.
+  When saves lines are missing, Pass honestly and name projected starter GKs from squad registry — never substitute anytime scorer rows.
+  HEADLINE/call: lead GK #1 with saves line when listed; full list in lean.`;
+  }
   if (isWcFixturePlayerPropsQuestion(question)) {
     return `FIXTURE PLAYER PROPS (binding):
   User asked for MULTIPLE player props on this match — list 3-5 named players with market + American price.
@@ -629,6 +636,7 @@ export function formatWcPlayerMarketPromptRules(wcIntent, question = "") {
 export function detectWcPlayerPropMarketLabel(question) {
   const q = String(question || "").trim();
   if (!q) return "player prop";
+  if (isWcGoalkeeperPropsQuestion(q)) return "goalkeeper saves";
   if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) return "goal or assist";
   if (/\bshots?\s+on\s+target\b|\bsot\b/i.test(q)) return "shots on target";
   if (/\d+\.?\d*\s*shots?\b/i.test(q) || /\bshots?\s*(?:o\/u|over|under)\b/i.test(q)) {
@@ -637,6 +645,23 @@ export function detectWcPlayerPropMarketLabel(question) {
   if (/\bassist/i.test(q)) return "assists";
   if (/\b(?:score|scorer|goal)/i.test(q)) return "scoring";
   return "player prop";
+}
+
+const WC_GOALKEEPER_PROP_RE =
+  /\b(?:goalkeeper|goalkeepers|keeper|keepers|gks?)\s+(?:props?|markets?|lines?|bets?|angles?)\b|\b(?:props?|markets?|lines?|bets?|angles?)\s+(?:for\s+)?(?:the\s+)?(?:goalkeeper|goalkeepers|keepers?|gks?)\b|\b(?:goalkeeper|keeper|gk)\s+saves?\b|\bsaves?\s+(?:prop|o\/u|over|under)\b/i;
+
+const WC_TOURNAMENT_GK_AWARD_RE =
+  /\b(golden\s+glove|glove\s+winner|goalkeeper\s+of\s+the\s+tournament|best\s+goalkeeper\s+(?:at|in|for)\s+the\s+(?:world\s+cup|tournament))\b/i;
+
+/**
+ * Match-scoped goalkeeper prop asks (saves O/U, keeper angles) — not Golden Glove / tournament award.
+ * @param {string} question
+ */
+export function isWcGoalkeeperPropsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q || WC_TOURNAMENT_GK_AWARD_RE.test(q)) return false;
+  if (/\bbest\s+goalkeeper\b/i.test(q) && !/\bplayer\s+props?\b/i.test(q)) return false;
+  return WC_GOALKEEPER_PROP_RE.test(q);
 }
 
 const WC_PLAYER_PROP_LEAD_WORDS = new Set([
@@ -812,6 +837,7 @@ export function extractWcPerTeamPlayerPropCount(question, defaultCount = 3) {
 export function prefersWcFixtureScorerIntelFallback(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcGoalkeeperPropsQuestion(q)) return false;
   if (isGenericWcPlayerPropQuestion(q) && !WC_FIXTURE_PLAYER_MARKET_ASK_RE.test(q)) {
     return false;
   }

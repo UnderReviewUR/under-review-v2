@@ -3,6 +3,7 @@
  */
 
 import { WC_GOLDEN_BOOT_SEED_ROWS } from "../src/data/wc2026GoldenBootSeed.js";
+import { WC_FULL_SQUADS } from "../src/data/wc2026FullSquadsSeed.js";
 import { getSetPieceTakersForNation } from "../src/data/wc2026SetPieceTakers.js";
 import { sortGoldenBootRows } from "./wcPlayerOddsFreshness.js";
 import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
@@ -27,6 +28,7 @@ import {
   buildWcPlayerPropPassHeadline,
   isGenericWcPlayerPropQuestion,
   isWcFixturePlayerPropsQuestion,
+  isWcGoalkeeperPropsQuestion,
   isWcPerTeamPlayerPropsQuestion,
   extractWcPerTeamPlayerPropCount,
   prefersWcFixtureScorerIntelFallback,
@@ -34,6 +36,7 @@ import {
   finalizeWcPlayerPropStructured,
   isWcFixtureScopedPlayerMarketQuestion,
 } from "./wcUrTakePlayerMarket.js";
+import { lookupStarterGoalkeeper } from "./wcGoldenGloveAdjusted.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
 
@@ -376,6 +379,210 @@ export function buildWcFixtureScorerIntelStructured(question, tier, kvBlocks, wc
 }
 
 /**
+ * @param {{ name?: string, line?: string, side?: string, americanOdds?: string }} row
+ */
+function formatWcGoalkeeperSavesLeanLine(row) {
+  const name = String(row?.name || "").trim();
+  const odds = String(row?.americanOdds || "").trim();
+  const line = String(row?.line || "").trim();
+  if (line) return `${name} over ${line} saves ${odds}`;
+  return `${name} saves ${odds}`;
+}
+
+/**
+ * @param {{ name?: string, nationAbbr?: string }} row
+ * @param {Record<string, string>} gkByTeam
+ */
+function matchPlayerPropRowToFixtureGoalkeeper(row, gkByTeam) {
+  const abbr = String(row?.nationAbbr || "").toUpperCase();
+  const expected = gkByTeam[abbr];
+  if (!expected) return false;
+  const name = normalizeWcPlayerName(String(row?.name || ""));
+  if (!name) return false;
+  if (name === expected) return true;
+  const expectedLast = expected.split(/\s+/).pop()?.toLowerCase();
+  const rowLast = name.split(/\s+/).pop()?.toLowerCase();
+  return Boolean(expectedLast && rowLast && expectedLast === rowLast);
+}
+
+/**
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ */
+function resolveWcPlayerRegistryTeams(kvBlocks, wcContext) {
+  const fromKv =
+    kvBlocks?.players?.teams ||
+    wcContext?.playerMarketKv?.players?.teams ||
+    wcContext?.playerRegistry;
+  if (fromKv && Object.keys(fromKv).length) return fromKv;
+
+  /** @type {Record<string, { players: Array<Record<string, unknown>> }>} */
+  const teams = {};
+  for (const [abbr, team] of Object.entries(WC_FULL_SQUADS.teams || {})) {
+    teams[abbr] = {
+      players: (team.roster || []).map((p) => ({
+        name: p.name || p.nameOnShirt,
+        position: p.position,
+        isStarterLikely: p.isStarterLikely,
+      })),
+    };
+  }
+  return teams;
+}
+
+/**
+ * Deterministic goalkeeper-prop card — saves O/U when posted, else starter GK names from registry.
+ * @param {string} question
+ * @param {WcPlayerMarketTier} tier
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ */
+export function buildWcFixtureGoalkeeperPropsStructured(question, tier, kvBlocks, wcContext) {
+  const teams = resolveWcPlayerPropFixtureTeams(
+    String(question || ""),
+    wcContext?.conversationHistory || [],
+    wcContext,
+  );
+  if (teams.length < 2) return null;
+
+  const kvRoot = kvBlocks?.matchPlayerProps;
+  const registryTeams = resolveWcPlayerRegistryTeams(kvBlocks, wcContext);
+  const registry = { teams: registryTeams };
+
+  /** @type {Record<string, string>} */
+  const gkByTeam = {};
+  for (const abbr of teams) {
+    const gk = lookupStarterGoalkeeper(registry, abbr);
+    if (gk?.name) {
+      gkByTeam[String(abbr).toUpperCase()] = normalizeWcPlayerName(String(gk.name));
+    }
+  }
+
+  const homeAbbr = String(teams[0] || "").toUpperCase();
+  const awayAbbr = String(teams[1] || "").toUpperCase();
+  const homeLabel = wcMatchupTeamDisplayName(homeAbbr);
+  const awayLabel = wcMatchupTeamDisplayName(awayAbbr);
+  const meta = tierMetaFor(tier);
+
+  if (!kvRoot) {
+    if (!Object.keys(gkByTeam).length) return null;
+    const lean = teams
+      .map((abbr) => {
+        const label = wcMatchupTeamDisplayName(abbr);
+        const gkName = gkByTeam[String(abbr).toUpperCase()];
+        return gkName
+          ? `${label} (${String(abbr).toUpperCase()}): ${gkName} — starter GK`
+          : `${label} (${String(abbr).toUpperCase()}): starter GK TBD`;
+      })
+      .join("\n");
+    return {
+      sport: "worldcup",
+      callType: meta.callType,
+      playerMarketTier: tier,
+      fixtureHome: homeAbbr,
+      fixtureAway: awayAbbr,
+      call: "Pass — no posted goalkeeper prop lines",
+      lean,
+      whyNow: `No verified goalkeeper saves lines in the feed for ${homeLabel} vs ${awayLabel} — projected starters from squad registry.`,
+      edge: "Watch for saves O/U to post closer to kickoff.",
+      confidence: "Speculative",
+      analysis: String(question || "").trim(),
+    };
+  }
+
+  const resolved = resolveMatchPlayerPropsPayload(kvRoot, {
+    eventId: String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim(),
+    teams,
+  });
+  if (!resolved) {
+    if (!Object.keys(gkByTeam).length) return null;
+    const lean = teams
+      .map((abbr) => {
+        const label = wcMatchupTeamDisplayName(abbr);
+        const gkName = gkByTeam[String(abbr).toUpperCase()];
+        return `${label} (${String(abbr).toUpperCase()}): ${gkName} — starter GK`;
+      })
+      .join("\n");
+    return {
+      sport: "worldcup",
+      callType: meta.callType,
+      playerMarketTier: tier,
+      fixtureHome: homeAbbr,
+      fixtureAway: awayAbbr,
+      call: "Pass — no posted goalkeeper prop lines",
+      lean,
+      whyNow: `No verified goalkeeper saves lines in the feed for ${homeLabel} vs ${awayLabel} — projected starters from squad registry.`,
+      edge: "Watch for saves O/U to post closer to kickoff.",
+      confidence: "Speculative",
+      analysis: String(question || "").trim(),
+    };
+  }
+
+  const eventId = resolved.eventId;
+  const eventPayload = resolved.payload;
+  const teamSet = new Set(teams.map((t) => String(t).toUpperCase()));
+  const rawRows = matchPlayerPropRowsFromEvent(eventPayload, "player_saves_ou", 24);
+  const rows = collapseMatchPlayerPropRowsForDisplay(rawRows, "player_saves_ou");
+  let gkRows = rows.filter((r) => teamSet.has(String(r.nationAbbr || "").toUpperCase()));
+  if (Object.keys(gkByTeam).length) {
+    const filtered = gkRows.filter((r) => matchPlayerPropRowToFixtureGoalkeeper(r, gkByTeam));
+    if (filtered.length) gkRows = filtered;
+  }
+
+  if (gkRows.length >= 1 && eventPayload && isMatchPlayerPropsFresh(eventPayload)) {
+    const numbered = gkRows
+      .slice(0, 4)
+      .map((r, i) => `${i + 1}. ${formatWcGoalkeeperSavesLeanLine(r)}`)
+      .join("\n");
+    const lead = gkRows[0];
+    return {
+      sport: "worldcup",
+      callType: meta.callType,
+      playerMarketTier: tier,
+      wcEventId: eventId || undefined,
+      fixtureHome: String(eventPayload?.homeTeam || homeAbbr).toUpperCase(),
+      fixtureAway: String(eventPayload?.awayTeam || awayAbbr).toUpperCase(),
+      call: formatWcGoalkeeperSavesLeanLine(lead),
+      lean: numbered,
+      whyNow: `Posted goalkeeper saves lines for ${homeLabel} vs ${awayLabel}.`,
+      edge:
+        gkRows.length >= 2
+          ? `Alt: ${formatWcGoalkeeperSavesLeanLine(gkRows[1])}.`
+          : "Check opponent shot volume before sizing saves overs.",
+      confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
+      analysis: String(question || "").trim(),
+    };
+  }
+
+  if (!Object.keys(gkByTeam).length) return null;
+
+  const lean = teams
+    .map((abbr) => {
+      const label = wcMatchupTeamDisplayName(abbr);
+      const gkName = gkByTeam[String(abbr).toUpperCase()];
+      return gkName
+        ? `${label} (${String(abbr).toUpperCase()}): ${gkName} — starter GK`
+        : `${label} (${String(abbr).toUpperCase()}): starter GK TBD`;
+    })
+    .join("\n");
+
+  return {
+    sport: "worldcup",
+    callType: meta.callType,
+    playerMarketTier: tier,
+    wcEventId: eventId || undefined,
+    fixtureHome: String(eventPayload?.homeTeam || homeAbbr).toUpperCase(),
+    fixtureAway: String(eventPayload?.awayTeam || awayAbbr).toUpperCase(),
+    call: "Pass — no posted goalkeeper prop lines",
+    lean,
+    whyNow: `No verified goalkeeper saves lines in the feed for ${homeLabel} vs ${awayLabel} — projected starters from squad registry.`,
+    edge: "Watch for saves O/U to post closer to kickoff.",
+    confidence: "Speculative",
+    analysis: String(question || "").trim(),
+  };
+}
+
+/**
  * Deterministic numbered fixture player-prop card from MATCH PLAYER PROPS KV.
  * @param {string} question
  * @param {WcPlayerMarketTier} tier
@@ -383,6 +590,9 @@ export function buildWcFixtureScorerIntelStructured(question, tier, kvBlocks, wc
  * @param {object | null | undefined} wcContext
  */
 export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks, wcContext) {
+  if (isWcGoalkeeperPropsQuestion(question)) {
+    return buildWcFixtureGoalkeeperPropsStructured(question, tier, kvBlocks, wcContext);
+  }
   const teams = resolveWcPlayerPropFixtureTeams(
     String(question || ""),
     wcContext?.conversationHistory || [],

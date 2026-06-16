@@ -502,12 +502,17 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
   const anytimeCount = (markets.anytime_scorer || []).length;
   const shotsCount = (markets.player_shots_ou || []).length;
   const sotCount = (markets.player_sot_ou || []).length;
+  const savesCount = (markets.player_saves_ou || []).length;
   const totalRows = WC_MATCH_PLAYER_PROP_MARKET_KEYS.reduce(
     (n, key) => n + (markets[key]?.length || 0),
     0,
   );
   const sufficient =
-    anytimeCount >= 2 || shotsCount >= 1 || sotCount >= 1 || totalRows >= 3;
+    anytimeCount >= 2 ||
+    shotsCount >= 1 ||
+    sotCount >= 1 ||
+    savesCount >= 1 ||
+    totalRows >= 3;
   if (!sufficient) {
     return {
       ok: false,
