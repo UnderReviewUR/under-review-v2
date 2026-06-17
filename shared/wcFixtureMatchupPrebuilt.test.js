@@ -12,9 +12,12 @@ import {
   shouldUseWcFixtureMatchupPrebuilt,
   shouldUseWcLiveBetTimingPrebuilt,
   buildWcLiveBetTimingPrebuiltStructured,
+  shouldUseWcLiveInPlayBetsPrebuilt,
+  buildWcLiveInPlayBetsPrebuiltStructured,
   shouldUseWcLiveMatchWinnerPrebuilt,
   buildWcLiveMatchWinnerPrebuiltStructured,
   pickWcLiveMatchWinnerCall,
+  buildWcLiveMatchWinnerWhyNow,
 } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
@@ -228,8 +231,7 @@ test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () =>
     },
   });
   assert.equal(structured?.call, "Lean Under 2.5 goals");
-  assert.match(structured?.whyNow || "", /sits deep/i);
-  assert.match(structured?.whyNow || "", /rarely blows teams out/i);
+  assert.match(structured?.whyNow || "", /tight script|point first|Toss-up/i);
   assert.doesNotMatch(structured?.whyNow || "", /advances in \d/i);
   assert.match(structured?.deep || "", /WINS IF:/i);
   assert.match(structured?.deep || "", /DIES IF:/i);
@@ -300,7 +302,7 @@ test("prepareWcCardFaceDisplay shows prebuilt winner + alt play", () => {
   });
   assert.equal(face.headline, "Lean Under 2.5 goals");
   assert.match(face.sections.thePlay, /Alt:.*United States \+110 to win/i);
-  assert.match(face.sections.why, /sits deep/i);
+  assert.match(face.sections.why, /tight script|point first|Under 2\.5/i);
 });
 
 test("runWcUrTakeQA passes prebuilt USA vs PAR", () => {
@@ -657,4 +659,155 @@ test("shouldUseWcLiveMatchWinnerPrebuilt for thread follow-up who wins", () => {
       match: IRN_NZL_LIVE,
     }),
   );
+});
+
+const IRQ_NOR_LIVE = {
+  id: "wc-live-irq-nor",
+  homeTeam: "IRQ",
+  awayTeam: "NOR",
+  homeScore: 1,
+  awayScore: 2,
+  status: "live",
+  minute: 72,
+  group: "I",
+  odds: {
+    home: { moneyline: "+450" },
+    away: { moneyline: "-180" },
+    draw: { moneyline: "+260" },
+    totalLine: "3.5",
+    totalOver: "-105",
+    totalUnder: "-115",
+  },
+};
+
+test("live in-play bets — 2 leans at 1-2 second half (Iraq vs Norway)", () => {
+  const q = "2 live bets to consider for this match? It's 2-1 in the second half";
+  const history = [
+    {
+      role: "assistant",
+      structured: { fixtureHome: "IRQ", fixtureAway: "NOR", callType: "matchup" },
+    },
+  ];
+  assert.ok(
+    shouldUseWcLiveInPlayBetsPrebuilt(q, {
+      isConversationFollowUp: true,
+      history,
+      wcEventId: "wc-live-irq-nor",
+      hasKvFixture: true,
+      match: IRQ_NOR_LIVE,
+    }),
+  );
+  const structured = buildWcLiveInPlayBetsPrebuiltStructured({
+    home: "IRQ",
+    away: "NOR",
+    group: "I",
+    question: q,
+    match: IRQ_NOR_LIVE,
+  });
+  assert.ok(structured);
+  assert.match(structured.call || "", /Norway.*-180/i);
+  assert.match(structured.call || "", /Over 3\.5/i);
+  assert.doesNotMatch(structured.lean || "", /pass/i);
+  assert.doesNotMatch(structured.whyNow || "", /knockout stages/i);
+  assert.match(String(structured.deep || ""), /Bet 1:/i);
+  assert.match(String(structured.deep || ""), /Bet 2:/i);
+});
+
+test("best live angle prompt uses in-play bets prebuilt not null fixture prebuilt", () => {
+  const q = "Best live angle on NED vs JPN right now?";
+  const match = {
+    status: "live",
+    homeScore: 2,
+    awayScore: 1,
+    odds: {
+      home: { moneyline: "-120" },
+      away: { moneyline: "+320" },
+      draw: { moneyline: "+240" },
+      totalLine: "3.5",
+      totalOver: "-110",
+      totalUnder: "-110",
+    },
+  };
+  assert.ok(
+    shouldUseWcLiveInPlayBetsPrebuilt(q, {
+      hasKvFixture: true,
+      match,
+      mentionedTeams: ["NED", "JPN"],
+    }),
+  );
+  const structured = buildWcLiveInPlayBetsPrebuiltStructured({
+    home: "NED",
+    away: "JPN",
+    question: q,
+    match,
+  });
+  assert.ok(structured);
+  assert.match(structured.call || "", /to win/i);
+  assert.match(String(structured.gameStateLine || ""), /Live/i);
+  assert.equal(
+    buildWcFixtureMatchupPrebuiltStructured({
+      home: "NED",
+      away: "JPN",
+      group: "F",
+      question: q,
+      match,
+    }),
+    null,
+  );
+});
+
+test("live in-play bets without wcEventId when thread has fixture context", () => {
+  const q = "2 live bets to consider for this match? It's 1-2 in the second half";
+  const history = [
+    {
+      role: "assistant",
+      structured: { fixtureHome: "IRQ", fixtureAway: "NOR", callType: "matchup" },
+    },
+  ];
+  assert.ok(
+    shouldUseWcLiveInPlayBetsPrebuilt(q, {
+      isConversationFollowUp: true,
+      history,
+      hasKvFixture: true,
+      match: IRQ_NOR_LIVE,
+    }),
+  );
+});
+
+test("live in-play bets use named scorer when props available", () => {
+  const structured = buildWcLiveInPlayBetsPrebuiltStructured({
+    home: "IRQ",
+    away: "NOR",
+    question: "2 live bets — 1-3 second half",
+    match: { ...IRQ_NOR_LIVE, homeScore: 1, awayScore: 3 },
+    playerProps: {
+      markets: {
+        anytime_scorer: [
+          { name: "Ahmad Abbas", nationAbbr: "IRQ", americanOdds: "+650" },
+          { name: "Erling Haaland", nationAbbr: "NOR", americanOdds: "+180" },
+        ],
+      },
+    },
+    liveChanceQuality: {
+      players: [{ name: "Ahmad Abbas", nationAbbr: "IRQ", chanceIndex: 1.05 }],
+      team: { home: { chanceIndex: 0.8 }, away: { chanceIndex: 1.6 } },
+    },
+  });
+  assert.ok(structured);
+  assert.match(String(structured.deep || ""), /Ahmad Abbas anytime scorer \+650/i);
+  assert.match(String(structured.whyNow || ""), /Chance index/i);
+});
+
+test("buildWcLiveMatchWinnerWhyNow cites live chance index", () => {
+  const why = buildWcLiveMatchWinnerWhyNow({
+    homeName: "Iraq",
+    awayName: "Norway",
+    homeScore: 1,
+    awayScore: 2,
+    minute: 72,
+    liveChanceQuality: {
+      team: { home: { chanceIndex: 0.62 }, away: { chanceIndex: 1.18 } },
+    },
+  });
+  assert.match(why, /Chance index Iraq 0\.62 · Norway 1\.18/i);
 });

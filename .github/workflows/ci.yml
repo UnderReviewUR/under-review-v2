@@ -18,6 +18,8 @@ jobs:
       - run: npm test
       - name: WC Card Contract gate
         run: npm run audit:wc-card-contract
+      - name: WC Phases offline stress (168 checks, no API)
+        run: npm run stress:wc-phases
       - name: NBA Game 3 probe (offline board)
         run: node scripts/probe-nba-game3.mjs
       - run: npm run eval:wc-golden:handler

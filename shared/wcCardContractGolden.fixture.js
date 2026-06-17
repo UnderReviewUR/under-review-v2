@@ -645,6 +645,94 @@ export const WC_CARD_CONTRACT_GOLDEN_CASES = [
     },
     notes: "Advancement drill-down — mechanism vs first-turn delta line.",
   },
+  {
+    id: "thread-arg-alg-props-board",
+    question: "What about player props?",
+    expectedIntent: "PLAYER_PROP",
+    wcEventId: "wc-promo-arg-alg",
+    history: [
+      { role: "user", content: "Best bet for ARG vs ALG — I only know the moneyline" },
+      {
+        role: "assistant",
+        structured: {
+          callType: "matchup",
+          fixtureHome: "ARG",
+          fixtureAway: "ALG",
+          call: "Argentina -200 to win",
+          lean: "Pass on ML — Lean Under 2.5 goals",
+          line: "Posted Under 2.5 -114",
+          whyNow: "Algeria sits deep — Argentina rarely blows out Game 1 openers.",
+        },
+      },
+    ],
+    followUpExpect: {
+      expectedCallType: "player_market_verified",
+      requireDistinctWhy: true,
+    },
+    exemplarGood: {
+      cardType: "prop_board",
+      callType: "player_market_verified",
+      call: "Argentina vs Algeria — top player props",
+      lean:
+        "1. Lionel Messi anytime scorer -114\n2. Lautaro Martínez anytime scorer +180\n3. Riyad Mahrez anytime scorer +420",
+      whyNow: "Posted anytime scorer lines for Argentina vs Algeria.",
+      breakdownAvailable: true,
+    },
+    routingExpect: { playerPropsFastPath: true },
+    notes: "Plural props follow-up — board face, not single collapsed headline.",
+  },
+  {
+    id: "thread-arg-alg-sgp-parlay",
+    question: "Parlay: Messi scorer + under 2.5?",
+    expectedIntent: "PARLAY",
+    wcEventId: "wc-promo-arg-alg",
+    history: [
+      { role: "user", content: "Best bet for ARG vs ALG — I only know the moneyline" },
+      {
+        role: "assistant",
+        structured: {
+          callType: "matchup",
+          fixtureHome: "ARG",
+          fixtureAway: "ALG",
+          lean: "Pass on ML — Lean Under 2.5 goals",
+          line: "Posted Under 2.5 -114",
+        },
+      },
+      {
+        role: "assistant",
+        structured: {
+          cardType: "prop_board",
+          callType: "player_market_verified",
+          fixtureHome: "ARG",
+          fixtureAway: "ALG",
+          call: "Argentina vs Algeria — top player props",
+          propBoardRows: [
+            { label: "Lionel Messi", odds: "-114", market: "anytime_scorer" },
+            { label: "Riyad Mahrez", odds: "+420", market: "anytime_scorer" },
+          ],
+          lean: "1. Lionel Messi anytime scorer -114\n2. Riyad Mahrez anytime scorer +420",
+        },
+      },
+    ],
+    followUpExpect: {
+      expectedCallType: "parlay",
+      requireDistinctWhy: true,
+    },
+    exemplarGood: {
+      cardType: "parlay_ticket",
+      callType: "parlay",
+      call: "Argentina vs Algeria — 2-leg SGP (+245)",
+      lean: "Lean 2-leg SGP — Lionel Messi scorer + Under 2.5",
+      parlayLegs: [
+        { play: "Lionel Messi anytime scorer", odds: "-114" },
+        { play: "Under 2.5 goals", odds: "-114" },
+      ],
+      whyNow: "Shared low-event script — Messi volume plus Under 2.5 when Algeria park.",
+      breakdownAvailable: true,
+    },
+    routingExpect: { playerPropsFastPath: true },
+    notes: "Cross-market SGP must route PARLAY, not MATCHUP essay.",
+  },
 ];
 
 /** @type {WcCardContractGoldenCase[]} */

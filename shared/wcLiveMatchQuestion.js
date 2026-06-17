@@ -17,10 +17,41 @@ export function isWcLiveDominanceQuestion(question) {
 const LIVE_BET_TIMING_RE =
   /\b(?:when(?:'s| is)?\s+(?:the\s+)?best\s+time\s+to\s+(?:place|bet|lock)|best\s+time\s+to\s+place|should\s+i\s+(?:bet|lock|wait)|wait\s+until|place\s+(?:the\s+)?bet\s+now|lock\s+(?:it\s+)?in\s+now|bet\s+now\s+or\s+wait|before\s+(?:they|spain|france|[a-z]{3})\s+score)\b/i;
 
+/** "2 live bets", "best live angle", "in-play plays to consider" — not dominance/stats Qs. */
+export const LIVE_BETS_ASK_RE =
+  /\b(?:(?:\d+|two|a couple(?:\s+of)?|couple\s+of)\s+)?(?:live|in[- ]?play)\s+(?:bets?|angles?|plays?|leads?|options?|picks?)\b|\bbest\s+(?:live|in[- ]?play)\s+(?:bets?|angles?|plays?|picks?)\b|\blive\s+bets?\s+to\s+consider\b|\bbets?\s+to\s+consider\b.*\b(?:live|this match|second half|2nd half)\b/i;
+
+export const WC_LIVE_ANGLE_ASK_RE =
+  /\b(live angle|best live|in play|in-play|right now|currently|this minute|at the moment)\b/i;
+
 /**
  * Follow-up on when to lock a live totals lean from the same thread.
  * @param {string} question
  */
+/**
+ * Actionable live betting angles (ML / total / scorer) — not possession-only Qs.
+ * @param {string} question
+ */
+export function isWcLiveBetsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (LIVE_BETS_ASK_RE.test(q)) return true;
+  if (WC_LIVE_ANGLE_ASK_RE.test(q) && /\b(?:bet|bets|angle|play|consider|back|lock|lean)\b/i.test(q)) {
+    return true;
+  }
+  if (/\b(?:live|in[- ]?play)\b/i.test(q) && /\b(?:bet|bets|angle|play|consider|back|lock|lean|scorer|total)\b/i.test(q)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * @param {string} question
+ */
+export function isWcSecondHalfContext(question) {
+  return /\b(?:second|2nd)\s+half\b/i.test(String(question || ""));
+}
+
 export function isWcLiveBetTimingQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;

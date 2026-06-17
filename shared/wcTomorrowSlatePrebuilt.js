@@ -6,6 +6,7 @@ import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { getTomorrowEtDateString } from "./nbaPlayoffSlateFromActionNetwork.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
+  buildWcSlateTotalsAngleCopy,
   formatPostedTotalsLine,
   getWcFixtureMlSeed,
   pickWcFixtureSpreadLean,
@@ -43,6 +44,49 @@ function isTodaySlateEligibleStatus(status) {
 
 function hasExplicitSlateDate(match) {
   return hasExplicitWcSlateDate(match);
+}
+
+function normalizeSlateMechanismKey(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/\bgroup [a-l]\b/gi, "grp")
+    .replace(/~\d+%|\d+\.?\d*%/g, "pct")
+    .replace(/\b\d+\.?\d*\b/g, "n");
+}
+
+function slateMechanismOverlap(a, b) {
+  const wa = new Set(
+    normalizeSlateMechanismKey(a)
+      .split(/\W+/)
+      .filter((w) => w.length > 3),
+  );
+  const wb = new Set(
+    normalizeSlateMechanismKey(b)
+      .split(/\W+/)
+      .filter((w) => w.length > 3),
+  );
+  if (!wa.size || !wb.size) return 0;
+  let hit = 0;
+  for (const w of wa) {
+    if (wb.has(w)) hit += 1;
+  }
+  return hit / Math.min(wa.size, wb.size);
+}
+
+/**
+ * @param {Record<string, unknown>} baseOpts
+ * @param {string[]} priorMechanisms
+ */
+function pickDistinctSlateTotalsCopy(baseOpts, priorMechanisms) {
+  for (let variant = 0; variant < 4; variant += 1) {
+    const copy = buildWcSlateTotalsAngleCopy({ ...baseOpts, mechanismVariant: variant });
+    const why = String(copy?.mechanismWhy || "").trim();
+    if (!why) continue;
+    if (!priorMechanisms.some((p) => slateMechanismOverlap(why, p) >= 0.72)) {
+      return copy;
+    }
+  }
+  return buildWcSlateTotalsAngleCopy(baseOpts);
 }
 
 /**
@@ -222,6 +266,25 @@ export function formatWcSlateMatchDeepBlock(angle) {
   const kickoff = String(angle?.kickoff || "").trim();
   const body = String(angle?.deep || angle?.whyNow || "").trim();
   const header = group ? `${label} (Group ${group})` : label;
+
+  if (angle?.slateTotalsCompact) {
+    const kickoffEt = String(angle.kickoffEt || "").trim();
+    const totalLine = String(angle.totalLine || "").trim();
+    const leanDisplay = String(angle.leanDisplay || lean).replace(/^lean:\s*/i, "").trim();
+    const mechanismWhy = String(angle.mechanismWhy || "").trim();
+    const postedLine = String(angle.postedLine || "").trim();
+    const simLine = String(angle.simLine || "").trim();
+    /** @type {string[]} */
+    const blocks = [`Match: ${header}`];
+    const kickMeta = [kickoffEt, totalLine ? `Total ${totalLine}` : ""].filter(Boolean).join(" · ");
+    if (kickMeta) blocks.push(`Kickoff: ${kickMeta}`);
+    if (leanDisplay) blocks.push(`Lean: ${leanDisplay}`);
+    if (mechanismWhy) blocks.push(`Context: ${mechanismWhy}`);
+    if (postedLine) blocks.push(`Book: ${postedLine}`);
+    if (simLine) blocks.push(`UR model win bar: ${simLine}`);
+    return blocks.join("\n\n");
+  }
+
   /** @type {string[]} */
   const blocks = [`Match: ${header}`];
   if (kickoff) blocks.push(`Kickoff: ${kickoff}`);
@@ -466,6 +529,8 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
   const marketBoardMode = resolveWcSlateMarketBoardMode(question);
   /** @type {Array<Record<string, unknown>>} */
   const angles = [];
+  /** @type {string[]} */
+  const priorMechanisms = [];
 
   for (const fx of tomorrowSlate || []) {
     if (predictionMode) {
@@ -504,14 +569,32 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
       let call = "";
       let line = "";
       let whyNow = "";
+      const totalsCopy = totals
+        ? pickDistinctSlateTotalsCopy(
+            {
+              home,
+              away,
+              group,
+              match,
+              totals,
+              teamStats: opts.teamStats,
+            },
+            priorMechanisms,
+          )
+        : null;
+      if (totalsCopy?.mechanismWhy) {
+        priorMechanisms.push(String(totalsCopy.mechanismWhy));
+      }
+
       if (spread && totals) {
         lean = `${spread.headline} · ${totals.headline || totals.lean}`.slice(0, 140);
         call = lean.slice(0, 100);
-        line = [spread.bookLine, formatPostedTotalsLine(match?.odds, totals.kind || "under")]
+        line = [spread.bookLine, totalsCopy?.postedLine]
           .filter(Boolean)
           .join(" · ");
         whyNow =
-          formatPostedTotalsLine(match?.odds, totals.kind || "under") ||
+          totalsCopy?.mechanismWhy ||
+          totalsCopy?.postedLine ||
           spread.bookLine ||
           `${label} — posted lines from book board.`;
       } else if (spread) {
@@ -524,8 +607,9 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
       } else if (totals) {
         lean = totals.headline || totals.lean;
         call = lean.slice(0, 100);
-        line = formatPostedTotalsLine(match?.odds, totals.kind || "under") || "";
+        line = totalsCopy?.postedLine || "";
         whyNow =
+          totalsCopy?.mechanismWhy ||
           line ||
           `${label} — UR sim lean until goal total posts.`;
       }
@@ -540,9 +624,10 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
         call,
         line,
         whyNow,
-        deep: line && line === whyNow ? line : [line, whyNow].filter(Boolean).join("\n\n"),
+        deep: totalsCopy?.mechanismWhy || whyNow,
         fixtureCard: null,
         marketBoardMode,
+        ...(totalsCopy || {}),
       });
       continue;
     }

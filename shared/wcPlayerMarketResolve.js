@@ -39,6 +39,7 @@ import {
 import { lookupStarterGoalkeeper } from "./wcGoldenGloveAdjusted.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
+import { WC_CARD_TYPE } from "./wcThreadState.js";
 
 /** @typedef {"verified" | "market_only" | "squad" | "thin"} WcPlayerMarketTier */
 
@@ -632,7 +633,12 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   }
 
   const perTeamAsk = isWcPerTeamPlayerPropsQuestion(question);
-  const perSide = perTeamAsk ? extractWcPerTeamPlayerPropCount(question) : 3;
+  const pluralPropsAsk =
+    isGenericWcPlayerPropQuestion(question) ||
+    isWcFixturePlayerPropsQuestion(question) ||
+    perTeamAsk ||
+    /\bwhat about player props?\b/i.test(String(question || ""));
+  const perSide = perTeamAsk ? extractWcPerTeamPlayerPropCount(question) : pluralPropsAsk ? 3 : 2;
   const homePicks = byTeam.home.slice(0, perSide);
   const awayPicks = byTeam.away.slice(0, perSide);
 
@@ -675,17 +681,27 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
 
   const lead = picked[0];
   const meta = tierMetaFor(tier);
-  const call = perTeamAsk
-    ? `${perSide} props per side — ${homeLabel} vs ${awayLabel}`
+  const propBoardRows = picked.slice(0, Math.max(3, perSide * 2)).map((r) => ({
+    label: r.name,
+    lean: `Anytime scorer ${r.americanOdds}`,
+    market: "anytime_scorer",
+    odds: r.americanOdds,
+  }));
+  const call = pluralPropsAsk
+    ? perTeamAsk
+      ? `${perSide} props per side — ${homeLabel} vs ${awayLabel}`
+      : `${homeLabel} vs ${awayLabel} — top player props`
     : `${lead.name} anytime scorer ${lead.americanOdds}`;
 
   return {
     sport: "worldcup",
+    cardType: pluralPropsAsk ? WC_CARD_TYPE.PROP_BOARD : WC_CARD_TYPE.SINGLE_LEAN,
     callType: meta.callType,
     playerMarketTier: tier,
     wcEventId: eventId || undefined,
     fixtureHome: homeAbbr,
     fixtureAway: awayAbbr,
+    propBoardRows,
     call,
     lean: numbered,
     whyNow: `Posted anytime scorer lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)}.`,

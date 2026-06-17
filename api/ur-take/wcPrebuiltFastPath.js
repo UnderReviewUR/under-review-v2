@@ -61,6 +61,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     wcFixtureMatchupPrebuiltEarly,
     wcFixtureAltFollowUpPrebuiltEarly,
     wcLiveBetTimingPrebuiltEarly,
+    wcLiveInPlayBetsPrebuiltEarly,
     wcRunnerUpFollowUpQuestion,
     isConversationFollowUp,
     normalizedUrTakeHistoryForGate,
@@ -177,19 +178,30 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
   } else if (
     (wcFixtureMatchupPrebuiltEarly ||
       wcFixtureAltFollowUpPrebuiltEarly ||
-      wcLiveBetTimingPrebuiltEarly) &&
+      wcLiveBetTimingPrebuiltEarly ||
+      wcLiveInPlayBetsPrebuiltEarly ||
+      wcLiveMatchWinnerPrebuiltEarly) &&
     !isWcPlayerMarketIntent(wcIntent) &&
     wcIntent !== WC_INTENT.PLAYER_PROP &&
     !(isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) &&
     !isWcFixtureScopedPlayerMarketQuestion(routingQuestion) &&
     !(detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
   ) {
-    structuredResponse = wcFixtureMatchupPrebuiltEarly || wcFixtureAltFollowUpPrebuiltEarly || wcLiveBetTimingPrebuiltEarly;
+    structuredResponse =
+      wcFixtureMatchupPrebuiltEarly ||
+      wcFixtureAltFollowUpPrebuiltEarly ||
+      wcLiveBetTimingPrebuiltEarly ||
+      wcLiveInPlayBetsPrebuiltEarly ||
+      wcLiveMatchWinnerPrebuiltEarly;
     passKind = wcLiveBetTimingPrebuiltEarly
       ? "live_bet_timing"
-      : wcFixtureAltFollowUpPrebuiltEarly
-        ? "fixture_alt_follow_up"
-        : "fixture_matchup";
+      : wcLiveInPlayBetsPrebuiltEarly
+        ? "live_in_play_bets"
+        : wcLiveMatchWinnerPrebuiltEarly
+          ? "live_match_winner"
+          : wcFixtureAltFollowUpPrebuiltEarly
+            ? "fixture_alt_follow_up"
+            : "fixture_matchup";
   }
 
   if (!structuredResponse) return { handled: false };
@@ -279,7 +291,10 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     responseFormat: "structured",
     sport: "worldcup",
     intent,
-    liveMode: false,
+    liveMode:
+      passKind === "live_in_play_bets" ||
+      passKind === "live_match_winner" ||
+      passKind === "live_bet_timing",
     take: {
       id: takeRecord.id,
       playLine: takeRecord.playLine,
@@ -297,6 +312,11 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
       qaFallbackApplied: false,
     },
     ...(wcContext?.dataConfidence ? { dataConfidence: wcContext.dataConfidence } : {}),
+    ...(structuredResponse?.wcEventId
+      ? { wcEventId: String(structuredResponse.wcEventId) }
+      : wcRelevanceLog?.wcEventId
+        ? { wcEventId: String(wcRelevanceLog.wcEventId) }
+        : {}),
   };
 
   console.log(

@@ -13,6 +13,7 @@ import {
   isWcPlayerMarketIntent,
 } from "./wcUrTakePlayerMarket.js";
 import { getVerdictFollowUpChips, getVerdictNextLine } from "./wcUrTakeVerdict.js";
+import { extractWcThreadStateFromHistory } from "./wcThreadState.js";
 import {
   prependWcTakeAwareFollowUpChips,
   resolveWcTakeAwareNextLine,
@@ -331,6 +332,27 @@ export function resolveWcFollowUpNextLine(verdict, message, userQuestion = "") {
   return resolveWcTakeAwareNextLine(base, message, userQuestion) || base;
 }
 
+function filterStaleGenericFollowUpChips(chips, message, history = []) {
+  const thread = extractWcThreadStateFromHistory(history);
+  const hasProps = (thread.lastPropBoard?.length || 0) >= 2;
+  const hasTotals = Boolean(thread.lastTotalsLean?.side);
+  const cardType = String(message?.structured?.cardType || "");
+
+  return (chips || []).filter((chip) => {
+    const s = String(chip || "").trim();
+    if (!s) return false;
+    if (hasProps && hasTotals && /^build a parlay around/i.test(s)) return false;
+    if (hasProps && /\bclearest angle on this matchup\b/i.test(s)) return false;
+    if (
+      (hasProps || cardType === "prop_board") &&
+      /^what'?s the best bet besides the moneyline\?/i.test(s)
+    ) {
+      return false;
+    }
+    return true;
+  });
+}
+
 /**
  * @param {import("./wcUrTakeVerdict.js").WcUrTakeVerdict} verdict
  * @param {object | null | undefined} message
@@ -365,7 +387,12 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "", histor
       out.push(s);
       if (out.length >= 3) break;
     }
-    return prependWcTakeAwareFollowUpChips(out, message, q, history);
+    return prependWcTakeAwareFollowUpChips(
+      filterStaleGenericFollowUpChips(out, message, history),
+      message,
+      q,
+      history,
+    );
   }
 
   const context = getWcContextFollowUpChips(message, userQuestion);
@@ -382,5 +409,10 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "", histor
     out.push(s);
     if (out.length >= 3) break;
   }
-  return prependWcTakeAwareFollowUpChips(out, message, q, history);
+  return prependWcTakeAwareFollowUpChips(
+    filterStaleGenericFollowUpChips(out, message, history),
+    message,
+    q,
+    history,
+  );
 }

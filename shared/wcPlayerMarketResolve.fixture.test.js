@@ -38,7 +38,7 @@ test("buildWcFixturePlayerPropsListStructured — numbered list from KV", () => 
   assert.ok(structured);
   assert.match(structured.lean, /^1\./m);
   assert.match(structured.lean, /Mbapp/i);
-  assert.match(structured.call, /anytime scorer/i);
+  assert.match(structured.call, /top player props/i);
 });
 
 test("resolveWcPlayerMarketAnswer — fixture props bypass LLM when KV fresh", () => {

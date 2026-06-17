@@ -106,6 +106,75 @@ export function buildWcSlateListFace(opts = {}) {
   return { intro, rows };
 }
 
+/**
+ * Prop board list face — mirrors slate list for plural fixture props.
+ * @param {object} [opts]
+ * @returns {{ intro: string, rows: Array<{ label: string, lean: string }> } | null}
+ */
+export function buildWcPropsListFace(opts = {}) {
+  const explicitRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
+  if (explicitRows.length >= 2) {
+    const intro =
+      String(opts.call || "").trim() ||
+      `${opts.fixtureHome || ""} vs ${opts.fixtureAway || ""} — top player props`.trim();
+    const rows = explicitRows
+      .map((row) => {
+        const label = String(row?.label || row?.player || "").trim();
+        const lean = String(row?.lean || "").trim() || (row?.odds ? `Anytime scorer ${row.odds}` : "");
+        if (!label) return null;
+        return { label, lean };
+      })
+      .filter(Boolean);
+    if (rows.length >= 2) return { intro, rows };
+  }
+
+  const call = String(opts.call || "").trim();
+  const lean = String(opts.lean || "").trim();
+  if (!/\btop player props\b/i.test(call) && !/^\s*\d+\.\s+/m.test(lean)) return null;
+
+  const parsed = lean
+    .split("\n")
+    .map((line) => {
+      const m = line.match(/^\s*\d+\.\s+(.+)$/);
+      if (!m) return null;
+      const body = m[1].trim();
+      const odds = body.match(/([+-]\d{2,})\s*$/)?.[1] || "";
+      const name = body.replace(/\s+anytime\s+(?:goal\s*)?scorer.*$/i, "").trim();
+      if (!name) return null;
+      return {
+        label: name,
+        lean: odds ? `Anytime scorer ${odds}` : body,
+      };
+    })
+    .filter(Boolean);
+
+  if (parsed.length < 2) return null;
+  const intro =
+    call ||
+    `${opts.fixtureHome || ""} vs ${opts.fixtureAway || ""} — top player props`.trim();
+  return { intro, rows: parsed.slice(0, 5) };
+}
+
+/**
+ * Parlay ticket list face from structured legs.
+ * @param {object} [opts]
+ */
+export function buildWcParlayListFace(opts = {}) {
+  const legs = Array.isArray(opts.parlayLegs) ? opts.parlayLegs : [];
+  if (legs.length < 2) return null;
+  const combined = String(opts.parlayCombinedOdds || "").trim();
+  const intro =
+    String(opts.call || "").trim() ||
+    `2-leg SGP${combined ? ` (${combined})` : ""}`;
+  const rows = legs.map((leg, i) => ({
+    label: `Leg ${i + 1}`,
+    lean: [String(leg?.play || "").trim(), leg?.odds != null ? String(leg.odds) : ""]
+      .filter(Boolean)
+      .join(" · "),
+  }));
+  return { intro, rows };
+}
+
 /** Collapsed thread teaser only — active card face shows full why. */
 export const WC_COLLAPSED_THREAD_WHY_WORDS = 16;
 
@@ -360,7 +429,19 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
  * @param {string} lean
  * @param {string} [call]
  */
-function pickWcPlayerPropListHeadline(lean, call = "") {
+function pickWcPlayerPropListHeadline(lean, call = "", cardType = "") {
+  const callStr = String(call || "").trim();
+  if (
+    cardType === "prop_board" ||
+    /\btop player props\b/i.test(callStr) ||
+    /\bprops per side\b/i.test(callStr)
+  ) {
+    return capWcCardFaceField(callStr, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+
   const leanStr = String(lean || "").trim();
   const leanIsPass = /^pass\s*[—-]\s*no actionable line yet/i.test(leanStr);
   const numbered = leanStr.match(/^\s*1\.\s+(.+)$/m);
@@ -378,7 +459,6 @@ function pickWcPlayerPropListHeadline(lean, call = "") {
       maxSentences: 1,
     });
   }
-  const callStr = String(call || "").trim();
   const callIsPassHeadline =
     /^pass\b|^no verified|^same-script legs|^player parlay legs|^player props for/i.test(callStr);
 
@@ -420,7 +500,7 @@ export function pickWcCardHeadline(opts = {}) {
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
 
   if (playerMarketCt) {
-    const propHeadline = pickWcPlayerPropListHeadline(leanRaw, call);
+    const propHeadline = pickWcPlayerPropListHeadline(leanRaw, call, opts.cardType);
     if (propHeadline) return propHeadline;
   }
 
@@ -634,7 +714,19 @@ export function prepareWcCardFaceDisplay(opts = {}) {
           slateDay: opts.slateDay,
           fixtureCount: opts.tomorrowFixtureCount,
         })
-      : null;
+      : buildWcParlayListFace({
+          call: opts.call,
+          parlayLegs: opts.parlayLegs,
+          parlayCombinedOdds: opts.parlayCombinedOdds,
+        }) ||
+        buildWcPropsListFace({
+          call: opts.call,
+          lean: opts.lean,
+          propBoardRows: opts.propBoardRows,
+          cardType: opts.cardType,
+          fixtureHome: opts.fixtureHome,
+          fixtureAway: opts.fixtureAway,
+        });
 
   let headline = pickWcCardHeadline({
     lean: opts.lean,
@@ -645,6 +737,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     breakdown: fullDeep,
     question: opts.question,
     callType: opts.callType,
+    cardType: opts.cardType,
   });
   if (slateListFace) {
     headline = slateListFace.intro;

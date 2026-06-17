@@ -6,6 +6,7 @@ import {
   parseWcMatchGoalsOverUnder,
   wcMatchupTeamDisplayName,
 } from "./wcMatchupWinnerLine.js";
+import { parsePropBoardFromStructured } from "./wcThreadState.js";
 
 /**
  * @param {object[]} history
@@ -139,8 +140,33 @@ export function buildWcTakeAwareFollowUpChips(message, userQuestion = "", histor
 
   if (/Posted anytime scorer/i.test(structured.whyNow || "") && home && away) {
     chips.push(`4 player parlay for ${home} vs ${away}?`);
+    if (!chips.some((c) => /parlay/i.test(c))) {
+      const lead = parsePropBoardFromStructured(structured)[0]?.player || scorer?.name;
+      const priorOu = findPriorMatchTotalsFromHistory(history);
+      if (lead && priorOu?.side && priorOu.line != null) {
+        chips.unshift(
+          `Parlay: ${lead} scorer + ${String(priorOu.side).toLowerCase()} ${priorOu.line}?`,
+        );
+      }
+    }
     if (!chips.some((c) => new RegExp(awayName, "i").test(c))) {
       chips.push(`Best value on the ${awayName} side?`);
+    }
+  }
+
+  if (
+    (structured.cardType === "prop_board" || /\btop player props\b/i.test(call)) &&
+    home &&
+    away
+  ) {
+    const priorOu = findPriorMatchTotalsFromHistory(history);
+    const leadProp = parsePropBoardFromStructured(structured)[0];
+    if (priorOu?.side && priorOu.line != null && leadProp?.player) {
+      chips.unshift(
+        `Parlay: ${leadProp.player} scorer + ${String(priorOu.side).toLowerCase()} ${priorOu.line}?`,
+      );
+    } else if (leadProp?.player) {
+      chips.push(`Is ${leadProp.player} ${leadProp.odds || "listed"} juice or still playable?`);
     }
   }
 

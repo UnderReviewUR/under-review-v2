@@ -41,15 +41,23 @@ test("prepareWcCardFaceDisplay — numbered fixture props list in why", () => {
   ].join("\n");
   const face = prepareWcCardFaceDisplay({
     callType: "player_market_verified",
-    call: "Enner Valencia anytime scorer +450",
+    cardType: "prop_board",
+    call: "Ecuador vs Ivory Coast — top player props",
+    propBoardRows: [
+      { label: "Enner Valencia", lean: "Anytime scorer +450" },
+      { label: "Nicolas Jackson", lean: "Anytime scorer +380" },
+      { label: "Sebastien Haller", lean: "Over 0.5 SOT -110" },
+    ],
     lean,
-    why: lean,
+    why: "Posted anytime scorer lines for Ecuador vs Ivory Coast.",
     focusLayout: true,
     question: "Best player props for Ecuador vs Ivory Coast?",
   });
-  assert.match(face.headline, /Enner Valencia anytime scorer \+450 \(\+2 more\)/);
-  assert.match(face.sections.why, /Nicolas Jackson/);
+  assert.equal(face.headline, "Ecuador vs Ivory Coast — top player props");
+  assert.ok(face.slateListFace?.rows?.length >= 2);
+  assert.match(face.slateListFace.rows[0].lean, /\+450/);
   assert.doesNotMatch(face.headline, /lean his/i);
+  assert.doesNotMatch(face.headline, /\+2 more/i);
 });
 
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {

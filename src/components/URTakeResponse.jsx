@@ -107,6 +107,10 @@ export default function URTakeResponse({
   tomorrowSlateAngles = null,
   slateDay = null,
   tomorrowFixtureCount = null,
+  wcCardType = null,
+  wcPropBoardRows = null,
+  wcFixtureHome = null,
+  wcFixtureAway = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -393,6 +397,12 @@ export default function URTakeResponse({
       lineSlot: lineSlotValue,
       callType,
       question: userQuestion,
+      cardType: wcCardType,
+      propBoardRows: wcPropBoardRows,
+      fixtureHome: wcFixtureHome,
+      fixtureAway: wcFixtureAway,
+      parlayLegs: safeParlayLegs,
+      parlayCombinedOdds: combinedParlayOdds,
       tomorrowSlateAngles: Array.isArray(tomorrowSlateAngles) ? tomorrowSlateAngles : [],
       slateDay: slateDay || null,
       tomorrowFixtureCount,

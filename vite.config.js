@@ -12,15 +12,31 @@ const commitSha =
 
 const buildTime = new Date().toISOString();
 
-/** SPA entry for /worldcup — dev fallback + dist/worldcup/index.html on build. */
+/** Dev routing for multi-page build: /worldcup + SPA fallback to index.html. */
 function worldcupRoutePlugin() {
   return {
     name: "worldcup-route",
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
-        const pathOnly = (req.url || "").split("?")[0].split("#")[0];
+        const raw = req.url || "";
+        const qIdx = raw.indexOf("?");
+        const pathOnly = (qIdx === -1 ? raw : raw.slice(0, qIdx)).split("#")[0];
+        const query = qIdx === -1 ? "" : raw.slice(qIdx);
+
         if (pathOnly === "/worldcup" || pathOnly === "/worldcup/") {
-          req.url = "/worldcup.html";
+          req.url = `/worldcup.html${query}`;
+          return next();
+        }
+
+        const isDevAsset =
+          pathOnly.startsWith("/@") ||
+          pathOnly.startsWith("/node_modules/") ||
+          pathOnly.startsWith("/src/") ||
+          pathOnly.startsWith("/api/") ||
+          /\.[a-zA-Z0-9]+$/.test(pathOnly);
+
+        if (!isDevAsset && pathOnly !== "/index.html") {
+          req.url = `/index.html${query}`;
         }
         next();
       });
@@ -53,6 +69,12 @@ export default defineConfig({
   /** Allow REACT_APP_STRUCTURED_UR_TAKE alongside VITE_* for structured UR Take UI flag. */
   envPrefix: ["VITE_", "REACT_APP_"],
   server: {
+    host: true,
+    proxy: {
+      "/api": "http://localhost:3001",
+    },
+  },
+  preview: {
     proxy: {
       "/api": "http://localhost:3001",
     },

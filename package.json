@@ -17,6 +17,8 @@
     "eval:wc-golden:handler": "node scripts/run-wc-golden-eval.mjs --handler",
     "eval:wc-golden:live": "node scripts/run-wc-golden-eval.mjs --live",
     "audit:wc-card-contract": "node scripts/run-wc-card-contract-gate.mjs",
+    "stress:wc-phases": "node scripts/stress-wc-phases-offline.mjs",
+    "verify:wc-offline": "node scripts/verify-wc-offline-ship.mjs",
     "audit:wc-card-contract:offline": "node scripts/run-wc-card-contract-offline-voice.mjs",
     "audit:wc-card-contract:live": "node scripts/run-wc-card-contract-audit.mjs",
     "audit:wc-card-contract:live:threads": "node scripts/run-wc-card-contract-live-threads.mjs",

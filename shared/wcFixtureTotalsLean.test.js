@@ -24,3 +24,15 @@ test("pickWcFixtureTotalsAlternateLean tight ML defaults Under 2.5", () => {
   assert.equal(row.headline, "Lean Under 2.5 goals");
   assert.equal(row.kind, "under");
 });
+
+test("pickWcFixtureTotalsAlternateLean follows book juice when totals split", () => {
+  const row = pickWcFixtureTotalsAlternateLean({
+    home: "ARG",
+    away: "ALG",
+    homeMl: "-200",
+    awayMl: "+550",
+    matchOdds: { totalLine: "2.5", totalOver: "-130", totalUnder: "+110" },
+  });
+  assert.equal(row.kind, "over");
+  assert.match(row.headline || "", /Over 2\.5/i);
+});

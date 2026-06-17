@@ -1774,6 +1774,34 @@ function coerceStructuredForUrTakeCard(raw) {
       typeof raw.tomorrowFixtureCount === "number" && Number.isFinite(raw.tomorrowFixtureCount)
         ? raw.tomorrowFixtureCount
         : null,
+    gameStateLine:
+      raw.gameStateLine != null && String(raw.gameStateLine).trim()
+        ? String(raw.gameStateLine).trim()
+        : null,
+    liveScore:
+      raw.liveScore != null && String(raw.liveScore).trim() ? String(raw.liveScore).trim() : null,
+    wcEventId:
+      raw.wcEventId != null && String(raw.wcEventId).trim() ? String(raw.wcEventId).trim() : null,
+    fixtureHome:
+      raw.fixtureHome != null && String(raw.fixtureHome).trim()
+        ? String(raw.fixtureHome).trim()
+        : null,
+    fixtureAway:
+      raw.fixtureAway != null && String(raw.fixtureAway).trim()
+        ? String(raw.fixtureAway).trim()
+        : null,
+    wcCardType: raw.cardType != null ? String(raw.cardType).trim() : null,
+    wcPropBoardRows: Array.isArray(raw.propBoardRows)
+      ? raw.propBoardRows
+          .filter((row) => row && typeof row === "object")
+          .map((row) => ({
+            label: String(row.label ?? row.player ?? "").trim(),
+            lean: String(row.lean ?? "").trim(),
+            odds: row.odds != null ? String(row.odds) : "",
+            market: row.market != null ? String(row.market) : "",
+          }))
+          .filter((row) => row.label)
+      : [],
   };
 }
 
@@ -1802,7 +1830,8 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
       /\b(vs\.?|versus|who advances)\b/i.test(q)) &&
     !structuredPlayerMarket &&
     !isWcFixtureScopedPlayerMarketQuestion(q) &&
-    !isWcPlayerMarketIntent(intent)
+    !isWcPlayerMarketIntent(intent) &&
+    intent !== WC_INTENT.PARLAY
   ) {
     return {
       ...structured,
@@ -1839,6 +1868,7 @@ function coerceWcStructuredForIntent(structured, userQuestion = "", message = nu
   }
   if (
     intent === WC_INTENT.PLAYER_PROP ||
+    intent === WC_INTENT.PARLAY ||
     intent === WC_INTENT.GOLDEN_BOOT ||
     intent === WC_INTENT.TOP_SCORER
   ) {
@@ -2132,12 +2162,12 @@ function UrTakeAiBubble({
       !cardCollapsed &&
       (wcTakeCardUsesFocusLayout(cardDisplayMode) ||
         (docked && isWcDockCompactEligible(layoutStructured, m.sport)));
-    const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
-    const structuredGameStateLine = parsedLiveRibbon.gameState
-      ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState)
-      : "";
-
     const s = coerceStructuredForUrTakeCard(effectiveStructured);
+    const parsedLiveRibbon = safeParseUrTakeResponse(summaryText);
+    const structuredGameStateLine =
+      String(s?.gameStateLine || s?.liveScore || m.gameStateLine || m.liveScore || "").trim() ||
+      (parsedLiveRibbon.gameState ? stripUrTakeInlineMarkdown(parsedLiveRibbon.gameState) : "");
+
     const structuralEdgeChip = resolveStructuralEdgeChipForMessage({
       msgs,
       msgIndex,
@@ -2231,6 +2261,10 @@ function UrTakeAiBubble({
             tomorrowSlateAngles={s.tomorrowSlateAngles}
             slateDay={s.slateDay}
             tomorrowFixtureCount={s.tomorrowFixtureCount}
+            wcCardType={s.wcCardType}
+            wcPropBoardRows={s.wcPropBoardRows}
+            wcFixtureHome={s.fixtureHome}
+            wcFixtureAway={s.fixtureAway}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

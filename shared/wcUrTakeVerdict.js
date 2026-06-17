@@ -54,6 +54,7 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
 
   if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
   if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
+  if (classifyWcQuestionIntent(q) === WC_INTENT.PARLAY) return WC_INTENT.PARLAY;
 
   const classified = classifyWcQuestionIntent(q);
   if (isWcPlayerMarketIntent(classified)) return classified;

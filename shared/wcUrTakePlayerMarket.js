@@ -794,7 +794,12 @@ export function isGenericWcPlayerPropQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return true;
   if (extractWcNamedPlayerFromQuestion(q)) return false;
-  return /\bplayer props?\b/i.test(q);
+  if (/\bplayer props?\b/i.test(q)) return true;
+  if (/\bprop board\b/i.test(q)) return true;
+  if (/\banytime scorer board\b/i.test(q)) return true;
+  if (/\blist top scorer props\b/i.test(q)) return true;
+  if (/\btop props\b/i.test(q) && extractMentionedWcTeams(q).length >= 2) return true;
+  return false;
 }
 
 /**

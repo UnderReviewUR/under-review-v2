@@ -1163,12 +1163,16 @@ export function formatWcCompactDisplayText(structured, summaryFallback = "") {
     const call = String(structured.call || "").trim();
     const why = String(structured.whyNow || "").trim();
     const conf = String(structured.confidence || "").trim();
+    const ribbon = String(structured.gameStateLine || structured.liveScore || "").trim();
     const lines = [];
     if (leanLine) lines.push(leanLine);
     if (call && call !== "—") lines.push(`THE PLAY: ${call}`);
     if (conf) lines.push(`CONFIDENCE\n${conf}`);
     if (why) lines.push(why);
-    if (lines.length) return lines.join("\n\n");
+    if (lines.length) {
+      const body = lines.join("\n\n");
+      return ribbon ? `${ribbon}\n${body}` : body;
+    }
   }
   const s = String(summaryFallback || "").trim();
   if (!s) return "";

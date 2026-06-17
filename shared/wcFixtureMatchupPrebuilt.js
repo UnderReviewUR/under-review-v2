@@ -37,7 +37,7 @@ import {
   isWcTotalsExplainFollowUp,
 } from "./wcMatchBettingPrompt.js";
 import { shouldBlockMatchupAltPrebuiltAfterPlayerPivot } from "./wcFollowUpExplain.js";
-import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, parseLiveScoreFromQuestion } from "./wcLiveMatchQuestion.js";
+import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, isWcLiveBetsQuestion, isWcSecondHalfContext, parseLiveScoreFromQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
@@ -45,9 +45,13 @@ import {
   assessWcBothTeamsAdvanceFixture,
   buildWcBothTeamsAdvanceCaveat,
 } from "./wcBothTeamsAdvance.js";
+import { formatWcKickoffEtOnly, formatWcLiveGameStateLine } from "./wcKickoffDisplay.js";
+import {
+  matchPlayerPropRowsFromEvent,
+} from "./wcMatchPlayerProps.js";
+import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 
-const WC_LIVE_ANGLE_RE =
-  /\b(live angle|best live|in play|in-play|right now|currently|this minute|at the moment)\b/i;
+const WC_LIVE_ANGLE_RE = WC_LIVE_ANGLE_ASK_RE;
 
 function isWcNonFixtureMatchupQuestion(question) {
   const q = String(question || "");
@@ -327,6 +331,27 @@ export function pickWcFixtureTotalsAlternateLean(row) {
         ? 3.5
         : 2.5;
   const lineStr = formatGoalsLine(line);
+
+  const overOdds = readWcMatchMoneylineAmerican(row.matchOdds?.totalOver);
+  const underOdds = readWcMatchMoneylineAmerican(row.matchOdds?.totalUnder);
+  const overImp = overOdds ? americanOddsImplied(overOdds) : null;
+  const underImp = underOdds ? americanOddsImplied(underOdds) : null;
+  if (overImp != null && underImp != null && Math.abs(overImp - underImp) >= 0.03) {
+    const bookPrefersOver = overImp > underImp;
+    const headline = bookPrefersOver
+      ? `Lean Over ${lineStr} goals`
+      : `Lean Under ${lineStr} goals`;
+    return {
+      lean:
+        row.passOnMlPrefix === false
+          ? `${headline}.`
+          : `Pass on ML — ${headline} — cleaner angle than the ML.`,
+      headline,
+      kind: bookPrefersOver ? "over" : "under",
+      line: lineStr,
+      favAbbr: fav.abbr,
+    };
+  }
 
   const heavyMismatch = favImp >= 0.82 || favAm <= -800;
   if (heavyMismatch) {
@@ -748,6 +773,7 @@ export function pickWcLiveMatchWinnerCall(row) {
  *   homeScore?: number | null,
  *   awayScore?: number | null,
  *   minute?: number | string | null,
+ *   liveChanceQuality?: Record<string, unknown> | null,
  * }} row
  */
 export function buildWcLiveMatchWinnerWhyNow(row) {
@@ -756,16 +782,23 @@ export function buildWcLiveMatchWinnerWhyNow(row) {
   const minute =
     row.minute != null && String(row.minute).trim() !== "" ? String(row.minute).trim() : null;
   const minSuffix = minute ? ` after ${minute}${String(minute).includes("'") ? "" : "'"} minutes` : " live";
+  const cq = row.liveChanceQuality;
+  const homeIdx = cq?.team?.home?.chanceIndex;
+  const awayIdx = cq?.team?.away?.chanceIndex;
+  const chanceBit =
+    homeIdx != null && awayIdx != null
+      ? ` Chance index ${row.homeName} ${homeIdx} · ${row.awayName} ${awayIdx}.`
+      : "";
 
   if (Number.isFinite(hs) && Number.isFinite(as)) {
     if (hs === as) {
-      return `${row.homeName} and ${row.awayName} are level ${hs}-${as}${minSuffix} — this is a match-winner lean, not a group-advance futures play.`;
+      return `${row.homeName} and ${row.awayName} are level ${hs}-${as}${minSuffix} — this is a match-winner lean, not a group-advance futures play.${chanceBit}`;
     }
     const leader = hs > as ? row.homeName : row.awayName;
     const trailer = hs > as ? row.awayName : row.homeName;
-    return `${leader} leads ${Math.max(hs, as)}-${Math.min(hs, as)}${minSuffix}; ${trailer} needs a goal to flip the script.`;
+    return `${leader} leads ${Math.max(hs, as)}-${Math.min(hs, as)}${minSuffix}; ${trailer} needs a goal to flip the script.${chanceBit}`;
   }
-  return `Match is live — lean from the posted moneyline for this fixture, not group-stage futures.`;
+  return `Match is live — lean from the posted moneyline for this fixture, not group-stage futures.${chanceBit}`;
 }
 
 /**
@@ -834,6 +867,309 @@ export function buildWcLiveMatchWinnerPrebuiltStructured(opts = {}) {
     confidence: "Medium",
     caveats: [],
     timestamp: new Date().toISOString(),
+  };
+}
+
+function matchPlayerPropOddsRank(odds) {
+  const raw = String(odds || "").trim().replace(/^\+/, "");
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return 999999;
+  if (String(odds).startsWith("-")) return n;
+  return n;
+}
+
+/**
+ * @param {string} teamAbbr
+ * @param {string} teamName
+ * @param {Record<string, unknown> | null | undefined} playerProps
+ * @param {Record<string, unknown> | null | undefined} liveChanceQuality
+ */
+function pickWcLiveNamedScorerBet(teamAbbr, teamName, playerProps, liveChanceQuality) {
+  const abbr = String(teamAbbr || "").toUpperCase();
+  const propRows = matchPlayerPropRowsFromEvent(playerProps, "anytime_scorer", 40).filter(
+    (r) => String(r.nationAbbr || "").toUpperCase() === abbr,
+  );
+
+  const chanceTop = (liveChanceQuality?.players || [])
+    .filter((p) => String(p.nationAbbr || "").toUpperCase() === abbr)
+    .sort((a, b) => Number(b.chanceIndex) - Number(a.chanceIndex))[0];
+
+  let name = chanceTop?.name ? String(chanceTop.name).trim() : "";
+  let odds = null;
+
+  if (name && propRows.length) {
+    const hit = propRows.find(
+      (r) => normalizeWcPlayerName(r.name) === normalizeWcPlayerName(name),
+    );
+    odds = hit?.americanOdds || null;
+  }
+
+  if (!odds && propRows.length) {
+    const fav = [...propRows].sort(
+      (a, b) =>
+        matchPlayerPropOddsRank(a.americanOdds) - matchPlayerPropOddsRank(b.americanOdds),
+    )[0];
+    if (fav) {
+      name = String(fav.name || name || "").trim();
+      odds = fav.americanOdds || null;
+    }
+  }
+
+  if (name && odds) {
+    return {
+      headline: `${name} anytime scorer ${odds}`,
+      why: `${teamName} needs goals — ${name} is the live chance-index lead with a posted anytime price.`,
+    };
+  }
+
+  return {
+    headline: `${teamName} anytime scorer live`,
+    why: `${teamName} is the side chasing — back their best live finisher if they push numbers up.`,
+  };
+}
+
+/**
+ * @param {{
+ *   home: string,
+ *   away: string,
+ *   homeMl: string,
+ *   awayMl: string,
+ *   homeScore: number,
+ *   awayScore: number,
+ *   matchOdds?: Record<string, unknown>,
+ *   secondHalf?: boolean,
+ *   playerProps?: Record<string, unknown> | null,
+ *   liveChanceQuality?: Record<string, unknown> | null,
+ * }} row
+ */
+function pickWcLiveSecondBet(row) {
+  const home = String(row.home || "").trim().toUpperCase();
+  const away = String(row.away || "").trim().toUpperCase();
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const hs = Number(row.homeScore);
+  const as = Number(row.awayScore);
+  const total = Math.max(0, hs + as);
+  const totalLineRaw = row.matchOdds?.totalLine;
+  const totalLine = Number.parseFloat(String(totalLineRaw ?? "2.5")) || 2.5;
+  const lineLabel = formatGoalsLine(totalLine);
+  const secondHalf = Boolean(row.secondHalf);
+
+  if (hs === as) {
+    const need = Math.max(0, Math.ceil(totalLine - total));
+    if (need <= 1 && secondHalf) {
+      return {
+        headline: `Over ${lineLabel} goals live`,
+        why: `${hs}-${as}${secondHalf ? " in the second half" : ""} — one goal cashes Over ${lineLabel}; both sides can still open up.`,
+      };
+    }
+    return {
+      headline: `Over ${formatGoalsLine(Math.max(1.5, totalLine - 0.5))} goals live`,
+      why: `Level ${hs}-${as} — next goal swings the match and the total market.`,
+    };
+  }
+
+  const leaderAbbr = hs > as ? home : away;
+  const trailerAbbr = hs > as ? away : home;
+  const leaderName = hs > as ? homeName : awayName;
+  const trailerName = hs > as ? awayName : homeName;
+
+  if (total >= totalLine) {
+    const nextLine = totalLine <= 2.5 ? 3.5 : Math.ceil(totalLine + 0.5);
+    if (total < nextLine) {
+      return {
+        headline: `Over ${formatGoalsLine(nextLine)} goals live`,
+        why: `${hs}-${as} — one more goal cashes Over ${formatGoalsLine(nextLine)}; ${trailerName} chasing keeps tempo up.`,
+      };
+    }
+    return pickWcLiveNamedScorerBet(
+      trailerAbbr,
+      trailerName,
+      row.playerProps,
+      row.liveChanceQuality,
+    );
+  }
+
+  const needForOver = Math.ceil(totalLine - total);
+  if (needForOver === 1) {
+    return {
+      headline: `Over ${lineLabel} goals live`,
+      why: `${hs}-${as} — one goal cashes Over ${lineLabel}; ${trailerName} has to chase if they want back in.`,
+    };
+  }
+
+  return {
+    headline: `Under ${lineLabel} goals live`,
+    why: `${hs}-${as} — still onside for Under ${lineLabel} if ${leaderName} manages the lead.`,
+  };
+}
+
+/**
+ * @param {string} question
+ * @param {{
+ *   isConversationFollowUp?: boolean,
+ *   mentionedTeams?: string[],
+ *   wcEventId?: string | null,
+ *   hasKvFixture?: boolean,
+ *   match?: Record<string, unknown> | null,
+ *   history?: Array<unknown>,
+ * }} [opts]
+ */
+export function shouldUseWcLiveInPlayBetsPrebuilt(question, opts = {}) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (isWcLiveBetTimingQuestion(q)) return false;
+  if (!isWcLiveBetsQuestion(q) && !WC_LIVE_ANGLE_RE.test(q)) return false;
+
+  const pair =
+    resolveWcFixturePairFromQuestion(q, {
+      mentionedTeams: opts.mentionedTeams,
+      wcEventId: opts.wcEventId,
+    }) || (opts.isConversationFollowUp ? resolveWcFixturePairFromHistory(opts.history) : null);
+  if (!pair?.home || !pair?.away) return false;
+
+  const match = opts.match;
+  const parsedScore = parseLiveScoreFromQuestion(q);
+  const hasLiveSignal =
+    (match && isWcLiveFixtureForMatchWinner(match)) ||
+    parsedScore != null ||
+    isWcSecondHalfContext(q);
+  if (!hasLiveSignal) return false;
+
+  if (opts.wcEventId || opts.hasKvFixture) return true;
+  if (match && isWcLiveFixtureForMatchWinner(match)) return true;
+  if (opts.isConversationFollowUp && resolveWcFixturePairFromHistory(opts.history)) return true;
+  return isWcPromoFixturePair(pair.home, pair.away);
+}
+
+/**
+ * Two actionable live leans — ML + total or scorer (no LLM Pass).
+ * @param {{
+ *   home: string,
+ *   away: string,
+ *   group?: string,
+ *   question?: string,
+ *   match?: Record<string, unknown> | null,
+ *   simLastUpdated?: number | null,
+ *   nowMs?: number,
+ *   liveChanceQuality?: Record<string, unknown> | null,
+ *   playerProps?: Record<string, unknown> | null,
+ *   eventId?: string | null,
+ * }} opts
+ */
+export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
+  const home = String(opts.home || "").trim().toUpperCase();
+  const away = String(opts.away || "").trim().toUpperCase();
+  const question = String(opts.question || "").trim();
+  const match = opts.match && typeof opts.match === "object" ? opts.match : null;
+  if (!home || !away || !match) return null;
+
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const seedOdds = getWcFixtureMlSeed(home, away);
+  const matchOdds =
+    match.odds && typeof match.odds === "object" ? match.odds : seedOdds;
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+  if (!homeMl || !awayMl) return null;
+
+  const parsed = parseLiveScoreFromQuestion(question);
+  let hs = Number(match.homeScore);
+  let as = Number(match.awayScore);
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) {
+    if (parsed) {
+      hs = parsed.home;
+      as = parsed.away;
+    }
+  }
+  if (!Number.isFinite(hs) || !Number.isFinite(as)) {
+    hs = 0;
+    as = 0;
+  }
+
+  const secondHalf = isWcSecondHalfContext(question) || /2h|second/i.test(String(match.status || ""));
+  const mlCall = pickWcLiveMatchWinnerCall({
+    home,
+    away,
+    homeMl,
+    awayMl,
+    homeScore: hs,
+    awayScore: as,
+    minute: match.minute,
+  });
+  const second = pickWcLiveSecondBet({
+    home,
+    away,
+    homeMl,
+    awayMl,
+    homeScore: hs,
+    awayScore: as,
+    matchOdds,
+    secondHalf,
+    playerProps: opts.playerProps,
+    liveChanceQuality: opts.liveChanceQuality,
+  });
+
+  const scoreLine = `${hs}-${as}`;
+  const call = `${mlCall} · ${second.headline}`.slice(0, 100);
+  const lean = `2 live leans at ${scoreLine}: ${mlCall.split(" to win")[0]} + ${second.headline.replace(/\s+live$/i, "")}`.slice(
+    0,
+    120,
+  );
+  const whyNow = buildWcLiveMatchWinnerWhyNow({
+    homeName,
+    awayName,
+    homeScore: hs,
+    awayScore: as,
+    minute: match.minute,
+    liveChanceQuality: opts.liveChanceQuality,
+  });
+  const deep = [
+    `Bet 1: ${mlCall}`,
+    buildWcLiveMatchWinnerWhyNow({
+      homeName,
+      awayName,
+      homeScore: hs,
+      awayScore: as,
+      minute: match.minute,
+      liveChanceQuality: opts.liveChanceQuality,
+    }),
+    "",
+    `Bet 2: ${second.headline}`,
+    second.why,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
+    .slice(0, 3600);
+
+  const gameStateLine = formatWcLiveGameStateLine(match, home, away);
+  const eventId =
+    opts.eventId != null
+      ? String(opts.eventId)
+      : match.id != null
+        ? String(match.id)
+        : null;
+
+  return {
+    sport: "worldcup",
+    callType: "matchup",
+    groupLetter: String(opts.group || match.group || "").trim().toUpperCase() || undefined,
+    fixtureHome: home,
+    fixtureAway: away,
+    lean,
+    call,
+    line: formatPostedTotalsLine(matchOdds, /over/i.test(second.headline) ? "over" : "under") || "",
+    deep,
+    breakdownAvailable: true,
+    breakdownDefaultExpanded: true,
+    whyNow,
+    edge: "Live lines move on every goal — lock before the next VAR check or red card.",
+    modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
+    confidence: "Medium",
+    caveats: [],
+    timestamp: new Date().toISOString(),
+    ...(gameStateLine ? { gameStateLine, liveScore: gameStateLine } : {}),
+    ...(eventId ? { wcEventId: eventId } : {}),
   };
 }
 
@@ -1317,6 +1653,143 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   };
 }
 
+function matchPairVariantSlot(homeName, awayName, poolSize, offset = 0) {
+  const seed =
+    String(homeName || "").charCodeAt(0) +
+    String(awayName || "").charCodeAt(0) +
+    String(homeName || "").length +
+    String(awayName || "").length +
+    Number(offset) * 7;
+  return Math.abs(seed) % Math.max(1, poolSize);
+}
+
+/**
+ * @param {{
+ *   homeName?: string,
+ *   awayName?: string,
+ *   favName?: string,
+ *   winBar?: { teamA?: { winPct?: number }, teamB?: { winPct?: number } } | null,
+ *   group?: string,
+ *   lean?: string,
+ *   playHeadline?: string,
+ * }} row
+ */
+function resolveWcFixtureMatchRoles(row) {
+  const homeName = String(row.homeName || "").trim();
+  const awayName = String(row.awayName || "").trim();
+  const favName = String(row.favName || homeName).trim();
+  const dogName = favName === homeName ? awayName : homeName;
+  const winBar = row.winBar;
+  let favWinPct = null;
+  if (winBar?.teamA?.winPct != null && favName === homeName) {
+    favWinPct = winBar.teamA.winPct;
+  } else if (winBar?.teamB?.winPct != null && favName === awayName) {
+    favWinPct = winBar.teamB.winPct;
+  }
+  if (!Number.isFinite(favWinPct) && row.homeMl && row.awayMl) {
+    const favOdds =
+      favName === homeName ? row.homeMl : row.awayMl;
+    const imp = americanOddsImplied(favOdds);
+    if (imp > 0) favWinPct = Math.round(imp * 100);
+  }
+  const lineMatch = String(row.lean || row.playHeadline || "").match(
+    /\b(under|over)\s+(\d+\.?\d*)/i,
+  );
+  const totalLine = lineMatch?.[2] ? Number.parseFloat(lineMatch[2]) : 2.5;
+  return { homeName, awayName, favName, dogName, favWinPct, totalLine };
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ * @param {ReturnType<typeof resolveWcFixtureMatchRoles>} roles
+ * @param {number} [variantOffset]
+ */
+function buildWcFixtureUnderTotalsMechanismWhy(row, roles, variantOffset = 0) {
+  const { favName, dogName, favWinPct, totalLine } = roles;
+  const group = String(row.group || "").trim().toUpperCase();
+  const groupBit = group ? `Group ${group}` : "the group";
+  const hs = Number(row.homeScore);
+  const as = Number(row.awayScore);
+  const goalsLive =
+    Number.isFinite(hs) && Number.isFinite(as) ? Math.max(0, hs + as) : null;
+  const livePlay =
+    isWcLiveMatchStatus(row.status) || (goalsLive != null && goalsLive > 0);
+
+  if (livePlay && goalsLive != null) {
+    if (totalLine <= 2.5) {
+      if (goalsLive >= 3) {
+        return `${hs}-${as} live — Under 2.5 is dead; only a late flurry saves it.`;
+      }
+      const liveVariants = [
+        `${hs}-${as} live — ${dogName} sitting in; ${favName} still hunting a breakthrough.`,
+        `${hs}-${as} — tempo is low and ${dogName} is packing the middle; Under 2.5 still breathes.`,
+        `Tight ${hs}-${as} — ${favName} has territory but not a three-goal pace yet.`,
+      ];
+      return liveVariants[
+        matchPairVariantSlot(
+          roles.homeName,
+          roles.awayName,
+          liveVariants.length,
+          variantOffset,
+        )
+      ];
+    }
+    const lineLabel = formatGoalsLine(totalLine);
+    return goalsLive >= totalLine
+      ? `${hs}-${as} live — Under ${lineLabel} is already busted.`
+      : `${hs}-${as} live — pace still fits Under ${lineLabel} if neither side opens up.`;
+  }
+
+  const heavyFav = Number.isFinite(favWinPct) && favWinPct >= 65;
+  const clearFav = Number.isFinite(favWinPct) && favWinPct >= 55;
+  const pctBit = Number.isFinite(favWinPct) ? `~${favWinPct}%` : "the favorite";
+
+  if (totalLine <= 2.5) {
+    const variants = heavyFav
+      ? [
+          `${favName} is ${pctBit} to win but the 2.5 assumes a slow opener — ${dogName} can sit in and keep it 0-0 or 1-0.`,
+          `First ${groupBit} meeting: ${dogName} will block space; ${favName} may boss the ball without chasing a rout.`,
+          `Posted 2.5 fits a cagey Game 1 — ${favName} should control, yet ${dogName} rarely gifts multiple goals early.`,
+        ]
+      : clearFav
+        ? [
+            `${groupBit} opener leans pragmatic — neither side has to swing for a shootout; Under 2.5 rides 0-0/1-1 scripts.`,
+            `${favName} is a narrow ML edge; ${dogName} can kill tempo and keep the chance count under three.`,
+            `Books split on goals, but first meetings in ${groupBit} often stay in the 0-0 to 1-1 band.`,
+          ]
+        : [
+            `Toss-up ${groupBit} price — both teams can play for a point first; Under 2.5 lives on a tight script.`,
+            `No clear blowout side — expect cautious shapes, not a four-goal track meet.`,
+            `Market is flat on the winner; low-event soccer keeps Under 2.5 in play.`,
+          ];
+    return variants[
+      matchPairVariantSlot(roles.homeName, roles.awayName, variants.length, variantOffset)
+    ];
+  }
+
+  const lineLabel = formatGoalsLine(totalLine);
+  const variants = heavyFav
+    ? [
+        `Books hung ${lineLabel} with ${favName} at ${pctBit} — a 2-0 or 2-1 win cashes without a shootout.`,
+        `${favName} can manage tempo; ${dogName} likely protects the scoreboard instead of chasing goals.`,
+        `Clear ML edge for ${favName} — they can win comfortably while staying under ${lineLabel}.`,
+      ]
+    : clearFav
+      ? [
+          `${lineLabel} gives cushion for a 2-1 night, but ${groupBit} openers still skew conservative.`,
+          `${favName} should edge it; ${dogName} sitting deep caps the ceiling even at ${lineLabel}.`,
+          `Posted ${lineLabel} — not a low bar, but both sides can still treat this as a structured Game 1.`,
+        ]
+      : [
+          `Higher number (${lineLabel}) fits a competitive ${groupBit} script — 2-1 either way stays under.`,
+          `Neither side is priced for a rout; Under ${lineLabel} rides tempo as much as talent.`,
+          `Market expects some goals but not chaos — ${lineLabel} cashes on a professional, not reckless, night.`,
+        ];
+  return variants[
+    matchPairVariantSlot(roles.homeName, roles.awayName, variants.length, variantOffset)
+  ];
+}
+
 function buildWcTotalsExplainWhyNow(row) {
   const kind = row.totalsKind === "under" ? "under" : "over";
   const lineMatch = String(row.lean || row.playHeadline || "").match(
@@ -1325,16 +1798,19 @@ function buildWcTotalsExplainWhyNow(row) {
   const line = lineMatch?.[2] || "2.5";
   const side = kind === "under" ? "Under" : "Over";
   const groupTail = row.group ? ` in Group ${row.group}` : "";
+  const roles = resolveWcFixtureMatchRoles(row);
 
   if (kind === "under") {
-    const favLabel = String(row.favName || row.homeName || "").trim();
-    const mlNote = row.homeMl
-      ? `${favLabel} ${row.homeMl} can still win 1-0 or 1-1 — you're betting low tempo, not against them.`
+    const favLabel = String(roles.favName || row.homeName || "").trim();
+    const favMl =
+      roles.favName === row.homeName ? row.homeMl : row.awayMl;
+    const mlNote = favMl
+      ? `${favLabel} ${favMl} can still win 1-0 or 1-1 — you're betting low tempo, not against them.`
       : `${favLabel} can win without a shootout — low tempo is the bet, not a fade.`;
-    return `${side} ${line} cashes when ${row.awayName} packs in and the chance count stays down${groupTail}; ${mlNote}`;
+    return `${side} ${line} cashes when ${roles.dogName} packs in and the chance count stays down${groupTail}; ${mlNote}`;
   }
 
-  return `${side} ${line} needs real tempo — ${row.homeName} has to turn control into multiple goals${groupTail}, not just a single flurry.`;
+  return `${side} ${line} needs real tempo — ${roles.favName} has to turn control into multiple goals${groupTail}, not just a single flurry.`;
 }
 
 /**
@@ -1365,6 +1841,9 @@ function buildWcFixturePrebuiltWhyNow(row) {
   const livePlay =
     isWcLiveMatchStatus(row.status) || (goalsLive != null && goalsLive > 0);
 
+  const roles = resolveWcFixtureMatchRoles(row);
+  const variantOffset = Number(row.mechanismVariant) || 0;
+
   if (/over \d/i.test(row.lean || row.playHeadline || "")) {
     if (livePlay && goalsLive != null) {
       const lineAsk = String(row.playHeadline || row.lean || "").match(/over\s+(\d+\.?\d*)/i)?.[1];
@@ -1373,18 +1852,12 @@ function buildWcFixturePrebuiltWhyNow(row) {
         need != null && need > 0
           ? `need ${need} more goal${need === 1 ? "" : "s"} from here`
           : "already through the number";
-      return `${hs}-${as} live — ${row.homeName} is creating chances but ${clockNote}; tempo vs clock is the cap.`;
+      return `${hs}-${as} live — ${roles.favName} is creating chances but ${clockNote}; tempo vs clock is the cap.`;
     }
-    return `Heavy favorite script${groupClause} — ${row.homeName} should control the ball; ${row.awayName} sits deep but the posted total is high when the gap is this wide.`;
-  }
-  if (/under 2\.5/i.test(row.lean || row.playHeadline || "")) {
-    if (livePlay && goalsLive != null) {
-      return `${hs}-${as} live — ${goalsLive >= 3 ? "Under 2.5 is dead" : `${row.awayName} sitting in; ${row.homeName} still hunting a breakthrough`}.`;
-    }
-    return `Tight${groupClause} opener — ${row.awayName} sits deep and ${row.homeName} rarely blows teams out in Game 1.`;
+    return `Heavy favorite script${groupClause} — ${roles.favName} should control the ball; ${roles.dogName} sits deep but the posted total is high when the gap is this wide.`;
   }
   if (/under \d/i.test(row.lean || row.playHeadline || "")) {
-    return `Cautious${groupClause} script — ${row.awayName} packs in and ${row.homeName} may not need a shootout to win.`;
+    return buildWcFixtureUnderTotalsMechanismWhy(row, roles, variantOffset);
   }
   if (/both teams to advance/i.test(row.lean || "")) {
     const caveat = buildWcBothTeamsAdvanceCaveat(
@@ -1483,4 +1956,101 @@ function buildWcFixturePrebuiltEdge(row) {
     return `Watch the scoreboard after 60 minutes — group math can flip the right side.`;
   }
   return `Watch the first goal — it usually decides whether the pre-match price still holds.`;
+}
+
+/**
+ * Slate goal-total row — mechanism why from BDL lines + UR sim (no LLM).
+ * @param {{
+ *   home: string,
+ *   away: string,
+ *   group?: string,
+ *   match?: Record<string, unknown>,
+ *   totals?: { headline?: string, lean?: string, kind?: string, line?: string },
+ *   teamStats?: Record<string, { advancePct?: number, groupWinPct?: number, name?: string }>,
+ * }} opts
+ */
+export function buildWcSlateTotalsAngleCopy(opts = {}) {
+  const home = String(opts.home || "").toUpperCase();
+  const away = String(opts.away || "").toUpperCase();
+  const group = String(opts.group || "").toUpperCase();
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const match = opts.match && typeof opts.match === "object" ? opts.match : {};
+  const matchOdds =
+    match.odds && typeof match.odds === "object" ? match.odds : {};
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+  const drawMl = readWcMatchMoneylineAmerican(matchOdds?.draw);
+  const fav = pickMlFavorite(homeMl, awayMl, home, away);
+  const favName = wcMatchupTeamDisplayName(fav.abbr);
+
+  const winBar = resolveMatchWinProbabilityBar({
+    homeAbbr: home,
+    awayAbbr: away,
+    teams: WC_2026_TEAMS,
+    matchOdds,
+    oddsStale: Boolean(match.oddsStale),
+  });
+
+  const teamStats = opts.teamStats;
+  const homeStats = teamStats?.[home];
+  const awayStats = teamStats?.[away];
+
+  const totals = opts.totals || {};
+  const lean = String(totals.headline || totals.lean || "").trim();
+  const playHeadline = extractWcMatchupPlayHeadline(lean) || lean.replace(/^lean:\s*/i, "").trim();
+  const totalsKind =
+    totals.kind === "over" || totals.kind === "under"
+      ? totals.kind
+      : /\bover\b/i.test(lean)
+        ? "over"
+        : "under";
+  const totalLine =
+    matchOdds?.totalLine != null && String(matchOdds.totalLine).trim() !== ""
+      ? String(matchOdds.totalLine).trim()
+      : String(totals.line || "2.5").trim();
+
+  const postedLine = formatPostedTotalsLine(matchOdds, totalsKind);
+  const mechanismWhy = buildWcFixturePrebuiltWhyNow({
+    homeName,
+    awayName,
+    group,
+    lean,
+    playHeadline,
+    homeMl,
+    awayMl,
+    drawMl,
+    winBar,
+    favName,
+    homeStats,
+    awayStats,
+    homeScore: match.homeScore,
+    awayScore: match.awayScore,
+    status: match.status,
+    matchOdds,
+    mechanismVariant: opts.mechanismVariant,
+  }).trim();
+  const briefWhy =
+    mechanismWhy.split(/(?<=[.!?])\s+/).find((s) => s.trim().length > 12)?.trim() ||
+    mechanismWhy;
+
+  let simLine = "";
+  if (winBar?.teamA?.winPct != null && winBar?.teamB?.winPct != null) {
+    simLine = `${homeName} ${winBar.teamA.winPct}% · Draw ${winBar.draw}% · ${awayName} ${winBar.teamB.winPct}%`;
+  }
+
+  const leanShort = playHeadline
+    .replace(/^lean:\s*/i, "")
+    .replace(/\s+goals\.?$/i, "")
+    .trim();
+
+  return {
+    mechanismWhy: briefWhy,
+    postedLine,
+    simLine,
+    leanDisplay: leanShort,
+    totalLine,
+    kickoffEt: formatWcKickoffEtOnly(match),
+    slateTotalsCompact: true,
+  };
 }

@@ -101,6 +101,11 @@ export function normalizeWcStructuredForDelivery(
     return finishWcStructuredForDelivery(out, intent, question);
   }
 
+  if (intent === WC_INTENT.PARLAY || String(out.callType || "").toLowerCase() === "parlay") {
+    out.callType = "parlay";
+    return finishWcStructuredForDelivery(out, intent, question);
+  }
+
   if (intent === WC_INTENT.ENTITY_PRICING) {
     if (String(out.callType || "").toLowerCase() === "group_slate") {
       delete out.playerMarketTier;

@@ -32,6 +32,7 @@ import {
 } from "../../shared/wcPlayerPropFixture.js";
 import { wcMatchupTeamDisplayName } from "../../shared/wcMatchupWinnerLine.js";
 import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
+import { detectWcSgpComboIntent } from "../../shared/wcUrTakePhilosophy.js";
 import { WC_INTENT, isWcMatchTotalsQuestion } from "../../shared/wcUrTakeIntent.js";
 import {
   buildWcPlayerPropExplainStructured,
@@ -39,6 +40,11 @@ import {
   resolveWcFollowUpSubject,
 } from "../../shared/wcFollowUpExplain.js";
 import { matchPlayerPropRowsFromEvent } from "../../shared/wcMatchPlayerProps.js";
+import {
+  buildWcThreadParlayStructured,
+  shouldBuildWcThreadParlay,
+} from "../../shared/wcThreadParlayPrebuilt.js";
+import { finalizeWcStructuredThreadState } from "../../shared/wcThreadState.js";
 
 /**
  * @param {string} wcIntent
@@ -54,7 +60,16 @@ export function shouldRunWcPlayerPropsFastPath(
 ) {
   const q = String(routingQuestion || "").trim();
   if (isWcPlayerPropFollowUpExplain(q, history)) return true;
-  if (isWcMatchTotalsQuestion(q)) return false;
+  if (wcIntent === WC_INTENT.PARLAY) return true;
+  if (isWcMatchTotalsQuestion(q)) {
+    if (!(detectParlayIntent(q) || detectWcSgpComboIntent(q))) return false;
+  }
+  if (detectParlayIntent(q) || detectWcSgpComboIntent(q)) {
+    const pair = resolveWcFixturePairFromHistory(history);
+    if (pair?.home && pair?.away) return true;
+    const teams = resolveWcPlayerPropFixtureTeams(q, history, { conversationHistory: history });
+    if (teams.length >= 2) return true;
+  }
   if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
   if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return true;
   if (isWcFixtureScopedPlayerMarketQuestion(q)) {
@@ -229,7 +244,16 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   }
 
   if (!structuredResponse && (propRows.length >= 2 || gkPropsAsk)) {
-    if (detectParlayIntent(routingQ)) {
+    if (shouldBuildWcThreadParlay(routingQ, history, wcIntent)) {
+      structuredResponse = buildWcThreadParlayStructured(
+        String(question || ""),
+        history,
+        tier,
+        kvBlocks,
+        syntheticContext,
+      );
+      passKind = "thread_parlay";
+    } else if (detectParlayIntent(routingQ) || detectWcSgpComboIntent(routingQ)) {
       structuredResponse = buildWcFixturePlayerParlayStructured(
         String(question || ""),
         tier,
@@ -333,9 +357,14 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     structuredResponse.breakdownAvailable = true;
   }
   if (structuredResponse && typeof structuredResponse === "object") {
+    structuredResponse = finalizeWcStructuredThreadState(
+      structuredResponse,
+      history,
+      wcIntent === WC_INTENT.PARLAY ? WC_INTENT.PARLAY : wcIntent,
+    );
     structuredResponse = normalizeWcStructuredForDelivery(
       structuredResponse,
-      wcIntent,
+      wcIntent === WC_INTENT.PARLAY ? WC_INTENT.PARLAY : wcIntent,
       String(question || ""),
       wcRequiredEntities,
     );

@@ -7,7 +7,7 @@ import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcP
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { classifyWcFollowUpIntent } from "./wcFollowUpExplain.js";
-import { isWcLiveBetTimingQuestion } from "./wcLiveMatchQuestion.js";
+import { isWcLiveBetTimingQuestion, isWcLiveBetsQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
@@ -24,12 +24,14 @@ import {
 } from "./wcUrTakePlayerMarket.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
 
-/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
+/** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"PARLAY"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
 export const WC_INTENT = {
   RULES: "RULES",
   ENTITY_PRICING: "ENTITY_PRICING",
   MATCHUP: "MATCHUP",
+  /** Cross-market SGP / explicit multi-leg ticket on a pinned fixture thread. */
+  PARLAY: "PARLAY",
   STRUCTURAL: "STRUCTURAL",
   /** Open-ended WC questions — default when no specialized pattern matches. */
   GENERAL: "GENERAL",
@@ -76,6 +78,12 @@ export const WC_INTENT_CATALOG = [
     id: WC_INTENT.MATCHUP,
     label: "Matchup",
     description: "Head-to-head or advancement between specific teams (vs, who goes through).",
+  },
+  {
+    id: WC_INTENT.PARLAY,
+    label: "Parlay / SGP",
+    description:
+      "Multi-leg or same-game parlay on a pinned fixture — player + team market combos, never plain totals-only.",
   },
   {
     id: WC_INTENT.STRUCTURAL,
@@ -399,6 +407,17 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.SCORE_PREDICTION;
   }
 
+  if (detectParlayIntent(q)) {
+    return WC_INTENT.PARLAY;
+  }
+
+  if (
+    detectWcSgpComboIntent(q) &&
+    (/\b(parlay|sgp|ticket)\b/i.test(q) || isWcMatchTotalsQuestion(q))
+  ) {
+    return WC_INTENT.PARLAY;
+  }
+
   if (isWcMatchTotalsQuestion(q)) {
     return WC_INTENT.MATCHUP;
   }
@@ -408,6 +427,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     Array.isArray(history) &&
     history.length > 0
   ) {
+    return WC_INTENT.MATCHUP;
+  }
+
+  if (isWcLiveBetsQuestion(q)) {
     return WC_INTENT.MATCHUP;
   }
 

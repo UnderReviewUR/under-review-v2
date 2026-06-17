@@ -275,3 +275,58 @@ export function formatWcKickoffDisplay(match, opts = {}) {
   const tzName = formatInZone(d, localTz, { timeZoneName: "short" });
   return `${etPart} · ${localDay} ${localTime} ${tzName}`.replace(/\s+/g, " ").trim();
 }
+
+/**
+ * ET-only kickoff for compact slate breakdown (no Central duplicate).
+ * @param {{ commenceTs?: number | string | null, date?: string, time?: string } | null | undefined} match
+ */
+export function formatWcKickoffEtOnly(match) {
+  if (!match) return "";
+  const kickoffMs = resolveWcMatchKickoffMs(match);
+  if (!Number.isFinite(kickoffMs) || kickoffMs <= 0) {
+    const timeRaw = String(match.time || "").trim();
+    const m = timeRaw.match(/(\d{1,2}:\d{2}\s*(?:AM|PM)?)\s*ET/i);
+    return m ? `${m[1].replace(/\s+/g, " ")} ET` : timeRaw;
+  }
+  const etTime = formatInZone(dateFromMs(kickoffMs), ET_ZONE, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return `${etTime} ET`.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Live ribbon for UR Take cards — must include "Live" for parseUrTakeResponse ribbon detection.
+ * @param {Record<string, unknown> | null | undefined} match
+ * @param {string} [home]
+ * @param {string} [away]
+ */
+export function formatWcLiveGameStateLine(match, home, away) {
+  if (!match || typeof match !== "object") return "";
+  const h = String(home || match.homeTeam || "")
+    .trim()
+    .toUpperCase();
+  const a = String(away || match.awayTeam || "")
+    .trim()
+    .toUpperCase();
+  if (!h || !a) return "";
+
+  const hs = Number(match.homeScore);
+  const as = Number(match.awayScore);
+  const hasScore = Number.isFinite(hs) && Number.isFinite(as);
+  const status = String(match.status || "").toLowerCase();
+  const isLiveStatus = ["live", "in_progress", "1h", "2h", "ht"].includes(status);
+  if (!isLiveStatus && !(hasScore && hs + as > 0)) return "";
+
+  const scoreBit = hasScore ? `${hs}-${as}` : "";
+  const minuteRaw = match.minute != null ? String(match.minute).trim().replace(/'/g, "") : "";
+  let clockBit = "";
+  if (minuteRaw) clockBit = `${minuteRaw}'`;
+  else if (status === "2h" || status === "2nd") clockBit = "2H";
+  else if (status === "ht") clockBit = "HT";
+  else if (status === "1h") clockBit = "1H";
+
+  const core = scoreBit ? `${h} ${scoreBit} ${a}` : `${h} vs ${a}`;
+  return [core, clockBit, "Live"].filter(Boolean).join(" · ");
+}

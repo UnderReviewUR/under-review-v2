@@ -13,8 +13,8 @@ import {
 import { scoreWcCardContractVoice } from "../shared/wcCardContractVoice.js";
 import { classifyWcQuestionIntent } from "../shared/wcUrTakeIntent.js";
 
-test("golden fixture has thirty-six cases across intents and threads", () => {
-  assert.equal(WC_CARD_CONTRACT_GOLDEN_CASES.length, 36);
+test("golden fixture has thirty-eight cases across intents and threads", () => {
+  assert.equal(WC_CARD_CONTRACT_GOLDEN_CASES.length, 38);
   const intents = new Set(WC_CARD_CONTRACT_GOLDEN_CASES.map((c) => c.expectedIntent));
   assert.ok(intents.has("RULES"));
   assert.ok(intents.has("PLAYER_PROP"));

@@ -87,9 +87,9 @@ test("classifyWcQuestionIntent — player parlay beats matchup when fixture name
   assert.equal(classifyWcPlayerMarketIntent("4 player parlay"), WC_INTENT.PLAYER_PROP);
   assert.equal(
     classifyWcQuestionIntent("4 player parlay for CIV vs ECU"),
-    WC_INTENT.PLAYER_PROP,
+    WC_INTENT.PARLAY,
   );
-  assert.equal(classifyWcQuestionIntent("4 player parlay"), WC_INTENT.PLAYER_PROP);
+  assert.equal(classifyWcQuestionIntent("4 player parlay"), WC_INTENT.PARLAY);
 });
 
 test("resolveRequiredEntities — player market returns no teams", () => {

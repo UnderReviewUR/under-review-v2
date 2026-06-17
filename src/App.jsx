@@ -1848,7 +1848,10 @@ ${themeCss}
         ? String(wcEventId).trim()
         : [...priorSnapshot]
             .reverse()
-            .find((m) => m.role === "user" && m.wcEventId)?.wcEventId;
+            .find((m) => m.role === "user" && m.wcEventId)?.wcEventId ||
+          [...priorSnapshot]
+            .reverse()
+            .find((m) => m.role === "ai" && m.wcEventId)?.wcEventId;
     if (
       (effectiveSportHint === "worldcup" || sportHint === "worldcup") &&
       wcEventIdForBody
@@ -2375,6 +2378,14 @@ ${themeCss}
     const lastUserWcRow = [...priorSnapshot].reverse().find((x) => x.role === "user");
     const lastUserWcEventId = lastUserWcRow?.wcEventId;
     const lastUserWcMatchTeams = lastUserWcRow?.wcMatchTeams;
+    const resolvedWcEventId =
+      data?.wcEventId != null && String(data.wcEventId).trim()
+        ? String(data.wcEventId).trim()
+        : structuredForBubble?.wcEventId != null && String(structuredForBubble.wcEventId).trim()
+          ? String(structuredForBubble.wcEventId).trim()
+          : lastUserWcEventId
+            ? String(lastUserWcEventId).trim()
+            : null;
 
     const bubbleResponseText =
       structuredForBubble &&
@@ -2400,11 +2411,28 @@ ${themeCss}
       msgId: pendingMsgId,
       text: bubbleResponseText,
       sport: bubbleSport || undefined,
-      ...(lastUserWcEventId ? { wcEventId: String(lastUserWcEventId).trim() } : {}),
+      ...(resolvedWcEventId ? { wcEventId: resolvedWcEventId } : {}),
       ...(lastUserWcMatchTeams &&
       typeof lastUserWcMatchTeams === "object" &&
       (lastUserWcMatchTeams.home || lastUserWcMatchTeams.away)
         ? { wcMatchTeams: lastUserWcMatchTeams }
+        : structuredForBubble?.fixtureHome && structuredForBubble?.fixtureAway
+          ? {
+              wcMatchTeams: {
+                home: structuredForBubble.fixtureHome,
+                away: structuredForBubble.fixtureAway,
+              },
+            }
+          : {}),
+      ...(structuredForBubble?.gameStateLine || structuredForBubble?.liveScore
+        ? {
+            liveScore: String(
+              structuredForBubble.liveScore || structuredForBubble.gameStateLine || "",
+            ).trim(),
+            gameStateLine: String(
+              structuredForBubble.gameStateLine || structuredForBubble.liveScore || "",
+            ).trim(),
+          }
         : {}),
       takeMeta:
         data.take && typeof data.take === "object"

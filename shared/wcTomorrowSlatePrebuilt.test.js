@@ -4,6 +4,7 @@ import {
   buildWcTomorrowSlatePrebuiltStructured,
   buildWcTomorrowSlateMatchAngles,
   buildWcSlateMatchOutcomeAngle,
+  formatWcSlateMatchDeepBlock,
   resolveWcTomorrowSlateMatches,
   resolveWcSlateMatches,
 } from "./wcTomorrowSlatePrebuilt.js";
@@ -129,8 +130,29 @@ test("buildWcTomorrowSlatePrebuiltStructured — goal totals board per match tod
   });
   assert.ok(card);
   assert.match(String(card.lean || ""), /goal-total leans/i);
-  assert.match(String(card.deep || ""), /Under 2\.5|Over 2\.5/i);
+  assert.match(String(card.deep || ""), /Context:/i);
+  assert.match(String(card.deep || ""), /cagey|block space|sitting in|tempo|Under 2\.5/i);
+  assert.match(String(card.deep || ""), /Kickoff:.*Total 2\.5/i);
   assert.doesNotMatch(String(card.lean || ""), /no actionable line/i);
+});
+
+test("formatWcSlateMatchDeepBlock — compact totals row", () => {
+  const block = formatWcSlateMatchDeepBlock({
+    label: "France vs Senegal",
+    group: "I",
+    lean: "Under 2.5 goals",
+    slateTotalsCompact: true,
+    kickoffEt: "3:00 PM ET",
+    totalLine: "2.5",
+    leanDisplay: "Under 2.5",
+    mechanismWhy: "Tight Group I opener — Senegal sits deep and France rarely blows teams out in Game 1.",
+    postedLine: "Posted 2.5 total — under +114 (~46.7% implied).",
+  });
+  assert.match(block, /Match: France vs Senegal \(Group I\)/);
+  assert.match(block, /Kickoff: 3:00 PM ET · Total 2\.5/);
+  assert.match(block, /Lean: Under 2\.5/);
+  assert.match(block, /Context:.*sits deep/i);
+  assert.match(block, /Book: Posted 2\.5 total/);
 });
 
 test("morning slate ignores premature FT before kickoff and surfaces per-match preview", () => {
@@ -325,4 +347,63 @@ test("prod Jun 13 board — USA final, three remaining predictions", () => {
   assert.equal(card?.tomorrowFixtureCount, 3);
   assert.match(String(card.whyNow || ""), /1 final · 3 remaining/i);
   assert.match(String(card.deep || ""), /3:00 PM ET · Sat 2:00 PM/i);
+});
+
+test("goal-total slate breakdown — distinct mechanism per match", () => {
+  const nowMs = Date.parse("2026-06-16T18:00:00Z");
+  const matches = [
+    {
+      homeTeam: "FRA",
+      awayTeam: "SEN",
+      group: "I",
+      date: "2026-06-16",
+      time: "15:00 ET",
+      status: "live",
+      homeScore: 0,
+      awayScore: 0,
+      odds: { totalLine: "2.5", totalUnder: "-110", home: { moneyline: "-130" }, away: { moneyline: "+350" } },
+    },
+    {
+      homeTeam: "IRQ",
+      awayTeam: "NOR",
+      group: "I",
+      date: "2026-06-16",
+      time: "18:00 ET",
+      status: "NS",
+      odds: { totalLine: "3.5", totalUnder: "-115", home: { moneyline: "+450" }, away: { moneyline: "-180" } },
+    },
+    {
+      homeTeam: "ARG",
+      awayTeam: "ALG",
+      group: "J",
+      date: "2026-06-16",
+      time: "21:00 ET",
+      status: "NS",
+      odds: { totalLine: "2.5", totalUnder: "-110", home: { moneyline: "-200" }, away: { moneyline: "+550" } },
+    },
+    {
+      homeTeam: "AUT",
+      awayTeam: "JOR",
+      group: "J",
+      date: "2026-06-17",
+      time: "00:00 ET",
+      status: "NS",
+      odds: { totalLine: "3.5", totalUnder: "-110", home: { moneyline: "-160" }, away: { moneyline: "+400" } },
+    },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "what are the best goal totals for each match today?",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  const contexts = String(card.deep || "")
+    .split("Context:")
+    .slice(1)
+    .map((s) => s.split("\n\n")[0].trim());
+  assert.equal(contexts.length, 4);
+  assert.ok(new Set(contexts).size >= 3, "expected at least 3 distinct context lines");
+  assert.doesNotMatch(contexts.join(" "), /packs in and Iraq may not need a shootout/i);
+  assert.doesNotMatch(contexts.join(" "), /rarely blows teams out in Game 1/i);
+  assert.match(contexts[1] || "", /Norway|3\.5/i);
 });
