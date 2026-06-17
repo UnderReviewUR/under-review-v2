@@ -508,9 +508,15 @@ export function repairWcShotsPropStructured(structured, question = "") {
  */
 export function finalizeWcPlayerPropStructured(structured, question = "") {
   if (!structured || typeof structured !== "object") return structured;
-  let out = repairWcShotsPropStructured(structured, question);
+  let out = structured;
+  if (!structured.wcNamedPlayerPropsCard) {
+    out = repairWcShotsPropStructured(structured, question);
+  }
   if (isWcPlayerPropPassStructured(out, question)) {
     out = repairWcPlayerPropPassCard(out, question);
+  }
+  if (structured.wcNamedPlayerPropsCard) {
+    return out;
   }
   return ensureWcCardFaceNumericWhy(out, question, { wcIntent: WC_INTENT.PLAYER_PROP });
 }
@@ -847,22 +853,39 @@ export function isWcNamedPlayerPropQuestion(question) {
 /**
  * One numbered lean line for a named player prop leg.
  * @param {WcNamedPlayerPropLeg} leg
- * @param {{ line?: string, americanOdds?: string } | null | undefined} row
+ * @param {{ row?: { line?: string, americanOdds?: string }, line?: string, americanOdds?: string, marketKey?: string, isProxy?: boolean, proxyNote?: string } | null | undefined} matchHit
+ * @param {{ compact?: boolean }} [opts] compact=true omits parenthetical proxy tags (market is in the line text)
  */
-export function formatWcNamedPlayerPropLegAnswer(leg, row) {
+export function formatWcNamedPlayerPropLegAnswer(leg, matchHit, opts = {}) {
+  const compact = opts.compact !== false;
+  const meta =
+    matchHit && typeof matchHit === "object" && "row" in matchHit && matchHit.row
+      ? matchHit
+      : null;
+  const row = meta?.row ?? matchHit;
+
   if (!row?.americanOdds) {
-    return `Pass — no posted ${leg.name} ${leg.marketLabel} line yet`;
+    return `Pass — no ${leg.marketLabel} line for ${leg.name} yet`;
   }
   const postedLine = row.line || leg.threshold;
   const odds = String(row.americanOdds);
   const verdict = wcPlayerPropLegShortVerdict(odds);
   const asked = parseFloat(leg.threshold);
   const posted = parseFloat(String(postedLine));
+  const eachHalf =
+    meta?.marketKey === "player_shots_each_half" || meta?.marketKey === "player_sot_each_half";
+  const linePart = eachHalf ? `over ${postedLine} each half` : `over ${postedLine}`;
+  const proxySuffix =
+    !compact && meta?.isProxy && meta.proxyNote ? ` (${meta.proxyNote})` : "";
   const nearest =
-    Number.isFinite(asked) && Number.isFinite(posted) && posted !== asked
+    !compact &&
+    !meta?.isProxy &&
+    Number.isFinite(asked) &&
+    Number.isFinite(posted) &&
+    posted !== asked
       ? ` · nearest to ${leg.threshold} ask`
       : "";
-  return `${leg.name} over ${postedLine} at ${odds} — ${verdict}${nearest}`;
+  return `${leg.name} ${linePart} at ${odds} — ${verdict}${proxySuffix}${nearest}`;
 }
 
 /**

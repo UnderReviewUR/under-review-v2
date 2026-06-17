@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   detectWcPlayerPropMarketKey,
   findWcMatchPlayerPropRowForQuestion,
+  findWcNamedPlayerPropLegMatch,
   resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
@@ -13,6 +14,7 @@ import {
   createEmptyMatchPlayerPropMarkets,
   isMatchPlayerPropsFresh,
 } from "./wcMatchPlayerProps.js";
+import { formatWcNamedPlayerPropLegAnswer } from "./wcUrTakePlayerMarket.js";
 
 test("resolveWcPlayerNationFromQuestion — Son → KOR", () => {
   assert.equal(resolveWcPlayerNationFromQuestion("Son 2.5 shots?"), "KOR");
@@ -146,6 +148,79 @@ test("resolveWcPlayerPropSlateFixtureTeams — pins featured tonight match when 
     ),
     ["SWE", "TUN"],
   );
+});
+
+test("findWcNamedPlayerPropLegMatch — Gordon falls back to shots each half", () => {
+  const event = {
+    markets: {
+      player_shots_ou: [
+        {
+          name: "Harry Kane",
+          americanOdds: "-110",
+          line: "1.5",
+          side: "over",
+          nationAbbr: "ENG",
+        },
+      ],
+      player_shots_each_half: [
+        {
+          name: "Anthony Gordon",
+          americanOdds: "+105",
+          line: "1",
+          side: "over",
+          nationAbbr: "ENG",
+        },
+      ],
+    },
+  };
+  const leg = {
+    name: "anthony gordon",
+    threshold: "1.5",
+    marketKey: "player_shots_ou",
+    marketLabel: "shots",
+  };
+  const hit = findWcNamedPlayerPropLegMatch(leg, event);
+  assert.ok(hit?.row);
+  assert.equal(hit.marketKey, "player_shots_each_half");
+  assert.equal(hit.isProxy, true);
+  assert.equal(hit.row.americanOdds, "+105");
+  const line = formatWcNamedPlayerPropLegAnswer(leg, hit);
+  assert.match(line, /each half/i);
+  assert.doesNotMatch(line, /full-match 1\.5 not posted/i);
+});
+
+test("findWcNamedPlayerPropLegMatch — Kane stays on full-match SOT", () => {
+  const event = {
+    markets: {
+      player_sot_ou: [
+        {
+          name: "Harry Kane",
+          americanOdds: "-125",
+          line: "1.5",
+          side: "over",
+          nationAbbr: "ENG",
+        },
+      ],
+      player_sot_each_half: [
+        {
+          name: "Harry Kane",
+          americanOdds: "+200",
+          line: "1",
+          side: "over",
+          nationAbbr: "ENG",
+        },
+      ],
+    },
+  };
+  const leg = {
+    name: "kane",
+    threshold: "1.5",
+    marketKey: "player_sot_ou",
+    marketLabel: "shots on target",
+  };
+  const hit = findWcNamedPlayerPropLegMatch(leg, event);
+  assert.equal(hit?.marketKey, "player_sot_ou");
+  assert.equal(hit?.isProxy, false);
 });
 
 test("isMatchPlayerPropsFresh — shots-only BDL payload counts as fresh", () => {

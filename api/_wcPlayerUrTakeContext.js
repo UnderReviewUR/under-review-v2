@@ -7,6 +7,7 @@ import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
   readWcMatchPlayerPropsForEvent,
+  refreshWcGoatMatchPlayerPropsIfNeeded,
   ensureWcBdlMatchPlayerPropsForEvent,
 } from "./_wcMatchPlayerProps.js";
 import { getMatchesPayload } from "./world-cup.js";
@@ -30,7 +31,7 @@ import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
 import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion, isWcGoalkeeperPropsQuestion, isWcNamedPlayerPropQuestion, extractWcNamedPlayerPropLegsFromQuestion, isWcShotsPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import {
-  findWcMatchPlayerPropRowForQuestion,
+  findWcNamedPlayerPropLegMatch,
   resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
@@ -54,6 +55,78 @@ import {
   adjustGoldenBootOdds,
   formatAdjustedGoldenBootForPrompt,
 } from "../shared/wcGoldenBootAdjusted.js";
+import { extractWcSlateDayFromQuestion } from "../shared/wcTakeRetentionQA.js";
+import {
+  isWcFinishedMatchStatus,
+  isWcLiveMatchStatus,
+  isWcScheduledMatchStatus,
+  getWcMatchCommenceMs,
+} from "../shared/wcFeaturedMatch.js";
+import { getTomorrowEtDateString } from "../shared/nbaPlayoffSlateFromActionNetwork.js";
+import { wcMatchOnEtBroadcastSlateDay, wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
+
+/**
+ * @param {Record<string, unknown> | null | undefined} match
+ */
+function wcMatchMetaFromRow(match) {
+  if (!match) return {};
+  return {
+    homeTeam: match.homeTeam,
+    awayTeam: match.awayTeam,
+    bdlMatchId: match.bdlMatchId,
+    status: match.status,
+    date: match.date,
+  };
+}
+
+/**
+ * GOAT: refresh props for today's slate when a generic player-prop ask has no pinned fixture.
+ * @param {string} question
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {number} nowMs
+ */
+async function loadWcGoatSlateMatchPlayerProps(question, matches, nowMs) {
+  if (!isWcGoatPrimaryEnabled() || !matches.length) return null;
+  const q = String(question || "");
+  if (!isGenericWcPlayerPropQuestion(q) && !/\b(?:player props?|goal scorer|anytime scorer)\b/i.test(q)) {
+    return null;
+  }
+
+  const todayEt = wcTodayEtYmd(nowMs);
+  const slateDay = extractWcSlateDayFromQuestion(q);
+  const targetEt = slateDay === "tomorrow" ? getTomorrowEtDateString(todayEt) : todayEt;
+
+  const slateMatches = matches
+    .filter(
+      (m) =>
+        (isWcLiveMatchStatus(m.status) || isWcScheduledMatchStatus(m.status)) &&
+        !isWcFinishedMatchStatus(m.status) &&
+        wcMatchOnEtBroadcastSlateDay(m, targetEt),
+    )
+    .sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b))
+    .slice(0, 12);
+
+  if (!slateMatches.length) return null;
+
+  /** @type {Record<string, Record<string, unknown>>} */
+  const byEvent = {};
+  await Promise.all(
+    slateMatches.map(async (m) => {
+      const eventId = String(m.id || "").trim();
+      if (!eventId) return;
+      const payload = await refreshWcGoatMatchPlayerPropsIfNeeded(
+        eventId,
+        wcMatchMetaFromRow(m),
+        nowMs,
+      );
+      if (payload && hasMatchPlayerPropRows(payload)) {
+        byEvent[eventId] = payload;
+      }
+    }),
+  );
+
+  return Object.keys(byEvent).length ? byEvent : null;
+}
 
 /**
  * @param {number} [nowMs]
@@ -138,6 +211,20 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     }
   }
 
+  if (!wcEventId && matches.length && (isGenericWcPlayerPropQuestion(question) || /\bplayer props?\b/i.test(question))) {
+    const slateTeams = resolveWcPlayerPropSlateFixtureTeams(question, matches, nowMs);
+    if (slateTeams.length >= 2) {
+      wcEventId = resolveWcEventIdForFixtureTeams(matches, slateTeams[0], slateTeams[1]);
+    }
+  }
+
+  const loadSlateMatchProps =
+    !wcEventId &&
+    matches.length > 0 &&
+    (isGenericWcPlayerPropQuestion(question) ||
+      (opts.wcIntent === WC_INTENT.PLAYER_PROP &&
+        /\b(?:goal scorer|anytime scorer|player props?)\b/i.test(question)));
+
   const fixtureTeams =
     wcEventId && matches.length
       ? (() => {
@@ -154,7 +241,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
       : {};
 
   const loadMatchProps =
-    Boolean(wcEventId) &&
+    (Boolean(wcEventId) || loadSlateMatchProps) &&
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
       isWcLiveDominanceQuestion(question) ||
       isWcFixturePlayerPropsQuestion(question) ||
@@ -177,10 +264,15 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     readWcPlayersFromKv(),
     readWcGoldenBootFromKv(nowMs),
     readWcInjuriesFromKv(),
-    loadMatchProps && !loadNamedPlayerMatchProps
+    loadMatchProps && !loadNamedPlayerMatchProps && wcEventId && !loadSlateMatchProps
       ? (async () => {
           if (isWcGoatPrimaryEnabled()) {
-            const live = await ensureWcBdlMatchPlayerPropsForEvent(wcEventId, fixtureTeams);
+            const m = matches.find((row) => String(row?.id) === String(wcEventId));
+            const live = await refreshWcGoatMatchPlayerPropsIfNeeded(
+              wcEventId,
+              { ...fixtureTeams, ...wcMatchMetaFromRow(m) },
+              nowMs,
+            );
             if (live) return live;
           }
           return readWcMatchPlayerPropsForEvent(wcEventId, nowMs);
@@ -188,10 +280,16 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
       : Promise.resolve(null),
     loadNamedPlayerMatchProps
       ? loadWcMatchPlayerPropsForNamedLegs(namedLegs, matches, nowMs)
-      : Promise.resolve(null),
+      : loadSlateMatchProps
+        ? loadWcGoatSlateMatchPlayerProps(question, matches, nowMs)
+        : Promise.resolve(null),
   ]);
 
-  if (loadNamedPlayerMatchProps && matchPlayerPropsByEvent && typeof matchPlayerPropsByEvent === "object") {
+  if (
+    (loadNamedPlayerMatchProps || loadSlateMatchProps) &&
+    matchPlayerPropsByEvent &&
+    typeof matchPlayerPropsByEvent === "object"
+  ) {
     const eventIds = Object.keys(matchPlayerPropsByEvent);
     if (eventIds.length && !wcEventId) {
       wcEventId = eventIds[0];
@@ -228,12 +326,13 @@ async function loadWcMatchPlayerPropsForNamedLegs(legs, matches, nowMs) {
 
     const m = matches.find((row) => String(row?.id) === String(eventId));
     let payload = await readWcMatchPlayerPropsForEvent(eventId, nowMs);
-    if ((!payload || !hasMatchPlayerPropRows(payload)) && isWcGoatPrimaryEnabled()) {
-      payload = await ensureWcBdlMatchPlayerPropsForEvent(eventId, {
-        homeTeam: m?.homeTeam,
-        awayTeam: m?.awayTeam,
-        bdlMatchId: m?.bdlMatchId,
-      });
+    if (isWcGoatPrimaryEnabled()) {
+      payload =
+        (await refreshWcGoatMatchPlayerPropsIfNeeded(eventId, wcMatchMetaFromRow(m), nowMs)) ||
+        payload;
+    } else if (!payload || !hasMatchPlayerPropRows(payload)) {
+      payload =
+        (await ensureWcBdlMatchPlayerPropsForEvent(eventId, wcMatchMetaFromRow(m))) || payload;
     }
     if (payload && hasMatchPlayerPropRows(payload)) {
       byEvent[eventId] = payload;
@@ -265,15 +364,13 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
       for (const payload of Object.values(byEvent)) {
         if (!hasMatchPlayerPropRows(payload)) continue;
         for (const leg of namedLegs) {
-          const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
-          if (findWcMatchPlayerPropRowForQuestion(subQuestion, payload)) return true;
+          if (findWcNamedPlayerPropLegMatch(leg, payload)) return true;
         }
       }
     }
     if (kvBlocks?.matchPlayerProps) {
       for (const leg of namedLegs) {
-        const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
-        if (findWcMatchPlayerPropRowForQuestion(subQuestion, kvBlocks.matchPlayerProps)) {
+        if (findWcNamedPlayerPropLegMatch(leg, kvBlocks.matchPlayerProps)) {
           return true;
         }
       }

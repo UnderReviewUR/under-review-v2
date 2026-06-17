@@ -109,7 +109,8 @@ export function collapseMatchPlayerPropRowsForDisplay(rows, marketKey = "") {
   const list = Array.isArray(rows) ? rows : [];
   if (!list.length) return [];
 
-  const isOuMarket = String(marketKey || "").includes("_ou") || String(marketKey || "").includes("assists");
+  const isOuMarket =
+    String(marketKey || "").includes("_ou") || String(marketKey || "").includes("each_half");
   /** @type {Map<string, Record<string, unknown>>} */
   const byKey = new Map();
 
@@ -166,7 +167,7 @@ export function mergeMatchPlayerPropMarketMaps(a, b) {
       seen.add(k);
       return Boolean(row?.name && row?.americanOdds);
     });
-    out[key] = rows.slice(0, 40);
+    out[key] = rows;
   }
   return out;
 }

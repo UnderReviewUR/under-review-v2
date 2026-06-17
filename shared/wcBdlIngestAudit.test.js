@@ -46,10 +46,10 @@ test("auditBdlPlayerPropsIngest — maps goal_or_assist rows", () => {
 
 test("auditBdlPlayerPropsIngest — reports intentional unmapped BDL types", () => {
   const audit = auditBdlPlayerPropsIngest(
-    [{ player_id: 1, prop_type: "tackles", market: { type: "milestone", odds: 200 } }],
+    [{ player_id: 1, prop_type: "unknown_future_prop", market: { type: "milestone", odds: 200 } }],
     {},
     { 1: { name: "Test Player" } },
   );
-  assert.equal(audit.unmappedPropTypes.tackles, 1);
-  assert.ok(audit.intentionalUnmappedPropTypes.includes("tackles"));
+  assert.equal(audit.unmappedPropTypes.unknown_future_prop, 1);
+  assert.ok(audit.warnings.join(" ").includes("unmapped_prop_types"));
 });

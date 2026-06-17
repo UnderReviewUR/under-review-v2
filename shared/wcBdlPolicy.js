@@ -36,6 +36,9 @@ export function getBdlRequestDelayMs() {
   return BDL_GOAT_TIER_REQUEST_DELAY_MS;
 }
 
+/** GOAT: re-scrape match props when KV is older than this on read paths. */
+export const WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS = 5 * 60 * 1000;
+
 export function hasWcBdlApiKey() {
   return Boolean(String(getEnv("BALLDONTLIE_API_KEY") || "").trim());
 }
@@ -72,6 +75,22 @@ export function shouldPreferBdlRefreshOverKv(kvPayload) {
 /** Book HTML scrapes are disabled for player markets when GOAT primary is on. */
 export function shouldUseWcBookScrapeForPlayerMarkets() {
   return !isWcGoatPrimaryEnabled();
+}
+
+/**
+ * GOAT read paths should re-scrape when cache is empty, stale, or the fixture is live.
+ * @param {{ lastUpdated?: number, source?: string, matchStatus?: string } | null | undefined} eventPayload
+ * @param {{ nowMs?: number, matchStatus?: string }} [opts]
+ */
+export function wcGoatMatchPlayerPropsNeedsLiveRefresh(eventPayload, opts = {}) {
+  if (!eventPayload) return true;
+  if (!isWcBdlSource(eventPayload.source)) return true;
+  const nowMs = opts.nowMs ?? Date.now();
+  const ageMs = nowMs - (Number(eventPayload.lastUpdated) || 0);
+  if (!Number.isFinite(ageMs) || ageMs >= WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS) return true;
+  const status = String(opts.matchStatus || eventPayload.matchStatus || "").toLowerCase();
+  if (/live|in.progress|in progress|1h|2h|ht|halftime/.test(status)) return true;
+  return false;
 }
 
 /** Explicit ESPN override on API requests (?source=espn). */

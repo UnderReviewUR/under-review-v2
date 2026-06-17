@@ -6,6 +6,8 @@ import {
   getBdlRequestDelayMs,
   BDL_FREE_TIER_REQUEST_DELAY_MS,
   BDL_GOAT_TIER_REQUEST_DELAY_MS,
+  wcGoatMatchPlayerPropsNeedsLiveRefresh,
+  WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS,
 } from "./wcBdlPolicy.js";
 
 test("isWcBdlSource recognizes BDL variants", () => {
@@ -38,4 +40,30 @@ test("getBdlRequestDelayMs defaults to GOAT tier pacing", () => {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
+});
+
+test("wcGoatMatchPlayerPropsNeedsLiveRefresh — empty, stale, and live fixtures", () => {
+  const nowMs = 1_700_000_000_000;
+  assert.equal(wcGoatMatchPlayerPropsNeedsLiveRefresh(null, { nowMs }), true);
+  assert.equal(
+    wcGoatMatchPlayerPropsNeedsLiveRefresh(
+      { source: "balldontlie", lastUpdated: nowMs - WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS - 1 },
+      { nowMs },
+    ),
+    true,
+  );
+  assert.equal(
+    wcGoatMatchPlayerPropsNeedsLiveRefresh(
+      { source: "balldontlie", lastUpdated: nowMs - 60_000 },
+      { nowMs, matchStatus: "live" },
+    ),
+    true,
+  );
+  assert.equal(
+    wcGoatMatchPlayerPropsNeedsLiveRefresh(
+      { source: "balldontlie", lastUpdated: nowMs - 60_000 },
+      { nowMs, matchStatus: "NS" },
+    ),
+    false,
+  );
 });

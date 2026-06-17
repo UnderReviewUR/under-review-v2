@@ -35,6 +35,7 @@ import {
   isWcBdlSource,
   isWcGoatPrimaryEnabled,
   shouldUseWcBookScrapeForPlayerMarkets,
+  wcGoatMatchPlayerPropsNeedsLiveRefresh,
 } from "../shared/wcBdlPolicy.js";
 import { readWcMatchesFromKv } from "./_wcData.js";
 import { resolveBdlMatchIdForEvent, scrapeAndCacheWcBdlMatchPlayerProps } from "./_wcBdlData.js";
@@ -53,8 +54,33 @@ async function readMatchMetaFromKv(eventId) {
     homeTeam: match.homeTeam || null,
     awayTeam: match.awayTeam || null,
     bdlMatchId: match.bdlMatchId ?? null,
+    status: match.status || null,
     date: match.date || null,
   };
+}
+
+/**
+ * GOAT: live BDL scrape when KV is empty, stale (>5m), or fixture is in progress.
+ * @param {string | number} eventId
+ * @param {{ homeTeam?: string, awayTeam?: string, bdlMatchId?: number, status?: string, date?: string }} [meta]
+ * @param {number} [nowMs]
+ */
+export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, nowMs = Date.now()) {
+  const id = String(eventId || "").trim();
+  if (!id) return null;
+  if (!isWcGoatPrimaryEnabled()) {
+    return readWcMatchPlayerPropsForEvent(id, nowMs);
+  }
+  const cached = await readWcMatchPlayerPropsForEvent(id, nowMs);
+  if (
+    !wcGoatMatchPlayerPropsNeedsLiveRefresh(cached, {
+      matchStatus: meta.status,
+      nowMs,
+    })
+  ) {
+    return cached;
+  }
+  return (await ensureWcBdlMatchPlayerPropsForEvent(id, meta)) || cached;
 }
 
 /**
@@ -72,6 +98,7 @@ export async function ensureWcBdlMatchPlayerPropsForEvent(eventId, meta = {}) {
       merged.awayTeam = merged.awayTeam || fromKv.awayTeam;
       merged.bdlMatchId = merged.bdlMatchId ?? fromKv.bdlMatchId;
       merged.date = merged.date || fromKv.date;
+      merged.status = merged.status || fromKv.status;
     }
   }
 
@@ -226,7 +253,7 @@ function mergeMatchPropsConsensus(bookResults) {
   /** @type {Record<string, Array<Record<string, unknown>>>} */
   const markets = {};
   for (const [marketKey, map] of Object.entries(byMarket)) {
-    markets[marketKey] = [...map.values()].slice(0, 40);
+    markets[marketKey] = [...map.values()];
   }
   const booksUsed = bookResults.filter((r) => r.ok).map((r) => r.book);
   return { markets, booksUsed };
@@ -437,63 +464,35 @@ export async function getWcMatchPlayerPropsPayload(eventId) {
   let event = readFreshMatchPlayerPropsForEvent(kv, String(eventId));
 
   if (isWcGoatPrimaryEnabled()) {
-    const needsBdlRefresh =
-      !event || !isWcBdlSource(event.source) || !hasMatchPlayerPropRows(event);
+    const meta = await readMatchMetaFromKv(eventId);
+    const refreshed = await refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta || {}, Date.now());
+    if (refreshed) event = refreshed;
+  }
 
-    if (needsBdlRefresh) {
-      const meta = await readMatchMetaFromKv(eventId);
-      const refreshed = await ensureWcBdlMatchPlayerPropsForEvent(eventId, meta || {});
-      if (refreshed) event = refreshed;
-    }
-
-    if (!event || !hasMatchPlayerPropRows(event)) {
-      return {
-        ok: false,
-        error: "not_found",
-        eventId: String(eventId),
-        dataSource: "balldontlie",
-        hint: "No BDL player props for this fixture yet — check BALLDONTLIE_API_KEY and match_id mapping.",
-      };
-    }
-
-    const filteredMarkets = filterMatchPlayerPropMarketsForResponse(event);
-    const anytimeCount = (filteredMarkets.anytime_scorer || []).length;
-    if (
-      !anytimeCount &&
-      !WC_MATCH_PLAYER_PROP_MARKET_KEYS.some((key) => (filteredMarkets[key] || []).length > 0)
-    ) {
-      return {
-        ok: false,
-        error: "not_found",
-        eventId: String(eventId),
-        dataSource: "balldontlie",
-        hint: "No BDL player props for this fixture yet — check BALLDONTLIE_API_KEY and match_id mapping.",
-      };
-    }
+  if (!event || !hasMatchPlayerPropRows(event)) {
     return {
-      ok: true,
+      ok: false,
+      error: "not_found",
       eventId: String(eventId),
-      ...event,
-      markets: filteredMarkets,
-      anytimeCount,
-      dataSource: "balldontlie",
-      source: "balldontlie",
-      booksUsed: ["balldontlie"],
+      dataSource: isWcGoatPrimaryEnabled() ? "balldontlie" : "default",
+      hint: isWcGoatPrimaryEnabled()
+        ? "No BDL player props for this fixture yet — check BALLDONTLIE_API_KEY and match_id mapping."
+        : undefined,
     };
   }
 
-  if (!event) {
-    return { ok: false, error: "not_found", eventId: String(eventId) };
-  }
-
   const filteredMarkets = filterMatchPlayerPropMarketsForResponse(event);
+  const anytimeCount = (filteredMarkets.anytime_scorer || []).length;
 
   return {
     ok: true,
     eventId: String(eventId),
     ...event,
     markets: filteredMarkets,
-    anytimeCount: (filteredMarkets.anytime_scorer || []).length,
+    anytimeCount,
     dataSource: isWcBdlSource(event.source) ? "balldontlie" : "default",
+    ...(isWcBdlSource(event.source)
+      ? { source: "balldontlie", booksUsed: ["balldontlie"] }
+      : {}),
   };
 }

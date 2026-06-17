@@ -40,9 +40,10 @@ import {
   formatWcNamedPlayerPropLegAnswer,
 } from "./wcUrTakePlayerMarket.js";
 import {
-  findWcMatchPlayerPropRowForQuestion,
+  findWcNamedPlayerPropLegMatch,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
+  WC_NAMED_PROP_MARKET_DISPLAY,
 } from "./wcPlayerPropFixture.js";
 import { lookupStarterGoalkeeper } from "./wcGoldenGloveAdjusted.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
@@ -838,26 +839,31 @@ export function buildWcPlayerMarketPrebuiltStructured(
 function resolveWcMatchPlayerPropsForNamedLeg(leg, kvBlocks, wcContext) {
   const byEvent = kvBlocks?.matchPlayerPropsByEvent;
   const matches = Array.isArray(wcContext?.allMatches) ? wcContext.allMatches : [];
-  const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
+
+  const tryPayload = (payload) => {
+    const matchHit = findWcNamedPlayerPropLegMatch(leg, payload);
+    return matchHit ? { matchHit, eventPayload: payload } : null;
+  };
 
   if (byEvent && typeof byEvent === "object") {
     for (const payload of Object.values(byEvent)) {
-      const row = findWcMatchPlayerPropRowForQuestion(subQuestion, payload);
-      if (row) return { row, eventPayload: payload };
+      const found = tryPayload(payload);
+      if (found) return found;
     }
   }
 
   const single = kvBlocks?.matchPlayerProps;
   if (single) {
-    const row = findWcMatchPlayerPropRowForQuestion(subQuestion, single);
-    if (row) return { row, eventPayload: single };
+    const found = tryPayload(single);
+    if (found) return found;
   }
 
+  const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
   const nation = resolveWcPlayerNationFromQuestion(subQuestion);
-  if (!nation || !matches.length) return { row: null, eventPayload: null };
+  if (!nation || !matches.length) return { matchHit: null, eventPayload: null };
 
   const eventId = resolveWcEventIdForPlayerNation(matches, nation);
-  if (!eventId) return { row: null, eventPayload: null };
+  if (!eventId) return { matchHit: null, eventPayload: null };
 
   const payload =
     byEvent && typeof byEvent === "object"
@@ -865,10 +871,68 @@ function resolveWcMatchPlayerPropsForNamedLeg(leg, kvBlocks, wcContext) {
       : String(kvBlocks?.wcEventId || "") === String(eventId)
         ? single
         : null;
-  if (!payload) return { row: null, eventPayload: null };
+  if (!payload) return { matchHit: null, eventPayload: null };
 
-  const row = findWcMatchPlayerPropRowForQuestion(subQuestion, payload);
-  return { row, eventPayload: payload };
+  const found = tryPayload(payload);
+  return found || { matchHit: null, eventPayload: null };
+}
+
+/**
+ * Card-level whyNow for named player prop legs — proxy context once, not on every line.
+ * @param {Array<{ leg: import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg, matchHit: Record<string, unknown> | null }>} resolved
+ */
+function buildWcNamedPlayerPropWhyNow(resolved) {
+  const priced = resolved.filter((r) => r.matchHit?.row?.americanOdds);
+  const legs = resolved.map((r) => r.leg);
+  if (!priced.length) return null;
+
+  if (legs.length === 1) {
+    const r = resolved[0];
+    const odds = String(r.matchHit?.row?.americanOdds || "");
+    const postedLine = r.matchHit?.row?.line || r.leg.threshold;
+    if (r.matchHit?.isProxy) {
+      const market =
+        WC_NAMED_PROP_MARKET_DISPLAY[String(r.matchHit.marketKey || "")] || "nearest market";
+      return `Full-match ${r.leg.threshold} isn't posted; priced on ${market} at ${odds}.`;
+    }
+    const asked = parseFloat(r.leg.threshold);
+    const posted = parseFloat(String(postedLine));
+    if (Number.isFinite(asked) && Number.isFinite(posted) && posted !== asked) {
+      return `Over ${postedLine} at ${odds} — nearest posted line to your ${r.leg.threshold} ask.`;
+    }
+    return `Posted in MATCH PLAYER PROPS at ${odds}.`;
+  }
+
+  const proxies = priced.filter((r) => r.matchHit?.isProxy);
+  let base =
+    priced.length === legs.length
+      ? `All ${legs.length} names have posted lines in MATCH PLAYER PROPS.`
+      : `${priced.length} of ${legs.length} names have posted lines; pass the rest until books publish.`;
+  if (proxies.length === 1) {
+    const odds = String(proxies[0].matchHit?.row?.americanOdds || "");
+    base += ` ${proxies[0].leg.name} is on each-half at ${odds} where full-match isn't posted.`;
+  } else if (proxies.length > 1) {
+    base += " Where full-match ladders are missing, each-half is the nearest market.";
+  }
+  return base;
+}
+
+/**
+ * @param {Array<{ leg: import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg, matchHit: Record<string, unknown> | null }>} resolved
+ * @param {number} legCount
+ * @param {Array<{ leg: import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg, matchHit: Record<string, unknown> | null }>} playable
+ */
+function buildWcNamedPlayerPropCall(resolved, legCount, playable) {
+  const formatLine = (r) =>
+    formatWcNamedPlayerPropLegAnswer(r.leg, r.matchHit).replace(/^pass\s*[—-]\s*/i, "Pass — ");
+
+  if (legCount === 1) {
+    return formatLine(resolved[0]);
+  }
+  if (!playable.length) {
+    return formatLine(resolved[0]);
+  }
+  return `${playable.length} of ${legCount} playable`;
 }
 
 /**
@@ -883,17 +947,22 @@ export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcCo
   if (!legs.length) return null;
 
   const meta = tierMetaFor(tier);
-  /** @type {Array<{ leg: import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg, row: Record<string, unknown> | null, eventPayload: Record<string, unknown> | null }>} */
+  /** @type {Array<{ leg: import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg, matchHit: Record<string, unknown> | null, eventPayload: Record<string, unknown> | null }>} */
   const resolved = legs.map((leg) => {
     const hit = resolveWcMatchPlayerPropsForNamedLeg(leg, kvBlocks, wcContext);
-    return { leg, row: hit.row, eventPayload: hit.eventPayload };
+    return { leg, matchHit: hit.matchHit, eventPayload: hit.eventPayload };
   });
 
-  const priced = resolved.filter((r) => r.row?.americanOdds);
-  const leanLines = resolved.map((r, i) => `${i + 1}. ${formatWcNamedPlayerPropLegAnswer(r.leg, r.row)}`);
+  const priced = resolved.filter((r) => r.matchHit?.row?.americanOdds);
+  const leanLines =
+    legs.length === 1
+      ? [formatWcNamedPlayerPropLegAnswer(resolved[0].leg, resolved[0].matchHit)]
+      : resolved.map(
+          (r, i) => `${i + 1}. ${formatWcNamedPlayerPropLegAnswer(r.leg, r.matchHit)}`,
+        );
   const playable = resolved.filter((r) => {
-    if (!r.row?.americanOdds) return false;
-    const verdict = formatWcNamedPlayerPropLegAnswer(r.leg, r.row);
+    if (!r.matchHit?.row?.americanOdds) return false;
+    const verdict = formatWcNamedPlayerPropLegAnswer(r.leg, r.matchHit);
     return !/^pass\b/i.test(verdict) && !/juice, skip/i.test(verdict);
   });
 
@@ -902,16 +971,21 @@ export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcCo
   const eventId = String(leadEvent?.eventId || kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim();
 
   if (!priced.length) {
+    const passCall =
+      legs.length === 1
+        ? formatWcNamedPlayerPropLegAnswer(resolved[0].leg, resolved[0].matchHit)
+        : buildWcPlayerPropPassHeadline(question);
     return finalizeWcPlayerPropStructured(
       {
         sport: "worldcup",
         callType: meta.callType,
         playerMarketTier: tier,
         wcEventId: eventId || undefined,
-        call: buildWcPlayerPropPassHeadline(question),
-        lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+        wcNamedPlayerPropsCard: true,
+        call: passCall,
+        lean: leanLines.join("\n"),
         whyNow: legs.length === 1
-          ? `No verified ${legs[0].marketLabel} line for ${legs[0].name} in MATCH PLAYER PROPS yet.`
+          ? `No ${legs[0].marketLabel} line for ${legs[0].name} in MATCH PLAYER PROPS yet.`
           : "Posted match player lines for these names are still syncing — re-ask closer to kickoff.",
         edge: legs.length === 1
           ? `Watch for ${legs[0].name} in confirmed lineups once books post match ${legs[0].marketLabel}.`
@@ -923,10 +997,8 @@ export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcCo
     );
   }
 
-  const leadLine = formatWcNamedPlayerPropLegAnswer(lead.leg, lead.row);
-  const call = playable.length
-    ? `${playable.length} of ${legs.length} legs playable — lead: ${leadLine.replace(/^pass\s*[—-]\s*/i, "")}`
-    : leadLine.replace(/^pass\s*[—-]\s*/i, "Pass — ");
+  const call = buildWcNamedPlayerPropCall(resolved, legs.length, playable);
+  const whyNow = buildWcNamedPlayerPropWhyNow(resolved);
 
   return finalizeWcPlayerPropStructured(
     {
@@ -934,17 +1006,15 @@ export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcCo
       callType: meta.callType,
       playerMarketTier: tier,
       wcEventId: eventId || undefined,
+      wcNamedPlayerPropsCard: true,
       fixtureHome: leadEvent?.homeTeam ? String(leadEvent.homeTeam).toUpperCase() : undefined,
       fixtureAway: leadEvent?.awayTeam ? String(leadEvent.awayTeam).toUpperCase() : undefined,
       call,
       lean: leanLines.join("\n"),
-      whyNow:
-        priced.length === legs.length
-          ? `All ${legs.length} posted lines are in MATCH PLAYER PROPS — verdicts use listed American prices.`
-          : `${priced.length} of ${legs.length} names have posted lines; pass the rest until books publish.`,
+      whyNow: whyNow || "",
       edge:
         playable.length >= 2
-          ? `Best combo value: ${playable.slice(0, 2).map((r) => formatWcNamedPlayerPropLegAnswer(r.leg, r.row)).join(" · ")}`
+          ? `Best combo value: ${playable.slice(0, 2).map((r) => formatWcNamedPlayerPropLegAnswer(r.leg, r.matchHit)).join(" · ")}`
           : playable.length === 1
             ? `Only ${playable[0].leg.name} clears juice at the posted line.`
             : "Every listed leg is juice — wait for a better milestone or skip the parlay.",

@@ -7,6 +7,7 @@ import {
   WC_INTENT,
 } from "./wcUrTakeIntent.js";
 import {
+  buildWcNamedPlayerPropsStructured,
   buildWcPlayerMarketEmptyStructured,
   resolveWcPlayerMarketAnswer,
 } from "./wcPlayerMarketResolve.js";
@@ -158,6 +159,53 @@ test("resolveWcPlayerMarketAnswer — named multi-player shots no longer uses sl
   assert.ok(resolved.structured);
   assert.doesNotMatch(String(resolved.structured.whyNow || ""), /remaining slate/i);
   assert.match(String(resolved.structured.whyNow || ""), /syncing|verified|MATCH PLAYER PROPS/i);
+});
+
+test("buildWcNamedPlayerPropsStructured — proxy stays clean on card face", () => {
+  const q = "anthony gordon over 1.5 shots attempted?";
+  const kv = {
+    matchPlayerProps: {
+      eventId: "22",
+      homeTeam: "ENG",
+      awayTeam: "CRO",
+      markets: {
+        player_shots_ou: [],
+        player_shots_each_half: [
+          {
+            name: "Anthony Gordon",
+            americanOdds: "+105",
+            line: "1",
+            side: "over",
+            nationAbbr: "ENG",
+          },
+        ],
+      },
+    },
+  };
+  const s = buildWcNamedPlayerPropsStructured(q, "verified", kv, {
+    allMatches: [{ id: "22", homeTeam: "ENG", awayTeam: "CRO", status: "scheduled" }],
+  });
+  assert.ok(s);
+  assert.match(s.call, /each half at \+105/i);
+  assert.doesNotMatch(`${s.call}\n${s.lean}`, /full-match 1\.5 not posted/i);
+  assert.match(s.whyNow, /full-match 1\.5 isn't posted/i);
+  assert.doesNotMatch(String(s.deep || ""), /Over 1\.5 isn't posted/);
+});
+
+test("buildWcNamedPlayerPropsStructured — no line is a straight pass", () => {
+  const q = "anthony gordon over 1.5 shots?";
+  const kv = {
+    matchPlayerProps: {
+      eventId: "22",
+      markets: { player_shots_ou: [], player_shots_each_half: [] },
+    },
+  };
+  const s = buildWcNamedPlayerPropsStructured(q, "verified", kv, {
+    allMatches: [{ id: "22", homeTeam: "ENG", awayTeam: "CRO", status: "scheduled" }],
+  });
+  assert.ok(s);
+  assert.match(s.lean, /pass — no shots line for anthony gordon yet/i);
+  assert.match(s.whyNow, /no shots line for anthony gordon/i);
 });
 
 test("resolveWcPlayerMarketResponse — with KV does not force pass", () => {

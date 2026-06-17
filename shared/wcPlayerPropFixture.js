@@ -124,50 +124,175 @@ export function detectWcPlayerPropMarketKey(question) {
   return "player_shots_ou";
 }
 
+/** @type {Record<string, string>} */
+export const WC_NAMED_PROP_MARKET_DISPLAY = {
+  player_shots_ou: "full-match shots",
+  player_shots_each_half: "shots each half",
+  player_sot_ou: "full-match shots on target",
+  player_sot_each_half: "SOT each half",
+};
+
+/**
+ * @param {string} hint normalized player hint
+ * @param {{ name?: string }} row
+ */
+function wcPlayerPropRowMatchesHint(hint, row) {
+  const name = normPlayerToken(row.name);
+  const parts = name.split(/\s+/).filter(Boolean);
+  return (
+    name === hint ||
+    parts.includes(hint) ||
+    parts.some((p) => p.startsWith(hint)) ||
+    name.includes(hint) ||
+    normPlayerToken(normalizeWcPlayerName(row.name))
+      .split(/\s+/)
+      .some((p) => p === hint || p.endsWith(hint))
+  );
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} nameMatches
+ * @param {string | number | undefined} threshold
+ */
+function pickBestWcPlayerPropRowForThreshold(nameMatches, threshold) {
+  if (!nameMatches.length) return null;
+  const target = Number(threshold);
+  if (!Number.isFinite(target)) return nameMatches[0];
+
+  const ceil = Math.ceil(target);
+  const byLine = nameMatches
+    .filter((r) => r.line != null && r.side === "over")
+    .sort(
+      (a, b) =>
+        Math.abs(Number(a.line) - ceil) - Math.abs(Number(b.line) - ceil) ||
+        Number(a.line) - Number(b.line),
+    );
+  return byLine.length ? byLine[0] : nameMatches[0];
+}
+
+/**
+ * @param {import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg} leg
+ * @returns {Array<{ marketKey: string, isProxy: boolean }>}
+ */
+export function getWcShotPropMarketFallbackLadder(leg) {
+  if (leg.marketKey === "player_sot_ou") {
+    return [
+      { marketKey: "player_sot_ou", isProxy: false },
+      { marketKey: "player_sot_each_half", isProxy: true },
+    ];
+  }
+  if (leg.marketKey === "player_shots_ou") {
+    return [
+      { marketKey: "player_shots_ou", isProxy: false },
+      { marketKey: "player_shots_each_half", isProxy: true },
+    ];
+  }
+  return [{ marketKey: leg.marketKey, isProxy: false }];
+}
+
+/**
+ * @param {import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg} leg
+ * @param {string} marketKey
+ */
+function buildWcShotPropProxyNote(leg, marketKey) {
+  if (marketKey === "player_shots_each_half") {
+    return `full-match ${leg.threshold} not posted`;
+  }
+  if (marketKey === "player_sot_each_half") {
+    return `full-match ${leg.threshold} SOT not posted`;
+  }
+  return "nearest posted market";
+}
+
+/**
+ * @param {string} question
+ * @param {object | null | undefined} matchPlayerProps
+ * @param {string} marketKey
+ * @param {string | number | undefined} [threshold]
+ */
+export function findWcMatchPlayerPropRowForMarket(
+  question,
+  matchPlayerProps,
+  marketKey,
+  threshold,
+) {
+  if (!matchPlayerProps) return null;
+  const hint = normPlayerToken(extractWcPlayerPropNameHint(question));
+  if (!hint) return null;
+
+  const rows = matchPlayerPropRowsFromEvent(matchPlayerProps, marketKey, 50);
+  const nameMatches = rows.filter((r) => wcPlayerPropRowMatchesHint(hint, r));
+  if (!nameMatches.length) return null;
+
+  const lineThreshold =
+    threshold ??
+    String(question || "").match(/(\d+\.?\d*)\s*shots?\b/i)?.[1] ??
+    String(question || "").match(/\bover\s+(\d+(?:\.\d+)?)/i)?.[1];
+  const picked = pickBestWcPlayerPropRowForThreshold(nameMatches, lineThreshold);
+  return picked ? { ...picked, market: marketKey } : null;
+}
+
+/**
+ * Nearest posted shot/SOT market for a named leg (full-match → each-half fallback).
+ * @param {import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg} leg
+ * @param {object | null | undefined} matchPlayerProps
+ * @returns {{ row: Record<string, unknown>, marketKey: string, marketLabel: string, isProxy: boolean, proxyNote?: string } | null}
+ */
+export function findWcNamedPlayerPropLegMatch(leg, matchPlayerProps) {
+  if (!matchPlayerProps || !leg?.name) return null;
+
+  const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
+  for (const step of getWcShotPropMarketFallbackLadder(leg)) {
+    const row = findWcMatchPlayerPropRowForMarket(
+      subQuestion,
+      matchPlayerProps,
+      step.marketKey,
+      leg.threshold,
+    );
+    if (!row?.americanOdds) continue;
+    return {
+      row,
+      marketKey: step.marketKey,
+      marketLabel: WC_NAMED_PROP_MARKET_DISPLAY[step.marketKey] || leg.marketLabel,
+      isProxy: step.isProxy,
+      proxyNote: step.isProxy ? buildWcShotPropProxyNote(leg, step.marketKey) : undefined,
+    };
+  }
+  return null;
+}
+
 /**
  * @param {string} question
  * @param {object | null | undefined} matchPlayerProps
  */
 export function findWcMatchPlayerPropRowForQuestion(question, matchPlayerProps) {
   if (!matchPlayerProps) return null;
-  const hint = normPlayerToken(extractWcPlayerPropNameHint(question));
-  if (!hint) return null;
 
   const market = detectWcPlayerPropMarketKey(question);
-  const rows = matchPlayerPropRowsFromEvent(matchPlayerProps, market, 50);
-
-  const nameMatches = rows.filter((r) => {
-    const name = normPlayerToken(r.name);
-    const parts = name.split(/\s+/).filter(Boolean);
-    return (
-      name === hint ||
-      parts.includes(hint) ||
-      parts.some((p) => p.startsWith(hint)) ||
-      name.includes(hint) ||
-      normPlayerToken(normalizeWcPlayerName(r.name))
-        .split(/\s+/)
-        .some((p) => p === hint || p.endsWith(hint))
-    );
-  });
-  if (!nameMatches.length) return null;
-
-  const lineAsk = String(question || "").match(/(\d+\.?\d*)\s*shots?\b/i)?.[1];
-  if (lineAsk) {
-    const target = Number(lineAsk);
-    if (Number.isFinite(target)) {
-      const ceil = Math.ceil(target);
-      const byLine = nameMatches
-        .filter((r) => r.line != null && r.side === "over")
-        .sort(
-          (a, b) =>
-            Math.abs(Number(a.line) - ceil) - Math.abs(Number(b.line) - ceil) ||
-            Number(a.line) - Number(b.line),
-        );
-      if (byLine.length) return { ...byLine[0], market };
+  if (market === "player_shots_ou" || market === "player_sot_ou") {
+    const threshold =
+      String(question || "").match(/(\d+\.?\d*)\s*shots?\b/i)?.[1] ??
+      String(question || "").match(/\bover\s+(\d+(?:\.\d+)?)/i)?.[1] ??
+      "";
+    const leg = {
+      name: extractWcPlayerPropNameHint(question) || "",
+      threshold,
+      marketKey: market,
+      marketLabel: market === "player_sot_ou" ? "shots on target" : "shots",
+    };
+    const hit = findWcNamedPlayerPropLegMatch(leg, matchPlayerProps);
+    if (hit?.row) {
+      return {
+        ...hit.row,
+        market: hit.marketKey,
+        isProxy: hit.isProxy,
+        proxyNote: hit.proxyNote,
+      };
     }
+    return null;
   }
 
-  return { ...nameMatches[0], market };
+  return findWcMatchPlayerPropRowForMarket(question, matchPlayerProps, market);
 }
 
 /**

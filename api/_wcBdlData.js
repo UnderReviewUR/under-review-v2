@@ -534,6 +534,7 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
     bdlMatchId,
     homeTeam: meta.homeTeam || null,
     awayTeam: meta.awayTeam || null,
+    matchStatus: meta.status || null,
     lastUpdated: nowMs,
     source: "balldontlie",
     booksUsed: ["balldontlie"],

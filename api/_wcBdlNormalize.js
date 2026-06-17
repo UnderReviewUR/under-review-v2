@@ -314,6 +314,99 @@ export function buildBdlPlayerIdLookup(players = []) {
   return lookup;
 }
 
+function bdlPropOddsRank(odds) {
+  const raw = String(odds || "").trim().replace(/^\+/, "");
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n)) return 999999;
+  if (String(odds).startsWith("-")) return n;
+  return n;
+}
+
+function isBdlPropOverSide(side) {
+  const raw = String(side || "").trim().toLowerCase();
+  return !raw || raw === "yes" || raw === "over";
+}
+
+/** Primary O/U line to keep when collapsing for display-only helpers. */
+export const BDL_INGEST_PREFERRED_OU_LINE = {
+  player_shots_ou: 1.5,
+  player_sot_ou: 0.5,
+  player_assists_ou: 0.5,
+  player_saves_ou: 3.5,
+  player_tackles_ou: 1.5,
+  player_shots_each_half: 1,
+  player_sot_each_half: 1,
+};
+
+function bdlIngestPreferredLineForMarket(marketKey) {
+  if (Object.prototype.hasOwnProperty.call(BDL_INGEST_PREFERRED_OU_LINE, marketKey)) {
+    return BDL_INGEST_PREFERRED_OU_LINE[marketKey];
+  }
+  if (String(marketKey).includes("_ou")) return 1.5;
+  if (String(marketKey).includes("each_half")) return 1;
+  return null;
+}
+
+function isBdlLadderedPropMarket(marketKey) {
+  const key = String(marketKey || "");
+  if (key === "player_goal_or_assist") return false;
+  return key.includes("_ou") || key.includes("each_half");
+}
+
+/**
+ * Display/helper collapse — KV ingest stores the full BDL ladder (all lines per player).
+ * @param {Array<Record<string, unknown>>} rows
+ * @param {string} marketKey
+ */
+export function collapseBdlIngestRowsOnePerPlayer(rows, marketKey = "") {
+  const list = Array.isArray(rows) ? rows : [];
+  if (!list.length) return [];
+
+  const isLaddered = isBdlLadderedPropMarket(marketKey);
+  const preferredLine = bdlIngestPreferredLineForMarket(marketKey);
+  /** @type {Map<string, Record<string, unknown>>} */
+  const byPlayer = new Map();
+
+  for (const row of list) {
+    const name = String(row?.name || "").trim();
+    const odds = String(row?.americanOdds || "").trim();
+    if (!name || !odds) continue;
+    if (isLaddered && !isBdlPropOverSide(row?.side)) continue;
+
+    const playerKey = name.toLowerCase();
+    const existing = byPlayer.get(playerKey);
+    if (!existing) {
+      byPlayer.set(playerKey, row);
+      continue;
+    }
+
+    if (isLaddered && preferredLine != null) {
+      const target = preferredLine;
+      const candLine = Number.parseFloat(String(row.line ?? ""));
+      const incLine = Number.parseFloat(String(existing.line ?? ""));
+      const candDist = Number.isFinite(candLine) ? Math.abs(candLine - target) : 99;
+      const incDist = Number.isFinite(incLine) ? Math.abs(incLine - target) : 99;
+      if (candDist !== incDist) {
+        if (candDist < incDist) byPlayer.set(playerKey, row);
+        continue;
+      }
+      if (candLine !== incLine && Number.isFinite(candLine) && Number.isFinite(incLine)) {
+        if (candLine < incLine) {
+          byPlayer.set(playerKey, row);
+          continue;
+        }
+        if (candLine > incLine) continue;
+      }
+    }
+
+    if (bdlPropOddsRank(odds) < bdlPropOddsRank(String(existing.americanOdds || ""))) {
+      byPlayer.set(playerKey, row);
+    }
+  }
+
+  return [...byPlayer.values()];
+}
+
 /**
  * @param {Array<Record<string, unknown>>} rows — FIFAPlayerProp[]
  * @param {Record<string, { name: string, nationAbbr?: string | null }>} [playerLookup]
@@ -392,7 +485,8 @@ export function normalizeBdlPlayerPropsToMarkets(rows, playerLookup = {}) {
   }
 
   for (const [marketKey, map] of Object.entries(byMarket)) {
-    markets[marketKey] = [...map.values()].slice(0, 40);
+    // Store full BDL ladder in KV — display layer collapses for card face.
+    markets[marketKey] = [...map.values()];
   }
   return markets;
 }

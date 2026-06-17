@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildBdlPlayerIdLookup,
+  collapseBdlIngestRowsOnePerPlayer,
   extractBdlRowTotals,
   normalizeBdlPlayerPropsToMarkets,
   pickBdlMatchOddsForMatch,
@@ -169,4 +170,62 @@ test("normalizeBdlPlayerPropsToMarkets — skips rows without name or lookup", (
     },
   ]);
   assert.equal(markets.player_shots_ou.length, 0);
+});
+
+test("collapseBdlIngestRowsOnePerPlayer — prefers 1.5 line for shots milestones", () => {
+  const rows = [
+    { name: "Anthony Gordon", line: "0.5", side: "over", americanOdds: "-435" },
+    { name: "Anthony Gordon", line: "1.5", side: "over", americanOdds: "+125" },
+    { name: "Anthony Gordon", line: "2.5", side: "over", americanOdds: "+320" },
+  ];
+  const out = collapseBdlIngestRowsOnePerPlayer(rows, "player_shots_ou");
+  assert.equal(out.length, 1);
+  assert.equal(out[0].line, "1.5");
+  assert.equal(out[0].americanOdds, "+125");
+});
+
+test("normalizeBdlPlayerPropsToMarkets — stores full Gordon ladder without ingest cap", () => {
+  const lookupEntries = [{ id: 29892, name: "Anthony Gordon", country_code: "ENG" }];
+  for (let p = 1; p <= 24; p += 1) {
+    lookupEntries.push({ id: p, name: `Player ${p}`, country_code: "ENG" });
+  }
+  const lookup = buildBdlPlayerIdLookup(lookupEntries);
+  /** @type {Array<Record<string, unknown>>} */
+  const raw = [];
+  for (let p = 1; p <= 25; p += 1) {
+    for (const line of ["0.5", "1", "1.5", "2", "2.5"]) {
+      raw.push({
+        player_id: p === 25 ? 29892 : p,
+        prop_type: "shots",
+        line_value: line,
+        vendor: "fanduel",
+        market: { type: "milestone", odds: -100 - p },
+      });
+    }
+  }
+  raw.push({
+    player_id: 29892,
+    prop_type: "shots",
+    line_value: "1.5",
+    vendor: "betrivers",
+    market: { type: "milestone", odds: 125 },
+  });
+
+  const markets = normalizeBdlPlayerPropsToMarkets(raw, lookup);
+  const gordon = markets.player_shots_ou.filter((r) => /gordon/i.test(r.name));
+  assert.equal(gordon.length, 5);
+  const gordon15 = gordon.find((r) => r.line === "1.5");
+  assert.ok(gordon15);
+  assert.equal(gordon15.bookOdds?.betrivers, "+125");
+  assert.equal(markets.player_shots_ou.length, 125);
+});
+
+test("collapseBdlIngestRowsOnePerPlayer — binary goal_or_assist keeps shortest price", () => {
+  const rows = [
+    { name: "Anthony Gordon", line: "1", side: "over", americanOdds: "+180" },
+    { name: "Anthony Gordon", line: "1", side: "over", americanOdds: "+220" },
+  ];
+  const out = collapseBdlIngestRowsOnePerPlayer(rows, "player_goal_or_assist");
+  assert.equal(out.length, 1);
+  assert.equal(out[0].americanOdds, "+180");
 });
