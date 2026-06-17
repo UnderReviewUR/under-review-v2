@@ -24,6 +24,66 @@ function containsAny(hay, needles) {
   return false;
 }
 
+/**
+ * Casual money talk — not the Milwaukee Bucks.
+ * @param {string} question
+ */
+export function isCasualMoneyBucksPhrase(question) {
+  const q = normalizeText(extractLatestUserTurnForRouting(question));
+  if (!/\bbucks?\b/.test(q)) return false;
+  return (
+    /\b(?:a|few|couple(?:\s+of)?|some|extra|quick)\s+bucks?\b/.test(q) ||
+    /\b(?:making|make|earn(?:ing)?)\s+(?:a\s+)?(?:few\s+)?bucks?\b/.test(q) ||
+    /\bbucks?\s+tops\b/.test(q)
+  );
+}
+
+/**
+ * @param {string} hay
+ * @param {string[]} needles
+ */
+function containsAnyNba(hay, needles) {
+  const h = normalizeText(hay);
+  const skipBucks = isCasualMoneyBucksPhrase(h);
+  for (const n of needles) {
+    const term = normalizeText(n);
+    if (term === "bucks" && skipBucks) continue;
+    if (h.includes(term)) return true;
+  }
+  return false;
+}
+
+/**
+ * Keep a WC thread when a follow-up only weakly signals another sport (recreational sizing, etc.).
+ * @param {object} p
+ * @param {string} p.question
+ * @param {string | null | undefined} p.textualSport
+ * @param {string | null | undefined} p.historySport
+ * @param {object[]} [p.chatHistory]
+ */
+export function shouldLockWorldCupThreadSport({
+  question,
+  textualSport,
+  historySport,
+  chatHistory,
+}) {
+  if (historySport !== "worldcup") return false;
+  if (!Array.isArray(chatHistory) || chatHistory.length < 2) return false;
+  const q = extractLatestUserTurnForRouting(question);
+  if (isCasualMoneyBucksPhrase(q)) return true;
+  if (
+    textualSport &&
+    textualSport !== "worldcup" &&
+    /\b(?:don'?t need an edge|fine with|few bucks|small bet|just for fun|sweat|making a few)\b/i.test(
+      q,
+    ) &&
+    !/\b(nba|nfl|mlb|nhl|lakers|celtics|warriors|yankees|dodgers)\b/i.test(q)
+  ) {
+    return true;
+  }
+  return false;
+}
+
 const F1_TERMS = [
   "f1",
   "formula 1",
@@ -419,7 +479,7 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
         q.includes("double-double") ||
         /\bppg\b/.test(q) ||
         /\bplayer\s+props?\b/.test(q))) ||
-    containsAny(q, NBA_TERMS)
+    containsAnyNba(q, NBA_TERMS)
   ) {
     return "nba";
   }
@@ -520,12 +580,24 @@ export function resolveSportHint({
 }) {
   const routingQuestion = extractLatestUserTurnForRouting(question);
   const textualSport = inferSportFromQuestionText(routingQuestion, matchupContext, hasImage);
+  const historySport = inferSportFromChatHistory(chatHistory);
   const h =
     typeof incomingSportHint === "string" && incomingSportHint.trim()
       ? incomingSportHint.trim()
       : "";
 
   if (h === "worldcup") return "worldcup";
+
+  if (
+    shouldLockWorldCupThreadSport({
+      question,
+      textualSport,
+      historySport,
+      chatHistory,
+    })
+  ) {
+    return "worldcup";
+  }
 
   // Latest-turn question text wins for cross-sport pivots (except locked World Cup tab hint above).
   if (textualSport) return textualSport;
@@ -534,7 +606,6 @@ export function resolveSportHint({
     return "derby";
   }
 
-  const historySport = inferSportFromChatHistory(chatHistory);
   if (
     historySport &&
     Array.isArray(chatHistory) &&

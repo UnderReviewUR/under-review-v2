@@ -310,8 +310,11 @@ import {
 import {
   buildUrTakeSportTurnScopeRules,
   extractLatestUserTurnForRouting,
+  inferSportFromChatHistory,
+  inferSportFromQuestionText,
   inferWorldCupFromPlayerMarketQuestion,
   questionMentionsWorldCup,
+  shouldLockWorldCupThreadSport,
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
 } from "../../shared/urTakeSportRouting.js";
@@ -2646,6 +2649,17 @@ export default async function handler(req, res) {
     golfContext,
     chatHistory: incomingHistory,
   });
+
+  if (
+    shouldLockWorldCupThreadSport({
+      question,
+      textualSport: inferSportFromQuestionText(routingQuestion, matchupContext, hasImage),
+      historySport: inferSportFromChatHistory(incomingHistory),
+      chatHistory: incomingHistory,
+    })
+  ) {
+    sportHint = "worldcup";
+  }
 
   // Daily-take cron already picked sport + question from live slates — do not let
   // shared abbrev slugs (e.g. MIA @ PHI) override MLB → NBA text routing.

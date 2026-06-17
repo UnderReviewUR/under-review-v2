@@ -124,6 +124,7 @@ import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFro
 import {
   inferSportFromChatHistory,
   inferSportFromQuestionText,
+  shouldLockWorldCupThreadSport,
 } from "../shared/urTakeSportRouting.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import {
@@ -1641,6 +1642,12 @@ ${themeCss}
       priorSnapshot.length > 0 && historyForRoute.length > 1
         ? inferSportFromChatHistory(historyForRoute)
         : null;
+    const lockWcThread = shouldLockWorldCupThreadSport({
+      question: text,
+      textualSport: fromQuestion,
+      historySport: fromHistory,
+      chatHistory: historyForRoute,
+    });
     const pinnedExplicit =
       typeof sportHint === "string" && sportHint.trim() && sportHint.trim() !== "generic"
         ? sportHint.trim()
@@ -1657,6 +1664,7 @@ ${themeCss}
     let eff =
       pinnedExplicit ??
       pinnedScreen ??
+      (lockWcThread ? "worldcup" : null) ??
       fromQuestion ??
       detected ??
       fromHistory ??
@@ -2396,6 +2404,7 @@ ${themeCss}
     const bubbleSport =
       String(structuredForBubble?.sport || "").trim().toLowerCase() ||
       (sportForBubble ? String(sportForBubble).trim().toLowerCase() : "") ||
+      (effectiveSportHint === "worldcup" ? "worldcup" : "") ||
       (String(data.wcIntent || "").toUpperCase() === WC_INTENT.PLAYER_PROP ||
       isWcPlayerMarketIntent(String(data.wcIntent || "").toUpperCase())
         ? "worldcup"

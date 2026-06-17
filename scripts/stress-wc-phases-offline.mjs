@@ -10,6 +10,11 @@
 import assert from "node:assert/strict";
 import { classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import {
+  inferSportFromQuestionText,
+  resolveSportHint,
+  shouldLockWorldCupThreadSport,
+} from "../shared/urTakeSportRouting.js";
+import {
   WC_CARD_TYPE,
   extractWcThreadStateFromHistory,
   finalizeWcStructuredThreadState,
@@ -1145,6 +1150,37 @@ stress("F", "critique: collapsed Messi (+N more) user paste must not become PROP
   if (s?.cardType === WC_CARD_TYPE.PROP_BOARD) {
     assert.fail("collapsed headline paste must not synthesize prop board");
   }
+});
+
+stress("F", "routing: few bucks must not infer NBA", () => {
+  const q = "I don't need an edge. I'm fine with making a few bucks tops";
+  assert.notEqual(inferSportFromQuestionText(q), "nba");
+});
+
+stress("F", "routing: WC thread lock on recreational bucks follow-up", () => {
+  const history = [
+    { role: "user", content: "Should I bet the spread here?", sport: "worldcup" },
+    { role: "assistant", content: "SLIP VERDICT Fade", sport: "worldcup" },
+  ];
+  assert.equal(
+    resolveSportHint({
+      incomingSportHint: "nba",
+      question: "I'm fine with making a few bucks tops",
+      chatHistory: history,
+    }),
+    "worldcup",
+  );
+  assert.equal(
+    shouldLockWorldCupThreadSport({
+      question: "I don't need an edge. I'm fine with making a few bucks tops",
+      textualSport: inferSportFromQuestionText(
+        "I don't need an edge. I'm fine with making a few bucks tops",
+      ),
+      historySport: "worldcup",
+      chatHistory: history,
+    }),
+    true,
+  );
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
