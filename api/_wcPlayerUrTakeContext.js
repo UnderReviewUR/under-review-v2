@@ -5,7 +5,11 @@
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
-import { readWcMatchPlayerPropsForEvent, ensureWcBdlMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
+import {
+  readWcMatchPlayerPropsForEvent,
+  ensureWcBdlMatchPlayerPropsForEvent,
+} from "./_wcMatchPlayerProps.js";
+import { getMatchesPayload } from "./world-cup.js";
 import { scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
 import { getDurableJson } from "./_durableStore.js";
 import { isWcGoatPrimaryEnabled, shouldPreferBdlRefreshOverKv } from "../shared/wcBdlPolicy.js";
@@ -69,10 +73,31 @@ async function ensureWcBdlPlayersCatalogForUrTake(nowMs = Date.now()) {
  * @param {{ wcEventId?: string | null, wcIntent?: string, question?: string, matches?: Array<Record<string, unknown>>, conversationHistory?: object[] }} [opts]
  * @returns {Promise<{ players: object | null, goldenBoot: object | null, injuries: object | null, matchPlayerProps: object | null, wcEventId: string | null }>}
  */
+/**
+ * @param {Array<Record<string, unknown>> | undefined} matches
+ * @param {string} question
+ */
+async function resolveWcPlayerMarketMatches(matches, question) {
+  if (Array.isArray(matches) && matches.length) return matches;
+  const needsMatches =
+    isWcNamedPlayerPropQuestion(question) ||
+    isWcFixturePlayerPropsQuestion(question) ||
+    isWcFixtureScopedPlayerMarketQuestion(question) ||
+    detectParlayIntent(question);
+  if (!needsMatches) return [];
+  try {
+    const payload = await getMatchesPayload({ preferGoat: true });
+    return payload?.matches || [];
+  } catch {
+    return [];
+  }
+}
+
 export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) {
   const question = String(opts.question || "");
   let wcEventId = String(opts.wcEventId || "").trim() || null;
   const history = Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [];
+  const matches = await resolveWcPlayerMarketMatches(opts.matches, question);
   const teamContext = {
     requiredEntities: Array.isArray(opts.requiredEntities)
       ? opts.requiredEntities
@@ -93,19 +118,19 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     detectParlayIntent(question) ||
     (opts.wcIntent === WC_INTENT.PLAYER_PROP && isGenericWcPlayerPropQuestion(question));
 
-  if (!wcEventId && shouldPinFixtureFromQuestion && Array.isArray(opts.matches)) {
+  if (!wcEventId && shouldPinFixtureFromQuestion && matches.length) {
     const teams = resolveWcPlayerPropFixtureTeams(question, history, teamContext);
     if (teams.length >= 2) {
-      wcEventId = resolveWcEventIdForFixtureTeams(opts.matches, teams[0], teams[1]);
+      wcEventId = resolveWcEventIdForFixtureTeams(matches, teams[0], teams[1]);
     }
   }
 
-  if (!wcEventId && isWcNamedPlayerPropQuestion(question) && Array.isArray(opts.matches)) {
+  if (!wcEventId && isWcNamedPlayerPropQuestion(question) && matches.length) {
     for (const leg of extractWcNamedPlayerPropLegsFromQuestion(question)) {
       const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
       const nation = resolveWcPlayerNationFromQuestion(subQuestion);
       if (!nation) continue;
-      const pinned = resolveWcEventIdForPlayerNation(opts.matches, nation);
+      const pinned = resolveWcEventIdForPlayerNation(matches, nation);
       if (pinned) {
         wcEventId = pinned;
         break;
@@ -114,9 +139,9 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
   }
 
   const fixtureTeams =
-    wcEventId && Array.isArray(opts.matches)
+    wcEventId && matches.length
       ? (() => {
-          const m = opts.matches.find((row) => String(row?.id) === String(wcEventId));
+          const m = matches.find((row) => String(row?.id) === String(wcEventId));
           if (m?.homeTeam && m?.awayTeam) {
             return { homeTeam: String(m.homeTeam), awayTeam: String(m.awayTeam) };
           }
@@ -146,8 +171,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     ? extractWcNamedPlayerPropLegsFromQuestion(question)
     : [];
 
-  const loadNamedPlayerMatchProps =
-    namedLegs.length > 0 && Array.isArray(opts.matches) && opts.matches.length > 0;
+  const loadNamedPlayerMatchProps = namedLegs.length > 0 && matches.length > 0;
 
   const [players, goldenBoot, injuries, matchPlayerProps, matchPlayerPropsByEvent] = await Promise.all([
     readWcPlayersFromKv(),
@@ -163,7 +187,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
         })()
       : Promise.resolve(null),
     loadNamedPlayerMatchProps
-      ? loadWcMatchPlayerPropsForNamedLegs(namedLegs, opts.matches, nowMs)
+      ? loadWcMatchPlayerPropsForNamedLegs(namedLegs, matches, nowMs)
       : Promise.resolve(null),
   ]);
 
@@ -202,17 +226,14 @@ async function loadWcMatchPlayerPropsForNamedLegs(legs, matches, nowMs) {
     const eventId = resolveWcEventIdForPlayerNation(matches, nation);
     if (!eventId || byEvent[eventId]) continue;
 
-    let payload = null;
-    if (isWcGoatPrimaryEnabled()) {
-      const m = matches.find((row) => String(row?.id) === String(eventId));
+    const m = matches.find((row) => String(row?.id) === String(eventId));
+    let payload = await readWcMatchPlayerPropsForEvent(eventId, nowMs);
+    if ((!payload || !hasMatchPlayerPropRows(payload)) && isWcGoatPrimaryEnabled()) {
       payload = await ensureWcBdlMatchPlayerPropsForEvent(eventId, {
         homeTeam: m?.homeTeam,
         awayTeam: m?.awayTeam,
         bdlMatchId: m?.bdlMatchId,
       });
-    }
-    if (!payload) {
-      payload = await readWcMatchPlayerPropsForEvent(eventId, nowMs);
     }
     if (payload && hasMatchPlayerPropRows(payload)) {
       byEvent[eventId] = payload;

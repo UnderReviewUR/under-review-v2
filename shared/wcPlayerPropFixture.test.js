@@ -18,6 +18,10 @@ test("resolveWcPlayerNationFromQuestion — Son → KOR", () => {
   assert.equal(resolveWcPlayerNationFromQuestion("Son 2.5 shots?"), "KOR");
 });
 
+test("resolveWcPlayerNationFromQuestion — Musa → NGA (not CRO homonym)", () => {
+  assert.equal(resolveWcPlayerNationFromQuestion("musa over 1.5 shots?"), "NGA");
+});
+
 test("resolveWcPlayerNationFromQuestion — Jimenez → MEX", () => {
   assert.equal(resolveWcPlayerNationFromQuestion("Jimenez 2+ shots?"), "MEX");
 });

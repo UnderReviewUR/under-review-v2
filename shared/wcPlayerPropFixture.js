@@ -60,6 +60,23 @@ function scoreWcPlayerNationMatch(player, hint) {
   return 0;
 }
 
+/** Famous single-token asks — disambiguate before roster scan. */
+const WC_BARE_NAME_NATION_HINTS = {
+  musa: "NGA",
+  son: "KOR",
+  kane: "ENG",
+  saka: "ENG",
+  mbappe: "FRA",
+  mbappé: "FRA",
+  haaland: "NOR",
+  salah: "EGY",
+  messi: "ARG",
+  ronaldo: "POR",
+  yamal: "ESP",
+  vinicius: "BRA",
+  vinícius: "BRA",
+};
+
 /**
  * Resolve FIFA nation abbr from a bare player name in the question (e.g. Son → KOR).
  * @param {string} question
@@ -68,6 +85,8 @@ export function resolveWcPlayerNationFromQuestion(question) {
   const hint = normPlayerToken(extractWcPlayerPropNameHint(question));
   if (!hint || hint.length < 2) return null;
 
+  const hinted = WC_BARE_NAME_NATION_HINTS[hint];
+  if (hinted) return hinted;
   /** @type {Map<string, number>} */
   const nationScores = new Map();
 

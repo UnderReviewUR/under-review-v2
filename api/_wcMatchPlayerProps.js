@@ -79,8 +79,15 @@ export async function ensureWcBdlMatchPlayerPropsForEvent(eventId, meta = {}) {
   if (bdlMatchId == null) return null;
 
   const cached = await scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, id, merged);
-  if (!cached.ok) return null;
-  return readWcMatchPlayerPropsForEvent(id);
+  if (cached.ok) {
+    return readWcMatchPlayerPropsForEvent(id);
+  }
+
+  const existing = await readWcMatchPlayerPropsForEvent(id);
+  if (existing && hasMatchPlayerPropRows(existing)) {
+    return existing;
+  }
+  return null;
 }
 
 /**
