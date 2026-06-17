@@ -1192,6 +1192,7 @@ function buildSlipReviewPrompt({
   mlbContext,
   golfContext,
   f1Context,
+  wcContext,
   derivedConfidence,
   priorTakesSummary,
 }) {
@@ -1224,6 +1225,58 @@ ${contextJsonForModel(golfContext)}`;
   } else if (sportHint === "f1") {
     relevantContext = `F1 context:
 ${contextJsonForModel(f1Context)}`;
+  } else if (sportHint === "worldcup") {
+    relevantContext = `World Cup context:
+${contextJsonForModel({
+  phase: wcContext?.phase || null,
+  liveMatches: Array.isArray(wcContext?.liveMatches) ? wcContext.liveMatches.slice(0, 4) : [],
+  matches: Array.isArray(wcContext?.matches) ? wcContext.matches.slice(0, 6) : [],
+  matchDetails: Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails.slice(0, 3) : [],
+  oddsSource: wcContext?.oddsSource || null,
+  oddsLastUpdated: wcContext?.oddsLastUpdated || null,
+  dataFreshness: wcContext?.dataFreshness || null,
+})}`;
+  }
+
+  if (sportHint === "worldcup") {
+    return `You are reviewing a World Cup pick/screenshot.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}User request:
+${question}
+
+Sport:
+worldcup
+
+${relevantContext}
+
+Critical rules:
+- Prioritize what is explicitly visible in the screenshot text (score, minute, spread/price, stake).
+- For single-leg live spread or total asks, do NOT default to "Fade". Decide Lean or Pass using game-state risk.
+- If the user asks "should I bet this" and edge is unclear, use Pass (do not force an action).
+- Anchor the call to scoreline, minute, and current line/price; avoid generic pregame matchup essays.
+- Do not invent injuries, lineups, or market movement not present in context.
+- Keep copy sharp and practical, with one concrete live trigger if applicable.
+
+Confidence guidance:
+- Default confidence should be ${derivedConfidence}.
+- Live in-play read should normally be Medium unless context is unusually strong.
+
+Required response format:
+
+OPENING TAKE
+[one direct sentence]
+
+PLAY DECISION
+[Lean / Pass]
+
+EDGE CHECK
+[one to two lines on score+minute+price]
+
+MAIN RISK
+[one line]
+
+LIVE TRIGGER
+[one line]`;
   }
 
   return `You are reviewing a betting slip or pick entry.
@@ -4154,6 +4207,7 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
       mlbContext,
       golfContext: golfContextEffective,
       f1Context,
+      wcContext,
       derivedConfidence,
       priorTakesSummary,
     });
