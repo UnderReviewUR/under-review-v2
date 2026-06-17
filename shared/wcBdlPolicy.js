@@ -39,6 +39,9 @@ export function getBdlRequestDelayMs() {
 /** GOAT: re-scrape match props when KV is older than this on read paths. */
 export const WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS = 5 * 60 * 1000;
 
+/** In-play fixtures — shorter refresh cadence without blocking every UR Take read. */
+export const WC_GOAT_MATCH_PROPS_INPLAY_MAX_AGE_MS = 90 * 1000;
+
 export function hasWcBdlApiKey() {
   return Boolean(String(getEnv("BALLDONTLIE_API_KEY") || "").trim());
 }
@@ -87,9 +90,12 @@ export function wcGoatMatchPlayerPropsNeedsLiveRefresh(eventPayload, opts = {}) 
   if (!isWcBdlSource(eventPayload.source)) return true;
   const nowMs = opts.nowMs ?? Date.now();
   const ageMs = nowMs - (Number(eventPayload.lastUpdated) || 0);
-  if (!Number.isFinite(ageMs) || ageMs >= WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS) return true;
   const status = String(opts.matchStatus || eventPayload.matchStatus || "").toLowerCase();
-  if (/live|in.progress|in progress|1h|2h|ht|halftime/.test(status)) return true;
+  const inPlay = /live|in.progress|in progress|1h|2h|ht|halftime/.test(status);
+  const maxAgeMs = inPlay
+    ? WC_GOAT_MATCH_PROPS_INPLAY_MAX_AGE_MS
+    : WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS;
+  if (!Number.isFinite(ageMs) || ageMs >= maxAgeMs) return true;
   return false;
 }
 

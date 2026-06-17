@@ -8,6 +8,7 @@ import {
   BDL_GOAT_TIER_REQUEST_DELAY_MS,
   wcGoatMatchPlayerPropsNeedsLiveRefresh,
   WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS,
+  WC_GOAT_MATCH_PROPS_INPLAY_MAX_AGE_MS,
 } from "./wcBdlPolicy.js";
 
 test("isWcBdlSource recognizes BDL variants", () => {
@@ -55,6 +56,13 @@ test("wcGoatMatchPlayerPropsNeedsLiveRefresh — empty, stale, and live fixtures
   assert.equal(
     wcGoatMatchPlayerPropsNeedsLiveRefresh(
       { source: "balldontlie", lastUpdated: nowMs - 60_000 },
+      { nowMs, matchStatus: "live" },
+    ),
+    false,
+  );
+  assert.equal(
+    wcGoatMatchPlayerPropsNeedsLiveRefresh(
+      { source: "balldontlie", lastUpdated: nowMs - 120_000 },
       { nowMs, matchStatus: "live" },
     ),
     true,

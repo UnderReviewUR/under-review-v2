@@ -9,9 +9,11 @@ import { sortGoldenBootRows } from "./wcPlayerOddsFreshness.js";
 import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
 import {
   collapseMatchPlayerPropRowsForDisplay,
+  formatFixturePropBoardRowLabel,
   isMatchPlayerPropsFresh,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
+  pickFixturePropBoardFromEvent,
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
@@ -621,9 +623,9 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const eventId = resolved.eventId;
   const eventPayload = resolved.payload;
 
-  const rawRows = matchPlayerPropRowsFromEvent(eventPayload, "anytime_scorer", 24);
-  const rows = collapseMatchPlayerPropRowsForDisplay(rawRows, "anytime_scorer");
-  if (rows.length < 2) return null;
+  const propBoard = pickFixturePropBoardFromEvent(eventPayload, 24);
+  if (!propBoard) return null;
+  const { key: marketKey, label: marketLabel, rows } = propBoard;
 
   const teamSet = new Set(teams.map((t) => String(t).toUpperCase()));
   const byTeam = { home: [], away: [] };
@@ -669,11 +671,11 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
 
   let numbered;
   if (perTeamAsk && homePicks.length && awayPicks.length) {
-    const homeLines = homePicks.map(
-      (r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`,
+    const homeLines = homePicks.map((r, i) =>
+      `${i + 1}. ${formatFixturePropBoardRowLabel(r, marketKey, marketLabel)}`,
     );
-    const awayLines = awayPicks.map(
-      (r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`,
+    const awayLines = awayPicks.map((r, i) =>
+      `${i + 1}. ${formatFixturePropBoardRowLabel(r, marketKey, marketLabel)}`,
     );
     numbered = [
       `${homeLabel} (${homeAbbr})`,
@@ -684,7 +686,10 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   } else {
     numbered = picked
       .slice(0, perSide * 2)
-      .map((r, i) => `${i + 1}. ${r.name} anytime scorer ${r.americanOdds}`)
+      .map(
+        (r, i) =>
+          `${i + 1}. ${formatFixturePropBoardRowLabel(r, marketKey, marketLabel)}`,
+      )
       .join("\n");
   }
 
@@ -692,15 +697,16 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const meta = tierMetaFor(tier);
   const propBoardRows = picked.slice(0, Math.max(3, perSide * 2)).map((r) => ({
     label: r.name,
-    lean: `Anytime scorer ${r.americanOdds}`,
-    market: "anytime_scorer",
+    lean: formatFixturePropBoardRowLabel(r, marketKey, marketLabel),
+    market: marketKey,
     odds: r.americanOdds,
   }));
+  const leadLabel = formatFixturePropBoardRowLabel(lead, marketKey, marketLabel);
   const call = pluralPropsAsk
     ? perTeamAsk
       ? `${perSide} props per side — ${homeLabel} vs ${awayLabel}`
       : `${homeLabel} vs ${awayLabel} — top player props`
-    : `${lead.name} anytime scorer ${lead.americanOdds}`;
+    : leadLabel;
 
   return {
     sport: "worldcup",
@@ -713,7 +719,7 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
     propBoardRows,
     call,
     lean: numbered,
-    whyNow: `Posted anytime scorer lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)}.`,
+    whyNow: `Posted ${marketLabel} lines for ${wcMatchupTeamDisplayName(homeAbbr)} vs ${wcMatchupTeamDisplayName(awayAbbr)}.`,
     edge:
       picked.length >= 2
         ? `${picked[1].name} ${picked[1].americanOdds} is the alternate if ${lead.name} sits.`

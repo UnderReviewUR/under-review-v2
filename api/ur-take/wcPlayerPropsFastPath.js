@@ -41,7 +41,7 @@ import {
   isWcPlayerPropFollowUpExplain,
   resolveWcFollowUpSubject,
 } from "../../shared/wcFollowUpExplain.js";
-import { matchPlayerPropRowsFromEvent } from "../../shared/wcMatchPlayerProps.js";
+import { matchPlayerPropRowsFromEvent, pickFixturePropBoardFromEvent } from "../../shared/wcMatchPlayerProps.js";
 import {
   buildWcThreadParlayStructured,
   shouldBuildWcThreadParlay,
@@ -59,7 +59,9 @@ export function shouldRunWcPlayerPropsFastPath(
   routingQuestion,
   history,
   isConversationFollowUp,
+  hasImage = false,
 ) {
+  if (hasImage) return false;
   const q = String(routingQuestion || "").trim();
   if (isWcPlayerPropFollowUpExplain(q, history)) return true;
   if (wcIntent === WC_INTENT.PARLAY) return true;
@@ -116,9 +118,9 @@ function buildWcPlayerPropsLoadingStructured(question, pinned, wcEventId) {
       fixtureHome: home,
       fixtureAway: away,
       call: "Match player props — lines loading",
-      lean: "Posted anytime scorer lines are still syncing — tap again in a few seconds.",
+      lean: "Player lines are still syncing — tap again in a few seconds or check back closer to kickoff.",
       whyNow: `Fixture ${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)} — waiting for books to publish player markets.`,
-      edge: "Lines usually land within a minute after the first moneyline card posts.",
+      edge: "Books usually post 30–60 minutes before kickoff. Try a team or group angle while you wait.",
       confidence: "Speculative",
       analysis: String(question || "").trim(),
     },
@@ -154,13 +156,14 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     extractTakeFromResponse,
     userEmail,
     appendTakeForUser,
+    hasImage = false,
   } = ctx;
 
   if (sportHint !== "worldcup") return { handled: false };
 
   const history = normalizedUrTakeHistoryForGate || [];
   const routingQ = String(routingQuestion || question || "").trim();
-  if (!shouldRunWcPlayerPropsFastPath(wcIntent, routingQ, history, isConversationFollowUp)) {
+  if (!shouldRunWcPlayerPropsFastPath(wcIntent, routingQ, history, isConversationFollowUp, hasImage)) {
     return { handled: false };
   }
 
@@ -228,7 +231,8 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   });
 
   const gkPropsAsk = isWcGoalkeeperPropsQuestion(routingQ);
-  const propRows = matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "anytime_scorer", 6);
+  const propBoard = pickFixturePropBoardFromEvent(kvBlocks.matchPlayerProps, 24);
+  const propRows = propBoard?.rows || [];
   let structuredResponse = null;
   let passKind = "player_props_loading";
 

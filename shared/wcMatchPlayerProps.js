@@ -397,3 +397,44 @@ export function kvHasFreshMatchPlayerProps(kvRoot, opts = {}) {
   }
   return false;
 }
+
+/** @type {Array<{ key: string, label: string }>} */
+export const WC_FIXTURE_PROP_BOARD_MARKETS = [
+  { key: "anytime_scorer", label: "anytime scorer" },
+  { key: "player_shots_ou", label: "shots" },
+  { key: "player_sot_ou", label: "shots on target" },
+  { key: "player_goal_or_assist", label: "goal or assist" },
+  { key: "player_assists_ou", label: "assists" },
+];
+
+/**
+ * @param {{ name?: string, americanOdds?: string, line?: string }} row
+ * @param {string} marketKey
+ * @param {string} marketLabel
+ */
+export function formatFixturePropBoardRowLabel(row, marketKey, marketLabel) {
+  const odds = String(row?.americanOdds || "").trim();
+  const name = String(row?.name || "").trim();
+  if (!name || !odds) return "";
+  if (String(marketKey).includes("_ou") && row.line) {
+    return `${name} over ${row.line} ${marketLabel} ${odds}`;
+  }
+  return `${name} ${marketLabel} ${odds}`;
+}
+
+/**
+ * Pick the best posted market for a fixture prop board (anytime → shots → SOT → GOA).
+ * @param {Record<string, unknown> | null | undefined} eventPayload
+ * @param {number} [limit]
+ */
+export function pickFixturePropBoardFromEvent(eventPayload, limit = 24) {
+  if (!eventPayload?.markets) return null;
+  for (const entry of WC_FIXTURE_PROP_BOARD_MARKETS) {
+    const rawRows = matchPlayerPropRowsFromEvent(eventPayload, entry.key, limit);
+    const rows = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
+    if (rows.length >= 2) {
+      return { ...entry, rows };
+    }
+  }
+  return null;
+}

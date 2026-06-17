@@ -430,6 +430,11 @@ export function resolveWcPlayerPropFixtureTeams(question, history = [], wcContex
   const fromQuestion = extractMentionedWcTeams(q);
   if (fromQuestion.length >= 2) return fromQuestion;
 
+  if (/\bplayer props?\b/i.test(q)) {
+    const mentioned = extractMentionedWcTeams(q);
+    if (mentioned.length >= 2) return mentioned;
+  }
+
   const hist = Array.isArray(history) && history.length
     ? history
     : Array.isArray(wcContext?.conversationHistory)

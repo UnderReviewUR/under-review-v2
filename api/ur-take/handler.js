@@ -3313,6 +3313,7 @@ export default async function handler(req, res) {
       wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
       if (
         isWcPlayerMarketIntent(wcIntent) &&
+        !hasImage &&
         !wcContext?.playerMarketKv?.matchPlayerProps &&
         (wcRequiredEntities.length >= 2 ||
           isWcNamedPlayerPropQuestion(routingQuestion) ||
@@ -3440,6 +3441,7 @@ export default async function handler(req, res) {
       extractTakeFromResponse,
       userEmail,
       appendTakeForUser,
+      hasImage,
     });
     if (wcPlayerPropsFast.handled) return;
 
