@@ -16,6 +16,7 @@ import {
   detectTeamAnswerToPlayerQuestion,
   detectWcPlayerPropMarketLabel,
   extractWcNamedPlayerFromQuestion,
+  extractWcNamedPlayerPropLegsFromQuestion,
   finalizeWcPlayerPropStructured,
   formatWcPlayerMarketPromptRules,
   formatWcPlayerPropLadderBreakdown,
@@ -135,6 +136,28 @@ test("resolveWcPlayerMarketAnswer — fixture scorer intel when match props miss
   assert.match(String(resolved.structured?.lean || ""), /Yamal/i);
   assert.doesNotMatch(String(resolved.structured?.lean || ""), /lines loading/i);
   assert.doesNotMatch(String(resolved.structured?.lean || ""), /no actionable line/i);
+});
+
+test("extractWcNamedPlayerPropLegsFromQuestion — multi-player shots ask", () => {
+  const q =
+    "anthony gordon over 1.5 shots attempted, kane over 1.5 shots on target? musa over 1.5 shots? are these good bets?";
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(q);
+  assert.equal(legs.length, 3);
+  assert.equal(legs[0].name, "anthony gordon");
+  assert.equal(legs[0].marketKey, "player_shots_ou");
+  assert.equal(legs[1].name, "kane");
+  assert.equal(legs[1].marketKey, "player_sot_ou");
+  assert.equal(legs[2].name, "musa");
+});
+
+test("resolveWcPlayerMarketAnswer — named multi-player shots no longer uses slate pass", () => {
+  const q =
+    "anthony gordon over 1.5 shots attempted, kane over 1.5 shots on target? musa over 1.5 shots? are these good bets?";
+  const resolved = resolveWcPlayerMarketAnswer(q, WC_INTENT.PLAYER_PROP, {}, null);
+  assert.equal(resolved.forcePass, true);
+  assert.ok(resolved.structured);
+  assert.doesNotMatch(String(resolved.structured.whyNow || ""), /remaining slate/i);
+  assert.match(String(resolved.structured.whyNow || ""), /syncing|verified|MATCH PLAYER PROPS/i);
 });
 
 test("resolveWcPlayerMarketResponse — with KV does not force pass", () => {

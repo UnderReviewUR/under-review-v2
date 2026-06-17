@@ -775,6 +775,96 @@ export function extractWcNamedPlayerFromQuestion(question) {
   return name;
 }
 
+/** @typedef {{ name: string, threshold: string, marketKey: string, marketLabel: string }} WcNamedPlayerPropLeg */
+
+const WC_NAMED_PROP_LEG_CHUNK_RE =
+  /([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+?)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)(?:\s*\w*)?/gi;
+
+/**
+ * Multi-player prop legs from a single ask (e.g. Gordon/Kane/Musa shot overs).
+ * @param {string} question
+ * @returns {WcNamedPlayerPropLeg[]}
+ */
+export function extractWcNamedPlayerPropLegsFromQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return [];
+
+  /** @type {WcNamedPlayerPropLeg[]} */
+  const legs = [];
+  const seen = new Set();
+
+  for (const m of q.matchAll(WC_NAMED_PROP_LEG_CHUNK_RE)) {
+    const name = String(m[1] || "")
+      .trim()
+      .replace(/\?+$/, "");
+    const threshold = String(m[2] || "").trim();
+    const chunk = m[0].toLowerCase();
+    if (!name || !threshold) continue;
+    if (isWcNationOrAwardFalsePositive(name, q)) continue;
+    const first = name.split(/\s+/)[0]?.toLowerCase();
+    if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) continue;
+
+    const isSot = /\b(?:shots?\s+on\s+target|\bsot\b)\b/i.test(chunk);
+    const dedupeKey = `${name.toLowerCase()}|${threshold}|${isSot ? "sot" : "shots"}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+
+    legs.push({
+      name,
+      threshold,
+      marketKey: isSot ? "player_sot_ou" : "player_shots_ou",
+      marketLabel: isSot ? "shots on target" : "shots",
+    });
+  }
+
+  if (legs.length) return legs;
+
+  const single = extractWcNamedPlayerFromQuestion(q);
+  if (single && /\bover\s+\d+(?:\.\d+)?\b/i.test(q)) {
+    const threshold = q.match(/\bover\s+(\d+(?:\.\d+)?)\b/i)?.[1] || "";
+    const isSot = /\b(?:shots?\s+on\s+target|\bsot\b)\b/i.test(q);
+    return [
+      {
+        name: single,
+        threshold,
+        marketKey: isSot ? "player_sot_ou" : "player_shots_ou",
+        marketLabel: detectWcPlayerPropMarketLabel(q),
+      },
+    ];
+  }
+
+  return [];
+}
+
+/**
+ * Named player(s) with explicit over/under thresholds — not a slate-wide prop board ask.
+ * @param {string} question
+ */
+export function isWcNamedPlayerPropQuestion(question) {
+  return extractWcNamedPlayerPropLegsFromQuestion(question).length > 0;
+}
+
+/**
+ * One numbered lean line for a named player prop leg.
+ * @param {WcNamedPlayerPropLeg} leg
+ * @param {{ line?: string, americanOdds?: string } | null | undefined} row
+ */
+export function formatWcNamedPlayerPropLegAnswer(leg, row) {
+  if (!row?.americanOdds) {
+    return `Pass — no posted ${leg.name} ${leg.marketLabel} line yet`;
+  }
+  const postedLine = row.line || leg.threshold;
+  const odds = String(row.americanOdds);
+  const verdict = wcPlayerPropLegShortVerdict(odds);
+  const asked = parseFloat(leg.threshold);
+  const posted = parseFloat(String(postedLine));
+  const nearest =
+    Number.isFinite(asked) && Number.isFinite(posted) && posted !== asked
+      ? ` · nearest to ${leg.threshold} ask`
+      : "";
+  return `${leg.name} over ${postedLine} at ${odds} — ${verdict}${nearest}`;
+}
+
 /**
  * @param {string} name
  */

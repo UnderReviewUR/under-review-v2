@@ -238,6 +238,8 @@ import {
   isWcPlayerMarketIntent,
   isWcFixtureScopedPlayerMarketQuestion,
   resolveWcPlayerMarketResponse,
+  isWcNamedPlayerPropQuestion,
+  extractWcNamedPlayerFromQuestion,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier } from "../../shared/wcPlayerMarketResolve.js";
 import {
@@ -3311,8 +3313,11 @@ export default async function handler(req, res) {
       wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
       if (
         isWcPlayerMarketIntent(wcIntent) &&
-        wcRequiredEntities.length >= 2 &&
-        !wcContext?.playerMarketKv?.matchPlayerProps
+        !wcContext?.playerMarketKv?.matchPlayerProps &&
+        (wcRequiredEntities.length >= 2 ||
+          isWcNamedPlayerPropQuestion(routingQuestion) ||
+          (wcIntent === WC_INTENT.PLAYER_PROP &&
+            extractWcNamedPlayerFromQuestion(routingQuestion)))
       ) {
         try {
           const playerEventId = String(

@@ -13,6 +13,7 @@ import {
   buildWcFixturePlayerParlayStructured,
   buildWcFixturePlayerPropsListStructured,
   buildWcFixtureScorerIntelStructured,
+  buildWcNamedPlayerPropsStructured,
   resolveWcPlayerMarketTier,
   tierMetaFor,
   WC_PLAYER_MARKET_TIER,
@@ -22,6 +23,7 @@ import {
   isGenericWcPlayerPropQuestion,
   isWcFixtureScopedPlayerMarketQuestion,
   isWcGoalkeeperPropsQuestion,
+  isWcNamedPlayerPropQuestion,
   isWcPerTeamPlayerPropsQuestion,
   prefersWcFixtureScorerIntelFallback,
 } from "../../shared/wcUrTakePlayerMarket.js";
@@ -71,6 +73,7 @@ export function shouldRunWcPlayerPropsFastPath(
     if (teams.length >= 2) return true;
   }
   if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
+  if (isWcNamedPlayerPropQuestion(q)) return true;
   if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return true;
   if (isWcFixtureScopedPlayerMarketQuestion(q)) {
     const teams = resolveWcPlayerPropFixtureTeams(q, history, { conversationHistory: history });
@@ -166,7 +169,8 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     conversationHistory: history,
   });
   const historyPair = resolveWcFixturePairFromHistory(history);
-  if (fixtureTeams.length < 2 && !historyPair?.home) {
+  const namedPlayerPropsAsk = isWcNamedPlayerPropQuestion(routingQ);
+  if (fixtureTeams.length < 2 && !historyPair?.home && !namedPlayerPropsAsk) {
     return { handled: false };
   }
 
@@ -284,19 +288,31 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
+  if (!structuredResponse && namedPlayerPropsAsk) {
+    structuredResponse = buildWcNamedPlayerPropsStructured(
+      String(question || ""),
+      tier,
+      kvBlocks,
+      syntheticContext,
+    );
+    if (structuredResponse) {
+      passKind = "named_player_props";
+    }
+  }
+
   if (!structuredResponse) {
     const hasEvent = Boolean(resolvedEventId);
     const genericPropsAsk =
       isGenericWcPlayerPropQuestion(routingQ) ||
       isWcPerTeamPlayerPropsQuestion(routingQ);
-    if (hasEvent && (genericPropsAsk || !loadMeta.failed)) {
+    if (hasEvent && (genericPropsAsk || namedPlayerPropsAsk || !loadMeta.failed)) {
       structuredResponse = buildWcPlayerPropsLoadingStructured(
         String(question || ""),
         pinned,
         resolvedEventId,
       );
       passKind = "player_props_loading";
-    } else if (!hasEvent || loadMeta.failed) {
+    } else if ((!hasEvent && !namedPlayerPropsAsk) || (loadMeta.failed && !namedPlayerPropsAsk)) {
       return { handled: false };
     }
   }

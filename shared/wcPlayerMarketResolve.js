@@ -35,7 +35,15 @@ import {
   repairWcPlayerPropPassCard,
   finalizeWcPlayerPropStructured,
   isWcFixtureScopedPlayerMarketQuestion,
+  isWcNamedPlayerPropQuestion,
+  extractWcNamedPlayerPropLegsFromQuestion,
+  formatWcNamedPlayerPropLegAnswer,
 } from "./wcUrTakePlayerMarket.js";
+import {
+  findWcMatchPlayerPropRowForQuestion,
+  resolveWcEventIdForPlayerNation,
+  resolveWcPlayerNationFromQuestion,
+} from "./wcPlayerPropFixture.js";
 import { lookupStarterGoalkeeper } from "./wcGoldenGloveAdjusted.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
@@ -822,6 +830,132 @@ export function buildWcPlayerMarketPrebuiltStructured(
 }
 
 /**
+ * Resolve per-event match props for a named player leg.
+ * @param {import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg} leg
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ */
+function resolveWcMatchPlayerPropsForNamedLeg(leg, kvBlocks, wcContext) {
+  const byEvent = kvBlocks?.matchPlayerPropsByEvent;
+  const matches = Array.isArray(wcContext?.allMatches) ? wcContext.allMatches : [];
+  const subQuestion = `${leg.name} over ${leg.threshold} ${leg.marketLabel}`;
+
+  if (byEvent && typeof byEvent === "object") {
+    for (const payload of Object.values(byEvent)) {
+      const row = findWcMatchPlayerPropRowForQuestion(subQuestion, payload);
+      if (row) return { row, eventPayload: payload };
+    }
+  }
+
+  const single = kvBlocks?.matchPlayerProps;
+  if (single) {
+    const row = findWcMatchPlayerPropRowForQuestion(subQuestion, single);
+    if (row) return { row, eventPayload: single };
+  }
+
+  const nation = resolveWcPlayerNationFromQuestion(subQuestion);
+  if (!nation || !matches.length) return { row: null, eventPayload: null };
+
+  const eventId = resolveWcEventIdForPlayerNation(matches, nation);
+  if (!eventId) return { row: null, eventPayload: null };
+
+  const payload =
+    byEvent && typeof byEvent === "object"
+      ? byEvent[eventId] || null
+      : String(kvBlocks?.wcEventId || "") === String(eventId)
+        ? single
+        : null;
+  if (!payload) return { row: null, eventPayload: null };
+
+  const row = findWcMatchPlayerPropRowForQuestion(subQuestion, payload);
+  return { row, eventPayload: payload };
+}
+
+/**
+ * Deterministic card for named player prop leg(s) — shots/SOT/scorer with posted prices.
+ * @param {string} question
+ * @param {WcPlayerMarketTier} tier
+ * @param {object | null | undefined} kvBlocks
+ * @param {object | null | undefined} wcContext
+ */
+export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcContext) {
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(question);
+  if (!legs.length) return null;
+
+  const meta = tierMetaFor(tier);
+  /** @type {Array<{ leg: import("./wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg, row: Record<string, unknown> | null, eventPayload: Record<string, unknown> | null }>} */
+  const resolved = legs.map((leg) => {
+    const hit = resolveWcMatchPlayerPropsForNamedLeg(leg, kvBlocks, wcContext);
+    return { leg, row: hit.row, eventPayload: hit.eventPayload };
+  });
+
+  const priced = resolved.filter((r) => r.row?.americanOdds);
+  const leanLines = resolved.map((r, i) => `${i + 1}. ${formatWcNamedPlayerPropLegAnswer(r.leg, r.row)}`);
+  const playable = resolved.filter((r) => {
+    if (!r.row?.americanOdds) return false;
+    const verdict = formatWcNamedPlayerPropLegAnswer(r.leg, r.row);
+    return !/^pass\b/i.test(verdict) && !/juice, skip/i.test(verdict);
+  });
+
+  const lead = resolved[0];
+  const leadEvent = lead?.eventPayload;
+  const eventId = String(leadEvent?.eventId || kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim();
+
+  if (!priced.length) {
+    return finalizeWcPlayerPropStructured(
+      {
+        sport: "worldcup",
+        callType: meta.callType,
+        playerMarketTier: tier,
+        wcEventId: eventId || undefined,
+        call: buildWcPlayerPropPassHeadline(question),
+        lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+        whyNow: legs.length === 1
+          ? `No verified ${legs[0].marketLabel} line for ${legs[0].name} in MATCH PLAYER PROPS yet.`
+          : "Posted match player lines for these names are still syncing — re-ask closer to kickoff.",
+        edge: legs.length === 1
+          ? `Watch for ${legs[0].name} in confirmed lineups once books post match ${legs[0].marketLabel}.`
+          : "Re-ask once MATCH PLAYER PROPS populate for each fixture.",
+        confidence: "Speculative",
+        analysis: String(question || "").trim(),
+      },
+      question,
+    );
+  }
+
+  const leadLine = formatWcNamedPlayerPropLegAnswer(lead.leg, lead.row);
+  const call = playable.length
+    ? `${playable.length} of ${legs.length} legs playable — lead: ${leadLine.replace(/^pass\s*[—-]\s*/i, "")}`
+    : leadLine.replace(/^pass\s*[—-]\s*/i, "Pass — ");
+
+  return finalizeWcPlayerPropStructured(
+    {
+      sport: "worldcup",
+      callType: meta.callType,
+      playerMarketTier: tier,
+      wcEventId: eventId || undefined,
+      fixtureHome: leadEvent?.homeTeam ? String(leadEvent.homeTeam).toUpperCase() : undefined,
+      fixtureAway: leadEvent?.awayTeam ? String(leadEvent.awayTeam).toUpperCase() : undefined,
+      call,
+      lean: leanLines.join("\n"),
+      whyNow:
+        priced.length === legs.length
+          ? `All ${legs.length} posted lines are in MATCH PLAYER PROPS — verdicts use listed American prices.`
+          : `${priced.length} of ${legs.length} names have posted lines; pass the rest until books publish.`,
+      edge:
+        playable.length >= 2
+          ? `Best combo value: ${playable.slice(0, 2).map((r) => formatWcNamedPlayerPropLegAnswer(r.leg, r.row)).join(" · ")}`
+          : playable.length === 1
+            ? `Only ${playable[0].leg.name} clears juice at the posted line.`
+            : "Every listed leg is juice — wait for a better milestone or skip the parlay.",
+      confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
+      analysis: String(question || "").trim(),
+    },
+    question,
+  );
+}
+
+/**
  * @param {string} question
  * @param {string} wcIntent
  * @param {object | null | undefined} wcContext
@@ -854,11 +988,17 @@ export function resolveWcPlayerMarketAnswer(
     isGenericWcPlayerPropQuestion(questionStr) ||
     detectParlayIntent(questionStr) ||
     isWcFixtureScopedPlayerMarketQuestion(questionStr);
+  const namedPlayerProps =
+    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isWcNamedPlayerPropQuestion(questionStr) &&
+    !isWcFixturePlayerPropsQuestion(questionStr) &&
+    !detectParlayIntent(questionStr);
   const genericSlateProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
     isFixturePlayerPropAsk &&
     !isWcFixturePlayerPropsQuestion(questionStr) &&
     !detectParlayIntent(questionStr) &&
+    !namedPlayerProps &&
     fixtureTeams.length < 2;
   const fixturePlayerProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
@@ -944,6 +1084,23 @@ export function resolveWcPlayerMarketAnswer(
       structured: fixtureIntelStructured,
       responseText: `${fixtureIntelStructured.lean}\n\n${fixtureIntelStructured.whyNow}`,
     };
+  }
+
+  if (namedPlayerProps) {
+    const structured = buildWcNamedPlayerPropsStructured(
+      questionStr,
+      tier,
+      kvBlocks,
+      wcContextWithHistory,
+    );
+    if (structured) {
+      return {
+        ...base,
+        forcePass: true,
+        structured,
+        responseText: `${structured.lean}\n\n${structured.whyNow}`,
+      };
+    }
   }
 
   if (
