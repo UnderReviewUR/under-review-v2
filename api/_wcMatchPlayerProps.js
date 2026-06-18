@@ -445,9 +445,10 @@ export async function readWcMatchPlayerPropsKv(nowMs = Date.now()) {
 /**
  * @param {string} eventId
  * @param {number} [nowMs]
+ * @param {Record<string, unknown> | null | undefined} [kvRoot]
  */
-export async function readWcMatchPlayerPropsForEvent(eventId, nowMs = Date.now()) {
-  const kv = await readWcMatchPlayerPropsKv(nowMs);
+export async function readWcMatchPlayerPropsForEvent(eventId, nowMs = Date.now(), kvRoot = undefined) {
+  const kv = kvRoot !== undefined ? kvRoot : await readWcMatchPlayerPropsKv(nowMs);
   return readFreshMatchPlayerPropsForEvent(kv, String(eventId), nowMs);
 }
 

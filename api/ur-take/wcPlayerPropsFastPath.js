@@ -205,12 +205,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   if (!wcEventId && fixtureTeams.length >= 2) {
     wcEventId = resolveWcEventIdForFixtureTeams(matches, fixtureTeams[0], fixtureTeams[1]);
   }
-  if (
-    !wcEventId &&
-    wcPropsRoute?.applyRoute &&
-    historyPair?.home &&
-    historyPair?.away
-  ) {
+  if (!wcEventId && historyPair?.home && historyPair?.away) {
     wcEventId = resolveWcEventIdForFixtureTeams(matches, historyPair.home, historyPair.away);
   }
 

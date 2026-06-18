@@ -7,13 +7,18 @@ import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
   readWcMatchPlayerPropsForEvent,
+  readWcMatchPlayerPropsKv,
   refreshWcGoatMatchPlayerPropsIfNeeded,
   ensureWcBdlMatchPlayerPropsForEvent,
 } from "./_wcMatchPlayerProps.js";
 import { getMatchesPayload } from "./world-cup.js";
 import { scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
-import { getDurableJson } from "./_durableStore.js";
-import { isWcGoatPrimaryEnabled, shouldPreferBdlRefreshOverKv } from "../shared/wcBdlPolicy.js";
+import { getDurableJson, getKvStoreHealth } from "./_durableStore.js";
+import {
+  isWcGoatPrimaryEnabled,
+  shouldPreferBdlRefreshOverKv,
+  wcGoatMatchPlayerPropsNeedsLiveRefresh,
+} from "../shared/wcBdlPolicy.js";
 import { WC_PLAYERS_KV_KEY } from "../shared/wc2026PlayerConstants.js";
 import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
 import {
@@ -45,6 +50,8 @@ import {
   hasMatchPlayerPropRows,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
+  readFreshMatchPlayerPropsForEvent,
+  resolveMatchPlayerPropsEventForTeams,
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
   WC_MATCH_PLAYER_PROP_PROMPT_LABELS,
 } from "../shared/wcMatchPlayerProps.js";
@@ -178,13 +185,35 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     conversationHistory: history,
   };
 
+  const namedLegsEarly = isWcNamedPlayerPropQuestion(question)
+    ? extractWcNamedPlayerPropLegsFromQuestion(question)
+    : [];
+  const needsPropsKvRoot =
+    Boolean(wcEventId) ||
+    namedLegsEarly.length > 0 ||
+    isWcFixturePlayerPropsQuestion(question) ||
+    isWcFixtureScopedPlayerMarketQuestion(question) ||
+    detectParlayIntent(question) ||
+    isGenericWcPlayerPropQuestion(question);
+  const matchPropsKvRoot = needsPropsKvRoot
+    ? await readWcMatchPlayerPropsKv(nowMs).catch(() => null)
+    : null;
+
   if (!wcEventId) {
     const historyPair = resolveWcFixturePairFromHistory(history);
     if (historyPair?.eventId) {
       wcEventId = String(historyPair.eventId).trim() || null;
-    } else if (historyPair?.home && historyPair?.away && matches.length) {
+    } else if (historyPair?.home && historyPair?.away) {
       wcEventId =
         resolveWcEventIdForFixtureTeams(matches, historyPair.home, historyPair.away) || null;
+      if (!wcEventId && matchPropsKvRoot) {
+        const pinned = resolveMatchPlayerPropsEventForTeams(
+          matchPropsKvRoot,
+          historyPair.home,
+          historyPair.away,
+        );
+        if (pinned?.eventId) wcEventId = pinned.eventId;
+      }
     }
   }
 
@@ -253,13 +282,15 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
       isGenericWcPlayerPropQuestion(question) ||
       isWcNamedPlayerPropQuestion(question));
 
-  if (isWcGoatPrimaryEnabled()) {
+  if (isWcGoatPrimaryEnabled() && !isWcNamedPlayerPropQuestion(question)) {
     await ensureWcBdlPlayersCatalogForUrTake(nowMs).catch(() => null);
   }
 
-  const namedLegs = isWcNamedPlayerPropQuestion(question)
-    ? extractWcNamedPlayerPropLegsFromQuestion(question)
-    : [];
+  const namedLegs = namedLegsEarly.length
+    ? namedLegsEarly
+    : isWcNamedPlayerPropQuestion(question)
+      ? extractWcNamedPlayerPropLegsFromQuestion(question)
+      : [];
 
   // Pinned fixture (history / wcEventId): load that event's full prop board — not per-nation leg fan-out.
   const loadNamedPlayerMatchProps =
@@ -271,20 +302,35 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     readWcInjuriesFromKv(),
     loadMatchProps && !loadNamedPlayerMatchProps && wcEventId && !loadSlateMatchProps
       ? (async () => {
-          if (isWcGoatPrimaryEnabled()) {
+          const requireShotsRows = isWcShotsPropQuestion(question);
+          let payload = readCachedMatchPlayerPropsForEvent(wcEventId, matchPropsKvRoot, nowMs);
+          const shotsOk = !requireShotsRows || matchPropsPayloadHasShotsRows(payload);
+          const needsLiveRefresh =
+            isWcGoatPrimaryEnabled() &&
+            (!payload ||
+              !hasMatchPlayerPropRows(payload) ||
+              !shotsOk ||
+              wcGoatMatchPlayerPropsNeedsLiveRefresh(payload, {
+                matchStatus: fixtureTeams.status,
+                nowMs,
+              }));
+          if (needsLiveRefresh) {
             const m = matches.find((row) => String(row?.id) === String(wcEventId));
             const live = await refreshWcGoatMatchPlayerPropsIfNeeded(
               wcEventId,
               {
                 ...fixtureTeams,
                 ...wcMatchMetaFromRow(m),
-                requireShotsRows: isWcShotsPropQuestion(question),
+                requireShotsRows,
               },
               nowMs,
             );
-            if (live) return live;
+            if (live) payload = live;
           }
-          return readWcMatchPlayerPropsForEvent(wcEventId, nowMs);
+          if (!payload || !hasMatchPlayerPropRows(payload)) {
+            payload = await readWcMatchPlayerPropsForEvent(wcEventId, nowMs, matchPropsKvRoot);
+          }
+          return payload;
         })()
       : Promise.resolve(null),
     loadNamedPlayerMatchProps
@@ -355,6 +401,28 @@ const MATCH_PROPS_MEMORY_CACHE = new Map();
 /** GOAT: short TTL — BDL is live source; KV is write-through cache only. */
 const MATCH_PROPS_MEMORY_CACHE_TTL_MS = 90 * 1000;
 const MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS = 14_000;
+const MATCH_PROPS_NAMED_SHOTS_TIMEOUT_MS = 30_000;
+
+/**
+ * @param {Record<string, unknown> | null | undefined} payload
+ */
+function matchPropsPayloadHasShotsRows(payload) {
+  if (!payload || !hasMatchPlayerPropRows(payload)) return false;
+  return (
+    matchPlayerPropRowsFromEvent(payload, "player_shots_ou", 1).length >= 1 ||
+    matchPlayerPropRowsFromEvent(payload, "player_sot_ou", 1).length >= 1 ||
+    matchPlayerPropRowsFromEvent(payload, "player_shots_each_half", 1).length >= 1
+  );
+}
+
+/**
+ * @param {string | number} eventId
+ * @param {Record<string, unknown> | null | undefined} kvRoot
+ * @param {number} nowMs
+ */
+function readCachedMatchPlayerPropsForEvent(eventId, kvRoot, nowMs) {
+  return readFreshMatchPlayerPropsForEvent(kvRoot, String(eventId), nowMs);
+}
 
 /**
  * @param {object | null | undefined} kvBlocks
@@ -465,9 +533,18 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
   opts = {},
   retryOpts = {},
 ) {
+  const question = String(opts.question || "");
+  const namedShotsAsk =
+    isWcNamedPlayerPropQuestion(question) && isWcShotsPropQuestion(question);
   const maxRetries = retryOpts.maxRetries ?? (isWcGoatPrimaryEnabled() ? 2 : 3);
   const backoffMs = retryOpts.backoffMs ?? 400;
-  const timeoutMs = retryOpts.timeoutMs ?? (isWcGoatPrimaryEnabled() ? MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS : 6500);
+  const timeoutMs =
+    retryOpts.timeoutMs ??
+    (isWcGoatPrimaryEnabled()
+      ? namedShotsAsk
+        ? MATCH_PROPS_NAMED_SHOTS_TIMEOUT_MS
+        : MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS
+      : 6500);
   const start = Date.now();
   const eventIdHint = String(opts.wcEventId || "").trim();
 
@@ -532,6 +609,66 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
   const loadMs = Date.now() - start;
   const rejectedWithData =
     last?.matchPlayerProps && hasMatchPlayerPropRows(last.matchPlayerProps);
+  const rejectedWithShots =
+    rejectedWithData &&
+    isWcShotsPropQuestion(question) &&
+    matchPropsPayloadHasShotsRows(last.matchPlayerProps);
+  const kvHealth = getKvStoreHealth();
+
+  // #region agent log
+  fetch("http://127.0.0.1:7476/ingest/0057eb3f-f35e-42cc-b08d-383caa85aac8", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "448d1e" },
+    body: JSON.stringify({
+      sessionId: "448d1e",
+      runId: "prod-kv-load",
+      hypothesisId: "H-KV-LOAD",
+      location: "_wcPlayerUrTakeContext.js:loadWcPlayerMarketKvBlocksWithRetry",
+      message: "wc_player_props_kv_load_result",
+      data: {
+        failed: !(rejectedWithShots && namedShotsAsk),
+        wcEventId: eventIdHint || last?.wcEventId || null,
+        loadMs,
+        attempts: maxRetries + 1,
+        rejectedWithData,
+        rejectedWithShots,
+        shotRows: last?.matchPlayerProps
+          ? matchPlayerPropRowsFromEvent(last.matchPlayerProps, "player_shots_ou", 999).length
+          : 0,
+        kvCircuitOpen: kvHealth.circuitOpen,
+        kvMonthlyQuota: kvHealth.monthlyQuotaExhausted,
+        error: lastError?.message || "no_usable_rows",
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
+  if (rejectedWithShots && namedShotsAsk) {
+    const eventId = String(last?.wcEventId || eventIdHint || "").trim();
+    writeMatchPropsMemoryCache(eventId, last);
+    console.log(
+      JSON.stringify({
+        event: "wc_player_props_kv_loaded",
+        wcEventId: eventId,
+        attempt: maxRetries + 1,
+        loadMs,
+        coldStart: true,
+        recoveredFromUsabilityReject: true,
+      }),
+    );
+    return {
+      ...last,
+      loadMeta: {
+        attempts: maxRetries + 1,
+        coldStart: true,
+        fromCache: false,
+        loadMs,
+        failed: false,
+      },
+    };
+  }
+
   console.error(
     JSON.stringify({
       event: "wc_player_props_kv_failed",

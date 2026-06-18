@@ -7,6 +7,7 @@ import {
   extractWcPlayerPropNameHint,
   isWcFixtureScopedPlayerMarketQuestion,
   isWcGoalkeeperPropsQuestion,
+  isWcNamedPlayerPropQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 import { matchPlayerPropRowsFromEvent } from "./wcMatchPlayerProps.js";
@@ -444,7 +445,8 @@ export function resolveWcPlayerPropFixtureTeams(question, history = [], wcContex
   if (
     WC_PLAYER_PROP_THIS_FIXTURE_RE.test(q) ||
     /\bplayer props?\b/i.test(q) ||
-    isWcFixtureScopedPlayerMarketQuestion(q)
+    isWcFixtureScopedPlayerMarketQuestion(q) ||
+    isWcNamedPlayerPropQuestion(q)
   ) {
     const pair = resolveWcFixturePairFromHistory(hist);
     if (pair?.home && pair?.away) {
