@@ -16,6 +16,7 @@ import {
   isWcLiveMatchProbabilityQuestion,
   isWcMatchProbabilityQuestion,
   isWcPlayerParlaySlateQuestion,
+  resolveWcLiveProbabilityMatchFromThread,
 } from "./wcMatchProbabilityQuestion.js";
 import {
   isWcFixturePlayerPropsQuestion,
@@ -510,10 +511,18 @@ export function resolveContinuationEntities(history) {
 /**
  * @param {string} question
  * @param {import("./wcUrTakeIntent.js").WcUrTakeIntent} [wcIntent]
+ * @param {{ isConversationFollowUp?: boolean, match?: Record<string, unknown> | null, history?: object[] }} [opts]
  */
-export function buildWcTurnScopeBlock(question, wcIntent) {
+export function buildWcTurnScopeBlock(question, wcIntent, opts = {}) {
   const routingQuestion = extractLatestUserTurnForRouting(String(question || "").trim());
   const intent = wcIntent || classifyWcQuestionIntent(routingQuestion);
+  const liveProbabilityOpts = {
+    isConversationFollowUp: Boolean(opts.isConversationFollowUp),
+    match:
+      opts.match ||
+      resolveWcLiveProbabilityMatchFromThread(opts.history) ||
+      null,
+  };
   if (
     isWcTopGoalscorersListQuestion(routingQuestion) ||
     intent === WC_INTENT.TOP_GOALSCORERS_LIST
@@ -579,9 +588,9 @@ export function buildWcTurnScopeBlock(question, wcIntent) {
 - Use callType "parlay" with parlayLegs when 2+ verified player legs exist; otherwise Pass and name what lines are missing.
 - Do NOT repeat a prior matchup lean (Under/Over goals, ML winner, both teams advance) from this chat.`;
   }
-  if (isWcLiveMatchProbabilityQuestion(routingQuestion)) {
+  if (isWcLiveMatchProbabilityQuestion(routingQuestion, liveProbabilityOpts)) {
     return `TURN SCOPE (binding):
-- User asked for LIVE in-play PROBABILITY — anchor on the stated score and minute from the question.
+- User asked for LIVE in-play PROBABILITY — anchor on the stated score and minute from the question or live thread.
 - Answer chances of draw, winner, or late goal directly — cite implied % from live context/sims when present; do not restart with pre-kickoff ML or totals template.
 - Name both teams when the fixture is inferable from chat or VERIFIED CONTEXT.`;
   }

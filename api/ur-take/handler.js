@@ -142,6 +142,7 @@ import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.j
 import {
   isWcLiveMatchProbabilityQuestion,
   isWcMatchProbabilityQuestion,
+  resolveWcLiveProbabilityMatchFromThread,
 } from "../../shared/wcMatchProbabilityQuestion.js";
 import {
   buildWcFixtureMatchupPrebuiltStructured,
@@ -3260,7 +3261,10 @@ export default async function handler(req, res) {
           liteFollowUp:
             isConversationFollowUp &&
             !isWcPlayerMarketIntent(wcIntent) &&
-            !isWcLiveMatchProbabilityQuestion(routingQuestion) &&
+            !isWcLiveMatchProbabilityQuestion(routingQuestion, {
+              isConversationFollowUp,
+              match: resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
+            }) &&
             !wcRunnerUpFollowUpQuestion,
         });
       } catch (err) {
@@ -5398,7 +5402,14 @@ Rules:
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.`;
   } else if (sportHint === "worldcup") {
-    const wcTurnScopeBlock = buildWcTurnScopeBlock(routingQuestion, wcIntent);
+    const wcLiveProbabilityOpts = {
+      isConversationFollowUp,
+      match:
+        wcContext?.matchDetails?.[0] ||
+        resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
+      history: normalizedUrTakeHistoryForGate,
+    };
+    const wcTurnScopeBlock = buildWcTurnScopeBlock(routingQuestion, wcIntent, wcLiveProbabilityOpts);
     const entityBindingBlock = buildEntityBindingPromptBlock(wcRequiredEntities);
     const priceBindingBlock = buildPriceBindingPromptBlock(
       String(question || ""),
@@ -5470,11 +5481,12 @@ Confidence guidance:
       ? `${buildWcGroupBindingPromptBlocks(wcGroupLettersForPrompt)}\n\n`
       : "";
     const wcMatchProbabilityIntent =
-      isWcMatchProbabilityQuestion(routingQuestion) || isWcLiveMatchProbabilityQuestion(routingQuestion);
+      isWcMatchProbabilityQuestion(routingQuestion) ||
+      isWcLiveMatchProbabilityQuestion(routingQuestion, wcLiveProbabilityOpts);
     const wcRoleLine = isWcRulesIntent
       ? "You are answering a factual 2026 FIFA World Cup rules question."
       : wcMatchProbabilityIntent
-        ? isWcLiveMatchProbabilityQuestion(routingQuestion)
+        ? isWcLiveMatchProbabilityQuestion(routingQuestion, wcLiveProbabilityOpts)
           ? "You are answering a live in-play World Cup probability question — anchor on the stated score and minute."
           : "You are answering a World Cup match probability question (chances / odds of a scoreline or team goal threshold)."
       : isWcMatchupIntent

@@ -53,6 +53,22 @@ test("isWcLiveMatchProbabilityQuestion — minute and score state", () => {
   );
 });
 
+test("isWcMatchProbabilityQuestion — draw chance follow-ups", () => {
+  assert.ok(isWcMatchProbabilityQuestion("% chance it ends in a draw?"));
+  assert.ok(isWcMatchProbabilityQuestion("what are the chances this ends in a draw"));
+  assert.ok(
+    isWcMatchProbabilityQuestion("whos most likely to win or will it end in a draw?"),
+  );
+  assert.equal(classifyWcQuestionIntent("% chance it ends in a draw?"), WC_INTENT.MATCHUP);
+  const liveMatch = { status: "1H", homeScore: 0, awayScore: 0, homeTeam: "GHA", awayTeam: "PAN" };
+  assert.ok(
+    isWcLiveMatchProbabilityQuestion("% chance it ends in a draw?", {
+      isConversationFollowUp: true,
+      match: liveMatch,
+    }),
+  );
+});
+
 test("classifyWcQuestionIntent — named player prop beats matchup", () => {
   assert.equal(classifyWcQuestionIntent("best player prop for CIV vs ECU"), WC_INTENT.PLAYER_PROP);
   assert.equal(classifyWcQuestionIntent("Will Jimenez score vs Canada?"), WC_INTENT.PLAYER_PROP);
