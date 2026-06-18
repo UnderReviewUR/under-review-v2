@@ -17,11 +17,22 @@ import {
   isWcNamedPlayerPropQuestion,
   isGenericWcPlayerPropQuestion,
   isWcPlayerMarketIntent,
+  extractWcNamedPlayerPropLegsFromQuestion,
 } from "../shared/wcUrTakePlayerMarket.js";
 import { isWcPlayerPropFollowUpExplain } from "../shared/wcFollowUpExplain.js";
-import { resolveWcPlayerPropFixtureTeams } from "../shared/wcPlayerPropFixture.js";
+import {
+  resolveWcPlayerPropFixtureTeams,
+  resolveWcEventIdForFixtureTeams,
+  findWcNamedPlayerPropLegMatch,
+} from "../shared/wcPlayerPropFixture.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
+import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
+import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
+import {
+  buildWcGroundingSlateClaudeSummary,
+  isWcPropsShapeRoutedAsk,
+} from "../shared/wcGroundingShapeRoute.js";
 
 /**
  * @param {Record<string, unknown> | null | undefined} eventPayload
@@ -318,6 +329,158 @@ export function buildWcGroundingPacketForUrTake(params) {
 }
 
 /**
+ * Map parsed named legs to WcNamedLegMatch against posted ladder.
+ * @param {string} question
+ * @param {Record<string, unknown> | null | undefined} matchPlayerProps
+ */
+export function resolveWcNamedLegMatchesForGrounding(question, matchPlayerProps) {
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(question);
+  if (!legs.length) return [];
+
+  return legs.map((leg) => {
+    /** @type {import("../shared/wcGroundingPacket.types.js").WcParsedNamedLeg} */
+    const parsedLeg = {
+      playerHint: leg.name,
+      nationAbbr: null,
+      market: /** @type {import("../shared/wcGroundingPacket.types.js").WcPropMarketKey} */ (
+        leg.marketKey
+      ),
+      threshold: leg.threshold ? Number.parseFloat(String(leg.threshold)) : null,
+      marketLabel: leg.marketLabel,
+    };
+
+    const hit = findWcNamedPlayerPropLegMatch(leg, matchPlayerProps);
+    if (!hit?.row) {
+      return {
+        leg: parsedLeg,
+        status: /** @type {const} */ ("missing_player"),
+        matched: null,
+        lineDelta: null,
+        fallbackNote: null,
+      };
+    }
+
+    const postedLine = hit.row.line != null ? Number.parseFloat(String(hit.row.line)) : null;
+    const asked = parsedLeg.threshold;
+    const lineDelta =
+      postedLine != null && asked != null && Number.isFinite(asked)
+        ? Math.abs(postedLine - asked)
+        : null;
+
+    return {
+      leg: parsedLeg,
+      status: hit.isProxy ? /** @type {const} */ ("partial") : /** @type {const} */ ("matched"),
+      matched: {
+        legId: String(hit.row.legId || `named|${leg.name}|${hit.marketKey}|${hit.row.line}|over`),
+        playerId: hit.row.playerId != null ? Number(hit.row.playerId) : null,
+        playerName: String(hit.row.name || leg.name),
+        nationAbbr: hit.row.nationAbbr ? String(hit.row.nationAbbr) : null,
+        market: /** @type {import("../shared/wcGroundingPacket.types.js").WcPropMarketKey} */ (
+          hit.marketKey
+        ),
+        line: hit.row.line != null ? String(hit.row.line) : null,
+        side: "over",
+        americanOdds: String(hit.row.americanOdds || ""),
+        decimalOdds: null,
+        vendor: String(hit.row.vendor || hit.row.book || "balldontlie"),
+      },
+      lineDelta,
+      fallbackNote: hit.proxyNote || (hit.isProxy ? hit.marketLabel : null),
+    };
+  });
+}
+
+/**
+ * Build grounding packet for handler — cache-only props on image asks (no live BDL refresh).
+ * @param {object} params
+ */
+export async function prepareWcGroundingPacketForHandler(params) {
+  const {
+    sportHint,
+    wcIntent,
+    question,
+    routingQuestion,
+    history = [],
+    hasImage = false,
+    wcContext,
+    wcRequiredEntities = [],
+    requestId,
+  } = params;
+
+  if (
+    !isWcPropsShapeRoutedAsk({
+      sportHint,
+      wcIntent,
+      routingQuestion,
+      hasImage,
+      history,
+    })
+  ) {
+    return null;
+  }
+
+  const matches = wcContext?.allMatches || [];
+  const historyPair = resolveWcFixturePairFromHistory(history);
+  let resolvedEventId =
+    String(wcContext?.wcEventId || wcContext?.playerMarketKv?.wcEventId || historyPair?.eventId || "")
+      .trim() || null;
+
+  let matchPlayerProps = wcContext?.playerMarketKv?.matchPlayerProps || null;
+  const loadMeta = wcContext?.playerMarketKv?.loadMeta || null;
+  const matchPlayerPropsByEvent = wcContext?.playerMarketKv?.matchPlayerPropsByEvent || null;
+
+  if (hasImage && !matchPlayerProps && resolvedEventId) {
+    matchPlayerProps = await readWcMatchPlayerPropsForEvent(resolvedEventId, Date.now()).catch(
+      () => null,
+    );
+  }
+
+  const fixtureTeams = resolveWcPlayerPropFixtureTeams(String(routingQuestion || question || ""), history, {
+    requiredEntities: wcRequiredEntities,
+    conversationHistory: history,
+  });
+
+  if (!resolvedEventId && fixtureTeams.length >= 2 && matches.length) {
+    resolvedEventId = resolveWcEventIdForFixtureTeams(matches, fixtureTeams[0], fixtureTeams[1]);
+  }
+
+  const namedLegMatches = resolveWcNamedLegMatchesForGrounding(
+    String(routingQuestion || question || ""),
+    matchPlayerProps,
+  );
+
+  const packet = buildWcGroundingPacketForUrTake({
+    requestId,
+    question: String(question || ""),
+    routingQuestion: String(routingQuestion || question || ""),
+    history,
+    matches,
+    fixtureTeams:
+      fixtureTeams.length >= 2
+        ? fixtureTeams
+        : historyPair?.home && historyPair?.away
+          ? [historyPair.home, historyPair.away]
+          : [],
+    resolvedEventId,
+    matchPlayerProps,
+    loadMeta,
+    hasImage,
+    namedLegMatches,
+    pinMethod: hasImage ? "image_context" : "two_teams_in_question",
+  });
+
+  if (packet.ask.shape === "slate") {
+    packet.slateFixturesSummary = buildWcGroundingSlateClaudeSummary(
+      matches,
+      matchPlayerPropsByEvent,
+      String(routingQuestion || question || ""),
+    );
+  }
+
+  return packet;
+}
+
+/**
  * @param {import("../shared/wcGroundingPacket.types.js").WcPinnedFixture | null} pinnedFixture
  */
 function formatFixtureAmbiguityCaveat(pinnedFixture) {
@@ -410,6 +573,10 @@ export function tryApplyWcPlayerPropsGroundingToStructured(params) {
   } = params;
 
   if (!shouldApplyWcPropsGrounding(wcIntent, structured)) return structured;
+
+  if (wcContext?.wcGroundingPacket) {
+    return applyWcGroundingCardToStructured(structured, wcContext.wcGroundingPacket);
+  }
 
   const fixtureTeams =
     fixtureTeamsInput.length >= 2

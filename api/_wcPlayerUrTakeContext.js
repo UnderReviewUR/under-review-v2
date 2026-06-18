@@ -682,7 +682,7 @@ export function formatWcPlayerMarketsPromptBlock(opts = {}) {
 
   const eventId = String(wcEventId || matchPlayerProps?.eventId || "").trim();
 
-  if (eventId && hasMatchPlayerPropRows(matchPlayerProps)) {
+  if (eventId && hasMatchPlayerPropRows(matchPlayerProps) && !opts.skipMatchPropInventory) {
     const mpFresh =
       matchPlayerProps?.freshness ||
       calculateOddsFreshness(

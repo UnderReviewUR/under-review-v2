@@ -121,8 +121,15 @@ import {
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
-import { loadWcPlayerMarketKvBlocksWithRetry } from "../_wcPlayerUrTakeContext.js";
-import { tryApplyWcPlayerPropsGroundingToStructured } from "../_wcGroundingUrTake.js";
+import { loadWcPlayerMarketKvBlocksWithRetry, formatWcPlayerMarketsPromptBlock } from "../_wcPlayerUrTakeContext.js";
+import {
+  prepareWcGroundingPacketForHandler,
+  tryApplyWcPlayerPropsGroundingToStructured,
+} from "../_wcGroundingUrTake.js";
+import {
+  buildWcPlayerMarketGroundingPromptBlock,
+  shouldSkipWcPlayerPropsFastPathForShape,
+} from "../../shared/wcGroundingShapeRoute.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
@@ -242,7 +249,7 @@ import {
   isWcNamedPlayerPropQuestion,
   extractWcNamedPlayerFromQuestion,
 } from "../../shared/wcUrTakePlayerMarket.js";
-import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier } from "../../shared/wcPlayerMarketResolve.js";
+import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier, tierMetaFor } from "../../shared/wcPlayerMarketResolve.js";
 import {
   buildWcGroupSlatePrebuiltStructured,
   buildWcGroupBindingPromptBlocks,
@@ -3357,6 +3364,26 @@ export default async function handler(req, res) {
           console.warn("[ur-take] player market KV supplement failed:", kvErr?.message || kvErr);
         }
       }
+
+      try {
+        const wcGroundingPacket = await prepareWcGroundingPacketForHandler({
+          sportHint,
+          wcIntent,
+          question: String(question || ""),
+          routingQuestion,
+          history: normalizedUrTakeHistoryForGate,
+          hasImage,
+          wcContext,
+          wcRequiredEntities,
+          requestId,
+        });
+        if (wcGroundingPacket) {
+          wcContext.wcGroundingPacket = wcGroundingPacket;
+          wcRelevanceLog.wcPropsAskShape = wcGroundingPacket.ask.shape;
+        }
+      } catch (groundErr) {
+        console.warn("[ur-take] wc grounding packet build failed:", groundErr?.message || groundErr);
+      }
     }
 
     if (
@@ -3418,7 +3445,12 @@ export default async function handler(req, res) {
   }
 
   if (sportHint === "worldcup") {
-    const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath({
+    const skipPropsFastPath =
+      wcContext?.wcGroundingPacket &&
+      shouldSkipWcPlayerPropsFastPathForShape(wcContext.wcGroundingPacket.ask.shape);
+
+    if (!skipPropsFastPath) {
+      const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath({
       sportHint,
       res,
       requestId,
@@ -3445,6 +3477,7 @@ export default async function handler(req, res) {
       hasImage,
     });
     if (wcPlayerPropsFast.handled) return;
+    }
 
     const wcPrebuiltFast = await tryDeliverWcPrebuiltFastPath({
       sportHint,
@@ -5399,10 +5432,35 @@ Confidence guidance:
       isWcPlayerMarketIntent(wcIntent) || isWcTopGoalscorersListIntent
         ? resolveWcPlayerMarketResponse(String(question || ""), wcIntent, wcContext)
         : null;
-    const wcPlayerMarketBlock =
-      wcPlayerMarketResolved?.promptAppendix && !wcPlayerMarketResolved.forcePass
-        ? `${wcPlayerMarketResolved.promptAppendix}\n\n`
-        : "";
+    const wcGroundingPacket = wcContext?.wcGroundingPacket || null;
+    let wcPlayerMarketBlock = "";
+    if (wcGroundingPacket && isWcPlayerMarketIntentFlag) {
+      const kv = wcContext?.playerMarketKv || {};
+      const tier = wcContext?.playerMarketTier || "market_only";
+      const tierMeta = tierMetaFor(tier);
+      const supplemental = formatWcPlayerMarketsPromptBlock({
+        tier,
+        tierLabel: tierMeta.label,
+        tierDisclaimer: tierMeta.disclaimer,
+        wcIntent,
+        goldenBoot: kv.goldenBoot,
+        players: kv.players,
+        injuries: kv.injuries,
+        matchDetails: wcContext?.matchDetails || [],
+        matchPlayerProps: kv.matchPlayerProps,
+        wcEventId: wcContext?.wcEventId || kv.wcEventId,
+        tournamentSimResults: wcContext?.tournamentSimResults,
+        question: String(question || ""),
+        skipMatchPropInventory: true,
+      });
+      wcPlayerMarketBlock = buildWcPlayerMarketGroundingPromptBlock({
+        packet: wcGroundingPacket,
+        slateFixturesSummary: wcGroundingPacket.slateFixturesSummary,
+        supplementalPromptBlock: supplemental,
+      });
+    } else if (wcPlayerMarketResolved?.promptAppendix && !wcPlayerMarketResolved.forcePass) {
+      wcPlayerMarketBlock = `${wcPlayerMarketResolved.promptAppendix}\n\n`;
+    }
     const wcGroupLettersForPrompt = resolveWcGroupLettersForPrompt(routingQuestion, {
       wcIntent,
       mentionedTeams: wcRequiredEntities,
@@ -5806,12 +5864,18 @@ You are responding to a Pro subscriber. Apply the following:
         wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST ||
         detectParlayIntent(routingQuestion))
     ) {
+      const shapeRoutedToClaude =
+        wcContext?.wcGroundingPacket &&
+        shouldSkipWcPlayerPropsFastPathForShape(wcContext.wcGroundingPacket.ask.shape);
       const wcPlayerResolved = resolveWcPlayerMarketResponse(
         String(question || ""),
         wcIntent,
         wcContext,
       );
-      if (wcPlayerResolved.forcePass || wcPlayerResolved.structured) {
+      if (
+        !shapeRoutedToClaude &&
+        (wcPlayerResolved.forcePass || wcPlayerResolved.structured)
+      ) {
         structuredResponse = wcPlayerResolved.structured;
         responseText = wcPlayerResolved.responseText;
         responseDeep = wcPlayerResolved.responseDeep;

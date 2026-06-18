@@ -9,6 +9,10 @@ import {
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
+import {
+  WC_GROUNDING_INVENTORY_LABELS,
+  WC_GROUNDING_MARKET_LABELS,
+} from "../shared/wcGroundingLabels.js";
 
 /** @typedef {import("../shared/wcGroundingPacket.types.js").WcGroundingPacket} WcGroundingPacket */
 /** @typedef {import("../shared/wcGroundingPacket.types.js").WcPropLeg} WcPropLeg */
@@ -33,40 +37,6 @@ export const WC_BOARD_MARKET_PRIORITY = [
   "player_card",
   "player_red_card",
 ];
-
-/** Short labels for Claude market summaries. */
-export const WC_GROUNDING_MARKET_LABELS = {
-  anytime_scorer: "anytime scorer",
-  first_goalscorer: "first goalscorer",
-  last_goalscorer: "last goalscorer",
-  player_goal_or_assist: "goal or assist",
-  player_assists_ou: "assists",
-  player_shots_ou: "shots",
-  player_sot_ou: "shots on target",
-  player_shots_each_half: "shots each half",
-  player_sot_each_half: "SOT each half",
-  player_saves_ou: "saves",
-  player_tackles_ou: "tackles",
-  player_card: "card",
-  player_red_card: "red card",
-};
-
-/** Card inventory strip labels (title case). */
-export const WC_GROUNDING_INVENTORY_LABELS = {
-  anytime_scorer: "Anytime goals",
-  first_goalscorer: "First goalscorer",
-  last_goalscorer: "Last goalscorer",
-  player_goal_or_assist: "Goal or assist",
-  player_assists_ou: "Assists",
-  player_shots_ou: "Shots",
-  player_sot_ou: "SOT",
-  player_shots_each_half: "Shots each half",
-  player_sot_each_half: "SOT each half",
-  player_saves_ou: "Saves",
-  player_tackles_ou: "Tackles",
-  player_card: "Cards",
-  player_red_card: "Red cards",
-};
 
 const CLAUDE_GROUNDING_INSTRUCTIONS =
   "Cite only players, markets, lines, and American odds present in markets[].topLegs. " +
