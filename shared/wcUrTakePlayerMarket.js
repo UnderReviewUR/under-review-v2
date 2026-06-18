@@ -786,6 +786,207 @@ export function extractWcNamedPlayerFromQuestion(question) {
 const WC_NAMED_PROP_LEG_CHUNK_RE =
   /([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+?)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)(?:\s*\w*)?/gi;
 
+const WC_EACH_GOING_NAMED_PROP_RE =
+  /\b(?:on|for|thoughts on)\s+(.+?)\s+each\s+going\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)/i;
+
+const WC_COMMA_LIST_SHARED_THRESHOLD_RE =
+  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)+)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i;
+
+const WC_EACH_HAVE_NAMED_PROP_RE =
+  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s+and\s+[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+|\s*,\s*[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)*)\s+to\s+each\s+have\s+(\d+(?:\.\d+)?)\+?\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i;
+
+const WC_SHOTS_FOR_LIST_RE = /\bshots?\s+for\s+(.+?)(?:\?|$)/i;
+
+/**
+ * @param {string} raw
+ * @returns {string[]}
+ */
+function parseWcCommaSeparatedPlayerNames(raw) {
+  return String(raw || "")
+    .replace(/\?+$/, "")
+    .replace(/\s*,?\s*\band\s+/gi, ",")
+    .split(/\s*,\s*/)
+    .map((part) => part.trim().replace(/^and\s+/i, ""))
+    .filter(Boolean);
+}
+
+/**
+ * @param {string} name
+ */
+function isWcNamedPropLegNameValid(name) {
+  const n = String(name || "").trim();
+  if (!n || n.length < 2) return false;
+  if (/\beach\s+going\b/i.test(n)) return false;
+  if (/^(?:and|or|for|shots?\s+for)\s+/i.test(n)) return false;
+  if (/\bover\s+\d/i.test(n)) return false;
+  if (/\b(?:attempted|target|shots?|assists?|sot)\b/i.test(n)) return false;
+  const first = n.split(/\s+/)[0]?.toLowerCase();
+  if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) return false;
+  return true;
+}
+
+/**
+ * @param {WcNamedPlayerPropLeg[]} legs
+ */
+export function formatWcNamedPlayerListForDisplay(legs) {
+  const names = (Array.isArray(legs) ? legs : [])
+    .map((leg) => String(leg?.name || "").trim())
+    .filter(Boolean);
+  if (!names.length) return "these players";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} or ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
+}
+
+/**
+ * @param {WcNamedPlayerPropLeg[]} legs
+ * @param {string} [question]
+ */
+export function buildWcNamedPlayerPropNoLineHeadline(legs, question = "") {
+  const market = detectWcPlayerPropMarketLabel(question);
+  const list = formatWcNamedPlayerListForDisplay(legs);
+  if (legs.length === 1) {
+    return `No ${market} line posted yet for ${list}.`;
+  }
+  return `No ${market} lines posted yet for ${list}.`;
+}
+
+/**
+ * @param {WcNamedPlayerPropLeg[]} legs
+ * @param {object | null | undefined} [wcContext]
+ */
+export function buildWcNamedPlayerPropNoLineWhyNow(legs, wcContext = null) {
+  const market = legs[0]?.marketLabel || "player prop";
+  const list = formatWcNamedPlayerListForDisplay(legs);
+  const lineWord = legs.length === 1 ? "line" : "lines";
+  const home = wcContext?.fixtureHome ? String(wcContext.fixtureHome).toUpperCase() : "";
+  const away = wcContext?.fixtureAway ? String(wcContext.fixtureAway).toUpperCase() : "";
+  const fixture =
+    home && away ? `${away} vs ${home}` : home || away ? `${home || away} fixture` : "this match";
+  return `No ${market} ${lineWord} posted yet for ${list} — books usually publish closer to kickoff once lineups are confirmed for ${fixture}.`;
+}
+
+/**
+ * @param {WcNamedPlayerPropLeg[]} legs
+ * @param {object | null | undefined} [wcContext]
+ */
+/**
+ * When BDL rows are loaded but named legs did not resolve — not a books-empty outage.
+ * @param {WcNamedPlayerPropLeg[]} legs
+ * @param {string} [question]
+ * @param {Record<string, unknown> | null | undefined} [eventPayload]
+ */
+export function buildWcNamedPlayerPropDataPresentNoMatchHeadline(legs, question = "", eventPayload = null) {
+  const market = detectWcPlayerPropMarketLabel(question);
+  const list = formatWcNamedPlayerListForDisplay(legs);
+  const shotRows = eventPayload?.markets?.player_shots_ou;
+  const shotCount = Array.isArray(shotRows) ? shotRows.filter((r) => r?.name && r?.americanOdds).length : 0;
+  if (shotCount > 0 && (market === "shots" || legs[0]?.marketKey === "player_shots_ou")) {
+    return `Posted shots lines exist (${shotCount} rows) — couldn't match ${list} at your thresholds.`;
+  }
+  return buildWcNamedPlayerPropNoLineHeadline(legs, question);
+}
+
+export function buildWcNamedPlayerPropNoLineEdge(legs, wcContext = null) {
+  const list = formatWcNamedPlayerListForDisplay(legs);
+  const market = legs[0]?.marketLabel || "player prop";
+  const home = wcContext?.fixtureHome ? String(wcContext.fixtureHome).toUpperCase() : "";
+  const away = wcContext?.fixtureAway ? String(wcContext.fixtureAway).toUpperCase() : "";
+  const fixture =
+    home && away ? `${away} vs ${home}` : home || away ? `${home || away} fixture` : "this match";
+  return `Directional read: when ${market} lines post for ${fixture}, I'll price ${list} against the posted ladder — no invented prices until they're in the feed.`;
+}
+
+/**
+ * @param {string} question
+ * @returns {WcNamedPlayerPropLeg[]}
+ */
+/**
+ * @param {string[]} rawNames
+ * @param {string} threshold
+ * @param {string} chunk
+ * @param {string} q
+ * @returns {WcNamedPlayerPropLeg[]}
+ */
+function buildWcNamedPropLegsFromNames(rawNames, threshold, chunk, q) {
+  const isSot = /\b(?:shots?\s+on\s+target|\bsot\b)\b/i.test(chunk);
+  /** @type {WcNamedPlayerPropLeg[]} */
+  const legs = [];
+  const seen = new Set();
+
+  for (const rawName of rawNames) {
+    const name = String(rawName || "")
+      .replace(/\?+$/, "")
+      .trim();
+    if (!isWcNamedPropLegNameValid(name)) continue;
+    if (isWcNationOrAwardFalsePositive(name, q)) continue;
+    const dedupeKey = `${name.toLowerCase()}|${threshold}|${isSot ? "sot" : "shots"}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    legs.push({
+      name,
+      threshold,
+      marketKey: isSot ? "player_sot_ou" : "player_shots_ou",
+      marketLabel: isSot ? "shots on target" : "shots",
+    });
+  }
+  return legs;
+}
+
+function extractWcEachGoingNamedPropLegs(question) {
+  const q = String(question || "").trim();
+  const m = q.match(WC_EACH_GOING_NAMED_PROP_RE);
+  if (!m?.[1] || !m?.[2]) return [];
+  return buildWcNamedPropLegsFromNames(
+    parseWcCommaSeparatedPlayerNames(m[1]),
+    String(m[2]).trim(),
+    m[0],
+    q,
+  );
+}
+
+function extractWcSharedThresholdListLegs(question) {
+  const q = String(question || "").trim();
+  if (/\bshots?\s+for\s+/i.test(q)) return [];
+  const m = q.match(WC_COMMA_LIST_SHARED_THRESHOLD_RE);
+  if (!m?.[1] || !m?.[2]) return [];
+  const names = parseWcCommaSeparatedPlayerNames(m[1]);
+  if (names.length < 2) return [];
+  const legs = buildWcNamedPropLegsFromNames(names, String(m[2]).trim(), m[0], q);
+  if (legs.length < 2) return [];
+  return legs;
+}
+
+function extractWcEachHaveNamedPropLegs(question) {
+  const q = String(question || "").trim();
+  const m = q.match(WC_EACH_HAVE_NAMED_PROP_RE);
+  if (!m?.[1] || !m?.[2]) return [];
+  return buildWcNamedPropLegsFromNames(
+    parseWcCommaSeparatedPlayerNames(m[1]),
+    String(m[2]).trim(),
+    m[0],
+    q,
+  );
+}
+
+function extractWcShotsForNamedListLegs(question) {
+  const q = String(question || "").trim();
+  const m = q.match(WC_SHOTS_FOR_LIST_RE);
+  if (!m?.[1]) return [];
+  const threshold =
+    q.match(/\bover\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i)?.[1] ||
+    q.match(/\b(?:each|every)\s+(?:going\s+)?over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i)?.[1] ||
+    "";
+  let nameBlob = String(m[1]).trim();
+  nameBlob = nameBlob
+    .replace(/\s+over\s+\d+(?:\.\d+)?\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\s*$/i, "")
+    .trim();
+  const names = parseWcCommaSeparatedPlayerNames(nameBlob);
+  if (names.length < 2) return [];
+  const chunk = threshold ? `over ${threshold} shots` : "shots";
+  return buildWcNamedPropLegsFromNames(names, threshold, chunk, q);
+}
+
 /**
  * Multi-player prop legs from a single ask (e.g. Gordon/Kane/Musa shot overs).
  * @param {string} question
@@ -794,6 +995,18 @@ const WC_NAMED_PROP_LEG_CHUNK_RE =
 export function extractWcNamedPlayerPropLegsFromQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return [];
+
+  const eachGoingLegs = extractWcEachGoingNamedPropLegs(q);
+  if (eachGoingLegs.length) return eachGoingLegs;
+
+  const shotsForLegs = extractWcShotsForNamedListLegs(q);
+  if (shotsForLegs.length) return shotsForLegs;
+
+  const sharedThresholdLegs = extractWcSharedThresholdListLegs(q);
+  if (sharedThresholdLegs.length) return sharedThresholdLegs;
+
+  const eachHaveLegs = extractWcEachHaveNamedPropLegs(q);
+  if (eachHaveLegs.length) return eachHaveLegs;
 
   /** @type {WcNamedPlayerPropLeg[]} */
   const legs = [];
@@ -806,6 +1019,7 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
     const threshold = String(m[2] || "").trim();
     const chunk = m[0].toLowerCase();
     if (!name || !threshold) continue;
+    if (!isWcNamedPropLegNameValid(name)) continue;
     if (isWcNationOrAwardFalsePositive(name, q)) continue;
     const first = name.split(/\s+/)[0]?.toLowerCase();
     if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) continue;
@@ -865,7 +1079,7 @@ export function formatWcNamedPlayerPropLegAnswer(leg, matchHit, opts = {}) {
   const row = meta?.row ?? matchHit;
 
   if (!row?.americanOdds) {
-    return `Pass — no ${leg.marketLabel} line for ${leg.name} yet`;
+    return `No ${leg.marketLabel} line posted yet for ${leg.name}.`;
   }
   const postedLine = row.line || leg.threshold;
   const odds = String(row.americanOdds);
@@ -875,6 +1089,9 @@ export function formatWcNamedPlayerPropLegAnswer(leg, matchHit, opts = {}) {
   const eachHalf =
     meta?.marketKey === "player_shots_each_half" || meta?.marketKey === "player_sot_each_half";
   const linePart = eachHalf ? `over ${postedLine} each half` : `over ${postedLine}`;
+  if (meta?.isProxy && leg.threshold) {
+    return `No ${leg.threshold} full-match ${leg.marketLabel} line for ${leg.name}; nearest is ${linePart} at ${odds} — ${verdict}`;
+  }
   const proxySuffix =
     !compact && meta?.isProxy && meta.proxyNote ? ` (${meta.proxyNote})` : "";
   const nearest =

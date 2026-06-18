@@ -57,12 +57,8 @@ export function isWcPropsShapeRoutedAsk(params) {
  * @param {WcPropAskShape} shape
  */
 export function shouldSkipWcPlayerPropsFastPathForShape(shape) {
-  return (
-    shape === "image_slip" ||
-    shape === "fixture_board" ||
-    shape === "named_legs" ||
-    shape === "slate"
-  );
+  // named_legs uses deterministic buildWcNamedPlayerPropsStructured (fast path) — not Claude.
+  return shape === "image_slip" || shape === "fixture_board" || shape === "slate";
 }
 
 /**

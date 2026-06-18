@@ -151,6 +151,19 @@ test("extractWcNamedPlayerPropLegsFromQuestion — multi-player shots ask", () =
   assert.equal(legs[2].name, "musa");
 });
 
+test("extractWcNamedPlayerPropLegsFromQuestion — each going shared threshold", () => {
+  const q =
+    "thoughts on Son, Jimenez, and Quinones each going over 2.5 shots attempted?";
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(q);
+  assert.equal(legs.length, 3);
+  assert.deepEqual(
+    legs.map((l) => l.name),
+    ["Son", "Jimenez", "Quinones"],
+  );
+  assert.equal(legs[0].threshold, "2.5");
+  assert.equal(legs[0].marketKey, "player_shots_ou");
+});
+
 test("resolveWcPlayerMarketAnswer — named multi-player shots no longer uses slate pass", () => {
   const q =
     "anthony gordon over 1.5 shots attempted, kane over 1.5 shots on target? musa over 1.5 shots? are these good bets?";
@@ -158,10 +171,11 @@ test("resolveWcPlayerMarketAnswer — named multi-player shots no longer uses sl
   assert.equal(resolved.forcePass, true);
   assert.ok(resolved.structured);
   assert.doesNotMatch(String(resolved.structured.whyNow || ""), /remaining slate/i);
-  assert.match(String(resolved.structured.whyNow || ""), /syncing|verified|MATCH PLAYER PROPS/i);
+  assert.match(String(resolved.structured.whyNow || ""), /books usually publish closer to kickoff/i);
+  assert.match(String(resolved.structured.call || ""), /anthony gordon, kane, or musa/i);
 });
 
-test("buildWcNamedPlayerPropsStructured — proxy stays clean on card face", () => {
+test("buildWcNamedPlayerPropsStructured — proxy labels full-match miss on card face", () => {
   const q = "anthony gordon over 1.5 shots attempted?";
   const kv = {
     matchPlayerProps: {
@@ -186,10 +200,50 @@ test("buildWcNamedPlayerPropsStructured — proxy stays clean on card face", () 
     allMatches: [{ id: "22", homeTeam: "ENG", awayTeam: "CRO", status: "scheduled" }],
   });
   assert.ok(s);
-  assert.match(s.call, /each half at \+105/i);
-  assert.doesNotMatch(`${s.call}\n${s.lean}`, /full-match 1\.5 not posted/i);
+  assert.match(s.call, /No 1\.5 full-match shots line for Anthony Gordon/i);
+  assert.match(s.call, /nearest is over 1 each half at \+105/i);
   assert.match(s.whyNow, /full-match 1\.5 isn't posted/i);
-  assert.doesNotMatch(String(s.deep || ""), /Over 1\.5 isn't posted/);
+});
+
+test("extractWcNamedPlayerPropLegsFromQuestion — parser battery", () => {
+  const cases = [
+    {
+      q: "Son, Jimenez, and Quinones over 2.5 shots",
+      names: ["Son", "Jimenez", "Quinones"],
+      threshold: "2.5",
+    },
+    {
+      q: "Son, Jiménez and Quiñones over 2.5 shots",
+      names: ["Son", "Jiménez", "Quiñones"],
+      threshold: "2.5",
+    },
+    {
+      q: "Son and Jimenez to each have 2+ shots",
+      names: ["Son", "Jimenez"],
+      threshold: "2",
+    },
+    {
+      q: "shots for Son, Jimenez, Quinones, and Lee Kang-in over 2.5 shots",
+      names: ["Son", "Jimenez", "Quinones", "Lee Kang-in"],
+      threshold: "2.5",
+    },
+  ];
+  for (const { q, names, threshold } of cases) {
+    const legs = extractWcNamedPlayerPropLegsFromQuestion(q);
+    assert.equal(
+      legs.length,
+      names.length,
+      `expected ${names.length} legs for: ${q}`,
+    );
+    assert.deepEqual(
+      legs.map((l) => l.name),
+      names,
+      `name mismatch for: ${q}`,
+    );
+    if (threshold) {
+      assert.equal(legs[0].threshold, threshold, `threshold mismatch for: ${q}`);
+    }
+  }
 });
 
 test("buildWcNamedPlayerPropsStructured — no line is a straight pass", () => {
@@ -204,8 +258,32 @@ test("buildWcNamedPlayerPropsStructured — no line is a straight pass", () => {
     allMatches: [{ id: "22", homeTeam: "ENG", awayTeam: "CRO", status: "scheduled" }],
   });
   assert.ok(s);
-  assert.match(s.lean, /pass — no shots line for anthony gordon yet/i);
-  assert.match(s.whyNow, /no shots line for anthony gordon/i);
+  assert.match(s.lean, /no shots line posted yet for anthony gordon/i);
+  assert.match(s.whyNow, /no shots line posted yet for anthony gordon/i);
+});
+
+test("buildWcNamedPlayerPropsStructured — each-going no-line names all players", () => {
+  const q = "thoughts on Son, Jimenez, and Quinones each going over 2.5 shots attempted?";
+  const kv = {
+    matchPlayerProps: {
+      eventId: "28",
+      homeTeam: "MEX",
+      awayTeam: "KOR",
+      markets: { player_shots_ou: [], player_shots_each_half: [] },
+    },
+    wcEventId: "28",
+  };
+  const s = buildWcNamedPlayerPropsStructured(q, "verified", kv, {
+    wcEventId: "28",
+    fixtureHome: "MEX",
+    fixtureAway: "KOR",
+    allMatches: [{ id: "28", homeTeam: "MEX", awayTeam: "KOR", status: "scheduled" }],
+  });
+  assert.ok(s);
+  assert.match(s.call, /Son, Jimenez, or Quinones/i);
+  assert.doesNotMatch(s.call, /and Quinones each going/i);
+  assert.match(s.whyNow, /books usually publish closer to kickoff/i);
+  assert.match(s.edge, /Directional read/i);
 });
 
 test("resolveWcPlayerMarketResponse — with KV does not force pass", () => {

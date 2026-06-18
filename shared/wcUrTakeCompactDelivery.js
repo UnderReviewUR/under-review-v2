@@ -882,6 +882,20 @@ function buildWcCompactStructuredBody(opts = {}) {
       ? opts.structuredSeed
       : null;
 
+  if (seed?.wcNamedPlayerPropsCard && seed?.lean && seed?.call) {
+    return finalizeWcPlayerPropStructured(
+      {
+        sport: "worldcup",
+        ...seed,
+        lean: String(seed.lean).trim(),
+        call: String(seed.call).trim(),
+        whyNow: String(seed.whyNow || "").trim(),
+        edge: String(seed.edge || "").trim(),
+      },
+      question,
+    );
+  }
+
   if (seed?.callType === "group_slate" && seed?.lean && seed?.call) {
     const seedDeep = String(seed.deep || "").trim();
     const mergedDeep = capWcStructuredDeep(deep || seedDeep, 900);

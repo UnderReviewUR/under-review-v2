@@ -10,6 +10,7 @@ import { goldenBootRowsFromKv } from "./wcPlayerOddsFreshness.js";
 import {
   collapseMatchPlayerPropRowsForDisplay,
   formatFixturePropBoardRowLabel,
+  hasMatchPlayerPropRows,
   isMatchPlayerPropsFresh,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
@@ -40,6 +41,10 @@ import {
   isWcNamedPlayerPropQuestion,
   extractWcNamedPlayerPropLegsFromQuestion,
   formatWcNamedPlayerPropLegAnswer,
+  buildWcNamedPlayerPropNoLineHeadline,
+  buildWcNamedPlayerPropDataPresentNoMatchHeadline,
+  buildWcNamedPlayerPropNoLineWhyNow,
+  buildWcNamedPlayerPropNoLineEdge,
 } from "./wcUrTakePlayerMarket.js";
 import {
   findWcNamedPlayerPropLegMatch,
@@ -975,12 +980,42 @@ export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcCo
   const lead = resolved[0];
   const leadEvent = lead?.eventPayload;
   const eventId = String(leadEvent?.eventId || kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim();
+  const fixturePayload =
+    kvBlocks?.matchPlayerProps && hasMatchPlayerPropRows(kvBlocks.matchPlayerProps)
+      ? kvBlocks.matchPlayerProps
+      : leadEvent?.eventPayload && hasMatchPlayerPropRows(leadEvent.eventPayload)
+        ? leadEvent.eventPayload
+        : kvBlocks?.matchPlayerProps || leadEvent?.eventPayload || null;
+  const fixtureHasProps = hasMatchPlayerPropRows(fixturePayload);
 
   if (!priced.length) {
+    if (fixtureHasProps) {
+      console.error(
+        JSON.stringify({
+          event: "wc_props_monitoring_alert",
+          arm: "data_present_no_priced_legs",
+          wcEventId: eventId || null,
+          legCount: legs.length,
+          legNames: legs.map((l) => l.name),
+          shotRowCount: matchPlayerPropRowsFromEvent(fixturePayload, "player_shots_ou", 999).length,
+        }),
+      );
+    }
     const passCall =
       legs.length === 1
         ? formatWcNamedPlayerPropLegAnswer(resolved[0].leg, resolved[0].matchHit)
-        : buildWcPlayerPropPassHeadline(question);
+        : fixtureHasProps
+          ? buildWcNamedPlayerPropDataPresentNoMatchHeadline(legs, question, fixturePayload)
+          : buildWcNamedPlayerPropNoLineHeadline(legs, question);
+    const noLineLean =
+      legs.length === 1
+        ? passCall
+        : legs
+            .map((leg, i) => {
+              const r = resolved[i];
+              return `${i + 1}. ${formatWcNamedPlayerPropLegAnswer(leg, r?.matchHit ?? null)}`;
+            })
+            .join("\n");
     return finalizeWcPlayerPropStructured(
       {
         sport: "worldcup",
@@ -988,14 +1023,20 @@ export function buildWcNamedPlayerPropsStructured(question, tier, kvBlocks, wcCo
         playerMarketTier: tier,
         wcEventId: eventId || undefined,
         wcNamedPlayerPropsCard: true,
+        fixtureHome: wcContext?.fixtureHome
+          ? String(wcContext.fixtureHome).toUpperCase()
+          : leadEvent?.homeTeam
+            ? String(leadEvent.homeTeam).toUpperCase()
+            : undefined,
+        fixtureAway: wcContext?.fixtureAway
+          ? String(wcContext.fixtureAway).toUpperCase()
+          : leadEvent?.awayTeam
+            ? String(leadEvent.awayTeam).toUpperCase()
+            : undefined,
         call: passCall,
-        lean: leanLines.join("\n"),
-        whyNow: legs.length === 1
-          ? `No ${legs[0].marketLabel} line for ${legs[0].name} in MATCH PLAYER PROPS yet.`
-          : "Posted match player lines for these names are still syncing — re-ask closer to kickoff.",
-        edge: legs.length === 1
-          ? `Watch for ${legs[0].name} in confirmed lineups once books post match ${legs[0].marketLabel}.`
-          : "Re-ask once MATCH PLAYER PROPS populate for each fixture.",
+        lean: noLineLean,
+        whyNow: buildWcNamedPlayerPropNoLineWhyNow(legs, wcContext),
+        edge: buildWcNamedPlayerPropNoLineEdge(legs, wcContext),
         confidence: "Speculative",
         analysis: String(question || "").trim(),
       },

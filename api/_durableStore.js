@@ -171,27 +171,18 @@ async function kvGet(key) {
   }
 }
 
-async function kvSet(key, value, ttlSeconds) {
-  if (kvCircuitOpen()) {
-    throw new Error("KV circuit open");
-  }
-
-  const encodedValue = encodeURIComponent(JSON.stringify(value));
-  let endpoint = `${KV_URL.replace(/\/$/, "")}/set/${encodeURIComponent(key)}/${encodedValue}`;
-
-  if (Number.isFinite(ttlSeconds) && ttlSeconds > 0) {
-    endpoint += `?EX=${Math.floor(ttlSeconds)}`;
-  }
-
+async function kvPostCommand(args) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), KV_TIMEOUT_MS);
   let res;
   try {
-    res = await fetch(endpoint, {
-      method: "GET",
+    res = await fetch(KV_URL.replace(/\/$/, ""), {
+      method: "POST",
       headers: {
         Authorization: `Bearer ${KV_TOKEN}`,
+        "Content-Type": "application/json",
       },
+      body: JSON.stringify(args),
       signal: controller.signal,
     });
   } finally {
@@ -201,8 +192,45 @@ async function kvSet(key, value, ttlSeconds) {
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     const snippet = body.slice(0, 120).replace(/\s+/g, " ").trim();
-    tripKvCircuit("set", res.status, snippet);
-    throw new Error(`KV set failed: HTTP ${res.status}`);
+    tripKvCircuit("post", res.status, snippet);
+    const err = new Error(`KV post failed: HTTP ${res.status}`);
+    if (res.status === 431) {
+      err.code = "KV_HEADER_FIELDS_TOO_LARGE";
+      err.payloadBytes = Buffer.byteLength(JSON.stringify(args), "utf8");
+    }
+    throw err;
+  }
+
+  const payload = await res.json();
+  return payload?.result;
+}
+
+async function kvSet(key, value, ttlSeconds) {
+  if (kvCircuitOpen()) {
+    throw new Error("KV circuit open");
+  }
+
+  const serialized = JSON.stringify(value);
+  /** @type {Array<string | number>} */
+  const args = ["SET", key, serialized];
+  if (Number.isFinite(ttlSeconds) && ttlSeconds > 0) {
+    args.push("EX", Math.floor(ttlSeconds));
+  }
+
+  try {
+    await kvPostCommand(args);
+  } catch (err) {
+    if (err instanceof Error && err.code === "KV_HEADER_FIELDS_TOO_LARGE") {
+      console.error(
+        JSON.stringify({
+          event: "kv_set_431",
+          key,
+          payloadBytes: Buffer.byteLength(serialized, "utf8"),
+          transport: "post_body",
+        }),
+      );
+    }
+    throw err;
   }
 }
 
@@ -212,29 +240,15 @@ async function kvSetNx(key, value, ttlSeconds) {
     throw new Error("KV circuit open");
   }
 
-  const encodedValue = encodeURIComponent(JSON.stringify(value));
-  let endpoint = `${KV_URL.replace(/\/$/, "")}/set/${encodeURIComponent(key)}/${encodedValue}/NX`;
+  const serialized = JSON.stringify(value);
+  /** @type {Array<string | number>} */
+  const args = ["SET", key, serialized, "NX"];
   if (Number.isFinite(ttlSeconds) && ttlSeconds > 0) {
-    endpoint += `/EX/${Math.floor(ttlSeconds)}`;
+    args.splice(args.length - 1, 0, "EX", Math.floor(ttlSeconds));
   }
 
-  const res = await fetch(endpoint, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${KV_TOKEN}`,
-    },
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const snippet = body.slice(0, 120).replace(/\s+/g, " ").trim();
-    tripKvCircuit("setNx", res.status, snippet);
-    throw new Error(`KV set NX failed: HTTP ${res.status}`);
-  }
-
-  const payload = await res.json();
-  const raw = payload?.result;
-  return raw === "OK" || raw === true;
+  const result = await kvPostCommand(args);
+  return result === "OK" || result === true;
 }
 
 async function kvDel(key) {

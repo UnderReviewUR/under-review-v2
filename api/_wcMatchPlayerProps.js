@@ -72,7 +72,14 @@ export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, 
     return readWcMatchPlayerPropsForEvent(id, nowMs);
   }
   const cached = await readWcMatchPlayerPropsForEvent(id, nowMs);
+  const needsShotsRefresh =
+    meta.requireShotsRows === true &&
+    cached &&
+    hasMatchPlayerPropRows(cached) &&
+    matchPlayerPropRowsFromEvent(cached, "player_shots_ou", 1).length === 0 &&
+    matchPlayerPropRowsFromEvent(cached, "player_shots_each_half", 1).length === 0;
   if (
+    !needsShotsRefresh &&
     !wcGoatMatchPlayerPropsNeedsLiveRefresh(cached, {
       matchStatus: meta.status,
       nowMs,

@@ -182,6 +182,9 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     const historyPair = resolveWcFixturePairFromHistory(history);
     if (historyPair?.eventId) {
       wcEventId = String(historyPair.eventId).trim() || null;
+    } else if (historyPair?.home && historyPair?.away && matches.length) {
+      wcEventId =
+        resolveWcEventIdForFixtureTeams(matches, historyPair.home, historyPair.away) || null;
     }
   }
 
@@ -258,7 +261,9 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     ? extractWcNamedPlayerPropLegsFromQuestion(question)
     : [];
 
-  const loadNamedPlayerMatchProps = namedLegs.length > 0 && matches.length > 0;
+  // Pinned fixture (history / wcEventId): load that event's full prop board — not per-nation leg fan-out.
+  const loadNamedPlayerMatchProps =
+    namedLegs.length > 0 && matches.length > 0 && !wcEventId;
 
   const [players, goldenBoot, injuries, matchPlayerProps, matchPlayerPropsByEvent] = await Promise.all([
     readWcPlayersFromKv(),
@@ -270,7 +275,11 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
             const m = matches.find((row) => String(row?.id) === String(wcEventId));
             const live = await refreshWcGoatMatchPlayerPropsIfNeeded(
               wcEventId,
-              { ...fixtureTeams, ...wcMatchMetaFromRow(m) },
+              {
+                ...fixtureTeams,
+                ...wcMatchMetaFromRow(m),
+                requireShotsRows: isWcShotsPropQuestion(question),
+              },
               nowMs,
             );
             if (live) return live;
@@ -359,7 +368,28 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
     : [];
 
   if (namedLegs.length) {
+    /** @type {Array<Record<string, unknown>>} */
+    const propPayloads = [];
+    if (kvBlocks?.matchPlayerProps) propPayloads.push(kvBlocks.matchPlayerProps);
     const byEvent = kvBlocks?.matchPlayerPropsByEvent;
+    if (byEvent && typeof byEvent === "object") {
+      for (const payload of Object.values(byEvent)) {
+        if (payload && typeof payload === "object") propPayloads.push(payload);
+      }
+    }
+    for (const payload of propPayloads) {
+      if (!hasMatchPlayerPropRows(payload)) continue;
+      if (isWcShotsPropQuestion(question)) {
+        const shotRows =
+          matchPlayerPropRowsFromEvent(payload, "player_shots_ou", 1).length +
+          matchPlayerPropRowsFromEvent(payload, "player_sot_ou", 1).length +
+          matchPlayerPropRowsFromEvent(payload, "player_shots_each_half", 1).length;
+        if (shotRows >= 1) return true;
+      } else {
+        return true;
+      }
+    }
+
     if (byEvent && typeof byEvent === "object") {
       for (const payload of Object.values(byEvent)) {
         if (!hasMatchPlayerPropRows(payload)) continue;
@@ -500,6 +530,8 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
   }
 
   const loadMs = Date.now() - start;
+  const rejectedWithData =
+    last?.matchPlayerProps && hasMatchPlayerPropRows(last.matchPlayerProps);
   console.error(
     JSON.stringify({
       event: "wc_player_props_kv_failed",
@@ -507,8 +539,21 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
       attempts: maxRetries + 1,
       loadMs,
       error: lastError?.message || "no_usable_rows",
+      rejectedWithData: Boolean(rejectedWithData),
     }),
   );
+  if (rejectedWithData) {
+    console.error(
+      JSON.stringify({
+        event: "wc_props_monitoring_alert",
+        arm: "kv_usability_rejected_with_data",
+        wcEventId: eventIdHint || last?.wcEventId || null,
+        loadMs,
+        shotRowCount: matchPlayerPropRowsFromEvent(last.matchPlayerProps, "player_shots_ou", 999)
+          .length,
+      }),
+    );
+  }
   return {
     ...(last || {
       players: null,
