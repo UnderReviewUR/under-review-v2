@@ -36,13 +36,18 @@ const stressOk = runStep(
   process.execPath,
   ["scripts/stress-wc-phases-offline.mjs"],
 );
+const propsContractOk = runStep(
+  "contract:wc-props-routing",
+  process.execPath,
+  ["scripts/wc-props-routing-contract.mjs"],
+);
 const auditOk = runStep(
   "audit:wc-card-contract",
   process.execPath,
   ["scripts/run-wc-card-contract-gate.mjs"],
 );
 
-const allOk = stressOk && auditOk;
+const allOk = stressOk && propsContractOk && auditOk;
 lines.push(allOk ? "OVERALL: PASS — safe to push branch for CI / review" : "OVERALL: FAIL — do not merge");
 lines.push("");
 lines.push("Note: offline checks cover deterministic prebuilt paths only, not live LLM copy.");

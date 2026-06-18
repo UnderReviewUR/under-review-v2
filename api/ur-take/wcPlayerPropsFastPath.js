@@ -51,6 +51,7 @@ import {
   applyWcGroundingCardToStructured,
   buildWcGroundingPacketForUrTake,
 } from "../_wcGroundingUrTake.js";
+import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
 
 /**
  * @param {string} wcIntent
@@ -167,7 +168,13 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
 
   const history = normalizedUrTakeHistoryForGate || [];
   const routingQ = String(routingQuestion || question || "").trim();
-  if (!shouldRunWcPlayerPropsFastPath(wcIntent, routingQ, history, isConversationFollowUp, hasImage)) {
+  const wcPropsRoute = wcContext?.wcPropsRoute || null;
+
+  if (wcPropsRoute?.applyRoute) {
+    // V2 unified route — proceed even when legacy fixture resolvers return [].
+  } else if (
+    !shouldRunWcPlayerPropsFastPath(wcIntent, routingQ, history, isConversationFollowUp, hasImage)
+  ) {
     return { handled: false };
   }
 
@@ -177,17 +184,46 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   });
   const historyPair = resolveWcFixturePairFromHistory(history);
   const namedPlayerPropsAsk = isWcNamedPlayerPropQuestion(routingQ);
-  if (fixtureTeams.length < 2 && !historyPair?.home && !namedPlayerPropsAsk) {
+  if (
+    !wcPropsRoute?.applyRoute &&
+    fixtureTeams.length < 2 &&
+    !historyPair?.home &&
+    !namedPlayerPropsAsk
+  ) {
     return { handled: false };
   }
 
   const matches = await resolveWcMatchesForPlayerProps(wcContext);
   let wcEventId =
-    String(wcContext?.wcEventId || wcRelevanceLog?.wcEventId || historyPair?.eventId || "").trim() ||
-    null;
+    String(
+      wcPropsRoute?.wcEventId ||
+        wcContext?.wcEventId ||
+        wcRelevanceLog?.wcEventId ||
+        historyPair?.eventId ||
+        "",
+    ).trim() || null;
   if (!wcEventId && fixtureTeams.length >= 2) {
     wcEventId = resolveWcEventIdForFixtureTeams(matches, fixtureTeams[0], fixtureTeams[1]);
   }
+  if (
+    !wcEventId &&
+    wcPropsRoute?.applyRoute &&
+    historyPair?.home &&
+    historyPair?.away
+  ) {
+    wcEventId = resolveWcEventIdForFixtureTeams(matches, historyPair.home, historyPair.away);
+  }
+
+  wcRelevanceLog.wcPropsLoadMatchProps = Boolean(wcPropsRoute?.loadMatchProps);
+  if (wcPropsRoute?.applyRoute) {
+    wcRelevanceLog.wcPropsKvLoadAttempted = true;
+  }
+
+  const kvRequiredEntities = wcPropsRoute?.applyRoute
+    ? [wcPropsRoute.fixtureHome, wcPropsRoute.fixtureAway].filter(Boolean)
+    : fixtureTeams.length >= 2
+      ? fixtureTeams
+      : wcRequiredEntities;
 
   const kvBlocks = await loadWcPlayerMarketKvBlocksWithRetry(
     Date.now(),
@@ -197,7 +233,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       question: routingQ,
       matches,
       conversationHistory: history,
-      requiredEntities: fixtureTeams.length >= 2 ? fixtureTeams : wcRequiredEntities,
+      requiredEntities: kvRequiredEntities,
     },
     { maxRetries: 2, backoffMs: 400 },
   );
@@ -210,9 +246,20 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     failed: false,
   };
   const resolvedEventId = String(kvBlocks.wcEventId || wcEventId || "").trim() || null;
+  wcRelevanceLog.wcPropsMarketTypesLoaded = countWcMatchPlayerPropMarkets(
+    kvBlocks.matchPlayerProps,
+  );
   const pinned = {
-    home: fixtureTeams[0] || historyPair?.home || "",
-    away: fixtureTeams[1] || historyPair?.away || "",
+    home:
+      wcPropsRoute?.fixtureHome ||
+      fixtureTeams[0] ||
+      historyPair?.home ||
+      "",
+    away:
+      wcPropsRoute?.fixtureAway ||
+      fixtureTeams[1] ||
+      historyPair?.away ||
+      "",
     eventId: resolvedEventId,
   };
 
@@ -229,11 +276,21 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     hasImage,
   });
 
+  const routePinnedTeams =
+    wcPropsRoute?.applyRoute && wcPropsRoute.fixtureHome && wcPropsRoute.fixtureAway
+      ? [String(wcPropsRoute.fixtureHome).toUpperCase(), String(wcPropsRoute.fixtureAway).toUpperCase()]
+      : [];
+
   const syntheticContext = {
     ...(wcContext || {}),
     wcEventId: resolvedEventId,
     conversationHistory: history,
-    requiredEntities: fixtureTeams.length >= 2 ? fixtureTeams : wcRequiredEntities,
+    requiredEntities:
+      routePinnedTeams.length >= 2
+        ? routePinnedTeams
+        : fixtureTeams.length >= 2
+          ? fixtureTeams
+          : wcRequiredEntities,
     playerMarketKv: kvBlocks,
   };
 
@@ -324,8 +381,10 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   if (!structuredResponse) {
     const hasEvent = Boolean(resolvedEventId);
     const genericPropsAsk =
+      wcPropsRoute?.applyRoute ||
       isGenericWcPlayerPropQuestion(routingQ) ||
-      isWcPerTeamPlayerPropsQuestion(routingQ);
+      isWcPerTeamPlayerPropsQuestion(routingQ) ||
+      (detectParlayIntent(routingQ) && /\bplayers?\s+props?\b/i.test(routingQ));
     if (hasEvent && (genericPropsAsk || namedPlayerPropsAsk || !loadMeta.failed)) {
       structuredResponse = buildWcPlayerPropsLoadingStructured(
         String(question || ""),
@@ -380,9 +439,15 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   wcRelevanceLog.playerMarketTier = tier;
   wcRelevanceLog.wcEventId = resolvedEventId;
 
+  const v2PlayerPropsDelivered =
+    wcPropsRoute?.applyRoute &&
+    passKind !== "player_props_loading" &&
+    passKind !== "player_prop_explain";
+  const deliveryIntent = v2PlayerPropsDelivered ? WC_INTENT.PLAYER_PROP : wcIntent;
+
   structuredResponse = buildWcCompactStructured({
     question: String(question || ""),
-    wcIntent,
+    wcIntent: deliveryIntent,
     summary: responseText,
     deep: null,
     playerMarketTier: tier,
@@ -397,13 +462,13 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     structuredResponse = finalizeWcStructuredThreadState(
       structuredResponse,
       history,
-      wcIntent === WC_INTENT.PARLAY ? WC_INTENT.PARLAY : wcIntent,
+      deliveryIntent,
     );
     structuredResponse = normalizeWcStructuredForDelivery(
       structuredResponse,
-      wcIntent === WC_INTENT.PARLAY ? WC_INTENT.PARLAY : wcIntent,
+      deliveryIntent,
       String(question || ""),
-      wcRequiredEntities,
+      routePinnedTeams.length >= 2 ? routePinnedTeams : wcRequiredEntities,
     );
     structuredResponse = applyWcGroundingCardToStructured(
       structuredResponse,
@@ -455,6 +520,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     ...(wcContext?.dataConfidence ? { dataConfidence: wcContext.dataConfidence } : {}),
     playerMarketTier: tier,
     wcGroundingPacketVersion: wcGroundingPacket?.version || null,
+    ...(wcPropsRoute?.applyRoute ? { wcRelevance: wcRelevanceLog } : {}),
   };
 
   console.log(

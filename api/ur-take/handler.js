@@ -132,6 +132,7 @@ import {
   buildWcPlayerMarketGroundingPromptBlock,
   shouldSkipWcPlayerPropsFastPathForShape,
 } from "../../shared/wcGroundingShapeRoute.js";
+import { routeWcPropsTurn, countWcMatchPlayerPropMarkets, isWcPropsRouteV2Enabled } from "../../shared/wcPropsRouteTurn.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
@@ -3337,32 +3338,72 @@ export default async function handler(req, res) {
     if (sportHint === "worldcup" && wcContext && typeof wcContext === "object") {
       if (wcRequiredEntities.length) wcContext.requiredEntities = wcRequiredEntities;
       wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
-      if (
-        isWcPlayerMarketIntent(wcIntent) &&
+
+      const wcPropsRouteHeader = String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim();
+      const v2Enabled = isWcPropsRouteV2Enabled({ routeHeader: wcPropsRouteHeader });
+      /** @type {import("../../shared/wcPropsRouteTurn.js").ReturnType<typeof routeWcPropsTurn> | null} */
+      let wcPropsRoute = null;
+      if (v2Enabled) {
+        wcPropsRoute = routeWcPropsTurn({
+          question: routingQuestion,
+          history: normalizedUrTakeHistoryForGate,
+          matches: wcContext.allMatches || [],
+          incomingWcEventId: wcEventIdTrimmed,
+          hasImage,
+          wcIntent,
+          routeHeader: wcPropsRouteHeader,
+        });
+        wcContext.wcPropsRoute = wcPropsRoute;
+        wcRelevanceLog.wcPropsRouteV2 = true;
+        wcRelevanceLog.wcPropsApplyRoute = wcPropsRoute.applyRoute;
+        wcRelevanceLog.wcPropsLoadMatchProps = wcPropsRoute.loadMatchProps;
+        wcRelevanceLog.wcPropsPinMethod = wcPropsRoute.pinMethod;
+        if (wcPropsRoute.applyRoute && wcPropsRoute.wcEventId) {
+          wcContext.wcEventId = wcPropsRoute.wcEventId;
+          wcRelevanceLog.wcEventId = wcPropsRoute.wcEventId;
+        }
+      }
+
+      const shouldSupplementPlayerKv =
         !hasImage &&
         !wcContext?.playerMarketKv?.matchPlayerProps &&
-        (wcRequiredEntities.length >= 2 ||
-          isWcNamedPlayerPropQuestion(routingQuestion) ||
-          (wcIntent === WC_INTENT.PLAYER_PROP &&
-            extractWcNamedPlayerFromQuestion(routingQuestion)))
-      ) {
+        (wcPropsRoute?.applyRoute ||
+          (isWcPlayerMarketIntent(wcIntent) &&
+            (wcRequiredEntities.length >= 2 ||
+              isWcNamedPlayerPropQuestion(routingQuestion) ||
+              (wcIntent === WC_INTENT.PLAYER_PROP &&
+                extractWcNamedPlayerFromQuestion(routingQuestion)))));
+
+      if (shouldSupplementPlayerKv) {
         try {
           const playerEventId = String(
-            wcContext.wcEventId || wcEventIdTrimmed || "",
+            wcPropsRoute.wcEventId ||
+              wcContext.wcEventId ||
+              wcEventIdTrimmed ||
+              "",
           ).trim();
+          const kvWcIntent = wcPropsRoute.applyRoute
+            ? WC_INTENT.PLAYER_PROP
+            : wcIntent;
           const playerMarketKv = await loadWcPlayerMarketKvBlocksWithRetry(
             Date.now(),
             {
               wcEventId: playerEventId || null,
-              wcIntent,
+              wcIntent: kvWcIntent,
               question: routingQuestion,
               matches: wcContext.allMatches || [],
               conversationHistory: normalizedUrTakeHistoryForGate,
-              requiredEntities: wcRequiredEntities,
+              requiredEntities: wcPropsRoute.applyRoute
+                ? [wcPropsRoute.fixtureHome, wcPropsRoute.fixtureAway].filter(Boolean)
+                : wcRequiredEntities,
             },
             { maxRetries: 3, backoffMs: 600, timeoutMs: 6500 },
           );
           const playerEventIdResolved = playerMarketKv.wcEventId || playerEventId || null;
+          wcRelevanceLog.wcPropsMarketTypesLoaded = countWcMatchPlayerPropMarkets(
+            playerMarketKv.matchPlayerProps,
+          );
+          wcRelevanceLog.wcPropsKvLoadAttempted = true;
           wcContext.wcEventId = playerEventIdResolved;
           wcContext.playerMarketKv = {
             ...playerMarketKv,

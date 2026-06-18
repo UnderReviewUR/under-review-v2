@@ -1,6 +1,8 @@
 /**
  * Discover and run all app *.test.js files (replaces the manual list in package.json).
  * Excludes vendored openf1/ and node_modules.
+ *
+ * WC props contract runs FIRST so it is never skipped by unrelated unit failures.
  */
 import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
@@ -8,6 +10,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+console.error("[test] Running WC props routing contract (Phase 1.5) — first");
+const contract = spawnSync(process.execPath, ["scripts/wc-props-routing-contract.mjs"], {
+  cwd: root,
+  stdio: "inherit",
+  env: process.env,
+});
+const contractExit = contract.status === null ? 1 : contract.status;
+if (contractExit !== 0) {
+  process.exit(contractExit);
+}
 
 const files = globSync("**/*.test.js", {
   cwd: root,
