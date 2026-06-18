@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  deriveWcMatchProbabilityLean,
   extractWcPlayerParlayRankCount,
   isWcLiveMatchProbabilityQuestion,
+  isWcMatchProbabilityLeanDrift,
   isWcMatchProbabilityQuestion,
   isWcPlayerParlaySlateQuestion,
 } from "./wcMatchProbabilityQuestion.js";
 import { classifyWcQuestionIntent, WC_INTENT } from "./wcUrTakeIntent.js";
 import { shouldUseWcFixtureMatchupPrebuilt } from "./wcFixtureMatchupPrebuilt.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
+import { normalizeWcStructuredForDelivery } from "./wcUrTakeStructured.js";
+import { isWcValidPlayLine } from "./wcPlayLineQA.js";
+import { scoreWcCardContractVoice } from "./wcCardContractVoice.js";
 
 test("detectParlayIntent — plural parlays", () => {
   assert.equal(detectParlayIntent("what are the best player parlays today"), true);
@@ -72,4 +77,51 @@ test("isWcMatchProbabilityQuestion — draw chance follow-ups", () => {
 test("classifyWcQuestionIntent — named player prop beats matchup", () => {
   assert.equal(classifyWcQuestionIntent("best player prop for CIV vs ECU"), WC_INTENT.PLAYER_PROP);
   assert.equal(classifyWcQuestionIntent("Will Jimenez score vs Canada?"), WC_INTENT.PLAYER_PROP);
+});
+
+test("deriveWcMatchProbabilityLean — prefers line with draw signal over matchup boilerplate", () => {
+  const q = "% chance it ends in a draw?";
+  assert.ok(isWcMatchProbabilityLeanDrift("Pass on ML — lean both teams to advance in group stage.", q));
+  const lean = deriveWcMatchProbabilityLean({
+    question: q,
+    call: "Match is final.",
+    line: "GHA won 1-0 at 90' — no draw possible now.",
+    whyNow: "Match is final. GHA won 1-0 at 90'.",
+  });
+  assert.match(lean, /no draw possible/i);
+  assert.ok(isWcValidPlayLine(lean));
+});
+
+test("normalizeWcStructuredForDelivery repairs drifted draw-% lean", () => {
+  const q = "% chance it ends in a draw?";
+  const out = normalizeWcStructuredForDelivery(
+    {
+      callType: "matchup",
+      call: "Match is final.",
+      line: "GHA won 1-0 at 90' — no draw possible now.",
+      lean: "Pass on ML — lean both teams to advance in group stage.",
+      whyNow: "Match is final. GHA won 1-0 at 90' — no draw possible now.",
+      edge: "Watch for lineup news and confirmed paths before locking the bet.",
+    },
+    WC_INTENT.MATCHUP,
+    q,
+  );
+  assert.doesNotMatch(String(out.lean), /both teams to advance/i);
+  assert.match(String(out.lean), /no draw possible/i);
+});
+
+test("scoreWcCardContractVoice flags wc_probability_lean_mismatch before repair", () => {
+  const q = "% chance it ends in a draw?";
+  const bad = scoreWcCardContractVoice(
+    {
+      call: "Match is final.",
+      line: "GHA won 1-0 at 90' — no draw possible now.",
+      lean: "Pass on ML — lean both teams to advance in group stage.",
+      whyNow: "Match is final.",
+      edge: "Watch for lineup news and confirmed paths before locking the bet.",
+      callType: "matchup",
+    },
+    { wcIntent: WC_INTENT.MATCHUP, question: q },
+  );
+  assert.ok(bad.issues.includes("wc_probability_lean_mismatch"));
 });

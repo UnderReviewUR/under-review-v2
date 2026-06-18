@@ -16,15 +16,42 @@ import {
 } from "./wcAdvancementMarket.js";
 import { ensureWcCardFaceNumericWhy } from "./wcTakeRetentionQA.js";
 import { repairWcGroupSlateStructuredLine } from "./wcGroupComposition.js";
+import {
+  deriveWcMatchProbabilityLean,
+  isWcMatchProbabilityLeanDrift,
+  isWcMatchProbabilityQuestion,
+  wcMatchProbabilityAnswerFieldsHaveSignal,
+} from "./wcMatchProbabilityQuestion.js";
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value)\b/i;
 
 /**
+ * Align THE PLAY with probability answers when Claude filled call/line/whyNow only.
  * @param {object} out
- * @param {string} intent
  * @param {string} question
  */
+export function repairWcMatchProbabilityLean(out, question = "") {
+  if (!out || typeof out !== "object") return out;
+  const q = String(question || "").trim();
+  if (!q || !isWcMatchProbabilityQuestion(q)) return out;
+
+  const lean = String(out.lean || "").trim();
+  if (!isWcMatchProbabilityLeanDrift(lean, q)) return out;
+
+  const fields = {
+    call: out.call,
+    line: out.line,
+    whyNow: out.whyNow,
+    question: q,
+  };
+  if (!wcMatchProbabilityAnswerFieldsHaveSignal(fields)) return out;
+
+  const repaired = deriveWcMatchProbabilityLean(fields);
+  if (repaired) out.lean = repaired;
+  return out;
+}
+
 function finishWcStructuredForDelivery(out, intent, question) {
   const keepExpanded = Boolean(out.breakdownDefaultExpanded);
   const repaired = repairWcGroupSlateStructuredLine(out);
@@ -80,6 +107,7 @@ export function normalizeWcStructuredForDelivery(
     if (FAIR_PRICE_RE.test(`${out.lean} ${out.whyNow}`)) {
       out.edge = out.edge || "Structural paths — no single knockout winner pick in group stage.";
     }
+    repairWcMatchProbabilityLean(out, question);
     return finishWcStructuredForDelivery(out, intent, question);
   }
 

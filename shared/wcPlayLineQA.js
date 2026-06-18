@@ -17,7 +17,7 @@ const INVALID_PLAY_PATTERNS = [
 ];
 
 const PLAY_ANCHOR_RE =
-  /[+-]\d{2,}|\+\d{3,}|\bgolden boot\b|\bboot\b|\boutright\b|\bto advance\b|\bgroup [a-l]\b|\bover\s+\d+(?:\.\d+)?\b/i;
+  /[+-]\d{2,}|\+\d{3,}|\d+(?:\.\d+)?%|\bno draw\b|\bgolden boot\b|\bboot\b|\boutright\b|\bto advance\b|\bgroup [a-l]\b|\bover\s+\d+(?:\.\d+)?\b/i;
 
 const NATION_OR_PLAYER_RE =
   /\b(Spain|France|Brazil|Argentina|England|Germany|Portugal|Colombia|Norway|Morocco|USA|Mexico|Canada|Mbappé|Mbappe|Yamal|Haaland|Kane|Vinícius|Vinicius|Salah|Messi|Rodrygo|Endrick|Griezmann|Musiala|Lewandowski|Díaz|Pedri|Gavi|Saka|Foden|De Bruyne|Ronaldo|Martínez|Martinez)\b/i;

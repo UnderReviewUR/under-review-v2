@@ -17,6 +17,10 @@ import {
 } from "./wcSentenceBoundaries.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcValidPlayLine } from "./wcPlayLineQA.js";
+import {
+  isWcMatchProbabilityLeanDrift,
+  isWcMatchProbabilityQuestion,
+} from "./wcMatchProbabilityQuestion.js";
 
 /** @typedef {"HAS_EDGE"|"FAIR_PRICE"|"PASS"|"RULES"|"GENERAL"} WcCardVoiceVerdict} */
 
@@ -186,11 +190,12 @@ export function scoreWcCardSentenceCompleteness(structured, opts = {}) {
 
 /**
  * @param {Record<string, unknown> | null | undefined} structured
- * @param {{ callType?: string, wcIntent?: string }} [opts]
+ * @param {{ callType?: string, wcIntent?: string, question?: string }} [opts]
  */
 export function scoreWcCardContractVoice(structured, opts = {}) {
   const callType = String(structured?.callType || opts.callType || "").toLowerCase();
   const wcIntent = String(opts.wcIntent || "");
+  const question = String(opts.question || "");
   const isRoundup =
     callType === "predictions_roundup" || wcIntent === WC_INTENT.PREDICTIONS_ROUNDUP;
   const call = String(structured?.call || "").trim();
@@ -212,6 +217,13 @@ export function scoreWcCardContractVoice(structured, opts = {}) {
   }
   if (lean && call && wcCardPlayRestatesCall(lean, call)) {
     issues.push("wc_card_play_restates_call");
+  }
+  if (
+    question &&
+    isWcMatchProbabilityQuestion(question) &&
+    isWcMatchProbabilityLeanDrift(lean, question)
+  ) {
+    issues.push("wc_probability_lean_mismatch");
   }
   if (lean && !isWcValidPlayLine(lean)) {
     issues.push("wc_play_line_invalid");

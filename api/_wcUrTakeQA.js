@@ -412,6 +412,7 @@ export function runWcUrTakeQA(opts = {}) {
     const voice = scoreWcCardContractVoice(structured, {
       callType: structured.callType,
       wcIntent,
+      question: routingQuestion,
     });
     if (!voice.passed) {
       issueCodes.push(...voice.issues);
@@ -533,6 +534,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_cross_sport_golfer_bleed",
       "wc_card_missing_watch_for",
       "wc_card_play_restates_call",
+      "wc_probability_lean_mismatch",
       "wc_card_headline_announces",
       "wc_card_missing_delta",
       "headline_over_18_words",

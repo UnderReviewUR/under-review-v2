@@ -125,3 +125,97 @@ export function extractWcPlayerParlayRankCount(question) {
   if (!Number.isFinite(n)) return null;
   return Math.min(8, Math.max(1, n));
 }
+
+const MATCHUP_LEAN_DRIFT_RE =
+  /\b(pass on ml|both teams to advance|lean both teams|moneyline best bet)\b/i;
+
+const TOTALS_LEAN_WITHOUT_DRAW_RE = /\b(under|over)\s+\d+(?:\.\d+)?\s*goals?\b/i;
+
+const PROBABILITY_ANSWER_SIGNAL_RE =
+  /\b(draw|%\s*chance|percent|probability|implied|odds imply|no draw|0%|~\d+(?:\.\d+)?%|\d+(?:\.\d+)?%\s*(?:chance|implied|probability)|chance of a draw)\b/i;
+
+/** @param {string} text */
+function scoreProbabilityAnswerSentence(text) {
+  const t = String(text || "").trim();
+  if (!t) return 0;
+  let score = 0;
+  if (/\d+(?:\.\d+)?%/.test(t)) score += 4;
+  if (/\bdraw\b/i.test(t)) score += 3;
+  if (/\bimplied|probability|chance|odds\b/i.test(t)) score += 2;
+  if (/\bfinal|live|0-0|\d+\s*[-–]\s*\d+/.test(t)) score += 1;
+  return score;
+}
+
+/**
+ * True when lean still carries matchup boilerplate instead of a probability read.
+ * @param {string} lean
+ * @param {string} question
+ */
+export function isWcMatchProbabilityLeanDrift(lean, question) {
+  const l = String(lean || "").trim();
+  if (!isWcMatchProbabilityQuestion(question)) return false;
+  if (!l) return true;
+  if (MATCHUP_LEAN_DRIFT_RE.test(l)) return true;
+
+  const asksDraw = DRAW_PROBABILITY_RE.test(question) || /\bdraw\b/i.test(question);
+  if (asksDraw) {
+    if (TOTALS_LEAN_WITHOUT_DRAW_RE.test(l) && !/\bdraw\b/i.test(l)) return true;
+    if (!PROBABILITY_ANSWER_SIGNAL_RE.test(l)) return true;
+    return false;
+  }
+
+  if (PROBABILITY_ANSWER_SIGNAL_RE.test(l) && !MATCHUP_LEAN_DRIFT_RE.test(l)) return false;
+  if (TOTALS_LEAN_WITHOUT_DRAW_RE.test(l) && !PROBABILITY_ANSWER_SIGNAL_RE.test(l)) return true;
+  return !PROBABILITY_ANSWER_SIGNAL_RE.test(l);
+}
+
+/**
+ * @param {{ call?: string, line?: string, whyNow?: string }} fields
+ */
+export function wcMatchProbabilityAnswerFieldsHaveSignal(fields = {}) {
+  return PROBABILITY_ANSWER_SIGNAL_RE.test(
+    `${fields.call || ""} ${fields.line || ""} ${fields.whyNow || ""}`,
+  );
+}
+
+/**
+ * @param {string} text
+ */
+function formatWcMatchProbabilityLean(text) {
+  const t = String(text || "").replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  const lean = /^lean:/i.test(t) ? t : `Lean: ${t.replace(/^lean:\s*/i, "")}`;
+  return lean.length > 500 ? `${lean.slice(0, 497)}...` : lean;
+}
+
+/**
+ * Derive THE PLAY from probability fields when Claude answered in call/line/whyNow only.
+ * @param {{ call?: string, line?: string, whyNow?: string, question?: string }} opts
+ */
+export function deriveWcMatchProbabilityLean(opts = {}) {
+  const question = String(opts.question || "");
+  const call = String(opts.call || "").trim();
+  const line = String(opts.line || "").trim();
+  const whyNow = String(opts.whyNow || "").trim();
+  const sentences = whyNow.match(/[^.!?]+[.!?]+/g) || [];
+  const candidates = [line, call, ...sentences.map((s) => s.trim())].filter(Boolean);
+  const ranked = [...new Set(candidates)].sort(
+    (a, b) => scoreProbabilityAnswerSentence(b) - scoreProbabilityAnswerSentence(a),
+  );
+  const best = ranked[0];
+  if (!best || scoreProbabilityAnswerSentence(best) === 0) {
+    const combo = [call, line].filter(Boolean).join(" — ");
+    return PROBABILITY_ANSWER_SIGNAL_RE.test(combo) ? formatWcMatchProbabilityLean(combo) : "";
+  }
+
+  const asksDraw = DRAW_PROBABILITY_RE.test(question) || /\bdraw\b/i.test(question);
+  if (asksDraw) {
+    const drawHit =
+      ranked.find((s) => /\bdraw\b/i.test(s) && /\d|%|implied|no draw|0%|impossible/i.test(s)) ||
+      ranked.find((s) => /\bdraw\b/i.test(s)) ||
+      best;
+    return formatWcMatchProbabilityLean(drawHit);
+  }
+
+  return formatWcMatchProbabilityLean(best);
+}
