@@ -3465,6 +3465,7 @@ export default async function handler(req, res) {
       wcFixtureAltFollowUpPrebuiltEarly,
       wcLiveBetTimingPrebuiltEarly,
       wcLiveInPlayBetsPrebuiltEarly,
+      wcLiveMatchWinnerPrebuiltEarly,
       wcRunnerUpFollowUpQuestion,
       isConversationFollowUp,
       normalizedUrTakeHistoryForGate,

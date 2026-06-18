@@ -62,6 +62,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     wcFixtureAltFollowUpPrebuiltEarly,
     wcLiveBetTimingPrebuiltEarly,
     wcLiveInPlayBetsPrebuiltEarly,
+    wcLiveMatchWinnerPrebuiltEarly,
     wcRunnerUpFollowUpQuestion,
     isConversationFollowUp,
     normalizedUrTakeHistoryForGate,
