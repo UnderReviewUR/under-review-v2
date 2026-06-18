@@ -856,6 +856,11 @@ function finalizeWcCompactExplainDelivery(built, opts = {}) {
   if (seed?.breakdownDefaultExpanded) {
     out.breakdownDefaultExpanded = true;
   }
+  if (seed) {
+    for (const key of ["namedLegCitation", "playerName", "legId", "namedLegNote"]) {
+      if (seed[key] != null) out[key] = seed[key];
+    }
+  }
   if (Array.isArray(opts.history) && opts.history.length > 0) {
     out = applyWcFollowUpExplainDelivery(out, String(opts.question || ""), opts.history);
   }

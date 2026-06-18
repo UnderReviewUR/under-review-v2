@@ -8,6 +8,7 @@ import {
   buildWcNamedPlayerPropsStructured,
 } from "../shared/wcPlayerMarketResolve.js";
 import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
+import { applyWcNamedLegOutputContract } from "../shared/wcNamedLegOutputContract.js";
 import { formatStructuredResponseAsUrTakeProse } from "./ur-take/wc/rulesDelivery.js";
 
 /** @typedef {import("../shared/wcGroundingPacket.types.js").WcGroundingPacket} WcGroundingPacket */
@@ -260,6 +261,24 @@ export function buildWcGroundingDeterministicFallback(params) {
 }
 
 /**
+ * Strip invalid legIds and attach named-leg output contract when applicable.
+ * @param {Record<string, unknown>} structured
+ * @param {WcGroundingPacket} packet
+ * @param {object} opts
+ */
+function finalizeCitationGateStructured(structured, packet, opts = {}) {
+  const allowedLegIds = packet.views.validation.allowedLegIds;
+  let out = stripUnvalidatedLegIdsFromStructured(structured, allowedLegIds);
+  if (packet.ask?.shape === "named_legs") {
+    out = applyWcNamedLegOutputContract(out, packet, {
+      citedLegIds: opts.citedLegIds || [],
+      question: opts.question || "",
+    });
+  }
+  return out;
+}
+
+/**
  * @param {object} params
  * @returns {Promise<{ structured: Record<string, unknown> | null, responseText: string | null, log: Record<string, unknown> }>}
  */
@@ -300,11 +319,12 @@ export async function enforceWcGroundingCitationGate(params) {
 
   if (assessment.pass) {
     log.outcome = "pass";
+    const finalized = finalizeCitationGateStructured(currentStructured, packet, {
+      citedLegIds: assessment.citedLegIds,
+      question: String(question || ""),
+    });
     return {
-      structured: stripUnvalidatedLegIdsFromStructured(
-        currentStructured,
-        packet.views.validation.allowedLegIds,
-      ),
+      structured: finalized,
       responseText: currentText,
       log,
     };
@@ -328,11 +348,12 @@ export async function enforceWcGroundingCitationGate(params) {
       log.retry = assessment;
       if (assessment.pass) {
         log.outcome = "pass_after_retry";
+        const finalized = finalizeCitationGateStructured(currentStructured, packet, {
+          citedLegIds: assessment.citedLegIds,
+          question: String(question || ""),
+        });
         return {
-          structured: stripUnvalidatedLegIdsFromStructured(
-            currentStructured,
-            packet.views.validation.allowedLegIds,
-          ),
+          structured: finalized,
           responseText: currentText,
           log,
         };
@@ -359,20 +380,25 @@ export async function enforceWcGroundingCitationGate(params) {
   if (fallback) {
     log.outcome = "deterministic_fallback";
     log.fallbackReason = fallback.wcCitationGateReason;
-    const fallbackText = formatStructuredResponseAsUrTakeProse(fallback);
+    const withContract = finalizeCitationGateStructured(fallback, packet, {
+      citedLegIds: extractCitedLegIdsFromWcPropsResponse(fallback),
+      question: String(question || ""),
+    });
+    const fallbackText = formatStructuredResponseAsUrTakeProse(withContract);
     return {
-      structured: fallback,
+      structured: withContract,
       responseText: fallbackText,
       log,
     };
   }
 
   log.outcome = "sanitized_claude";
+  const sanitized = finalizeCitationGateStructured(currentStructured, packet, {
+    citedLegIds: assessment.citedLegIds,
+    question: String(question || ""),
+  });
   return {
-    structured: stripUnvalidatedLegIdsFromStructured(
-      currentStructured,
-      packet.views.validation.allowedLegIds,
-    ),
+    structured: sanitized,
     responseText: currentText,
     log,
   };

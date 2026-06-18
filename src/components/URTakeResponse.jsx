@@ -114,6 +114,7 @@ export default function URTakeResponse({
   groundingVisible = false,
   groundingPinBanner = null,
   groundingInventoryStrip = null,
+  namedLegCitation = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -447,6 +448,7 @@ export default function URTakeResponse({
         groundingVisible={groundingVisible}
         groundingPinBanner={groundingPinBanner}
         groundingInventoryStrip={groundingInventoryStrip}
+        namedLegCitation={namedLegCitation}
         breakdownDefaultExpanded={
           focusLayout &&
           wcFace.breakdownAvailable &&

@@ -240,5 +240,9 @@ test("Gordon named_legs — wrong legId fails binding and uses deterministic fal
   assert.equal(retryCount, 1);
   assert.equal(result.log.outcome, "deterministic_fallback");
   assert.equal(result.structured?.wcCitationGateFallback, true);
-  assert.match(String(result.structured?.lean || ""), /Gordon|over|pass/i);
+  assert.match(String(result.structured?.playerName || ""), /Gordon/i);
+  assert.ok(result.structured?.legId);
+  assert.match(String(result.structured?.legId || ""), /gordon/i);
+  assert.ok(result.structured?.namedLegCitation?.legId);
+  assert.match(String(result.structured?.call || ""), /Gordon/i);
 });

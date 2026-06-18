@@ -6,6 +6,7 @@ import { extractWcMatchupPlayHeadline } from "../../shared/wcMatchupWinnerLine.j
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, pickWcBreakdownLabel, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 import WcGroundingStrip from "./WcGroundingStrip.jsx";
+import WcNamedLegCitationStrip from "./WcNamedLegCitationStrip.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
@@ -83,6 +84,7 @@ export default function WcTakeCard({
   groundingVisible = false,
   groundingPinBanner = null,
   groundingInventoryStrip = null,
+  namedLegCitation = null,
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
   const [fullBreakdownExpanded, setFullBreakdownExpanded] = useState(false);
@@ -177,6 +179,8 @@ export default function WcTakeCard({
       {groundingVisible ? (
         <WcGroundingStrip pinBanner={groundingPinBanner} inventoryStrip={groundingInventoryStrip} />
       ) : null}
+
+      {namedLegCitation ? <WcNamedLegCitationStrip namedLegCitation={namedLegCitation} /> : null}
 
       {headline && !slateListFace?.rows?.length ? (
         <WcPlayHeadline text={headline} focusLayout={effectiveFocusLayout} />

@@ -1811,6 +1811,13 @@ function coerceStructuredForUrTakeCard(raw) {
       raw.groundingInventoryStrip && typeof raw.groundingInventoryStrip === "object"
         ? raw.groundingInventoryStrip
         : null,
+    namedLegCitation:
+      raw.namedLegCitation && typeof raw.namedLegCitation === "object"
+        ? raw.namedLegCitation
+        : null,
+    playerName: raw.playerName != null ? String(raw.playerName) : null,
+    legId: raw.legId != null ? String(raw.legId) : null,
+    namedLegNote: raw.namedLegNote != null ? String(raw.namedLegNote) : null,
   };
 }
 
@@ -2277,6 +2284,7 @@ function UrTakeAiBubble({
             groundingVisible={s.groundingVisible}
             groundingPinBanner={s.groundingPinBanner}
             groundingInventoryStrip={s.groundingInventoryStrip}
+            namedLegCitation={s.namedLegCitation}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }
