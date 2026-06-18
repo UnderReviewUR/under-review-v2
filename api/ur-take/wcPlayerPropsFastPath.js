@@ -47,6 +47,10 @@ import {
   shouldBuildWcThreadParlay,
 } from "../../shared/wcThreadParlayPrebuilt.js";
 import { finalizeWcStructuredThreadState } from "../../shared/wcThreadState.js";
+import {
+  applyWcGroundingCardToStructured,
+  buildWcGroundingPacketForUrTake,
+} from "../_wcGroundingUrTake.js";
 
 /**
  * @param {string} wcIntent
@@ -211,6 +215,19 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     away: fixtureTeams[1] || historyPair?.away || "",
     eventId: resolvedEventId,
   };
+
+  const wcGroundingPacket = buildWcGroundingPacketForUrTake({
+    requestId,
+    question: String(question || ""),
+    routingQuestion: routingQ,
+    history,
+    matches,
+    fixtureTeams: [pinned.home, pinned.away].filter(Boolean),
+    resolvedEventId,
+    matchPlayerProps: kvBlocks.matchPlayerProps,
+    loadMeta,
+    hasImage,
+  });
 
   const syntheticContext = {
     ...(wcContext || {}),
@@ -388,6 +405,10 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       String(question || ""),
       wcRequiredEntities,
     );
+    structuredResponse = applyWcGroundingCardToStructured(
+      structuredResponse,
+      wcGroundingPacket,
+    );
   }
   responseText = formatWcCompactDisplayText(structuredResponse, responseText);
 
@@ -433,6 +454,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     },
     ...(wcContext?.dataConfidence ? { dataConfidence: wcContext.dataConfidence } : {}),
     playerMarketTier: tier,
+    wcGroundingPacketVersion: wcGroundingPacket?.version || null,
   };
 
   console.log(

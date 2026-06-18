@@ -122,6 +122,7 @@ import {
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
 import { loadWcPlayerMarketKvBlocksWithRetry } from "../_wcPlayerUrTakeContext.js";
+import { tryApplyWcPlayerPropsGroundingToStructured } from "../_wcGroundingUrTake.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
@@ -7336,6 +7337,18 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           String(question || ""),
           wcRequiredEntities,
         );
+        structuredResponse = tryApplyWcPlayerPropsGroundingToStructured({
+          structured: structuredResponse,
+          requestId,
+          question: String(question || ""),
+          routingQuestion,
+          wcIntent,
+          wcContext,
+          wcRequiredEntities,
+          normalizedHistory: normalizedUrTakeHistoryForGate,
+          hasImage,
+          resolvedEventId: wcRelevanceLog.wcEventId || wcContext?.wcEventId || null,
+        });
       }
       if (wcRunnerUpFollowUpQuestion) {
         const forcedRunnerUp = resolveWcRunnerUpFollowUpDelivery(

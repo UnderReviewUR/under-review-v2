@@ -5,6 +5,7 @@ import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
 import { extractWcMatchupPlayHeadline } from "../../shared/wcMatchupWinnerLine.js";
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, pickWcBreakdownLabel, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
+import WcGroundingStrip from "./WcGroundingStrip.jsx";
 
 function WcPlayHeadline({ text, focusLayout }) {
   const raw = String(text || "").trim();
@@ -79,6 +80,9 @@ export default function WcTakeCard({
   auditFootnote = "",
   callType = "",
   slateListFace = null,
+  groundingVisible = false,
+  groundingPinBanner = null,
+  groundingInventoryStrip = null,
 }) {
   const [breakdownExpanded, setBreakdownExpanded] = useState(Boolean(breakdownDefaultExpanded));
   const [fullBreakdownExpanded, setFullBreakdownExpanded] = useState(false);
@@ -168,6 +172,10 @@ export default function WcTakeCard({
           </span>
           <span className="ur-v2-wc-caution-text">{cautionText}</span>
         </div>
+      ) : null}
+
+      {groundingVisible ? (
+        <WcGroundingStrip pinBanner={groundingPinBanner} inventoryStrip={groundingInventoryStrip} />
       ) : null}
 
       {headline && !slateListFace?.rows?.length ? (

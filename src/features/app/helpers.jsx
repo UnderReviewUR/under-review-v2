@@ -1802,6 +1802,15 @@ function coerceStructuredForUrTakeCard(raw) {
           }))
           .filter((row) => row.label)
       : [],
+    groundingVisible: Boolean(raw.groundingVisible),
+    groundingPinBanner:
+      raw.groundingPinBanner && typeof raw.groundingPinBanner === "object"
+        ? raw.groundingPinBanner
+        : null,
+    groundingInventoryStrip:
+      raw.groundingInventoryStrip && typeof raw.groundingInventoryStrip === "object"
+        ? raw.groundingInventoryStrip
+        : null,
   };
 }
 
@@ -2265,6 +2274,9 @@ function UrTakeAiBubble({
             wcPropBoardRows={s.wcPropBoardRows}
             wcFixtureHome={s.fixtureHome}
             wcFixtureAway={s.fixtureAway}
+            groundingVisible={s.groundingVisible}
+            groundingPinBanner={s.groundingPinBanner}
+            groundingInventoryStrip={s.groundingInventoryStrip}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

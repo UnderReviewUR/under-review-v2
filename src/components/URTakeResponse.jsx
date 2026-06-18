@@ -111,6 +111,9 @@ export default function URTakeResponse({
   wcPropBoardRows = null,
   wcFixtureHome = null,
   wcFixtureAway = null,
+  groundingVisible = false,
+  groundingPinBanner = null,
+  groundingInventoryStrip = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -441,6 +444,9 @@ export default function URTakeResponse({
         slateListFace={wcFace.slateListFace}
         modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
         auditFootnote={auditFootnote}
+        groundingVisible={groundingVisible}
+        groundingPinBanner={groundingPinBanner}
+        groundingInventoryStrip={groundingInventoryStrip}
         breakdownDefaultExpanded={
           focusLayout &&
           wcFace.breakdownAvailable &&
