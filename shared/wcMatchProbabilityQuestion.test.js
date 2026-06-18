@@ -25,7 +25,7 @@ test("isWcPlayerParlaySlateQuestion — slate and trap prompts", () => {
 test("classifyWcQuestionIntent — player parlay slate is PLAYER_PROP", () => {
   assert.equal(
     classifyWcQuestionIntent("rank the best 5 player parlays today"),
-    WC_INTENT.PLAYER_PROP,
+    WC_INTENT.PARLAY,
   );
 });
 

@@ -91,6 +91,12 @@ import {
   resolveWcPlayerPropSlateFixtureTeams,
   resolveWcPlayerPropFixtureTeams,
 } from "../shared/wcPlayerPropFixture.js";
+import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
+import {
+  isWcLiveMatchProbabilityQuestion,
+  isWcMatchProbabilityQuestion,
+  resolveWcLiveProbabilityMatchFromThread,
+} from "../shared/wcMatchProbabilityQuestion.js";
 
 const WC_GROUPS_TTL_MS = 300 * 1000;
 const WC_MATCHES_TTL_MS = 60 * 1000;
@@ -896,7 +902,39 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   }
   const phase = getWorldCupPhase(matches);
 
+  const conversationHistory = Array.isArray(opts.conversationHistory)
+    ? opts.conversationHistory
+    : [];
+  const historyPinned = resolveWcFixturePairFromHistory(conversationHistory);
+  const liveProbThreadMatch = resolveWcLiveProbabilityMatchFromThread(conversationHistory);
+
   let effectiveEventId = String(opts.wcEventId || "").trim() || null;
+  if (!effectiveEventId && historyPinned?.eventId) {
+    effectiveEventId = String(historyPinned.eventId).trim() || null;
+  }
+  if (
+    !effectiveEventId &&
+    historyPinned?.home &&
+    historyPinned?.away &&
+    (isWcMatchProbabilityQuestion(question) ||
+      isWcLiveMatchProbabilityQuestion(question, {
+        isConversationFollowUp: conversationHistory.length > 0,
+        match: liveProbThreadMatch,
+      }) ||
+      (conversationHistory.length > 0 && wcIntent === WC_INTENT.MATCHUP))
+  ) {
+    effectiveEventId =
+      resolveWcEventIdForFixtureTeams(matches, historyPinned.home, historyPinned.away) ||
+      effectiveEventId;
+  }
+  if (
+    isWcMatchProbabilityQuestion(question) &&
+    historyPinned?.home &&
+    historyPinned?.away &&
+    mentionedTeams.length < 2
+  ) {
+    mentionedTeams = [historyPinned.home, historyPinned.away];
+  }
   if (!effectiveEventId && isWcPlayerMarketIntent(wcIntent) && mentionedTeams.length === 1) {
     effectiveEventId =
       resolveWcEventIdForPlayerNation(matches, mentionedTeams[0]) || effectiveEventId;
@@ -1126,7 +1164,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     ).length,
     wcIntent,
     requiredEntities: mentionedTeams,
-    conversationHistory: Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [],
+    conversationHistory,
     staticRulesBlock: injectStaticRules ? WC_STATIC_RULES_BLOCK : null,
     groups,
     groupsForPrompt,

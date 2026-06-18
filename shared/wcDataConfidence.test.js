@@ -19,6 +19,13 @@ test("deriveWcDataConfidence limited_intel when injuries without lineup", () => 
   );
 });
 
+test("deriveWcDataConfidence limited_intel for live in-play fixture", () => {
+  assert.equal(
+    deriveWcDataConfidence([{ status: "1H", homeScore: 0, awayScore: 0 }]),
+    "limited_intel",
+  );
+});
+
 test("deriveWcDataConfidence pre_match_estimate by default", () => {
   assert.equal(deriveWcDataConfidence([]), "pre_match_estimate");
   assert.equal(wcDataConfidenceChipLabel("pre_match_estimate"), "Pre-match estimate");

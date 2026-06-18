@@ -7,6 +7,7 @@ import {
   classifyWcAdvancementMarket,
   WC_ADVANCEMENT_MARKET,
 } from "./wcAdvancementMarket.js";
+import { isWcLiveMatchStatus } from "./wcFeaturedMatch.js";
 
 /** @typedef {"confirmed" | "pre_match_estimate" | "limited_intel"} WcDataConfidence */
 
@@ -23,6 +24,15 @@ export const WC_DATA_CONFIDENCE_CHIP = {
 export function deriveWcDataConfidence(matchDetails) {
   const rows = Array.isArray(matchDetails) ? matchDetails : [];
   if (!rows.length) return "pre_match_estimate";
+
+  const hasLiveFixture = rows.some(
+    (d) =>
+      isWcLiveMatchStatus(d.status) ||
+      (isWcLiveMatchStatus(d.matchStatus) &&
+        Number.isFinite(Number(d.homeScore)) &&
+        Number.isFinite(Number(d.awayScore))),
+  );
+  if (hasLiveFixture) return "limited_intel";
 
   const hasStructuredInjury = rows.some((d) => Array.isArray(d.injuries) && d.injuries.length > 0);
   const hasConfirmedLineup = rows.some((d) => d.lineupConfirmed === true);

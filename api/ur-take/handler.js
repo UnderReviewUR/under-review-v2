@@ -150,6 +150,7 @@ import {
   buildWcLiveInPlayBetsPrebuiltStructured,
   buildWcLiveMatchWinnerPrebuiltStructured,
   isDuplicateWcStructuredCard,
+  resolveWcFixturePairFromHistory,
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
   shouldUseWcFixtureMatchupPrebuilt,
@@ -1588,6 +1589,14 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
     }
     if (h.wcEventId != null && String(h.wcEventId).trim()) {
       row.wcEventId = String(h.wcEventId).trim();
+    } else if (structured?.wcEventId != null && String(structured.wcEventId).trim()) {
+      row.wcEventId = String(structured.wcEventId).trim();
+    }
+    if (!row.wcMatchTeams && structured?.fixtureHome && structured?.fixtureAway) {
+      row.wcMatchTeams = {
+        home: String(structured.fixtureHome).trim(),
+        away: String(structured.fixtureAway).trim(),
+      };
     }
     out.push(row);
   }
@@ -2882,10 +2891,13 @@ export default async function handler(req, res) {
     wcRelevanceLog.knockoutRulesInjected = shouldInjectStaticRules(String(question || ""), wcIntent);
     wcRelevanceLog.playerPropDetected = isWcPlayerMarketIntent(wcIntent);
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
+    const historyPinnedFixture = resolveWcFixturePairFromHistory(normalizedUrTakeHistoryForGate);
     const wcEventIdTrimmed =
       incomingWcEventId != null && String(incomingWcEventId).trim()
         ? String(incomingWcEventId).trim()
-        : null;
+        : historyPinnedFixture?.eventId
+          ? String(historyPinnedFixture.eventId).trim()
+          : null;
     wcRelevanceLog.wcEventId = wcEventIdTrimmed;
     const sessionEntities = extractSessionWcEntities(incomingHistory);
     const reqSet = new Set(wcRequiredEntities);
@@ -7598,7 +7610,16 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
     }
 
-    const liveModeFlag = Boolean(liveSignals?.isEffectivelyLive);
+    const wcThreadLiveProbability =
+      sportHint === "worldcup" &&
+      isWcLiveMatchProbabilityQuestion(routingQuestion, {
+        isConversationFollowUp,
+        match:
+          wcContext?.matchDetails?.[0] ||
+          resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
+      });
+    const liveModeFlag =
+      Boolean(liveSignals?.isEffectivelyLive) || Boolean(wcThreadLiveProbability);
 
     const nbaPlayoffFocusLog =
       sportHint === "nba" && nbaContext?.urTakeParsing
