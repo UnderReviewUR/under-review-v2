@@ -713,6 +713,15 @@ test("live in-play bets — 2 leans at 1-2 second half (Iraq vs Norway)", () => 
   assert.match(String(structured.deep || ""), /Bet 2:/i);
 });
 
+test("best live angle — gate 1 passes without match when fixture pair is in question", () => {
+  const q = "Best live angle on GHA vs PAN right now?";
+  assert.ok(
+    shouldUseWcLiveInPlayBetsPrebuilt(q, {
+      mentionedTeams: ["GHA", "PAN"],
+    }),
+  );
+});
+
 test("best live angle prompt uses in-play bets prebuilt not null fixture prebuilt", () => {
   const q = "Best live angle on NED vs JPN right now?";
   const match = {

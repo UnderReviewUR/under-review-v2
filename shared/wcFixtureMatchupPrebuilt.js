@@ -1030,14 +1030,18 @@ export function shouldUseWcLiveInPlayBetsPrebuilt(question, opts = {}) {
 
   const match = opts.match;
   const parsedScore = parseLiveScoreFromQuestion(q);
+  const isLiveAngleAsk = WC_LIVE_ANGLE_RE.test(q);
+  const hasNamedFixturePair = Boolean(pair?.home && pair?.away);
   const hasLiveSignal =
     (match && isWcLiveFixtureForMatchWinner(match)) ||
     parsedScore != null ||
-    isWcSecondHalfContext(q);
+    isWcSecondHalfContext(q) ||
+    (isLiveAngleAsk && hasNamedFixturePair);
   if (!hasLiveSignal) return false;
 
   if (opts.wcEventId || opts.hasKvFixture) return true;
   if (match && isWcLiveFixtureForMatchWinner(match)) return true;
+  if (isLiveAngleAsk && hasNamedFixturePair) return true;
   if (opts.isConversationFollowUp && resolveWcFixturePairFromHistory(opts.history)) return true;
   return isWcPromoFixturePair(pair.home, pair.away);
 }
