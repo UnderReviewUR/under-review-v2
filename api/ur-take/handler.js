@@ -126,6 +126,7 @@ import {
   prepareWcGroundingPacketForHandler,
   tryApplyWcPlayerPropsGroundingToStructured,
 } from "../_wcGroundingUrTake.js";
+import { enforceWcGroundingCitationGate } from "../_wcGroundingCitationGate.js";
 import {
   buildWcPlayerMarketGroundingPromptBlock,
   shouldSkipWcPlayerPropsFastPathForShape,
@@ -5871,6 +5872,8 @@ You are responding to a Pro subscriber. Apply the following:
     let lastNonEmptyRawModelText = "";
     let nbaGroundingRedirectUsed = false;
     let wcPlayerMarketPassUsed = false;
+    /** @type {{ system: string, messages: object[], temperature: number, tokenBudget: number } | null} */
+    let lastWcAnthropicWire = null;
     let wcGroupSlatePassUsed = false;
     let wcFixtureMatchupPassUsed = false;
     let wcRunnerUpFollowUpPassUsed = false;
@@ -6616,6 +6619,19 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           propLinesCount: Array.isArray(nbaContextForModel?.propLines) ? nbaContextForModel.propLines.length : 0,
           questionCharCount: String(question || "").length,
         });
+      }
+
+      if (
+        sportHint === "worldcup" &&
+        effectiveStructuredModeRequested &&
+        wcContext?.wcGroundingPacket
+      ) {
+        lastWcAnthropicWire = {
+          system: systemForAttempt,
+          messages,
+          temperature: temperatureForAttempt,
+          tokenBudget,
+        };
       }
 
       const anthropicT0 = Date.now();
@@ -7404,6 +7420,88 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         responseText = formatNbaFinalsStructuredDisplayText(structuredResponse);
         responseFormat = "nba_finals_json";
       }
+    }
+
+    if (
+      sportHint === "worldcup" &&
+      structuredResponse &&
+      typeof structuredResponse === "object" &&
+      wcContext?.wcGroundingPacket &&
+      effectiveStructuredModeRequested &&
+      !wcPlayerMarketPassUsed &&
+      !wcFixtureMatchupPassUsed &&
+      !wcGroupSlatePassUsed
+    ) {
+      const citationGate = await enforceWcGroundingCitationGate({
+        structured: structuredResponse,
+        responseText,
+        packet: wcContext.wcGroundingPacket,
+        question: String(question || ""),
+        wcIntent,
+        wcContext,
+        tier: wcContext?.playerMarketTier || wcRelevanceLog.playerMarketTier || null,
+        kvBlocks: wcContext?.playerMarketKv,
+        retryAnthropic: lastWcAnthropicWire
+          ? async (retryUserPrompt, priorStructured) => {
+              const retryMessages = [
+                ...lastWcAnthropicWire.messages,
+                {
+                  role: "assistant",
+                  content: JSON.stringify(priorStructured),
+                },
+                { role: "user", content: retryUserPrompt },
+              ];
+              const retryResult = await callAnthropic({
+                apiKey: ANTHROPIC_API_KEY,
+                model: ANTHROPIC_MODEL,
+                system: lastWcAnthropicWire.system,
+                messages: retryMessages,
+                temperature: lastWcAnthropicWire.temperature,
+                max_tokens: lastWcAnthropicWire.tokenBudget,
+              });
+              if (!retryResult.ok) return null;
+              const responseTextRaw = extractAnthropicText(retryResult.data).trim();
+              const parsedObj =
+                tryParseJsonObject(responseTextRaw) ||
+                extractBalancedJsonObject(responseTextRaw);
+              if (
+                !parsedObj ||
+                typeof parsedObj !== "object" ||
+                Array.isArray(parsedObj)
+              ) {
+                return null;
+              }
+              let retryStructured = normalizeStructuredUrTakeResponse(parsedObj, sportHint);
+              retryStructured = repairStructuredForDelivery(retryStructured, sportHint);
+              if (retryStructured) {
+                retryStructured = normalizeWcStructuredForDelivery(
+                  retryStructured,
+                  wcIntent,
+                  String(question || ""),
+                  wcRequiredEntities,
+                );
+              }
+              if (!retryStructured) return null;
+              return {
+                structured: retryStructured,
+                responseText: formatStructuredResponseAsUrTakeProse(retryStructured),
+              };
+            }
+          : null,
+      });
+      structuredResponse = citationGate.structured;
+      if (citationGate.responseText) {
+        responseText = citationGate.responseText;
+      }
+      wcRelevanceLog.wcCitationGate = citationGate.log;
+      console.log(
+        JSON.stringify({
+          event: "wc_citation_gate",
+          requestId,
+          outcome: citationGate.log?.outcome,
+          shape: citationGate.log?.shape,
+        }),
+      );
     }
 
     if (sportHint === "worldcup") {
