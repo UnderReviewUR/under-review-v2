@@ -7610,13 +7610,14 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
     }
 
+    const threadLiveProbabilityMatch = resolveWcLiveProbabilityMatchFromThread(
+      normalizedUrTakeHistoryForGate,
+    );
     const wcThreadLiveProbability =
       sportHint === "worldcup" &&
       isWcLiveMatchProbabilityQuestion(routingQuestion, {
         isConversationFollowUp,
-        match:
-          wcContext?.matchDetails?.[0] ||
-          resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
+        match: threadLiveProbabilityMatch,
       });
     const liveModeFlag =
       Boolean(liveSignals?.isEffectivelyLive) || Boolean(wcThreadLiveProbability);

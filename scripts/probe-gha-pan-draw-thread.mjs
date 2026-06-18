@@ -21,7 +21,9 @@ function summarizeTurn(label, { status, payload }) {
     /structural longshot|Contender in a competitive group|first World Cup appearance/i.test(text) ||
     /structural longshot/i.test(String(s.lean || s.call || ""));
   const liveProbabilityCue =
-    /\b\d{1,2}%\b/i.test(text) ||
+    /\b\d{1,2}(?:\.\d+)?%\b/i.test(text) ||
+    /\b\d{1,2}(?:\.\d+)?%\b/i.test(String(s.call || "")) ||
+    /\b\d{1,2}(?:\.\d+)?%\b/i.test(String(s.whyNow || "")) ||
     /\bimplied\b/i.test(text) ||
     /0\s*[-–]\s*0/i.test(text) ||
     /\blive\b/i.test(text);
