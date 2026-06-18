@@ -13,7 +13,7 @@ import {
 } from "./_wcMatchPlayerProps.js";
 import { getMatchesPayload } from "./world-cup.js";
 import { scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
-import { getDurableJson, getKvStoreHealth } from "./_durableStore.js";
+import { getDurableJson } from "./_durableStore.js";
 import {
   isWcGoatPrimaryEnabled,
   shouldPreferBdlRefreshOverKv,
@@ -616,36 +616,6 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
     rejectedWithData &&
     isWcShotsPropQuestion(question) &&
     matchPropsPayloadHasShotsRows(last.matchPlayerProps);
-  const kvHealth = getKvStoreHealth();
-
-  // #region agent log
-  fetch("http://127.0.0.1:7476/ingest/0057eb3f-f35e-42cc-b08d-383caa85aac8", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "448d1e" },
-    body: JSON.stringify({
-      sessionId: "448d1e",
-      runId: "prod-kv-load",
-      hypothesisId: "H-KV-LOAD",
-      location: "_wcPlayerUrTakeContext.js:loadWcPlayerMarketKvBlocksWithRetry",
-      message: "wc_player_props_kv_load_result",
-      data: {
-        failed: !(rejectedWithShots && namedShotsAsk),
-        wcEventId: eventIdHint || last?.wcEventId || null,
-        loadMs,
-        attempts: maxRetries + 1,
-        rejectedWithData,
-        rejectedWithShots,
-        shotRows: last?.matchPlayerProps
-          ? matchPlayerPropRowsFromEvent(last.matchPlayerProps, "player_shots_ou", 999).length
-          : 0,
-        kvCircuitOpen: kvHealth.circuitOpen,
-        kvMonthlyQuota: kvHealth.monthlyQuotaExhausted,
-        error: lastError?.message || "no_usable_rows",
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
 
   if (rejectedWithShots && namedShotsAsk) {
     const eventId = String(last?.wcEventId || eventIdHint || "").trim();
