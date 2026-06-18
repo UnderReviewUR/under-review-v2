@@ -320,7 +320,19 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
-  if (!structuredResponse && (propRows.length >= 2 || gkPropsAsk)) {
+  if (!structuredResponse && namedPlayerPropsAsk) {
+    structuredResponse = buildWcNamedPlayerPropsStructured(
+      String(question || ""),
+      tier,
+      kvBlocks,
+      syntheticContext,
+    );
+    if (structuredResponse) {
+      passKind = "named_player_props";
+    }
+  }
+
+  if (!structuredResponse && (propRows.length >= 2 || gkPropsAsk) && !namedPlayerPropsAsk) {
     if (shouldBuildWcThreadParlay(routingQ, history, wcIntent)) {
       structuredResponse = buildWcThreadParlayStructured(
         String(question || ""),
@@ -358,18 +370,6 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     );
     if (structuredResponse) {
       passKind = "player_props_intel";
-    }
-  }
-
-  if (!structuredResponse && namedPlayerPropsAsk) {
-    structuredResponse = buildWcNamedPlayerPropsStructured(
-      String(question || ""),
-      tier,
-      kvBlocks,
-      syntheticContext,
-    );
-    if (structuredResponse) {
-      passKind = "named_player_props";
     }
   }
 
