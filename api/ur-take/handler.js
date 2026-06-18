@@ -126,7 +126,8 @@ import {
   prepareWcGroundingPacketForHandler,
   tryApplyWcPlayerPropsGroundingToStructured,
 } from "../_wcGroundingUrTake.js";
-import { enforceWcGroundingCitationGate } from "../_wcGroundingCitationGate.js";
+import { enforceWcGroundingCitationGate, extractCitedLegIdsFromWcPropsResponse } from "../_wcGroundingCitationGate.js";
+import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
 import {
   buildWcPlayerMarketGroundingPromptBlock,
   shouldSkipWcPlayerPropsFastPathForShape,
@@ -7535,6 +7536,22 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           hasImage,
           resolvedEventId: wcRelevanceLog.wcEventId || wcContext?.wcEventId || null,
         });
+        if (
+          wcContext?.wcGroundingPacket &&
+          isWcNamedPlayerPropQuestion(String(question || ""))
+        ) {
+          structuredResponse = applyWcNamedLegOutputContract(
+            structuredResponse,
+            wcContext.wcGroundingPacket,
+            {
+              question: String(question || ""),
+              citedLegIds: extractCitedLegIdsFromWcPropsResponse(
+                structuredResponse,
+                responseText,
+              ),
+            },
+          );
+        }
       }
       if (wcRunnerUpFollowUpQuestion) {
         const forcedRunnerUp = resolveWcRunnerUpFollowUpDelivery(

@@ -2,7 +2,7 @@
  * Phase 4 Slice 2 — named-leg structured output (player + legId + nearest-line note).
  */
 
-import { extractWcNamedPlayerPropLegsFromQuestion } from "./wcUrTakePlayerMarket.js";
+import { extractWcNamedPlayerPropLegsFromQuestion, isWcNamedPlayerPropQuestion } from "./wcUrTakePlayerMarket.js";
 
 /** @typedef {import("./wcGroundingPacket.types.js").WcGroundingPacket} WcGroundingPacket */
 
@@ -127,12 +127,21 @@ export function enrichWcNamedLegCallWithCitation(structured, citation) {
  * @param {object} [opts]
  */
 export function applyWcNamedLegOutputContract(structured, packet, opts = {}) {
-  if (!structured || typeof structured !== "object" || packet?.ask?.shape !== "named_legs") {
+  if (!structured || typeof structured !== "object" || !packet) {
     return structured;
   }
 
-  const citedLegIds = Array.isArray(opts.citedLegIds) ? opts.citedLegIds : [];
   const question = String(opts.question || packet.ask?.question || "");
+  const isNamedLegTurn =
+    packet.ask?.shape === "named_legs" ||
+    (isWcNamedPlayerPropQuestion(question) &&
+      Array.isArray(packet.namedLegMatches) &&
+      packet.namedLegMatches.length > 0);
+
+  if (!isNamedLegTurn) {
+    return structured;
+  }
+  const citedLegIds = Array.isArray(opts.citedLegIds) ? opts.citedLegIds : [];
   const citation = resolveWcNamedLegCitation(packet, citedLegIds, question);
   if (!citation) return structured;
 
