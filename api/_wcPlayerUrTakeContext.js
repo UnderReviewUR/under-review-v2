@@ -383,8 +383,11 @@ async function loadWcMatchPlayerPropsForNamedLegs(legs, matches, nowMs) {
     let payload = await readWcMatchPlayerPropsForEvent(eventId, nowMs);
     if (isWcGoatPrimaryEnabled()) {
       payload =
-        (await refreshWcGoatMatchPlayerPropsIfNeeded(eventId, wcMatchMetaFromRow(m), nowMs)) ||
-        payload;
+        (await refreshWcGoatMatchPlayerPropsIfNeeded(
+          eventId,
+          { ...wcMatchMetaFromRow(m), requireShotsRows: true },
+          nowMs,
+        )) || payload;
     } else if (!payload || !hasMatchPlayerPropRows(payload)) {
       payload =
         (await ensureWcBdlMatchPlayerPropsForEvent(eventId, wcMatchMetaFromRow(m))) || payload;

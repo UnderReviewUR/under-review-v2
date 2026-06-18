@@ -23,6 +23,7 @@ import {
   collapseMatchPlayerPropRowsForDisplay,
   createEmptyMatchPlayerPropMarkets,
   hasMatchPlayerPropRows,
+  matchPlayerPropRowsFromEvent,
   matchPlayerPropsForEvent,
   mergeMatchPlayerPropMarketMaps,
   readFreshMatchPlayerPropsForEvent,
