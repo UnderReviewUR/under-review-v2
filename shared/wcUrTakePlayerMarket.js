@@ -740,16 +740,26 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
   const hasCitedOdds = CITED_BOOK_ODDS_RE.test(blob);
   const totalsBlob = `${call}\n${whyNow}\n${deep}\n${summary}\n${line}`;
   const totalsFromBlob = extractStrongestTotalsLeanFromBlob(totalsBlob);
-  const totalsFromOdds =
-    mixedAsk && !totalsFromBlob
-      ? compactTotalsLegFromMatchOdds({
-          matchOdds: opts.matchOdds,
-          fixtureHome: opts.fixtureHome,
-          fixtureAway: opts.fixtureAway,
-          question,
-        })
-      : "";
-  const totalsLeg = totalsFromBlob || totalsFromOdds;
+  const totalsFromOdds = mixedAsk
+    ? compactTotalsLegFromMatchOdds({
+        matchOdds: opts.matchOdds,
+        fixtureHome: opts.fixtureHome,
+        fixtureAway: opts.fixtureAway,
+        question,
+      })
+    : "";
+  let totalsLeg = totalsFromBlob || totalsFromOdds;
+  if (mixedAsk && totalsFromBlob && totalsFromOdds) {
+    const blobSide = /^under/i.test(totalsFromBlob) ? "under" : "over";
+    const oddsSide = /^under/i.test(totalsFromOdds) ? "under" : "over";
+    const blobHasPlaySignal = /\b(is the play|sharper|cleaner angle|the play)\b/i.test(totalsBlob);
+    const blobHasPostedOdds = /\b(?:under|over)\s+\d+(?:\.\d+)?\s+goals?\s+[+-]\d/i.test(
+      totalsFromBlob,
+    );
+    if (blobSide !== oddsSide && (!blobHasPlaySignal || !blobHasPostedOdds)) {
+      totalsLeg = totalsFromOdds;
+    }
+  }
 
   const buildConciseMixedLean = () => {
     const propLeg = compactPropLegFromSources({
