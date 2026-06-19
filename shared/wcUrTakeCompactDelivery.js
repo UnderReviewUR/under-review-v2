@@ -14,6 +14,7 @@ import {
   synthesizeGoldenBootPlayFromBlob,
   synthesizeGoldenBootCallFromBlob,
   synthesizeGoldenBootLineFromBlob,
+  resolveWcPlayerPropDisplayLean,
 } from "./wcUrTakePlayerMarket.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
@@ -1039,7 +1040,19 @@ function buildWcCompactStructuredBody(opts = {}) {
   if (seed?.lean && seed?.call && (isWcPlayerMarketIntent(wcIntent) || isListIntent)) {
     const call = String(seed.call || "").trim();
     const line = String(seed.line || summarySents[1] || "").trim();
-    const lean = isListIntent ? WC_LIST_CARD_LEAN : String(seed.lean || "").trim();
+    const propBoardRows = Array.isArray(seed.propBoardRows) ? seed.propBoardRows : [];
+    const lean = isListIntent
+      ? WC_LIST_CARD_LEAN
+      : resolveWcPlayerPropDisplayLean({
+          lean: String(seed.lean || "").trim(),
+          call,
+          whyNow: String(seed.whyNow || "").trim(),
+          line,
+          summary,
+          deep,
+          question,
+          propBoardRows,
+        });
     return finalizeWcPlayerPropStructured(
       {
         sport: "worldcup",
@@ -1066,11 +1079,21 @@ function buildWcCompactStructuredBody(opts = {}) {
   const call = (summarySents[0] || summary).replace(/^lean:\s*/i, "").trim();
   const line = synthesizeWcLine(summarySents, deep);
   const nonBetting = isWcNonBettingCardIntent(wcIntent, question);
+  const propBoardRows = Array.isArray(seed?.propBoardRows) ? seed.propBoardRows : [];
   const lean = isListIntent
     ? WC_LIST_CARD_LEAN
     : nonBetting
       ? synthesizeNonBettingPlay(summary, call)
-      : extractPlayDecision(summary, deep, call, { line, question, wcIntent });
+      : resolveWcPlayerPropDisplayLean({
+          lean: extractPlayDecision(summary, deep, call, { line, question, wcIntent }),
+          call,
+          whyNow: String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
+          line,
+          summary,
+          deep,
+          question,
+          propBoardRows,
+        });
   const pass = nonBetting ? false : isWcPassVerdict(summary, lean);
   let whyNow = buildWhyNow(summary, deep, wcIntent);
   if (wcIntent === WC_INTENT.PLAYER_PROP) {

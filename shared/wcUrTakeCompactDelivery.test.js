@@ -369,3 +369,30 @@ test("buildWcCompactStructured — live match-winner prebuilt seed passthrough u
   assert.doesNotMatch(compact.lean, /no actionable line/i);
   assert.equal(compact.call, seed.call);
 });
+
+test("buildWcCompactStructured — mixed props+totals replaces generic pass lean when props posted", () => {
+  const s = buildWcCompactStructured({
+    question: "best player props and total goal bet for usa vs australia?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    playerMarketTier: "verified",
+    summary:
+      "Pulišić over 0.5 shots on target at -220 is the cleanest USA lean — he's the primary creator and finisher.",
+    deep:
+      "Pulišić projects 1.2 SOT per 90. Total under 2.5 goals at -110 is the play — both teams sit deep in group stage.",
+    structuredSeed: {
+      callType: "player_market_verified",
+      playerMarketTier: "verified",
+      call: "Pulišić over 0.5 shots on target at -220 is the cleanest USA lean — he's the primary creator and finisher.",
+      lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      whyNow:
+        "Pulišić projects 1.2 SOT per 90 in tournament play. Total under 2.5 goals at -110 is the play — both teams sit deep in group stage.",
+      propBoardRows: [
+        { lean: "Jackson Irvine over 0.5 shots -175" },
+        { lean: "Christian Pulišić over 0.5 shots -2500" },
+      ],
+    },
+  });
+  assert.doesNotMatch(s.lean, /no actionable line/i);
+  assert.match(s.lean, /Pulišić|0\.5/i);
+  assert.match(s.lean, /Under 2\.5/i);
+});

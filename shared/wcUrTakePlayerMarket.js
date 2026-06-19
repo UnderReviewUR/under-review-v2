@@ -35,7 +35,7 @@ const NO_VERIFIED_LINE_RE =
   /\b(no verified line|no posted line|no actionable line|not in the (?:market |current )?feed|line (?:is )?not (?:posted|listed|available)|pass until)\b/i;
 
 /** Body cites real American prices — do not force a pass headline repair. */
-const CITED_BOOK_ODDS_RE =
+export const CITED_BOOK_ODDS_RE =
   /\b(?:at|@)\s*[+-]\d{2,}\b|over\s+\d+(?:\.\d+)?\s+at\s+[+-]\d+|\bmarket\s+\+\d{3,}\b/i;
 
 const GOLDEN_BOOT_PLAYER_RE =
@@ -352,6 +352,115 @@ export function synthesizePlayerPropPlayFromCitedOdds(summary, deep, question = 
   return `Lean: over ${threshold} at ${odds}.`;
 }
 
+const TOTALS_PLAY_RE =
+  /\b(?:total\s+)?((?:under|over)\s+\d+(?:\.\d+)?(?:\s+goals?)?(?:\s+at\s+[+-]\d+)?)/i;
+
+/**
+ * @param {string} question
+ */
+function questionAsksPlayerPropsAndTotals(question) {
+  const q = String(question || "");
+  return (
+    /\bplayer props?\b/i.test(q) &&
+    /\b(total|totals|over\s+\d|under\s+\d|goal line|goals?\b)/i.test(q)
+  );
+}
+
+/**
+ * Pull a totals leg from whyNow / deep when the model buried it below a prop headline.
+ * @param {string} blob
+ */
+function extractTotalsPlayFromBlob(blob) {
+  const text = String(blob || "").trim();
+  if (!text) return "";
+  const m =
+    text.match(/\btotal\s+((?:under|over)\s+\d+(?:\.\d+)?\s+goals?\s+at\s+[+-]\d+)/i) ||
+    text.match(/\b((?:Under|Over)\s+\d+(?:\.\d+)?\s+goals?\s+at\s+[+-]\d+)\s+is the play/i) ||
+    text.match(TOTALS_PLAY_RE);
+  if (!m) return "";
+  let leg = String(m[1] || m[0] || "").trim();
+  leg = leg.replace(/^total\s+/i, "");
+  if (!/^under|^over/i.test(leg)) return "";
+  return leg.charAt(0).toUpperCase() + leg.slice(1);
+}
+
+/**
+ * @param {string} call
+ */
+function propPlayFromCall(call) {
+  const c = String(call || "").trim();
+  if (!c || /^pass\b/i.test(c) || NO_VERIFIED_LINE_RE.test(c)) return "";
+  const stripped = c.replace(/^lean:\s*/i, "").trim();
+  if (!CITED_BOOK_ODDS_RE.test(stripped) && !/\bover\s+\d/i.test(stripped)) return "";
+  if (/^lean:/i.test(c)) return c;
+  return `Lean: ${stripped}`;
+}
+
+/**
+ * When props are posted but lean still carries the generic pass boilerplate, rebuild from call / board / totals.
+ * @param {object} opts
+ */
+export function resolveWcPlayerPropDisplayLean(opts = {}) {
+  const lean = String(opts.lean || "").trim();
+  const call = String(opts.call || "").trim();
+  const whyNow = String(opts.whyNow || "").trim();
+  const line = String(opts.line || "").trim();
+  const summary = String(opts.summary || "").trim();
+  const deep = String(opts.deep || "").trim();
+  const question = String(opts.question || "").trim();
+  const propBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
+  const blob = `${call}\n${whyNow}\n${line}\n${summary}\n${deep}`.trim();
+
+  const genericPass =
+    !lean || GENERIC_PASS_LEAN_RE.test(lean) || (NO_VERIFIED_LINE_RE.test(lean) && /\bpass\b/i.test(lean));
+  if (!genericPass) return lean;
+
+  const hasPropRows = propBoardRows.length > 0;
+  const hasCitedOdds = CITED_BOOK_ODDS_RE.test(blob);
+  const totalsLeg = extractTotalsPlayFromBlob(`${whyNow}\n${deep}\n${summary}`);
+  const hasStrongTotals = Boolean(totalsLeg);
+
+  if (!hasPropRows && !hasCitedOdds && !hasStrongTotals) {
+    return lean || "Pass — no actionable line yet; see Watch For before locking a bet.";
+  }
+
+  let propLean =
+    propPlayFromCall(call) ||
+    synthesizePlayerPropPlayFromCitedOdds(summary, `${deep}\n${whyNow}`, question);
+
+  if ((!propLean || GENERIC_PASS_LEAN_RE.test(propLean)) && hasPropRows) {
+    const top = propBoardRows[0];
+    const legText = String(top?.lean || top?.label || "").trim();
+    if (legText && !NO_VERIFIED_LINE_RE.test(legText)) {
+      propLean = /^lean:/i.test(legText) ? legText : `Lean: ${legText}`;
+    }
+  }
+
+  if (propLean && GENERIC_PASS_LEAN_RE.test(propLean)) propLean = "";
+
+  const propBody = propLean ? propLean.replace(/^lean:\s*/i, "").trim() : "";
+
+  if (propBody && totalsLeg && questionAsksPlayerPropsAndTotals(question)) {
+    return `${propBody} + ${totalsLeg}`;
+  }
+  if (propBody) return propLean.replace(/^lean:\s*/i, "") === propBody ? propLean : propBody;
+  if (totalsLeg && (questionAsksPlayerPropsAndTotals(question) || isWcMatchTotalsQuestion(question))) {
+    return totalsLeg;
+  }
+  if (hasPropRows) {
+    const legs = propBoardRows
+      .slice(0, 3)
+      .map((row, i) => {
+        const t = String(row?.lean || row?.label || "").trim();
+        return t ? `${i + 1}. ${t.replace(/^\d+\.\s*/, "")}` : "";
+      })
+      .filter(Boolean);
+    if (legs.length) return legs.join("\n");
+  }
+
+  return lean;
+}
+
 const MISROUTED_SHOTS_CALL_RE =
   /\b(structural longshot|longshot thesis|outright|tournament winner|golden boot|wins the tournament|win the tournament)\b/i;
 
@@ -538,6 +647,17 @@ export function finalizeWcPlayerPropStructured(structured, question = "") {
   if (isWcPlayerPropPassStructured(out, question)) {
     out = repairWcPlayerPropPassCard(out, question);
   }
+  out = {
+    ...out,
+    lean: resolveWcPlayerPropDisplayLean({
+      lean: out.lean,
+      call: out.call,
+      whyNow: out.whyNow,
+      line: out.line,
+      question,
+      propBoardRows: Array.isArray(out.propBoardRows) ? out.propBoardRows : [],
+    }),
+  };
   if (structured.wcNamedPlayerPropsCard) {
     return repairWcNamedLegWhyNowBleed(out);
   }
