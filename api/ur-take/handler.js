@@ -209,7 +209,7 @@ import {
   WC_INTENT,
   WC_STATIC_RULES_BLOCK,
 } from "../../shared/wcUrTakeIntent.js";
-import { isWcTurnPlannerEnabled, resolveWcTurnPlan } from "../../shared/wcTurnPlanner.js";
+import { isWcTurnPlannerEnabled, resolveWcTurnPlan, extractWcPriorThreadLeanFromHistory, isWcGenericPlayerPropsThreadFollowUp } from "../../shared/wcTurnPlanner.js";
 import { WC_TURN_LANE } from "../../shared/wcTurnConstants.js";
 import {
   shouldActivateWcFixturePrebuiltBlock,
@@ -3499,6 +3499,30 @@ export default async function handler(req, res) {
             priorLaneHint: wcTurnPlan.priorLaneHint,
           }),
         );
+      } else {
+        const gfPrior = extractWcPriorThreadLeanFromHistory(normalizedUrTakeHistoryForGate);
+        if (
+          gfPrior &&
+          isWcGenericPlayerPropsThreadFollowUp(
+            routingQuestion,
+            normalizedUrTakeHistoryForGate,
+            gfPrior,
+          )
+        ) {
+          const pair = resolveWcFixturePairFromHistory(normalizedUrTakeHistoryForGate);
+          applyWcLlmThreadPriorLeanToContext(wcContext, {
+            lane: WC_TURN_LANE.LLM_THREAD,
+            reason: "generic_props_followup_after_prebuilt",
+            priorLean: gfPrior,
+            pinnedHome: String(gfPrior.fixtureHome || pair?.home || "").trim() || null,
+            pinnedAway: String(gfPrior.fixtureAway || pair?.away || "").trim() || null,
+          });
+          wcIntent = WC_INTENT.MATCHUP;
+          wcRelevanceLog.wcIntent = wcIntent;
+          wcRelevanceLog.wcGenericPropsThreadFollowUp = true;
+          wcRelevanceLog.wcTurnLane = WC_TURN_LANE.LLM_THREAD;
+          wcRelevanceLog.wcTurnPlanReason = "generic_props_followup_after_prebuilt";
+        }
       }
 
       const wcPropsRouteHeader = String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim();

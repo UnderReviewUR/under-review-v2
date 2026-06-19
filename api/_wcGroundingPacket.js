@@ -41,7 +41,8 @@ export const WC_BOARD_MARKET_PRIORITY = [
 
 const CLAUDE_GROUNDING_INSTRUCTIONS =
   "Cite only players, markets, lines, and American odds present in markets[].topLegs. " +
-  "Prefer legId when citing a specific row. If blockers mention missing markets, say so explicitly — do not invent lines.";
+  "Prefer legId when citing a specific row. If blockers mention missing markets, say so explicitly — do not invent lines. " +
+  "When the fixture is live: open with score and clock from pinned fixture context, then name 2–3 specific picks with odds and tag each as chalk, value, or match-script using posted implied tiers and game state — not generic volume-shooter advice.";
 
 /**
  * @param {string} name

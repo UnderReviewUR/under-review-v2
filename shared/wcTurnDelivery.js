@@ -25,6 +25,11 @@ import {
   isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
+import {
+  buildWcPostedGenericPropsFollowUpPromptBlock,
+  formatWcLiveMatchStatePhrase,
+} from "./wcLivePropsBoardPrompt.js";
+import { hasMatchPlayerPropRows } from "./wcMatchPlayerProps.js";
 
 /** @typedef {import("./wcTurnConstants.js").WcTurnPlan} WcTurnPlan */
 
@@ -461,12 +466,28 @@ function extractWcPriorTotalsLeanPhrase(priorLean) {
 }
 
 /**
- * Extra binding for vague props follow-ups after a live/matchup prebuilt when lines aren't posted.
+ * Extra binding for vague props follow-ups after a live/matchup prebuilt.
+ * Branches on whether BDL props KV has posted lines for the pinned fixture.
  * @param {import("./wcTurnConstants.js").WcTurnPlan | null | undefined} plan
  * @param {{ homeName?: string, awayName?: string }} [fixture]
+ * @param {{ match?: Record<string, unknown> | null, propsPayload?: Record<string, unknown> | null, question?: string }} [opts]
  */
-export function buildWcGenericPropsFollowUpPromptBlock(plan, fixture = {}) {
+export function buildWcGenericPropsFollowUpPromptBlock(plan, fixture = {}, opts = {}) {
   if (plan?.reason !== "generic_props_followup_after_prebuilt" || !plan.priorLean) return "";
+
+  const propsPayload = opts.propsPayload ?? null;
+  const match = opts.match ?? null;
+  const question = String(opts.question || "").trim();
+
+  if (hasMatchPlayerPropRows(propsPayload)) {
+    return buildWcPostedGenericPropsFollowUpPromptBlock(plan, fixture, {
+      ...opts,
+      propsPayload,
+      match,
+      question,
+    });
+  }
+
   const homeRaw = String(fixture.homeName || plan.pinnedHome || "").trim();
   const awayRaw = String(fixture.awayName || plan.pinnedAway || "").trim();
   const homeName = homeRaw.length <= 4 ? wcMatchupTeamDisplayName(homeRaw) : homeRaw;
@@ -474,7 +495,12 @@ export function buildWcGenericPropsFollowUpPromptBlock(plan, fixture = {}) {
   const fixtureLabel =
     homeName && awayName ? `${homeName} vs ${awayName}` : "this fixture";
   const totalsPhrase = extractWcPriorTotalsLeanPhrase(plan.priorLean);
-  const liveSnippet = extractWcPriorLiveScoreSnippet(plan.priorLean);
+  const liveSnippet =
+    formatWcLiveMatchStatePhrase(
+      match,
+      String(plan.pinnedHome || "").trim(),
+      String(plan.pinnedAway || "").trim(),
+    ) || extractWcPriorLiveScoreSnippet(plan.priorLean);
   const targetLean = buildWcThreadAwareNoPropsFallback(plan.priorLean, {
     homeName,
     awayName,
@@ -499,15 +525,53 @@ export function buildWcGenericPropsFollowUpPromptBlock(plan, fixture = {}) {
  * @param {Record<string, unknown> | null | undefined} wcContext
  * @param {import("./wcTurnConstants.js").WcTurnPlan | null | undefined} plan
  */
+function resolveLlmThreadPropsContext(wcContext, plan, packet = null) {
+  const matches = Array.isArray(wcContext?.allMatches)
+    ? wcContext.allMatches
+    : Array.isArray(packet?.allMatches)
+      ? packet.allMatches
+      : [];
+  let match = resolveDeliveryMatch(plan, { wcContext, matches });
+  if (!match && packet?.pinnedFixture) {
+    const pf = packet.pinnedFixture;
+    match =
+      matches.find((m) => String(m.id) === String(pf.eventId)) ||
+      /** @type {Record<string, unknown>} */ ({
+        id: pf.eventId,
+        homeTeam: pf.home,
+        awayTeam: pf.away,
+        status: pf.status,
+        minute: pf.clockDisplay,
+      });
+  }
+  const propsPayload =
+    wcContext?.playerMarketKv?.matchPlayerProps ||
+    wcContext?.matchPlayerProps ||
+    packet?.matchPlayerProps ||
+    null;
+  const question = String(
+    wcContext?.routingQuestion ||
+      wcContext?.question ||
+      packet?.ask?.question ||
+      "",
+  ).trim();
+  return { match, propsPayload, question };
+}
+
 export function applyWcLlmThreadPriorLeanToContext(wcContext, plan) {
   if (!wcContext || typeof wcContext !== "object") return wcContext;
   if (plan?.lane !== WC_TURN_LANE.LLM_THREAD || !plan.priorLean) return wcContext;
   const priorBlock = buildWcPriorLeanPromptBlock(plan.priorLean);
   if (!priorBlock) return wcContext;
-  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(plan, {
-    homeName: plan.pinnedHome,
-    awayName: plan.pinnedAway,
-  });
+  const { match, propsPayload, question } = resolveLlmThreadPropsContext(wcContext, plan);
+  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(
+    plan,
+    {
+      homeName: plan.pinnedHome,
+      awayName: plan.pinnedAway,
+    },
+    { match, propsPayload, question },
+  );
   const block = genericPropsBlock ? `${priorBlock}\n\n${genericPropsBlock}` : priorBlock;
   wcContext.wcPriorLeanBlock = block;
   if (typeof wcContext.promptBlock === "string" && wcContext.promptBlock.trim()) {
@@ -534,14 +598,29 @@ export function applyWcLlmThreadPriorLeanToGroundingPacket(packet, plan) {
     packet.views.claude = {};
   }
   packet.views.claude.priorStructuredLean = plan.priorLean;
-  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(plan, {
-    homeName: plan.pinnedHome,
-    awayName: plan.pinnedAway,
-  });
+  const { match, propsPayload, question } = resolveLlmThreadPropsContext(
+    null,
+    plan,
+    packet,
+  );
+  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(
+    plan,
+    {
+      homeName: plan.pinnedHome,
+      awayName: plan.pinnedAway,
+    },
+    {
+      match,
+      propsPayload: packet?.matchPlayerProps || propsPayload,
+      question,
+    },
+  );
   const reconcileLine =
     "Reconcile with priorStructuredLean when answering — do not ignore the prior card.";
   const propsLine = genericPropsBlock
-    ? "For vague props asks with no posted lines: hold the prior lean, cite live score, no props inventory board."
+    ? genericPropsBlock.includes("LINES POSTED")
+      ? "For vague props asks with posted lines: lead with live score/clock, name 2–3 specific legs with American odds and chalk/value/script reasoning."
+      : "For vague props asks with no posted lines: hold the prior lean, cite live score, no props inventory board."
     : "";
   const instructions = String(packet.views.claude.instructions || "").trim();
   const extra = [reconcileLine, propsLine].filter(Boolean).join("\n");

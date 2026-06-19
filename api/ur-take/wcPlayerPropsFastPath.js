@@ -92,6 +92,13 @@ export function shouldRunWcPlayerPropsFastPath(
 ) {
   if (hasImage) return false;
   const q = String(routingQuestion || "").trim();
+  const priorLean = extractWcPriorThreadLeanFromHistory(history);
+  if (
+    isConversationFollowUp &&
+    isWcGenericPlayerPropsThreadFollowUp(q, history, priorLean)
+  ) {
+    return false;
+  }
   if (isWcPlayerPropFollowUpExplain(q, history)) return true;
   if (wcIntent === WC_INTENT.PARLAY) return true;
   if (isWcMatchTotalsQuestion(q)) {
@@ -234,11 +241,21 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
 
   if (sportHint !== "worldcup") return { handled: false };
 
+  const history = normalizedUrTakeHistoryForGate || [];
+  const routingQ = String(routingQuestion || question || "").trim();
+  const priorLeanFromHistory = extractWcPriorThreadLeanFromHistory(history);
+  const genericPropsThreadFollowUp = isWcGenericPlayerPropsThreadFollowUp(
+    routingQ,
+    history,
+    priorLeanFromHistory,
+  );
+
   if (
-    wcTurnPlannerEnabled &&
-    wcTurnPlan &&
-    (wcTurnPlan.lane === WC_TURN_LANE.LLM_THREAD ||
-      wcTurnPlan.reason === "generic_props_followup_after_prebuilt")
+    genericPropsThreadFollowUp ||
+    (wcTurnPlannerEnabled &&
+      wcTurnPlan &&
+      (wcTurnPlan.lane === WC_TURN_LANE.LLM_THREAD ||
+        wcTurnPlan.reason === "generic_props_followup_after_prebuilt"))
   ) {
     return { handled: false };
   }
@@ -249,8 +266,6 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     return { handled: false };
   }
 
-  const history = normalizedUrTakeHistoryForGate || [];
-  const routingQ = String(routingQuestion || question || "").trim();
   const wcPropsRoute = wcContext?.wcPropsRoute || null;
 
   if (wcPropsRoute?.applyRoute) {

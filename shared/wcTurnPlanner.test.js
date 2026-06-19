@@ -9,6 +9,7 @@ import {
   resolveWcTurnUseLiteContext,
   resolveWcTurnPlan,
   assertWcTurnPlanFastPathConsistency,
+  extractWcPriorThreadLeanFromHistory,
 } from "./wcTurnPlanner.js";
 import {
   buildWcStructuredForPlan,
@@ -22,6 +23,7 @@ import {
   buildWcPriorLeanPromptBlock,
   WC_TURN_PASS_KIND,
 } from "./wcTurnDelivery.js";
+import { shouldRunWcPlayerPropsFastPath } from "../api/ur-take/wcPlayerPropsFastPath.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
 const USA_AUS_MATCHES = [
@@ -403,6 +405,48 @@ test("resolveWcTurnPlan — generic props follow-up without structured history s
   assert.ok(plan.priorLean);
   assert.match(String(plan.priorLean?.lean || ""), /live lean|Under 3\.5/i);
   assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), false);
+});
+
+test("extractWcPriorThreadLeanFromHistory — lean prose + user fixture question in history", () => {
+  const history = [
+    { role: "user", content: "Best live angle on SCO vs MAR right now?" },
+    {
+      role: "assistant",
+      content: "Lean Under 2.5 goals\nMorocco leads 1-0 live; Scotland needs a goal to flip the script.",
+    },
+  ];
+  const prior = extractWcPriorThreadLeanFromHistory(history);
+  assert.ok(prior);
+  assert.equal(prior.fixtureHome, "SCO");
+  assert.equal(prior.fixtureAway, "MAR");
+  assert.match(String(prior.lean || ""), /Under 2\.5/i);
+  const plan = resolveWcTurnPlan({
+    question: "any player props to consider?",
+    history,
+    matches: [{ id: "1001", homeTeam: "SCO", awayTeam: "MAR", status: "live" }],
+    incomingWcEventId: "1001",
+    isConversationFollowUp: true,
+    hasKvFixture: true,
+    routeHeader: "1",
+  });
+  assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD);
+  assert.equal(plan.reason, "generic_props_followup_after_prebuilt");
+});
+
+test("shouldRunWcPlayerPropsFastPath — blocks vague props follow-up after prebuilt lean", () => {
+  const history = [
+    { role: "user", content: "Best live angle on SCO vs MAR right now?" },
+    { role: "assistant", content: "Lean Under 2.5 goals" },
+  ];
+  assert.equal(
+    shouldRunWcPlayerPropsFastPath(
+      WC_INTENT.PLAYER_PROP,
+      "any player props to consider?",
+      history,
+      true,
+    ),
+    false,
+  );
 });
 
 test("buildWcThreadAwareNoPropsFallback — references prior totals lean and live score", () => {

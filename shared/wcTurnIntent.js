@@ -4,6 +4,7 @@
  */
 
 import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
+import { resolveWcFixturePairFromHistory } from "./wcFixtureMatchupPrebuilt.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
   classifyWcQuestionIntent,
@@ -69,6 +70,64 @@ export function isWcPriorPrebuiltThreadLean(priorLean) {
 }
 
 /**
+ * Assistant prose that anchors a live/matchup prebuilt thread (not a props board).
+ * @param {string} lean
+ */
+export function isWcPrebuiltLeanProse(lean) {
+  const blob = String(lean || "").trim();
+  if (!blob) return false;
+  return (
+    /\b2 live leans\b/i.test(blob) ||
+    /\bLean\s+(Under|Over)\s+[\d.]+/i.test(blob) ||
+    /\b(under|over)\s+[\d.]+\s*goals?\b/i.test(blob) ||
+    /\bto win\b/i.test(blob) ||
+    /\blive lean/i.test(blob) ||
+    /\bstructural longshot thesis\b/i.test(blob) ||
+    /\b[+-]?\d+\s+to win\b/i.test(blob)
+  );
+}
+
+/**
+ * @param {Record<string, unknown>} priorLean
+ * @param {{ home?: string, away?: string, eventId?: string | null } | null | undefined} historyPair
+ */
+function enrichWcPriorLeanFixture(priorLean, historyPair) {
+  if (!priorLean || typeof priorLean !== "object") return priorLean;
+  /** @type {Record<string, unknown>} */
+  const out = { ...priorLean };
+  if (!out.fixtureHome && historyPair?.home) {
+    out.fixtureHome = String(historyPair.home).trim().toUpperCase();
+  }
+  if (!out.fixtureAway && historyPair?.away) {
+    out.fixtureAway = String(historyPair.away).trim().toUpperCase();
+  }
+  if (!out.wcEventId && historyPair?.eventId) {
+    out.wcEventId = String(historyPair.eventId).trim();
+  }
+  return isWcPriorPrebuiltThreadLean(out) ? out : priorLean;
+}
+
+/**
+ * Vague thread props asks — not explicit "Team A vs Team B player props".
+ * @param {string} question
+ */
+export function isWcVaguePlayerPropsThreadAsk(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  return (
+    isGenericWcPlayerPropQuestion(q) ||
+    /\bany\s+player\s+props?\s+to\s+consider\b/i.test(q) ||
+    /\bplayer\s+props?\s+to\s+consider\b/i.test(q) ||
+    /\bconsider\s+any\s+player\s+props?\b/i.test(q) ||
+    /\bany\s+bets?\s+on\s+players?\b/i.test(q) ||
+    /\bprops?\s+for\s+this\s+match\b/i.test(q) ||
+    /\bgot\s+any\s+player\s+props?\b/i.test(q) ||
+    /\bwhat\s+player\s+props?\b/i.test(q) ||
+    /^\s*player\s+props?\??\s*$/i.test(q)
+  );
+}
+
+/**
  * Last assistant prebuilt lean for thread routing — prefers structured, falls back to
  * wcMatchTeams + prose when the client omits structured on history rows.
  * @param {object[]} history
@@ -76,9 +135,12 @@ export function isWcPriorPrebuiltThreadLean(priorLean) {
 export function extractWcPriorThreadLeanFromHistory(history) {
   if (!Array.isArray(history)) return null;
 
+  const historyPair = resolveWcFixturePairFromHistory(history);
+
   const fromStructured = extractLastAssistantStructured(history);
-  if (fromStructured && isWcPriorPrebuiltThreadLean(fromStructured)) {
-    return fromStructured;
+  if (fromStructured) {
+    const enriched = enrichWcPriorLeanFixture(fromStructured, historyPair);
+    if (isWcPriorPrebuiltThreadLean(enriched)) return enriched;
   }
 
   for (let i = history.length - 1; i >= 0; i -= 1) {
@@ -90,14 +152,19 @@ export function extractWcPriorThreadLeanFromHistory(history) {
     const ctRaw = String(s?.callType || "").trim().toLowerCase();
     if (ctRaw.startsWith("player_market")) continue;
 
-    const home = String(s?.fixtureHome || turn.wcMatchTeams?.home || "")
+    let home = String(s?.fixtureHome || turn.wcMatchTeams?.home || "")
       .trim()
       .toUpperCase();
-    const away = String(s?.fixtureAway || turn.wcMatchTeams?.away || "")
+    let away = String(s?.fixtureAway || turn.wcMatchTeams?.away || "")
       .trim()
       .toUpperCase();
+    if ((!home || !away) && historyPair) {
+      home = String(historyPair.home || "").trim().toUpperCase();
+      away = String(historyPair.away || "").trim().toUpperCase();
+    }
     const lean = String(s?.lean || s?.call || turn.content || "").trim();
     if (!lean || !home || !away) continue;
+    if (!isWcPrebuiltLeanProse(lean) && ctRaw !== "matchup") continue;
 
     /** @type {Record<string, unknown>} */
     const reconstructed = {
@@ -107,8 +174,15 @@ export function extractWcPriorThreadLeanFromHistory(history) {
       fixtureAway: away,
       lean,
       call: String(s?.call || lean).slice(0, 400),
+      whyNow: s?.whyNow || undefined,
     };
-    const eventId = turn.wcEventId ?? s?.wcEventId;
+    if (!reconstructed.whyNow) {
+      const lines = lean.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+      if (lines.length > 1) {
+        reconstructed.whyNow = lines.slice(1).join(" ").slice(0, 600);
+      }
+    }
+    const eventId = turn.wcEventId ?? s?.wcEventId ?? historyPair?.eventId;
     if (eventId != null && String(eventId).trim()) {
       reconstructed.wcEventId = String(eventId).trim();
     }
@@ -161,13 +235,7 @@ export function isWcGenericPlayerPropsThreadFollowUp(question, history, priorLea
   if (isWcFixturePlayerPropsQuestion(q)) return false;
   if (extractMentionedWcTeams(q).length >= 2) return false;
 
-  return (
-    isGenericWcPlayerPropQuestion(q) ||
-    /\b(any\s+bets?\s+on\s+players?|props?\s+for\s+this\s+match|player props?\s+to\s+consider|got\s+any\s+player props?|what\s+player props?)\b/i.test(
-      q,
-    ) ||
-    /^\s*player props?\??\s*$/i.test(q)
-  );
+  return isWcVaguePlayerPropsThreadAsk(q);
 }
 
 /**
