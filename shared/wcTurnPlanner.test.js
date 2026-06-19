@@ -15,6 +15,8 @@ import {
   shouldActivateWcPrebuiltLane,
   shouldActivateWcPropsFastPath,
   buildWcThreadAwarePassFallback,
+  buildWcThreadAwareNoPropsFallback,
+  buildWcGenericPropsFollowUpPromptBlock,
   applyWcLlmThreadPriorLeanToContext,
   applyWcLlmThreadPriorLeanToGroundingPacket,
   buildWcPriorLeanPromptBlock,
@@ -285,6 +287,109 @@ test("resolveWcTurnPlan — player prop follow-up after matchup routes to player
     assert.equal(plan.shouldUseFastPath, true);
     assert.equal(shouldActivateWcPropsFastPath(true, plan, () => false), true);
   }
+});
+
+test("resolveWcTurnPlan — generic props ask after live prebuilt routes to llm_thread not props_fast", () => {
+  const scoMarLivePrior = {
+    role: "assistant",
+    structured: {
+      sport: "worldcup",
+      callType: "matchup",
+      fixtureHome: "SCO",
+      fixtureAway: "MAR",
+      wcEventId: "1001",
+      call: "Lean Under 3.5 goals",
+      lean: "Lean Under 3.5 goals",
+      whyNow: "Morocco leads 1-0 live; Scotland needs a goal to flip the script.",
+      confidence: "Medium",
+    },
+    wcEventId: "1001",
+  };
+  const scoMarMatches = [
+    {
+      id: "1001",
+      homeTeam: "SCO",
+      awayTeam: "MAR",
+      status: "live",
+      homeScore: 0,
+      awayScore: 1,
+    },
+  ];
+  for (const question of [
+    "any player props to consider?",
+    "player props?",
+    "any bets on players?",
+    "props for this match?",
+  ]) {
+    const plan = resolveWcTurnPlan({
+      question,
+      history: [
+        { role: "user", content: "Best live angle on SCO vs MAR right now?" },
+        scoMarLivePrior,
+      ],
+      matches: scoMarMatches,
+      incomingWcEventId: "1001",
+      isConversationFollowUp: true,
+      hasKvFixture: true,
+    });
+    assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD, question);
+    assert.equal(plan.reason, "generic_props_followup_after_prebuilt", question);
+    assert.equal(plan.intent, WC_INTENT.MATCHUP, question);
+    assert.equal(plan.useLiteContext, false, question);
+    assert.equal(plan.shouldUseFastPath, false, question);
+    assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), false, question);
+    assert.equal(
+      shouldActivateWcPrebuiltLane(true, plan, WC_TURN_LANE.PROPS_FAST, () => true),
+      false,
+      question,
+    );
+  }
+});
+
+test("buildWcThreadAwareNoPropsFallback — references prior totals lean and live score", () => {
+  const msg = buildWcThreadAwareNoPropsFallback(
+    {
+      lean: "Lean Under 3.5 goals",
+      whyNow: "Morocco leads 1-0 live; Scotland needs a goal to flip the script.",
+      fixtureHome: "SCO",
+      fixtureAway: "MAR",
+    },
+    { homeName: "Scotland", awayName: "Morocco" },
+  );
+  assert.match(msg, /No player props posted yet for Scotland vs Morocco/i);
+  assert.match(msg, /sticking with the Under 3\.5 lean while Morocco leads 1-0/i);
+  assert.match(msg, /We'll update you as soon as lines drop/i);
+});
+
+test("buildWcGenericPropsFollowUpPromptBlock — binds target lean for llm_thread", () => {
+  const plan = resolveWcTurnPlan({
+    question: "any player props to consider?",
+    history: [
+      { role: "user", content: "Best live angle on SCO vs MAR right now?" },
+      {
+        role: "assistant",
+        structured: {
+          callType: "matchup",
+          fixtureHome: "SCO",
+          fixtureAway: "MAR",
+          lean: "Lean Under 3.5 goals",
+          whyNow: "Morocco leads 1-0 live",
+        },
+      },
+    ],
+    matches: [{ id: "1001", homeTeam: "SCO", awayTeam: "MAR", status: "live" }],
+    isConversationFollowUp: true,
+    incomingWcEventId: "1001",
+    hasKvFixture: true,
+  });
+  const block = buildWcGenericPropsFollowUpPromptBlock(plan, {
+    homeName: "Scotland",
+    awayName: "Morocco",
+  });
+  assert.match(block, /WC GENERIC PROPS FOLLOW-UP/i);
+  assert.match(block, /Morocco leads 1-0/i);
+  assert.match(block, /Under 3\.5 lean/i);
+  assert.match(block, /We'll update you as soon as lines drop/i);
 });
 
 test("resolveWcTurnPlan — vague continuation with prior lean uses llm_thread delivery mode", () => {

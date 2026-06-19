@@ -15,8 +15,12 @@ import {
   isWcPlayerPropFollowUpExplain,
   resolveWcFollowUpSubject,
 } from "./wcFollowUpExplain.js";
+import { detectParlayIntent } from "./detectParlayIntent.js";
 import {
   isWcFixtureScopedPlayerMarketQuestion,
+  isGenericWcPlayerPropQuestion,
+  isWcFixturePlayerPropsQuestion,
+  isWcNamedPlayerPropQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import {
   isWcMatchupAltMarketFollowUp,
@@ -24,6 +28,16 @@ import {
   isWcTotalsExplainFollowUp,
 } from "./wcMatchBettingPrompt.js";
 import { WC_TURN_LANE } from "./wcTurnConstants.js";
+
+/** Lanes where a structured prebuilt card anchors the thread. */
+const WC_PRIOR_PREBUILT_THREAD_LANES = new Set([
+  WC_TURN_LANE.LIVE_IN_PLAY,
+  WC_TURN_LANE.LIVE_BET_TIMING,
+  WC_TURN_LANE.LIVE_MATCH_WINNER,
+  WC_TURN_LANE.MATCHUP_PREBUILT,
+  WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP,
+  WC_TURN_LANE.MATCHUP_ML_REPEAT,
+]);
 
 /** @typedef {import("./wcUrTakeIntent.js").WcUrTakeIntent} WcUrTakeIntent */
 
@@ -37,8 +51,44 @@ export function priorLaneHintFromStructured(priorLean) {
   if (ct.includes("live") || /\b2 live leans\b/i.test(lean)) return WC_TURN_LANE.LIVE_IN_PLAY;
   if (ct.startsWith("player_market")) return WC_TURN_LANE.PROPS_FAST;
   if (ct === "matchup" || ct === "tomorrow_slate") return WC_TURN_LANE.MATCHUP_PREBUILT;
+  if (/\b(under|over)\s+[\d.]+\s*goals?\b/i.test(lean)) return WC_TURN_LANE.LIVE_IN_PLAY;
   if (/\bto win\b/i.test(lean)) return WC_TURN_LANE.MATCHUP_PREBUILT;
   return null;
+}
+
+/**
+ * Prior turn delivered a fixture-scoped prebuilt (live angle, matchup ML/totals, etc.).
+ * @param {Record<string, unknown> | null | undefined} priorLean
+ */
+export function isWcPriorPrebuiltThreadLean(priorLean) {
+  const hint = priorLaneHintFromStructured(priorLean);
+  if (hint && WC_PRIOR_PREBUILT_THREAD_LANES.has(hint)) return true;
+  const ct = String(priorLean?.callType || "").toLowerCase();
+  return ct === "matchup" && Boolean(priorLean?.fixtureHome && priorLean?.fixtureAway);
+}
+
+/**
+ * Vague fixture-thread props ask after a prebuilt lean — not explicit "Team A vs Team B player props".
+ * @param {string} question
+ * @param {object[]} history
+ * @param {Record<string, unknown> | null | undefined} priorLean
+ */
+export function isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean) {
+  const q = String(question || "").trim();
+  if (!q || !priorLean || !isWcPriorPrebuiltThreadLean(priorLean)) return false;
+  if (isWcNamedPlayerPropQuestion(q)) return false;
+  if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return false;
+  if (isWcPlayerPropFollowUpExplain(q, history)) return false;
+  if (isWcFixturePlayerPropsQuestion(q)) return false;
+  if (extractMentionedWcTeams(q).length >= 2) return false;
+
+  return (
+    isGenericWcPlayerPropQuestion(q) ||
+    /\b(any\s+bets?\s+on\s+players?|props?\s+for\s+this\s+match|player props?\s+to\s+consider)\b/i.test(
+      q,
+    ) ||
+    /^\s*player props?\??\s*$/i.test(q)
+  );
 }
 
 /**
@@ -74,6 +124,9 @@ export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
   if (followUpIntent) return /** @type {WcUrTakeIntent} */ (followUpIntent);
 
   if (isFollowUp && priorLean) {
+    if (isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean)) {
+      return WC_INTENT.MATCHUP;
+    }
     if (isWcPlayerPropFollowUpExplain(question, history)) {
       return WC_INTENT.PLAYER_PROP;
     }

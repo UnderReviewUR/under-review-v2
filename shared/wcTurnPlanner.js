@@ -81,6 +81,7 @@ import { WC_TURN_LANE, WC_DATA_PACKAGE, WC_TURN_FAST_PATH_LANES } from "./wcTurn
 import {
   isWcConditionalMatchupFollowUp,
   priorLaneHintFromStructured,
+  isWcGenericPlayerPropsThreadFollowUp,
   resolveWcTurnIntent,
   resolveWcTurnUseLiteContext,
 } from "./wcTurnIntent.js";
@@ -88,6 +89,9 @@ import {
 export { WC_TURN_LANE, WC_DATA_PACKAGE } from "./wcTurnConstants.js";
 export {
   isWcConditionalMatchupFollowUp,
+  isWcGenericPlayerPropsThreadFollowUp,
+  isWcPriorPrebuiltThreadLean,
+  priorLaneHintFromStructured,
   resolveWcTurnIntent,
   resolveWcTurnUseLiteContext,
 } from "./wcTurnIntent.js";
@@ -100,6 +104,9 @@ export {
   isWcPlannerDrivingDelivery,
   wcPlannerDeliveryLane,
   buildWcThreadAwarePassFallback,
+  buildWcThreadAwareNoPropsFallback,
+  buildWcGenericPropsFollowUpPromptBlock,
+  extractWcPriorLiveScoreSnippet,
   applyWcLlmThreadPriorLeanToContext,
   applyWcLlmThreadPriorLeanToGroundingPacket,
   buildWcPriorLeanPromptBlock,
@@ -240,6 +247,7 @@ export function resolveWcTurnPlan(params = {}) {
    *  2. entity_pricing exit    — misprice/structural → llm_full (never prebuilt)
    *  3. group_slate            — tomorrow / upset scan / cross-group prebuilts
    *  4. runner_up_followup     — pushback on runner-up value card
+   *  4d. generic_props_after_prebuilt — vague props ask on prebuilt thread → llm_thread
    *  5. props_claude | props_fast — player props (Claude when shape-routed)
    *  6. live_in_play           — live angle / in-play bets prebuilt
    *  7. live_bet_timing        — when-to-bet live follow-up
@@ -409,6 +417,24 @@ export function resolveWcTurnPlan(params = {}) {
     });
     plan.useLiteContext = false;
     plan.confidence = resolveTurnConfidence(plan.lane, intent, hasKvFixture);
+    return finalizeWcTurnPlan(plan);
+  }
+
+  // ── Step 4d: Generic props follow-up after prebuilt lean — thread continuity ──
+  // "any player props?" on a live/matchup card thread should not cold-start props_fast
+  // when books have no lines; defer to LLM with priorLean injected.
+  if (
+    isConversationFollowUp &&
+    priorLean &&
+    isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean)
+  ) {
+    plan.lane = WC_TURN_LANE.LLM_THREAD;
+    plan.reason = "generic_props_followup_after_prebuilt";
+    plan.intent = WC_INTENT.MATCHUP;
+    plan.shouldUseFastPath = false;
+    plan.useLiteContext = false;
+    plan.dataPackages = buildBaseDataPackages({ ...plan, lane: plan.lane, intent: plan.intent });
+    plan.confidence = resolveTurnConfidence(plan.lane, plan.intent, hasKvFixture);
     return finalizeWcTurnPlan(plan);
   }
 

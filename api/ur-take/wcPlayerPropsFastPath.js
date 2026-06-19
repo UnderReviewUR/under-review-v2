@@ -60,7 +60,11 @@ import {
 import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
 import { shouldSkipWcPlayerPropsFastPathForV2Deliver } from "../../shared/wcUrTakePipeline.js";
 import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
-import { shouldActivateWcPropsFastPath } from "../../shared/wcTurnDelivery.js";
+import {
+  shouldActivateWcPropsFastPath,
+  buildWcThreadAwareNoPropsFallback,
+} from "../../shared/wcTurnDelivery.js";
+import { extractLastAssistantStructured } from "../../shared/wcCardContractFollowUpScorer.js";
 
 /**
  * @param {object | null | undefined} structured
@@ -127,7 +131,7 @@ async function resolveWcMatchesForPlayerProps(wcContext) {
  * @param {string} question
  * @param {{ home: string, away: string, eventId?: string | null }} pinned
  * @param {string | null | undefined} wcEventId
- * @param {{ namedLegs?: import("../../shared/wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg[] }} [opts]
+ * @param {{ namedLegs?: import("../../shared/wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg[], priorLean?: Record<string, unknown> | null }} [opts]
  */
 function buildWcPlayerPropsNotPostedStructured(question, pinned, wcEventId, opts = {}) {
   const home = String(pinned.home || "").toUpperCase();
@@ -135,7 +139,9 @@ function buildWcPlayerPropsNotPostedStructured(question, pinned, wcEventId, opts
   const homeName = wcMatchupTeamDisplayName(home);
   const awayName = wcMatchupTeamDisplayName(away);
   const legs = Array.isArray(opts.namedLegs) ? opts.namedLegs : [];
+  const priorLean = opts.priorLean || null;
   const wcContext = { fixtureHome: home, fixtureAway: away };
+  const threadAwareLean = buildWcThreadAwareNoPropsFallback(priorLean, { homeName, awayName });
 
   if (legs.length > 0) {
     const noLineLean =
@@ -172,10 +178,16 @@ function buildWcPlayerPropsNotPostedStructured(question, pinned, wcEventId, opts
       wcEventId: wcEventId || undefined,
       fixtureHome: home,
       fixtureAway: away,
-      call: `Player prop lines aren't posted yet for ${homeName} vs ${awayName}.`,
-      lean: `No player prop lines posted yet for ${homeName} vs ${awayName} — books typically publish closer to kickoff once lineups are confirmed.`,
-      whyNow: `Live BallDontLie pull completed; player markets for this fixture aren't available yet.`,
-      edge: "Moneyline and match totals are usually up earlier — or check back closer to kickoff.",
+      call: priorLean
+        ? `No player props posted yet for ${homeName} vs ${awayName}.`
+        : `Player prop lines aren't posted yet for ${homeName} vs ${awayName}.`,
+      lean: threadAwareLean,
+      whyNow: priorLean
+        ? `Live pull completed with no player markets on this fixture — prior match lean still stands.`
+        : `Live BallDontLie pull completed; player markets for this fixture aren't available yet.`,
+      edge: priorLean
+        ? "Recheck player markets after lineup lock; match lean unchanged until then."
+        : "Moneyline and match totals are usually up earlier — or check back closer to kickoff.",
       confidence: "Speculative",
       analysis: String(question || "").trim(),
     },
@@ -490,7 +502,13 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
         String(question || ""),
         pinned,
         resolvedEventId,
-        { namedLegs },
+        {
+          namedLegs,
+          priorLean:
+            wcTurnPlannerEnabled && wcTurnPlan?.priorLean
+              ? wcTurnPlan.priorLean
+              : extractLastAssistantStructured(history),
+        },
       );
       passKind = "player_props_not_posted";
       emitWcPropsMonitoringAlert({

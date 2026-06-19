@@ -24,6 +24,7 @@ import {
   extractWcRunnerUpFromHistory,
   isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
+import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 
 /** @typedef {import("./wcTurnConstants.js").WcTurnPlan} WcTurnPlan */
 
@@ -395,6 +396,105 @@ export function buildWcPriorLeanPromptBlock(priorLean) {
 }
 
 /**
+ * Live score/state snippet from prior structured card (whyNow, line, lean).
+ * @param {Record<string, unknown> | null | undefined} priorLean
+ */
+export function extractWcPriorLiveScoreSnippet(priorLean) {
+  if (!priorLean || typeof priorLean !== "object") return "";
+  const blob = [priorLean.whyNow, priorLean.line, priorLean.lean, priorLean.call]
+    .map((s) => String(s || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  if (!blob) return "";
+
+  const teamLeads = blob.match(
+    /([A-Za-z][A-Za-z\s.'-]{1,28})\s+leads?\s+(\d+)\s*[-–]\s*(\d+)/i,
+  );
+  if (teamLeads) {
+    return `${teamLeads[1].trim()} leads ${teamLeads[2]}-${teamLeads[3]}`;
+  }
+
+  const liveScore = blob.match(/(\d+)\s*[-–]\s*(\d+)\s+live\b/i);
+  if (liveScore) {
+    const home = String(priorLean.fixtureHome || "").trim();
+    const away = String(priorLean.fixtureAway || "").trim();
+    if (home && away) {
+      const h = Number(liveScore[1]);
+      const a = Number(liveScore[2]);
+      if (h > a) return `${home} leads ${h}-${a}`;
+      if (a > h) return `${away} leads ${a}-${h}`;
+    }
+    return `${liveScore[1]}-${liveScore[2]} live`;
+  }
+
+  const atScore = blob.match(/\bat\s+(\d+)\s*[-–]\s*(\d+)/i);
+  if (atScore) {
+    const home = String(priorLean.fixtureHome || "").trim();
+    const away = String(priorLean.fixtureAway || "").trim();
+    const h = Number(atScore[1]);
+    const a = Number(atScore[2]);
+    if (home && away) {
+      if (h > a) return `${home} leads ${h}-${a}`;
+      if (a > h) return `${away} leads ${a}-${h}`;
+    }
+    return `${atScore[1]}-${atScore[2]}`;
+  }
+
+  return "";
+}
+
+/**
+ * Phrase for the prior totals lean (e.g. "Under 3.5 lean").
+ * @param {Record<string, unknown> | null | undefined} priorLean
+ */
+function extractWcPriorTotalsLeanPhrase(priorLean) {
+  const raw = String(priorLean?.lean || priorLean?.call || "")
+    .trim()
+    .replace(/^lean:\s*/i, "");
+  const totals = raw.match(/\b(Under|Over)\s+[\d.]+(?:\s+goals?)?/i);
+  if (totals) {
+    const side = totals[1];
+    const line = totals[0].match(/[\d.]+/)?.[0] || "";
+    return `${side} ${line} lean`;
+  }
+  return "";
+}
+
+/**
+ * Extra binding for vague props follow-ups after a live/matchup prebuilt when lines aren't posted.
+ * @param {import("./wcTurnConstants.js").WcTurnPlan | null | undefined} plan
+ * @param {{ homeName?: string, awayName?: string }} [fixture]
+ */
+export function buildWcGenericPropsFollowUpPromptBlock(plan, fixture = {}) {
+  if (plan?.reason !== "generic_props_followup_after_prebuilt" || !plan.priorLean) return "";
+  const homeRaw = String(fixture.homeName || plan.pinnedHome || "").trim();
+  const awayRaw = String(fixture.awayName || plan.pinnedAway || "").trim();
+  const homeName = homeRaw.length <= 4 ? wcMatchupTeamDisplayName(homeRaw) : homeRaw;
+  const awayName = awayRaw.length <= 4 ? wcMatchupTeamDisplayName(awayRaw) : awayRaw;
+  const fixtureLabel =
+    homeName && awayName ? `${homeName} vs ${awayName}` : "this fixture";
+  const totalsPhrase = extractWcPriorTotalsLeanPhrase(plan.priorLean);
+  const liveSnippet = extractWcPriorLiveScoreSnippet(plan.priorLean);
+  const targetLean = buildWcThreadAwareNoPropsFallback(plan.priorLean, {
+    homeName,
+    awayName,
+  });
+
+  return [
+    "WC GENERIC PROPS FOLLOW-UP — NO LINES POSTED (binding; do not cold-start a props board)",
+    `Fixture: ${fixtureLabel}. Player prop markets are NOT posted for this match yet.`,
+    totalsPhrase
+      ? `Prior match lean to preserve: ${totalsPhrase}.`
+      : `Prior match lean to preserve: ${String(plan.priorLean.lean || plan.priorLean.call || "").trim()}.`,
+    liveSnippet ? `Live state to reference: ${liveSnippet}.` : "",
+    "REQUIRED: (1) say props aren't posted yet, (2) explicitly hold the prior lean, (3) mention live score if known, (4) no 'Not posted' market inventory.",
+    `Target lean line (use or closely match): "${targetLean}"`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/**
  * Inject prior structured lean into WC context prompt block for LLM_THREAD lanes.
  * @param {Record<string, unknown> | null | undefined} wcContext
  * @param {import("./wcTurnConstants.js").WcTurnPlan | null | undefined} plan
@@ -402,8 +502,13 @@ export function buildWcPriorLeanPromptBlock(priorLean) {
 export function applyWcLlmThreadPriorLeanToContext(wcContext, plan) {
   if (!wcContext || typeof wcContext !== "object") return wcContext;
   if (plan?.lane !== WC_TURN_LANE.LLM_THREAD || !plan.priorLean) return wcContext;
-  const block = buildWcPriorLeanPromptBlock(plan.priorLean);
-  if (!block) return wcContext;
+  const priorBlock = buildWcPriorLeanPromptBlock(plan.priorLean);
+  if (!priorBlock) return wcContext;
+  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(plan, {
+    homeName: plan.pinnedHome,
+    awayName: plan.pinnedAway,
+  });
+  const block = genericPropsBlock ? `${priorBlock}\n\n${genericPropsBlock}` : priorBlock;
   wcContext.wcPriorLeanBlock = block;
   if (typeof wcContext.promptBlock === "string" && wcContext.promptBlock.trim()) {
     if (!wcContext.promptBlock.includes("WC PRIOR TURN — STRUCTURED LEAN")) {
@@ -429,10 +534,18 @@ export function applyWcLlmThreadPriorLeanToGroundingPacket(packet, plan) {
     packet.views.claude = {};
   }
   packet.views.claude.priorStructuredLean = plan.priorLean;
+  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(plan, {
+    homeName: plan.pinnedHome,
+    awayName: plan.pinnedAway,
+  });
+  const reconcileLine =
+    "Reconcile with priorStructuredLean when answering — do not ignore the prior card.";
+  const propsLine = genericPropsBlock
+    ? "For vague props asks with no posted lines: hold the prior lean, cite live score, no props inventory board."
+    : "";
   const instructions = String(packet.views.claude.instructions || "").trim();
-  packet.views.claude.instructions = instructions
-    ? `${instructions}\nReconcile with priorStructuredLean when answering — do not ignore the prior card.`
-    : "Reconcile with priorStructuredLean when answering — do not ignore the prior card.";
+  const extra = [reconcileLine, propsLine].filter(Boolean).join("\n");
+  packet.views.claude.instructions = instructions ? `${instructions}\n${extra}` : extra;
   return packet;
 }
 
@@ -462,6 +575,49 @@ export function buildWcThreadAwarePassFallback(priorLean) {
   return snippet
     ? `Pass for now — building on prior lean (${snippet}); no new actionable line yet.`
     : GENERIC_WC_PASS_FALLBACK;
+}
+
+/**
+ * Thread-aware fallback when fixture player props are not posted yet.
+ * @param {Record<string, unknown> | null | undefined} priorLean
+ * @param {{ homeName?: string, awayName?: string }} [fixture]
+ */
+export function buildWcThreadAwareNoPropsFallback(priorLean, fixture = {}) {
+  const homeName = String(fixture.homeName || "").trim();
+  const awayName = String(fixture.awayName || "").trim();
+  const fixtureLabel =
+    homeName && awayName ? `${homeName} vs ${awayName}` : "this match";
+  const liveSnippet = extractWcPriorLiveScoreSnippet(priorLean);
+  const whileLive = liveSnippet ? ` while ${liveSnippet}` : "";
+  const closing = " We'll update you as soon as lines drop.";
+
+  if (!priorLean || typeof priorLean !== "object") {
+    return `No player prop lines posted yet for ${fixtureLabel} — books typically publish closer to kickoff once lineups are confirmed.${closing.trim()}`;
+  }
+
+  const totalsPhrase = extractWcPriorTotalsLeanPhrase(priorLean);
+  if (totalsPhrase) {
+    return `No player props posted yet for ${fixtureLabel} — sticking with the ${totalsPhrase}${whileLive}.${closing}`;
+  }
+
+  const raw = String(priorLean.lean || priorLean.call || "")
+    .trim()
+    .replace(/^lean:\s*/i, "");
+  const ml = raw.match(/([^;·]+?\s+[-+]\d+\s+to win)/i);
+  if (ml) {
+    return `No player props posted yet for ${fixtureLabel} — sticking with ${ml[1].trim()}${whileLive}.${closing}`;
+  }
+  const passFallback = buildWcThreadAwarePassFallback(priorLean);
+  if (passFallback !== GENERIC_WC_PASS_FALLBACK) {
+    const thesis = passFallback
+      .replace(/^Pass for now — building on /i, "")
+      .replace(/; no new actionable line yet\.?$/i, "");
+    return `No player props posted yet for ${fixtureLabel} — sticking with ${thesis}${whileLive}.${closing}`;
+  }
+  const snippet = raw.split(/[;·]/)[0].trim().slice(0, 72);
+  return snippet
+    ? `No player props posted yet for ${fixtureLabel} — sticking with prior lean (${snippet})${whileLive}.${closing}`
+    : `No player props posted yet for ${fixtureLabel} — hold the prior match lean until lines post.${closing}`;
 }
 
 export { WC_TURN_LANE, WC_TURN_FAST_PATH_LANES };
