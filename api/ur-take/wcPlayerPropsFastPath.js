@@ -571,6 +571,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     structuredResponse = applyWcGroundingCardToStructured(
       structuredResponse,
       wcGroundingPacket,
+      { question: String(question || "") },
     );
     structuredResponse = applyWcNamedLegOutputContract(structuredResponse, wcGroundingPacket, {
       question: String(question || ""),

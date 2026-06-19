@@ -513,8 +513,10 @@ function formatFixtureAmbiguityCaveat(pinnedFixture) {
  * Merge grounding card view onto a structured player-props response.
  * @param {Record<string, unknown> | null | undefined} structured
  * @param {import("../shared/wcGroundingPacket.types.js").WcGroundingPacket | null | undefined} packet
+ * @param {object} [opts]
+ * @param {string} [opts.question]
  */
-export function applyWcGroundingCardToStructured(structured, packet) {
+export function applyWcGroundingCardToStructured(structured, packet, opts = {}) {
   if (!structured || typeof structured !== "object" || !packet?.views?.card) {
     return structured;
   }
@@ -556,7 +558,11 @@ export function applyWcGroundingCardToStructured(structured, packet) {
   };
 
   const question = String(
-    structured.analysis || packet?.ask?.question || structured.userQuestion || "",
+    opts.question ||
+      structured.analysis ||
+      packet?.ask?.question ||
+      structured.userQuestion ||
+      "",
   ).trim();
   if (question && !namedLegCard) {
     merged.lean = resolveWcPlayerPropDisplayLean({
@@ -620,7 +626,9 @@ export function tryApplyWcPlayerPropsGroundingToStructured(params) {
   if (!shouldApplyWcPropsGrounding(wcIntent, structured)) return structured;
 
   if (wcContext?.wcGroundingPacket) {
-    return applyWcGroundingCardToStructured(structured, wcContext.wcGroundingPacket);
+    return applyWcGroundingCardToStructured(structured, wcContext.wcGroundingPacket, {
+      question: String(question || routingQuestion || ""),
+    });
   }
 
   const fixtureTeams =
@@ -653,5 +661,7 @@ export function tryApplyWcPlayerPropsGroundingToStructured(params) {
     hasImage,
   });
 
-  return applyWcGroundingCardToStructured(structured, packet);
+  return applyWcGroundingCardToStructured(structured, packet, {
+    question: String(question || routingQuestion || ""),
+  });
 }

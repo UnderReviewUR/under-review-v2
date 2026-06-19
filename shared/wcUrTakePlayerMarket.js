@@ -412,10 +412,10 @@ function pickBestPropBoardRowForMixedLean(propBoardRows, question = "") {
  * @param {object} opts
  */
 function compactTotalsLegFromMatchOdds(opts = {}) {
-  const matchOdds = opts.matchOdds;
+  const matchOdds = opts.matchOdds && typeof opts.matchOdds === "object" ? opts.matchOdds : {};
   const home = String(opts.fixtureHome || opts.home || "").trim().toUpperCase();
   const away = String(opts.fixtureAway || opts.away || "").trim().toUpperCase();
-  if (!matchOdds || !home || !away) return "";
+  if (!home || !away) return "";
 
   const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
   const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
@@ -642,7 +642,7 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
     return propLeg;
   };
 
-  if (mixedAsk && (hasPropRows || hasCitedOdds || totalsLeg || opts.matchOdds)) {
+  if (mixedAsk && (hasPropRows || hasCitedOdds || totalsLeg || opts.fixtureHome || opts.fixtureAway)) {
     const concise = buildConciseMixedLean();
     if (concise) return concise;
   }
