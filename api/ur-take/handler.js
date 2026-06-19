@@ -133,6 +133,8 @@ import {
   buildWcPlayerMarketGroundingPromptBlock,
   shouldSkipWcPlayerPropsFastPathForShape,
 } from "../../shared/wcGroundingShapeRoute.js";
+import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
+import { WC_INTENT } from "../../shared/wcUrTakeIntent.js";
 import { routeWcPropsTurn, countWcMatchPlayerPropMarkets, isWcPropsRouteV2Enabled } from "../../shared/wcPropsRouteTurn.js";
 import {
   isWcUrTakeV2DeliverEnabled,
@@ -3543,7 +3545,12 @@ export default async function handler(req, res) {
   }
 
   if (sportHint === "worldcup") {
+    const routingQ = String(routingQuestion || question || "").trim();
+    const isPlayerParlayAsk =
+      wcIntent === WC_INTENT.PARLAY ||
+      (detectParlayIntent(routingQ) && /\bplayer\b/i.test(routingQ));
     const skipPropsFastPath =
+      !isPlayerParlayAsk &&
       wcContext?.wcGroundingPacket &&
       shouldSkipWcPlayerPropsFastPathForShape(wcContext.wcGroundingPacket.ask.shape);
 

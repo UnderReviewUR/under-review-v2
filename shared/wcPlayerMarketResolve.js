@@ -66,6 +66,7 @@ import { lookupStarterGoalkeeper } from "./wcGoldenGloveAdjusted.js";
 import { WC_INTENT, isWcFixturePlayerMarketIntent } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
 import { WC_CARD_TYPE } from "./wcThreadState.js";
+import { WC_GROUNDING_MARKET_LABELS } from "./wcGroundingLabels.js";
 
 /** @typedef {"verified" | "market_only" | "squad" | "thin"} WcPlayerMarketTier */
 
@@ -782,7 +783,7 @@ function pickBalancedFixtureParlayLegRows(rows, question, legCount) {
   const n = Math.max(2, Math.min(5, legCount));
   const boardRows = rows.map((row) => {
     const marketKey = String(row.market || "anytime_scorer");
-    const marketLabel = marketKey.replace(/_/g, " ");
+    const marketLabel = WC_GROUNDING_MARKET_LABELS[marketKey] || marketKey;
     return {
       label: row.name,
       lean: formatFixturePropBoardRowLabel(row, marketKey, marketLabel),
@@ -872,7 +873,7 @@ export function buildWcFixturePlayerParlayStructured(
   const parlayLegs = [];
   const legLines = picked.map((row, i) => {
     const marketKey = String(row.market || "anytime_scorer");
-    const marketLabel = marketKey.replace(/_/g, " ");
+    const marketLabel = WC_GROUNDING_MARKET_LABELS[marketKey] || marketKey;
     const line = formatFixturePropBoardRowLabel(row, marketKey, marketLabel);
     parlayLegs.push({ play: line, odds: String(row.odds || row.americanOdds || "").trim() });
     return `${i + 1}. ${line}`;
