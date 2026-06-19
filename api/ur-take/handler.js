@@ -133,6 +133,11 @@ import {
   shouldSkipWcPlayerPropsFastPathForShape,
 } from "../../shared/wcGroundingShapeRoute.js";
 import { routeWcPropsTurn, countWcMatchPlayerPropMarkets, isWcPropsRouteV2Enabled } from "../../shared/wcPropsRouteTurn.js";
+import {
+  isWcUrTakeV2DeliverEnabled,
+  resolveWcUrTakeV2Turn,
+  shouldSuppressWcFixtureAltFollowUpPrebuilt,
+} from "../../shared/wcUrTakePipeline.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
@@ -3034,7 +3039,32 @@ export default async function handler(req, res) {
         wcRunnerUpFollowUpQuestion,
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         wcEventId: wcEventIdTrimmed,
-        hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+        hasKvFixture: Boolean(wcEventIdTrimmed),
+        history: normalizedUrTakeHistoryForGate,
+      });
+    const wcPropsRouteHeaderEarly = String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim();
+    const wcPropsDeliverHeaderEarly = String(req?.headers?.["x-wc-props-route-v2-deliver"] ?? "").trim();
+    const wcUrTakeV2DeliverEarly = isWcUrTakeV2DeliverEnabled({
+      deliverHeader: wcPropsDeliverHeaderEarly,
+    });
+    const wcFixtureAltFollowUpCandidate =
+      !wcCrossGroupPrebuiltEarly &&
+      !wcRunnerUpFollowUpQuestion &&
+      !detectParlayIntent(routingQuestion) &&
+      !isWcMatchProbabilityQuestion(routingQuestion) &&
+      !wcFixtureMoneylineRepeatFollowUp &&
+      isConversationFollowUp &&
+      !shouldSuppressWcFixtureAltFollowUpPrebuilt({
+        question: routingQuestion,
+        history: normalizedUrTakeHistoryForGate,
+        wcIntent,
+        v2Deliver: wcUrTakeV2DeliverEarly,
+      }) &&
+      shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
+        isConversationFollowUp,
+        wcRunnerUpFollowUpQuestion,
+        mentionedTeams: wcRelevanceLog.mentionedTeams,
+        wcEventId: wcEventIdTrimmed,
         history: normalizedUrTakeHistoryForGate,
       });
     const wcFixturePrebuiltCandidate =
@@ -3048,19 +3078,6 @@ export default async function handler(req, res) {
         wcRunnerUpFollowUpQuestion,
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         wcEventId: wcEventIdTrimmed,
-      });
-    const wcFixtureAltFollowUpCandidate =
-      !wcCrossGroupPrebuiltEarly &&
-      !wcRunnerUpFollowUpQuestion &&
-      !detectParlayIntent(routingQuestion) &&
-      !isWcMatchProbabilityQuestion(routingQuestion) &&
-      isConversationFollowUp &&
-      shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
-        isConversationFollowUp,
-        wcRunnerUpFollowUpQuestion,
-        mentionedTeams: wcRelevanceLog.mentionedTeams,
-        wcEventId: wcEventIdTrimmed,
-        history: normalizedUrTakeHistoryForGate,
       });
     const wcLiveBetTimingCandidate =
       !wcCrossGroupPrebuiltEarly &&
@@ -3081,7 +3098,7 @@ export default async function handler(req, res) {
         history: normalizedUrTakeHistoryForGate,
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         wcEventId: wcEventIdTrimmed,
-        hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+        hasKvFixture: Boolean(wcEventIdTrimmed),
       });
     const wcLiveMatchWinnerCandidate =
       !wcCrossGroupPrebuiltEarly &&
@@ -3093,7 +3110,7 @@ export default async function handler(req, res) {
         history: normalizedUrTakeHistoryForGate,
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         wcEventId: wcEventIdTrimmed,
-        hasKvFixture: Boolean(wcContext?.matchDetails?.length),
+        hasKvFixture: Boolean(wcEventIdTrimmed),
       });
     if (
       wcFixturePrebuiltCandidate ||
@@ -3340,11 +3357,15 @@ export default async function handler(req, res) {
       wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
 
       const wcPropsRouteHeader = String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim();
+      const wcPropsDeliverHeader = String(req?.headers?.["x-wc-props-route-v2-deliver"] ?? "").trim();
       const v2Enabled = isWcPropsRouteV2Enabled({ routeHeader: wcPropsRouteHeader });
+      const v2Deliver = isWcUrTakeV2DeliverEnabled({ deliverHeader: wcPropsDeliverHeader });
       /** @type {import("../../shared/wcPropsRouteTurn.js").ReturnType<typeof routeWcPropsTurn> | null} */
       let wcPropsRoute = null;
+      /** @type {import("../../shared/wcUrTakePipeline.js").ReturnType<typeof resolveWcUrTakeV2Turn> | null} */
+      let wcUrTakeV2Turn = null;
       if (v2Enabled) {
-        wcPropsRoute = routeWcPropsTurn({
+        wcUrTakeV2Turn = resolveWcUrTakeV2Turn({
           question: routingQuestion,
           history: normalizedUrTakeHistoryForGate,
           matches: wcContext.allMatches || [],
@@ -3353,14 +3374,28 @@ export default async function handler(req, res) {
           wcIntent,
           routeHeader: wcPropsRouteHeader,
         });
+        wcPropsRoute = wcUrTakeV2Turn.propsRoute;
         wcContext.wcPropsRoute = wcPropsRoute;
+        wcContext.wcUrTakeV2Turn = wcUrTakeV2Turn;
         wcRelevanceLog.wcPropsRouteV2 = true;
         wcRelevanceLog.wcPropsApplyRoute = wcPropsRoute.applyRoute;
         wcRelevanceLog.wcPropsLoadMatchProps = wcPropsRoute.loadMatchProps;
         wcRelevanceLog.wcPropsPinMethod = wcPropsRoute.pinMethod;
+        wcRelevanceLog.wcUrTakeV2Deliver = v2Deliver;
+        wcRelevanceLog.wcUrTakeV2Lane = wcUrTakeV2Turn.lane;
+        if (wcUrTakeV2Turn.matchupMl?.wcEventId) {
+          wcRelevanceLog.wcUrTakeV2MatchupEventId = wcUrTakeV2Turn.matchupMl.wcEventId;
+        }
         if (wcPropsRoute.applyRoute && wcPropsRoute.wcEventId) {
           wcContext.wcEventId = wcPropsRoute.wcEventId;
           wcRelevanceLog.wcEventId = wcPropsRoute.wcEventId;
+        } else if (
+          v2Deliver &&
+          wcUrTakeV2Turn.lane === "matchup_ml" &&
+          wcUrTakeV2Turn.matchupMl?.wcEventId
+        ) {
+          wcContext.wcEventId = wcUrTakeV2Turn.matchupMl.wcEventId;
+          wcRelevanceLog.wcEventId = wcUrTakeV2Turn.matchupMl.wcEventId;
         }
       }
 

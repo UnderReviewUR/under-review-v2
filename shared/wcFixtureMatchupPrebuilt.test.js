@@ -18,6 +18,7 @@ import {
   buildWcLiveMatchWinnerPrebuiltStructured,
   pickWcLiveMatchWinnerCall,
   buildWcLiveMatchWinnerWhyNow,
+  isWcFixturePrebuiltBlockedForLivePlay,
 } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 import { runWcUrTakeQA } from "../api/_wcUrTakeQA.js";
@@ -216,6 +217,54 @@ test("shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt on mashup follow-up", () 
       { isConversationFollowUp: true, history, hasKvFixture: true },
     ),
   );
+});
+
+test("shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt MEX/KOR who wins pins from structured history", () => {
+  const history = [
+    { role: "user", content: "MEX vs KOR moneyline" },
+    {
+      role: "assistant",
+      content: "Lean Mexico +100",
+      structured: { fixtureHome: "MEX", fixtureAway: "KOR", wcEventId: "991122" },
+      wcEventId: "991122",
+    },
+    {
+      role: "user",
+      content: "Son, Jimenez, and Quinones each going over 2.5 shots attempted?",
+    },
+    {
+      role: "assistant",
+      content: "3 of 3 playable",
+      structured: { fixtureHome: "MEX", fixtureAway: "KOR", wcEventId: "991122" },
+    },
+  ];
+  assert.ok(
+    shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt("Who wins MEX vs KOR?", WC_INTENT.MATCHUP, {
+      isConversationFollowUp: true,
+      history,
+      hasKvFixture: false,
+      wcEventId: null,
+    }),
+  );
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "MEX",
+    away: "KOR",
+    group: "A",
+    question: "Who wins MEX vs KOR?",
+    match: {
+      odds: {
+        home: { moneyline: "+100" },
+        away: { moneyline: "+180" },
+        draw: { moneyline: "+240" },
+      },
+    },
+    teamStats: {
+      MEX: { advancePct: 55 },
+      KOR: { advancePct: 48 },
+    },
+  });
+  assert.match(structured?.lean || "", /Mexico.*to win/i);
+  assert.doesNotMatch(structured?.lean || "", /Under 2\.5/i);
 });
 
 test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () => {
@@ -614,6 +663,25 @@ test("shouldUseWcLiveMatchWinnerPrebuilt for live who wins", () => {
       hasKvFixture: true,
       match: IRN_NZL_LIVE,
     }),
+  );
+});
+
+test("isWcFixturePrebuiltBlockedForLivePlay allows live who wins at 0-0", () => {
+  assert.equal(
+    isWcFixturePrebuiltBlockedForLivePlay("Who wins MEX vs KOR?", {
+      status: "live",
+      homeScore: 0,
+      awayScore: 0,
+    }),
+    false,
+  );
+  assert.equal(
+    isWcFixturePrebuiltBlockedForLivePlay("Best live angle on MEX vs KOR right now?", {
+      status: "live",
+      homeScore: 0,
+      awayScore: 0,
+    }),
+    true,
   );
 });
 

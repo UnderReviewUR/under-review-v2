@@ -80,6 +80,14 @@ function isWcLiveMatchStatus(status) {
  */
 export function isWcFixturePrebuiltBlockedForLivePlay(question, match) {
   const q = String(question || "");
+  if (/\bwho wins\b/i.test(q) && !WC_LIVE_ANGLE_RE.test(q) && match) {
+    const hs = Number(match.homeScore);
+    const as = Number(match.awayScore);
+    const scoreless =
+      (!Number.isFinite(hs) && !Number.isFinite(as)) ||
+      (Number.isFinite(hs) && Number.isFinite(as) && hs + as === 0);
+    if (scoreless && isWcLiveMatchStatus(match.status)) return false;
+  }
   if (isWcMatchTotalsQuestion(q) || isWcMatchupAltMarketFollowUp(q)) {
     return false;
   }
@@ -416,6 +424,14 @@ export function shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(question, wcInt
     }) || resolveWcFixturePairFromHistory(opts.history);
   if (!pair?.home || !pair?.away) return false;
   if (opts.wcEventId || opts.hasKvFixture) return true;
+  const historyPair = resolveWcFixturePairFromHistory(opts.history);
+  if (
+    historyPair?.home === pair.home &&
+    historyPair?.away === pair.away &&
+    historyPair?.eventId
+  ) {
+    return true;
+  }
   return isWcPromoFixturePair(pair.home, pair.away);
 }
 

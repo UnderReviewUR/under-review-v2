@@ -11,12 +11,14 @@ import {
   previewWcPropsRoute,
   simulateLegacyProdFetchDecision,
 } from "../shared/wcPropsRoutePreview.js";
+import { resolveWcUrTakeV2Turn } from "../shared/wcUrTakePipeline.js";
 
 const STUB_MATCHES = [
   { id: "22", homeTeam: "GHA", awayTeam: "PAN", status: "scheduled", commenceTs: Date.now() + 86400000 },
   { id: "24", homeTeam: "UZB", awayTeam: "COL", status: "scheduled", commenceTs: Date.now() + 172800000 },
   { id: "30", homeTeam: "MAR", awayTeam: "BRA", status: "scheduled", commenceTs: Date.now() + 259200000 },
   { id: "760424", homeTeam: "SWE", awayTeam: "TUN", status: "scheduled", commenceTs: Date.now() + 3600000 },
+  { id: "991122", homeTeam: "MEX", awayTeam: "KOR", status: "scheduled", commenceTs: Date.now() + 7200000 },
 ];
 
 const SWE_TUN_HISTORY = [
@@ -126,6 +128,41 @@ const CASES = [
   ], expect: { pinnedHome: null, fetchAttempted: false, fetchBlockedAmbiguous: true, ambiguous: true } },
 ];
 
+const MEX_KOR_PROPS_THREAD = [
+  { role: "user", content: "MEX vs KOR moneyline" },
+  {
+    role: "assistant",
+    content: "Lean Mexico +100",
+    structured: { fixtureHome: "MEX", fixtureAway: "KOR", wcEventId: "991122" },
+    wcEventId: "991122",
+  },
+  {
+    role: "user",
+    content: "Son, Jimenez, and Quinones each going over 2.5 shots attempted?",
+  },
+  {
+    role: "assistant",
+    content: "3 of 3 playable",
+    structured: { fixtureHome: "MEX", fixtureAway: "KOR", wcEventId: "991122" },
+  },
+];
+
+/** Phase 2 — unified pipeline lane resolution (props vs matchup_ml). */
+const PIPELINE_CASES = [
+  {
+    id: "pipeline-props-thread-001",
+    question: "best player prop parlays for this game?",
+    history: MEX_KOR_PROPS_THREAD,
+    expect: { lane: "props", pinnedEventId: "991122" },
+  },
+  {
+    id: "pipeline-matchup-ml-001",
+    question: "Who wins MEX vs KOR?",
+    history: MEX_KOR_PROPS_THREAD,
+    expect: { lane: "matchup_ml", pinnedEventId: "991122", propsApplyRoute: false },
+  },
+];
+
 /** Prod bug: legacy path broken, v2 preview would fetch — documents Phase 2 obligation. */
 const LEGACY_GAP_CASES = [
   {
@@ -194,6 +231,28 @@ for (const c of LEGACY_GAP_CASES) {
   }
 }
 
-const total = CASES.length + LEGACY_GAP_CASES.length;
+for (const c of PIPELINE_CASES) {
+  try {
+    const turn = resolveWcUrTakeV2Turn({
+      question: c.question,
+      history: c.history || [],
+      matches: STUB_MATCHES,
+      routeHeader: "1",
+    });
+    const got = {
+      lane: turn.lane,
+      pinnedEventId:
+        turn.propsRoute?.wcEventId || turn.matchupMl?.wcEventId || null,
+      propsApplyRoute: turn.propsRoute?.applyRoute ?? false,
+    };
+    assertCase(c, got);
+    console.log(`OK  ${c.id}`);
+  } catch (err) {
+    failed += 1;
+    console.error(`FAIL ${c.id}: ${err.message}`);
+  }
+}
+
+const total = CASES.length + LEGACY_GAP_CASES.length + PIPELINE_CASES.length;
 console.log(`\n=== CONTRACT ${total - failed}/${total} passed ===`);
 process.exit(failed ? 1 : 0);

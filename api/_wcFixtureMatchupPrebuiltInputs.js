@@ -28,7 +28,7 @@ import {
 } from "../shared/wcFixtureMatchupPrebuilt.js";
 
 const LIVE_ODDS_MAX_AGE_MS = 90_000;
-const LIVE_ODDS_FETCH_TIMEOUT_MS = 2500;
+const LIVE_ODDS_FETCH_TIMEOUT_MS = 8000;
 
 function isLiveOrScheduled(status) {
   const s = String(status || "").toLowerCase();
@@ -78,6 +78,36 @@ function findKvFixture(matches, home, away) {
 }
 
 /**
+ * @param {string | number | null | undefined} bdlMatchId
+ * @param {number} nowMs
+ */
+async function fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs) {
+  if (!isWcGoatPrimaryEnabled()) return null;
+  if (bdlMatchId == null) return null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await Promise.race([
+        bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("live_odds_timeout")), LIVE_ODDS_FETCH_TIMEOUT_MS),
+        ),
+      ]);
+      if (!res?.ok) continue;
+      const odds = pickBdlMatchOddsForMatch(
+        Array.isArray(res.data?.data) ? res.data.data : [],
+        bdlMatchId,
+      );
+      if (odds) return odds;
+    } catch {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * @param {Record<string, unknown>} match
  * @param {number} nowMs
  */
@@ -92,28 +122,11 @@ async function refreshWcLiveMatchOddsForPrebuilt(match, nowMs) {
   ) {
     return match;
   }
-  if (!isWcGoatPrimaryEnabled()) return match;
 
   const bdlMatchId = match.bdlMatchId ?? match.id;
-  if (bdlMatchId == null) return match;
-
-  try {
-    const res = await Promise.race([
-      bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("live_odds_timeout")), LIVE_ODDS_FETCH_TIMEOUT_MS),
-      ),
-    ]);
-    if (!res?.ok) return match;
-    const odds = pickBdlMatchOddsForMatch(
-      Array.isArray(res.data?.data) ? res.data.data : [],
-      bdlMatchId,
-    );
-    if (!odds) return match;
-    return { ...match, odds, oddsUpdatedAt: nowMs, oddsStale: false };
-  } catch {
-    return match;
-  }
+  const odds = await fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs);
+  if (!odds) return match;
+  return { ...match, odds, oddsUpdatedAt: nowMs, oddsStale: false };
 }
 
 /**
@@ -222,6 +235,25 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   }
 
   let match = attachSeedOddsIfMissing(pinned, pair.home, pair.away);
+  if (!match?.odds) {
+    const bdlMatchId =
+      match?.bdlMatchId ?? match?.id ?? pair.eventId ?? opts.wcEventId ?? null;
+    const goatOdds = await fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs);
+    if (goatOdds) {
+      match = {
+        ...(match && typeof match === "object" ? match : {}),
+        homeTeam: pair.home,
+        awayTeam: pair.away,
+        id: bdlMatchId != null ? String(bdlMatchId) : match?.id,
+        bdlMatchId: bdlMatchId ?? match?.bdlMatchId,
+        group: pair.group || match?.group,
+        status: match?.status || "scheduled",
+        odds: goatOdds,
+        oddsUpdatedAt: nowMs,
+        oddsStale: false,
+      };
+    }
+  }
   if (!match?.odds) return null;
 
   if (isWcLiveListStatus(match.status)) {
@@ -255,7 +287,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
     match,
     teamStats,
     simLastUpdated: simRow?.lastUpdated,
-    hasKvFixture: Boolean(pinned),
+    hasKvFixture: Boolean(pinned || match?.odds),
     matchDetail,
     liveChanceQuality,
     playerProps,
