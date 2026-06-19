@@ -174,14 +174,25 @@ export function mergeThreadStateFromStructured(state, structured, embedded) {
     out.cardTypes = types;
   }
 
-  const blob = [s.lean, s.call, s.line, s.whyNow, s.edge].filter(Boolean).join("\n");
-  const ou = parseWcMatchGoalsOverUnder(blob);
-  if (ou?.side && ou.line != null) {
+  if (s.matchTotalsLean?.side && s.matchTotalsLean.line != null) {
     out.lastTotalsLean = {
-      side: ou.side,
-      line: ou.line,
-      odds: extractTotalsOddsFromBlob(blob, ou),
+      side: String(s.matchTotalsLean.side),
+      line: String(s.matchTotalsLean.line),
+      odds:
+        s.matchTotalsLean.odds != null && String(s.matchTotalsLean.odds).trim()
+          ? String(s.matchTotalsLean.odds).trim()
+          : null,
     };
+  } else {
+    const blob = [s.lean, s.call, s.line, s.whyNow, s.edge].filter(Boolean).join("\n");
+    const ou = parseWcMatchGoalsOverUnder(blob);
+    if (ou?.side && ou.line != null) {
+      out.lastTotalsLean = {
+        side: ou.side,
+        line: ou.line,
+        odds: extractTotalsOddsFromBlob(blob, ou),
+      };
+    }
   }
 
   const props = parsePropBoardFromStructured(s);
@@ -205,9 +216,11 @@ export function finalizeWcStructuredThreadState(structured, history = [], wcInte
   const prior = extractWcThreadStateFromHistory(history);
   const cardType = inferWcCardType(structured, wcIntent);
   const wcThreadState = mergeThreadStateFromStructured(prior, structured);
+  const matchTotalsLean = wcThreadState.lastTotalsLean || structured.matchTotalsLean || null;
   return {
     ...structured,
     cardType: cardType || structured.cardType,
+    matchTotalsLean,
     wcThreadState,
   };
 }

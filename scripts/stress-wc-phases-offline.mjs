@@ -64,6 +64,7 @@ import {
 } from "../shared/wcCardContractGate.js";
 import { runWcFanReliabilityAudit } from "../shared/wcFanReliabilityAudit.js";
 import { scoreWcCardContractIntent } from "../shared/wcCardContractScorer.js";
+import { runWcTurnArtifactSloGate } from "../shared/wcTurnArtifactSlo.js";
 
 const VERBOSE = process.argv.includes("--verbose");
 const SHOW_CRITIQUE = process.argv.includes("--critique") || VERBOSE;
@@ -488,6 +489,26 @@ stress("B", "named-leg card face never rewrites player over 3 as match goals", (
   assert.doesNotMatch(face.headline, /goals/i);
   assert.equal(extractWcMatchupPlayHeadline(face.headline), "");
   assert.equal(parseWcMatchGoalsOverUnder(face.headline), null);
+});
+
+stress("B", "follow-up chip respects prop board player nation", () => {
+  const chips = buildWcTakeAwareFollowUpChips(
+    {
+      structured: {
+        cardType: "prop_board",
+        fixtureHome: "AUS",
+        fixtureAway: "USA",
+        call: "Australia vs United States — top player props",
+        lean: "1. Jackson Irvine over 0.5 shots -177",
+        propBoardRows: [
+          { label: "Jackson Irvine", market: "player_shots_ou", odds: "-177", nationAbbr: "AUS" },
+        ],
+      },
+    },
+    "best player props for usa vs australia?",
+    [],
+  );
+  assert.doesNotMatch(chips.join(" "), /United States scorer value besides Jackson Irvine/i);
 });
 
 stress("B", "parsePropBoardFromStructured round-trip", () => {
@@ -1221,6 +1242,15 @@ stress("F", "routing: WC thread lock on recreational bucks follow-up", () => {
     }),
     true,
   );
+});
+
+stress("F", "turn-artifact SLO golden gate (wrong-lane / wrong-fixture)", () => {
+  const slo = runWcTurnArtifactSloGate();
+  if (slo.failed > 0) {
+    const detail = slo.failures.map((f) => `${f.id}: ${f.reasons.join("; ")}`).join(" | ");
+    assert.fail(`SLO gate ${slo.passed}/${slo.passed + slo.failed}: ${detail}`);
+  }
+  assert.equal(slo.failed, 0);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
