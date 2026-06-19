@@ -400,6 +400,41 @@ test("buildWcCompactStructured — mixed props+totals replaces generic pass lean
   assert.ok(s.lean.length < 80, "lean should stay punchy");
 });
 
+test("buildWcCompactStructured — verified pass lean stripped when prop board posted", () => {
+  const s = buildWcCompactStructured({
+    question: "best player props and total goal bet for usa vs australia?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    playerMarketTier: "verified",
+    summary: "United States vs Australia — top player props",
+    deep: "",
+    structuredSeed: {
+      callType: "player_market_verified",
+      call: "Pass — no actionable line yet",
+      lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      whyNow: "Posted lines for United States vs Australia.",
+      fixtureHome: "AUS",
+      fixtureAway: "USA",
+      matchOdds: {
+        totalLine: "2.5",
+        totalUnder: { moneyline: "-110" },
+      },
+      propBoardRows: [
+        {
+          label: "Christian Pulišić",
+          lean: "Christian Pulišić over 0.5 shots on target -220",
+          market: "player_sot_ou",
+          odds: "-220",
+          nationAbbr: "USA",
+        },
+      ],
+    },
+  });
+  assert.doesNotMatch(s.lean, /no actionable line/i);
+  assert.match(s.lean, /Pulišić/i);
+  assert.match(s.lean, /Under 2\.5/i);
+  assert.doesNotMatch(s.call, /no actionable line/i);
+});
+
 test("buildWcCompactStructured — mixed props+totals list headline uses board + match odds totals", () => {
   const s = buildWcCompactStructured({
     question: "best player props and total goal bet for usa vs australia?",

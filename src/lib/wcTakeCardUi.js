@@ -24,6 +24,10 @@ import {
   detectWcDeepMetaLeak,
 } from "../../shared/wcTakeRetentionQA.js";
 import { isWcNamedLegPropsStructuredCard } from "../../shared/wcNamedLegCardUi.js";
+import {
+  isWcActionablePropLeanText,
+  questionAsksPlayerPropsAndTotals,
+} from "../../shared/wcUrTakePlayerMarket.js";
 
 export const UR_TAKE_BREAKDOWN_LABEL = "More detail";
 export const UR_TAKE_SLATE_BREAKDOWN_LABEL = "View full board";
@@ -430,8 +434,22 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
  * @param {string} lean
  * @param {string} [call]
  */
-function pickWcPlayerPropListHeadline(lean, call = "", cardType = "") {
+function pickWcPlayerPropListHeadline(lean, call = "", cardType = "", opts = {}) {
   const callStr = String(call || "").trim();
+  const leanStr = String(lean || "").trim();
+  const tier = String(opts.playerMarketTier || "").toLowerCase();
+  const verifiedActionable =
+    tier === "verified" &&
+    isWcActionablePropLeanText(leanStr) &&
+    !/^pass\s*[—-]\s*no actionable line yet/i.test(leanStr);
+
+  if (verifiedActionable) {
+    return capWcCardFaceField(leanStr, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
+  }
+
   if (
     cardType === "prop_board" ||
     /\btop player props\b/i.test(callStr) ||
@@ -443,7 +461,6 @@ function pickWcPlayerPropListHeadline(lean, call = "", cardType = "") {
     });
   }
 
-  const leanStr = String(lean || "").trim();
   const leanIsPass = /^pass\s*[—-]\s*no actionable line yet/i.test(leanStr);
   const numbered = leanStr.match(/^\s*1\.\s+(.+)$/m);
   if (numbered) {
@@ -501,7 +518,11 @@ export function pickWcCardHeadline(opts = {}) {
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
 
   if (playerMarketCt) {
-    const propHeadline = pickWcPlayerPropListHeadline(leanRaw, call, opts.cardType);
+    const propHeadline = pickWcPlayerPropListHeadline(leanRaw, call, opts.cardType, {
+      playerMarketTier: opts.playerMarketTier,
+      propBoardRows: opts.propBoardRows,
+      question: opts.question,
+    });
     if (propHeadline) return propHeadline;
   }
 
@@ -708,7 +729,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const fullDeep = String(opts.breakdown || "").trim();
   const lineSlot = String(opts.lineSlot || "").trim();
 
-  const slateListFace =
+  let slateListFace =
     selfContainedSlateBreakdown
       ? buildWcSlateListFace({
           angles: opts.tomorrowSlateAngles,
@@ -735,6 +756,18 @@ export function prepareWcCardFaceDisplay(opts = {}) {
               fixtureAway: opts.fixtureAway,
             }));
 
+  const tier = String(opts.playerMarketTier || "").toLowerCase();
+  const leanStr = String(opts.lean || "").trim();
+  const verifiedActionable =
+    tier === "verified" &&
+    isWcActionablePropLeanText(leanStr) &&
+    !/^pass\s*[—-]\s*no actionable line yet/i.test(leanStr);
+  const mixedPropsTotals = questionAsksPlayerPropsAndTotals(String(opts.question || ""));
+
+  if (verifiedActionable && mixedPropsTotals && slateListFace) {
+    slateListFace = null;
+  }
+
   let headline = pickWcCardHeadline({
     lean: opts.lean,
     call: opts.call,
@@ -745,14 +778,20 @@ export function prepareWcCardFaceDisplay(opts = {}) {
     question: opts.question,
     callType: opts.callType,
     cardType: opts.cardType,
+    playerMarketTier: opts.playerMarketTier,
+    propBoardRows: opts.propBoardRows,
   });
-  if (slateListFace) {
+  if (slateListFace && !verifiedActionable) {
     headline = slateListFace.intro;
+  } else if (verifiedActionable) {
+    headline = capWcCardFaceField(leanStr, {
+      maxWords: WC_FACE_HEADLINE_WORDS,
+      maxSentences: 1,
+    });
   }
 
   const playerMarketCt =
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
-  const leanStr = String(opts.lean || "").trim();
   const numberedPropList = playerMarketCt && /^\s*\d+\.\s+/m.test(leanStr);
 
   const whyFace =

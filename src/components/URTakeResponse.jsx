@@ -403,6 +403,7 @@ export default function URTakeResponse({
       callType,
       question: userQuestion,
       cardType: wcCardType,
+      playerMarketTier,
       propBoardRows: wcPropBoardRows,
       fixtureHome: wcFixtureHome,
       fixtureAway: wcFixtureAway,

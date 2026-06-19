@@ -11,7 +11,10 @@ import {
   isWcFixturePlayerMarketIntent,
   isWcPlayerAwardMarketIntent,
 } from "./wcUrTakeIntent.js";
-import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import {
+  extractMentionedWcTeams,
+  extractMentionedWcTeamsInQuestionOrder,
+} from "./wcUrTakeKeywords.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
 import {
   resolveWcPlayerMarketAnswer,
@@ -357,7 +360,7 @@ export function synthesizePlayerPropPlayFromCitedOdds(summary, deep, question = 
 }
 
 const TOTALS_CANDIDATE_RE =
-  /\b(?:total\s+)?(under|over)\s+(\d+(?:\.\d+)?)\s+goals?\s*(?:at\s+([+-]\d{2,}))?/gi;
+  /\b(?:total\s+)?(under|over)\s+(\d+(?:\.\d+)?)\s+goals?\s*(?:(?:at\s+)?([+-]\d{2,}))?/gi;
 
 const GENERIC_PROP_LIST_CALL_RE =
   /\btop player props\b|\bprops per side\b|\d+\s+props per side\b/i;
@@ -423,11 +426,40 @@ function mixedLeanPropRowSortKey(row, question = "") {
     String(row?.lean || "").match(/([+-]\d{2,})/)?.[1] ||
     "";
   let teamBoost = 0;
-  const teams = extractMentionedWcTeams(question).map((t) => String(t).toUpperCase());
-  if (teams.length && row?.nationAbbr && String(row.nationAbbr).toUpperCase() === teams[0]) {
-    teamBoost = 8;
-  }
+  const teams = extractMentionedWcTeamsInQuestionOrder(question).map((t) =>
+    String(t).toUpperCase(),
+  );
+  const rowAbbr = String(row?.nationAbbr || "").toUpperCase();
+  if (teams.length && rowAbbr === teams[0]) teamBoost = 28;
+  else if (teams.length > 1 && rowAbbr === teams[1]) teamBoost = 4;
   return marketPri * 1000 + mixedLeanPropPriceScore(odds) + teamBoost;
+}
+
+/**
+ * Chalk-first ordering for mixed prop leans and prop board rows.
+ * @param {Array<{ market?: string, odds?: string, lean?: string, nationAbbr?: string }>} rows
+ * @param {string} [question]
+ */
+export function sortPropBoardRowsForMixedLean(rows, question = "") {
+  return [...(Array.isArray(rows) ? rows : [])].sort(
+    (a, b) => mixedLeanPropRowSortKey(b, question) - mixedLeanPropRowSortKey(a, question),
+  );
+}
+
+/**
+ * @param {string} text
+ */
+export function isWcActionablePropLeanText(text) {
+  const t = String(text || "").trim();
+  if (!t) return false;
+  if (GENERIC_PASS_LEAN_RE.test(t)) return false;
+  if (/\bpass\b/i.test(t) && NO_VERIFIED_LINE_RE.test(t)) return false;
+  if (!/[+-]\d{2,}/.test(t)) return false;
+  return (
+    /\bover\s+\d+(?:\.\d+)?\s+(?:SOT|shots?\b)/iu.test(t) ||
+    /\banytime\s+(?:goal\s*)?scorer\b/i.test(t) ||
+    /\b(?:Under|Over)\s+\d+(?:\.\d+)?\s+goals\b/i.test(t)
+  );
 }
 
 /**
@@ -543,7 +575,7 @@ function compactTotalsLegFromMatchOdds(opts = {}) {
 /**
  * @param {string} question
  */
-function questionAsksPlayerPropsAndTotals(question) {
+export function questionAsksPlayerPropsAndTotals(question) {
   const q = String(question || "");
   return (
     /\bplayer props?\b/i.test(q) &&
@@ -759,6 +791,15 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
     if (blobSide !== oddsSide && (!blobHasPlaySignal || !blobHasPostedOdds)) {
       totalsLeg = totalsFromOdds;
     }
+  }
+  if (
+    mixedAsk &&
+    totalsLeg &&
+    !/[+-]\d{2,}/.test(totalsLeg) &&
+    totalsFromOdds &&
+    /[+-]\d{2,}/.test(totalsFromOdds)
+  ) {
+    totalsLeg = totalsFromOdds;
   }
 
   const buildConciseMixedLean = () => {
@@ -1018,9 +1059,31 @@ export function finalizeWcPlayerPropStructured(structured, question = "") {
   if (!structured.wcNamedPlayerPropsCard) {
     out = repairWcShotsPropStructured(structured, question);
   }
-  if (isWcPlayerPropPassStructured(out, question)) {
+
+  const propBoardRows = Array.isArray(out.propBoardRows) ? out.propBoardRows : [];
+  const verified = String(out.playerMarketTier || "") === "verified";
+  const preLean = resolveWcPlayerPropDisplayLean({
+    lean: out.lean,
+    call: out.call,
+    whyNow: out.whyNow,
+    line: out.line,
+    summary: out.summary,
+    deep: out.deep,
+    question,
+    propBoardRows,
+    matchOdds: out.matchOdds,
+    fixtureHome: out.fixtureHome,
+    fixtureAway: out.fixtureAway,
+  });
+  const hasVerifiedActionable =
+    verified &&
+    (isWcActionablePropLeanText(preLean) ||
+      (propBoardRows.length > 0 && !GENERIC_PASS_LEAN_RE.test(preLean)));
+
+  if (!hasVerifiedActionable && isWcPlayerPropPassStructured(out, question)) {
     out = repairWcPlayerPropPassCard(out, question);
   }
+
   out = {
     ...out,
     lean: resolveWcPlayerPropDisplayLean({
@@ -1031,12 +1094,17 @@ export function finalizeWcPlayerPropStructured(structured, question = "") {
       summary: out.summary,
       deep: out.deep,
       question,
-      propBoardRows: Array.isArray(out.propBoardRows) ? out.propBoardRows : [],
+      propBoardRows,
       matchOdds: out.matchOdds,
       fixtureHome: out.fixtureHome,
       fixtureAway: out.fixtureAway,
     }),
   };
+
+  if (verified) {
+    out = repairWcVerifiedPlayerMarketCardFace(out, question);
+  }
+
   if (structured.wcNamedPlayerPropsCard) {
     return repairWcNamedLegWhyNowBleed(out);
   }
@@ -1768,6 +1836,10 @@ export function buildWcPlayerPropPassHeadline(question) {
  */
 export function isWcPlayerPropPassStructured(structured, question = "") {
   if (!structured || typeof structured !== "object") return false;
+  const tier = String(structured.playerMarketTier || "");
+  const propBoardRows = Array.isArray(structured.propBoardRows) ? structured.propBoardRows : [];
+  if (tier === "verified" && propBoardRows.length > 0) return false;
+  if (tier === "verified" && isWcActionablePropLeanText(structured.lean)) return false;
   const blob = `${structured.call || ""} ${structured.lean || ""} ${structured.line || ""} ${structured.whyNow || ""} ${structured.edge || ""}`;
   if (CITED_BOOK_ODDS_RE.test(blob)) return false;
   if (/\bpass\b/i.test(blob) && NO_VERIFIED_LINE_RE.test(blob)) return true;
@@ -1824,6 +1896,56 @@ export function repairWcPlayerPropPassCard(structured, question = "") {
       ? `Watch for ${named} in confirmed lineups once books post match ${market}.`
       : "Re-ask closer to kickoff once MATCH PLAYER PROPS populate in VERIFIED CONTEXT.";
   }
+  return out;
+}
+
+/**
+ * Verified fixture props with posted lines — strip pass boilerplate and align call with punchy lean.
+ * @param {object} structured
+ * @param {string} question
+ */
+export function repairWcVerifiedPlayerMarketCardFace(structured, question = "") {
+  if (!structured || typeof structured !== "object") return structured;
+  if (String(structured.playerMarketTier || "") !== "verified") return structured;
+
+  const propBoardRows = Array.isArray(structured.propBoardRows) ? structured.propBoardRows : [];
+  const out = {
+    ...structured,
+    lean: resolveWcPlayerPropDisplayLean({
+      lean: structured.lean,
+      call: structured.call,
+      whyNow: structured.whyNow,
+      line: structured.line,
+      summary: structured.summary,
+      deep: structured.deep,
+      question,
+      propBoardRows,
+      matchOdds: structured.matchOdds,
+      fixtureHome: structured.fixtureHome,
+      fixtureAway: structured.fixtureAway,
+    }),
+  };
+
+  const actionable =
+    isWcActionablePropLeanText(out.lean) ||
+    (propBoardRows.length > 0 &&
+      !GENERIC_PASS_LEAN_RE.test(String(out.lean || "")) &&
+      !NO_VERIFIED_LINE_RE.test(String(out.lean || "")));
+  if (!actionable) return out;
+
+  out.callType = "player_market_verified";
+
+  if (isWcActionablePropLeanText(out.lean)) {
+    const callStr = String(out.call || "").trim();
+    const callIsGeneric =
+      !callStr ||
+      GENERIC_PROP_LIST_CALL_RE.test(callStr) ||
+      GENERIC_PASS_LEAN_RE.test(callStr) ||
+      NO_VERIFIED_LINE_RE.test(callStr) ||
+      /^pass\b/i.test(callStr);
+    if (callIsGeneric) out.call = out.lean;
+  }
+
   return out;
 }
 

@@ -21,6 +21,29 @@ import {
 const USA_PAR_DEEP =
   "USA +110 vs Paraguay +285 on the ML. Pass on USA +110 — lean both teams to advance in Group D.";
 
+test("prepareWcCardFaceDisplay — verified mixed props+totals uses punchy lean, not pass or list intro", () => {
+  const lean = "Pulišić over 0.5 SOT -220 + Under 2.5 goals -110";
+  const face = prepareWcCardFaceDisplay({
+    callType: "player_market_verified",
+    playerMarketTier: "verified",
+    cardType: "prop_board",
+    call: "United States vs Australia — top player props",
+    propBoardRows: [
+      { label: "Aziz Behich", lean: "Aziz Behich over 1 SOT +400", odds: "+400", nationAbbr: "AUS" },
+      { label: "Christian Pulišić", lean: "Christian Pulišić over 0.5 SOT -220", odds: "-220", nationAbbr: "USA" },
+    ],
+    lean,
+    why: "Pulišić is USA's primary SOT threat; Under 2.5 fits a compact script.",
+    focusLayout: true,
+    question: "best player props and total goal bet for usa vs australia?",
+  });
+  assert.equal(face.headline, lean);
+  assert.equal(face.slateListFace, null);
+  assert.doesNotMatch(face.headline, /pass/i);
+  assert.doesNotMatch(face.headline, /no actionable line/i);
+  assert.doesNotMatch(face.headline, /top player props/i);
+});
+
 test("prepareWcCardFaceDisplay — pass lean ignores long prop call headline", () => {
   const face = prepareWcCardFaceDisplay({
     callType: "player_market_verified",

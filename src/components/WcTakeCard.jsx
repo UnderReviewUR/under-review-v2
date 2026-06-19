@@ -7,6 +7,7 @@ import {
   isWcPlayerPropOverUnderCue,
 } from "../../shared/wcMatchupWinnerLine.js";
 import { isWcNamedLegPropsStructuredCard } from "../../shared/wcNamedLegCardUi.js";
+import { isWcActionablePropLeanText } from "../../shared/wcUrTakePlayerMarket.js";
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, pickWcBreakdownLabel, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 import WcGroundingStrip from "./WcGroundingStrip.jsx";
@@ -25,7 +26,9 @@ function WcPlayHeadline({ text, focusLayout }) {
   const playHeadline =
     isSlateSummary || isNamedPlayerProp ? "" : extractWcMatchupPlayHeadline(raw);
   const body = (playHeadline || raw.replace(/^pass on ml\s*[—-]\s*/i, "")).replace(/^lean:\s*/i, "").trim();
-  const isPass = /^pass/i.test(body) || /^fade/i.test(body);
+  const isPass =
+    !isWcActionablePropLeanText(body) &&
+    (/^pass/i.test(body) || /^fade/i.test(body));
   if (focusLayout) {
     return (
       <div className="wc-take-play-block">

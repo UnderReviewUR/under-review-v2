@@ -13,7 +13,7 @@ import {
 import { formatWcLiveGameStateLine } from "../shared/wcKickoffDisplay.js";
 import { isWcBdlSource } from "../shared/wcBdlPolicy.js";
 import { detectParlayIntent } from "../shared/detectParlayIntent.js";
-import { resolveWcPlayerPropDisplayLean } from "../shared/wcUrTakePlayerMarket.js";
+import { resolveWcPlayerPropDisplayLean, repairWcVerifiedPlayerMarketCardFace } from "../shared/wcUrTakePlayerMarket.js";
 import {
   isWcNamedPlayerPropQuestion,
   isGenericWcPlayerPropQuestion,
@@ -578,6 +578,9 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
       fixtureHome: merged.fixtureHome,
       fixtureAway: merged.fixtureAway,
     });
+    if (String(merged.playerMarketTier || "") === "verified") {
+      return repairWcVerifiedPlayerMarketCardFace(merged, question);
+    }
   }
 
   return merged;

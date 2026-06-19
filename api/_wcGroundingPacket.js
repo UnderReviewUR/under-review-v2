@@ -6,9 +6,9 @@
 import { wcMatchupTeamDisplayName } from "../shared/wcMatchupWinnerLine.js";
 import {
   collapseMatchPlayerPropRowsForDisplay,
-  fixturePropBoardPlayabilityScore,
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
+import { sortPropBoardRowsForMixedLean } from "../shared/wcUrTakePlayerMarket.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
 import {
   WC_GROUNDING_INVENTORY_LABELS,
@@ -428,7 +428,7 @@ function propBoardRowFromLeg(leg, marketKey) {
  * Prefer SOT + shots legs for mixed prop/totals leans — not only the primary board market.
  * @param {import("../shared/wcGroundingPacket.types.js").WcMarketsSummary} marketsSummary
  */
-function buildCardPropBoardRows(marketsSummary) {
+function buildCardPropBoardRows(marketsSummary, question = "") {
   const priorityMarkets = [
     "player_sot_ou",
     "player_shots_ou",
@@ -437,20 +437,21 @@ function buildCardPropBoardRows(marketsSummary) {
   ];
   /** @type {Array<ReturnType<typeof propBoardRowFromLeg>>} */
   const rows = [];
+  const seenLegIds = new Set();
   for (const key of priorityMarkets) {
     const entry = marketsSummary.posted.find((m) => m.market === key);
     if (!entry) continue;
-    for (const leg of entry.topLegs.slice(0, 4)) {
+    const legPool =
+      entry.topByNation?.home?.length || entry.topByNation?.away?.length
+        ? [...(entry.topByNation.home || []), ...(entry.topByNation.away || [])]
+        : entry.topLegs.slice(0, 6);
+    for (const leg of legPool) {
+      if (seenLegIds.has(leg.legId)) continue;
+      seenLegIds.add(leg.legId);
       rows.push(propBoardRowFromLeg(leg, key));
     }
   }
-  return rows
-    .sort(
-      (a, b) =>
-        fixturePropBoardPlayabilityScore(String(b.odds || "")) -
-        fixturePropBoardPlayabilityScore(String(a.odds || "")),
-    )
-    .slice(0, 8);
+  return sortPropBoardRowsForMixedLean(rows, question).slice(0, 8);
 }
 
 /**
@@ -459,7 +460,7 @@ function buildCardPropBoardRows(marketsSummary) {
  * @param {import("../shared/wcGroundingPacket.types.js").WcMarketsSummary} marketsSummary
  * @param {import("../shared/wcGroundingPacket.types.js").WcGroundingBlockers} blockers
  */
-function buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers) {
+function buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers, question = "") {
   const posted = marketsSummary.posted.map(
     (m) => WC_GROUNDING_INVENTORY_LABELS[m.market] || m.label,
   );
@@ -468,7 +469,7 @@ function buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers) {
   );
 
   const primary = marketsSummary.posted[0];
-  const cardPropRows = buildCardPropBoardRows(marketsSummary);
+  const cardPropRows = buildCardPropBoardRows(marketsSummary, question);
   /** @type {import("../shared/wcGroundingPacket.types.js").WcGroundingCardView["structuredSeed"]["propBoardRows"]} */
   const propBoardRows = cardPropRows.length
     ? cardPropRows
@@ -581,7 +582,7 @@ export function buildWcGroundingPacket(params) {
 
   const dataFreshness = normalizeDataFreshness(dataFreshnessInput);
   const fullLadder = buildFullLadderFromRawMarkets(rawBdlPlayerProps || {});
-  const marketsSummary = buildMarketsSummary(fullLadder.byPlayerMarket, pinnedFixture, 5);
+  const marketsSummary = buildMarketsSummary(fullLadder.byPlayerMarket, pinnedFixture, 8);
   const blockers = buildBlockers(
     marketsSummary,
     pinnedFixture,
@@ -598,7 +599,13 @@ export function buildWcGroundingPacket(params) {
       blockers,
       namedLegMatches,
     ),
-    card: buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers),
+    card: buildCardView(
+      pinnedFixture,
+      dataFreshness,
+      marketsSummary,
+      blockers,
+      String(askContext?.question || ""),
+    ),
     validation: buildValidationView(fullLadder),
   };
 

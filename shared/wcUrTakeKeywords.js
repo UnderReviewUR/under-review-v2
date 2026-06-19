@@ -227,3 +227,41 @@ export function extractMentionedWcTeams(question) {
   }
   return [...found];
 }
+
+/**
+ * Teams mentioned in question text, ordered by first appearance (e.g. "usa vs australia" → USA before AUS).
+ * @param {string} question
+ * @returns {string[]}
+ */
+export function extractMentionedWcTeamsInQuestionOrder(question) {
+  const q = normalizeText(question);
+  if (!q) return [];
+  /** @type {Map<string, number>} */
+  const firstIndex = new Map();
+  for (const phrase of WC_TEAM_PHRASES) {
+    if (!containsPhrase(q, phrase)) continue;
+    if (WC_AMBIGUOUS_TEAM_PHRASES.has(phrase)) {
+      const coSignal =
+        WC_GROUP_STAGE_RE.test(q) ||
+        q.includes("world cup") ||
+        q.includes("fifa") ||
+        q.includes("soccer") ||
+        (q.includes("football") && !WC_NFL_EXCLUDE_RE.test(q)) ||
+        /\bvs\.?\b/.test(q);
+      if (!coSignal) continue;
+    }
+    const abbr = WC_PHRASE_TO_ABBR.get(phrase);
+    if (!abbr) continue;
+    const re = phrase.includes(" ")
+      ? new RegExp(escapeRegExp(phrase), "i")
+      : new RegExp(`\\b${escapeRegExp(phrase)}\\b`, "i");
+    const m = re.exec(q);
+    if (!m) continue;
+    const idx = m.index;
+    const prev = firstIndex.get(abbr);
+    if (prev === undefined || idx < prev) firstIndex.set(abbr, idx);
+  }
+  return [...firstIndex.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([abbr]) => abbr);
+}
