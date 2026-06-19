@@ -1418,20 +1418,36 @@ const UR_TAKE_LOADING_PHASES_WC = [
   { delay: 42000, text: "Finishing up..." },
 ];
 
+/** World Cup player props — GOAT fetch + named-leg ladder (no sim-stack copy). */
+const UR_TAKE_LOADING_PHASES_WC_PROPS = [
+  { delay: 0, text: "Pulling live lines…" },
+  { delay: 2500, text: "Matching players to posted markets..." },
+  { delay: 6000, text: "Building playable ladder..." },
+  { delay: 12000, text: "Almost there..." },
+];
+
 export function LoadingBubble({ sport, variant = "default", onLayoutTick }) {
   const sportKey = String(sport || "").toLowerCase();
   const accent = SPORT_ACCENT[sportKey] || "#FFFFFF";
   const imessage = variant === "urChatDocked";
 
   const phases =
-    sportKey === "worldcup" ? UR_TAKE_LOADING_PHASES_WC : UR_TAKE_LOADING_PHASES;
+    sportKey === "worldcup_props"
+      ? UR_TAKE_LOADING_PHASES_WC_PROPS
+      : sportKey === "worldcup"
+        ? UR_TAKE_LOADING_PHASES_WC
+        : UR_TAKE_LOADING_PHASES;
 
   const [phaseText, setPhaseText] = useState(phases[0].text);
   const [progressPhase, setProgressPhase] = useState("");
 
   useEffect(() => {
     const phaseList =
-      sportKey === "worldcup" ? UR_TAKE_LOADING_PHASES_WC : UR_TAKE_LOADING_PHASES;
+      sportKey === "worldcup_props"
+        ? UR_TAKE_LOADING_PHASES_WC_PROPS
+        : sportKey === "worldcup"
+          ? UR_TAKE_LOADING_PHASES_WC
+          : UR_TAKE_LOADING_PHASES;
     setPhaseText(phaseList[0].text);
     const timers = phaseList.slice(1).map(({ delay, text }) =>
       window.setTimeout(() => setPhaseText(text), delay),

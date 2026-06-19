@@ -128,6 +128,7 @@ import {
 } from "../shared/urTakeSportRouting.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import { urTakeLoadingLabelForSport, isUrTakeLoadingPlaceholder } from "../shared/wcNamedLegCardUi.js";
+import { resolveWcUrTakeLoadingSportKey } from "../shared/wcUrTakePipeline.js";
 import {
   alignMergedGamesToVerifiedSlate,
   augmentNbaRosterGroundingWithUi,
@@ -1684,6 +1685,10 @@ ${themeCss}
     hintForEnsure = hEnsure;
 
     const loadingSport = eff === "tennis_wta_profile" ? "tennis" : eff;
+    const loadingSportKey =
+      loadingSport === "worldcup"
+        ? resolveWcUrTakeLoadingSportKey("worldcup", text)
+        : loadingSport;
 
     return [
       ...prev,
@@ -1707,9 +1712,9 @@ ${themeCss}
       },
       {
         role: "ai",
-        text: urTakeLoadingLabelForSport(loadingSport),
+        text: urTakeLoadingLabelForSport(loadingSportKey),
         loading: true,
-        sport: loadingSport,
+        sport: loadingSportKey,
         msgId: pendingMsgId,
       },
     ];

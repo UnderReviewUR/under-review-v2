@@ -43,6 +43,6 @@ export function isWcNamedLegPropsStructuredCard(opts = {}) {
  */
 export function urTakeLoadingLabelForSport(sportHint) {
   const sport = String(sportHint || "").trim().toLowerCase();
-  if (sport === "worldcup") return "Pulling live lines…";
+  if (sport === "worldcup" || sport === "worldcup_props") return "Pulling live lines…";
   return "Analyzing…";
 }

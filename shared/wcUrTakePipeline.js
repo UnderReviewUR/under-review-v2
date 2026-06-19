@@ -134,3 +134,40 @@ export function shouldSuppressWcFixtureAltFollowUpPrebuilt(params) {
     hasKvFixture: Boolean(resolveWcFixturePairFromHistory(history)?.eventId),
   });
 }
+
+/**
+ * Phase 4 — V2 deliver routes matchup ML through prebuilt; legacy props arm must not intercept.
+ * @param {{ v2Deliver?: boolean, v2Turn?: { lane?: string } | null }} params
+ */
+export function shouldSkipWcPlayerPropsFastPathForV2Deliver(params) {
+  if (!params.v2Deliver) return false;
+  return params.v2Turn?.lane === "matchup_ml";
+}
+
+/**
+ * Phase 4 — avoid duplicate cold KV fetch when V2 pinned a matchup-ML turn (no props).
+ * @param {{ v2Deliver?: boolean, v2Turn?: { lane?: string } | null }} params
+ */
+export function shouldSkipWcPlayerKvSupplementForV2Deliver(params) {
+  if (!params.v2Deliver) return false;
+  return params.v2Turn?.lane === "matchup_ml";
+}
+
+/**
+ * Loading bubble sport key — WC props lane uses shorter copy (no sim-stack theater).
+ * @param {string} [sportHint]
+ * @param {string} [question]
+ */
+export function resolveWcUrTakeLoadingSportKey(sportHint, question) {
+  const sport = String(sportHint || "").trim().toLowerCase();
+  if (sport !== "worldcup") return sport || null;
+  const q = String(question || "").trim();
+  if (
+    /\b(props?|parlay|shots?|scorer|assist|sgp|anytime)\b/i.test(q) ||
+    /\beach going over\b/i.test(q) ||
+    /\bplayer(s)?\s+(prop|market)/i.test(q)
+  ) {
+    return "worldcup_props";
+  }
+  return "worldcup";
+}

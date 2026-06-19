@@ -4,6 +4,9 @@ import {
   isWcUrTakeV2DeliverEnabled,
   resolveWcUrTakeV2Turn,
   shouldSuppressWcFixtureAltFollowUpPrebuilt,
+  shouldSkipWcPlayerPropsFastPathForV2Deliver,
+  shouldSkipWcPlayerKvSupplementForV2Deliver,
+  resolveWcUrTakeLoadingSportKey,
 } from "./wcUrTakePipeline.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
@@ -101,5 +104,54 @@ test("shouldSuppressWcFixtureAltFollowUpPrebuilt blocks who wins thread steal", 
       v2Deliver: true,
     }),
     true,
+  );
+});
+
+test("Phase 4 — matchup_ml skips props fast path and KV supplement when V2 deliver on", () => {
+  const turn = resolveWcUrTakeV2Turn({
+    question: "Who wins MEX vs KOR?",
+    history: MEX_KOR_PROPS_THREAD,
+    matches: MEX_KOR_MATCHES,
+    wcIntent: WC_INTENT.MATCHUP,
+    routeHeader: "1",
+  });
+  assert.equal(turn.lane, "matchup_ml");
+  assert.equal(
+    shouldSkipWcPlayerPropsFastPathForV2Deliver({ v2Deliver: true, v2Turn: turn }),
+    true,
+  );
+  assert.equal(
+    shouldSkipWcPlayerKvSupplementForV2Deliver({ v2Deliver: true, v2Turn: turn }),
+    true,
+  );
+});
+
+test("Phase 4 — props lane keeps delivery arms open", () => {
+  const prevKey = process.env.BALLDONTLIE_API_KEY;
+  process.env.BALLDONTLIE_API_KEY = "test-key";
+  try {
+    const turn = resolveWcUrTakeV2Turn({
+      question: "Son over 2.5 shots",
+      history: MEX_KOR_PROPS_THREAD,
+      matches: MEX_KOR_MATCHES,
+      wcIntent: WC_INTENT.PLAYER_PROP,
+      routeHeader: "1",
+    });
+    assert.equal(turn.lane, "props");
+    assert.equal(
+      shouldSkipWcPlayerPropsFastPathForV2Deliver({ v2Deliver: true, v2Turn: turn }),
+      false,
+    );
+  } finally {
+    if (prevKey === undefined) delete process.env.BALLDONTLIE_API_KEY;
+    else process.env.BALLDONTLIE_API_KEY = prevKey;
+  }
+});
+
+test("resolveWcUrTakeLoadingSportKey — props vs matchup", () => {
+  assert.equal(resolveWcUrTakeLoadingSportKey("worldcup", "Who wins MEX vs KOR?"), "worldcup");
+  assert.equal(
+    resolveWcUrTakeLoadingSportKey("worldcup", "Son over 2.5 shots"),
+    "worldcup_props",
   );
 });

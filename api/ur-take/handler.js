@@ -137,6 +137,7 @@ import {
   isWcUrTakeV2DeliverEnabled,
   resolveWcUrTakeV2Turn,
   shouldSuppressWcFixtureAltFollowUpPrebuilt,
+  shouldSkipWcPlayerKvSupplementForV2Deliver,
 } from "../../shared/wcUrTakePipeline.js";
 import { readWcTournamentSimFromKv } from "../_wcTournamentSimData.js";
 import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
@@ -3377,6 +3378,7 @@ export default async function handler(req, res) {
         wcPropsRoute = wcUrTakeV2Turn.propsRoute;
         wcContext.wcPropsRoute = wcPropsRoute;
         wcContext.wcUrTakeV2Turn = wcUrTakeV2Turn;
+        wcContext.wcUrTakeV2Deliver = v2Deliver;
         wcRelevanceLog.wcPropsRouteV2 = true;
         wcRelevanceLog.wcPropsApplyRoute = wcPropsRoute.applyRoute;
         wcRelevanceLog.wcPropsLoadMatchProps = wcPropsRoute.loadMatchProps;
@@ -3400,6 +3402,7 @@ export default async function handler(req, res) {
       }
 
       const shouldSupplementPlayerKv =
+        !shouldSkipWcPlayerKvSupplementForV2Deliver({ v2Deliver, v2Turn: wcUrTakeV2Turn }) &&
         !hasImage &&
         !wcContext?.playerMarketKv?.matchPlayerProps &&
         (wcPropsRoute?.applyRoute ||

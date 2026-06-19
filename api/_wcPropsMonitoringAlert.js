@@ -29,7 +29,7 @@ function alertDedupeKey(payload) {
 export function emitWcPropsMonitoringAlert(payload) {
   const body = {
     event: "wc_props_monitoring_alert",
-    phase: "wc_phase1",
+    phase: "wc_phase4",
     ...payload,
     ts: Date.now(),
   };

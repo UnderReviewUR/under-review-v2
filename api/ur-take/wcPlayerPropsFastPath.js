@@ -57,6 +57,8 @@ import {
   buildWcGroundingPacketForUrTake,
 } from "../_wcGroundingUrTake.js";
 import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
+import { shouldSkipWcPlayerPropsFastPathForV2Deliver } from "../../shared/wcUrTakePipeline.js";
+import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
 
 /**
  * @param {string} wcIntent
@@ -204,6 +206,12 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   } = ctx;
 
   if (sportHint !== "worldcup") return { handled: false };
+
+  const v2Deliver = Boolean(wcRelevanceLog?.wcUrTakeV2Deliver);
+  const v2Turn = wcContext?.wcUrTakeV2Turn || null;
+  if (shouldSkipWcPlayerPropsFastPathForV2Deliver({ v2Deliver, v2Turn })) {
+    return { handled: false };
+  }
 
   const history = normalizedUrTakeHistoryForGate || [];
   const routingQ = String(routingQuestion || question || "").trim();
@@ -521,6 +529,9 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       structuredResponse,
       wcGroundingPacket,
     );
+    structuredResponse = applyWcNamedLegOutputContract(structuredResponse, wcGroundingPacket, {
+      question: String(question || ""),
+    });
   }
   responseText = formatWcCompactDisplayText(structuredResponse, responseText);
 
