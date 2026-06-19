@@ -38,6 +38,7 @@ import { isWcPreKickoffPromoOnly } from "./wc2026PromoFixtures.js";
  * @param {object} [input.f1Data]
  * @param {Array} [input.tennisMatchesForTicker]
  * @param {Array} [input.wcMatches]
+ * @param {object} [input.golfData]
  * @param {() => string|null} [input.golfSnapshotKey]
  * @param {Array} [input.validNbaGames] pre-filtered displayable NBA
  * @param {Array} [input.validMlbGames] pre-filtered displayable MLB
@@ -122,7 +123,13 @@ export function planLiveSnapshot(input) {
     }
   }
 
+  const golfLeaderboardCount = Array.isArray(input.golfData?.currentEvent?.leaderboard)
+    ? input.golfData.currentEvent.leaderboard.length
+    : 0;
+  const dedicatedGolfHomeCard = golfLeaderboardCount >= 3;
+
   if (
+    !dedicatedGolfHomeCard &&
     items.length < MAX_LIVE_SNAPSHOT_TILES &&
     typeof input.golfSnapshotKey === "function" &&
     isHomeTickerSportVisible("golf")

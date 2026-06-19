@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isDailyTakeSportVisible,
   isHomeCardSportVisible,
   isHomeTickerSportVisible,
   isNavSportVisible,
@@ -34,6 +35,13 @@ test("home cards hide mlb and tennis spotlight", () => {
   assert.ok(isHomeCardSportVisible("golf"));
   assert.ok(!isHomeCardSportVisible("mlb"));
   assert.ok(!isHomeCardSportVisible("tennis"));
+});
+
+test("daily take uses nba and worldcup only", () => {
+  assert.ok(isDailyTakeSportVisible("nba"));
+  assert.ok(isDailyTakeSportVisible("worldcup"));
+  assert.ok(!isDailyTakeSportVisible("mlb"));
+  assert.ok(!isDailyTakeSportVisible("tennis"));
 });
 
 test("isNflUrTakeGated when off-season", () => {

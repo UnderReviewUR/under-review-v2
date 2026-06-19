@@ -3882,6 +3882,47 @@ export const baseCss = `
   .wc-chat-scroll .section-divider,
   .wc-chat-scroll .wc-conf-section:first-of-type{margin-top:8px;}
   .golf-banner{border-radius:16px;padding:16px;margin-bottom:16px;border:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
+  .golf-home-standings{margin:0 0 14px;}
+  .golf-home-standings-btn{width:100%;text-align:left;border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02));cursor:pointer;color:inherit;}
+  .golf-home-standings-btn:hover{border-color:rgba(255,255,255,.32);}
+  .golf-home-standings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px;}
+  .golf-home-standings-kicker{font-family:var(--mono-font);font-size:10px;letter-spacing:.14em;color:#C8D4E0;text-transform:uppercase;margin-bottom:4px;}
+  .golf-home-standings-title{font-size:18px;font-weight:800;color:#fff;line-height:1.2;}
+  .golf-home-standings-meta{font-size:12px;color:var(--muted);margin-top:4px;}
+  .golf-home-standings-chev{font-size:22px;color:var(--muted);line-height:1;}
+  .golf-home-standings-table{display:flex;flex-direction:column;gap:6px;}
+  .golf-home-standings-row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;font-size:13px;}
+  .golf-home-standings-pos{font-family:var(--mono-font);font-size:11px;color:var(--muted);}
+  .golf-home-standings-name{color:var(--soft);font-weight:600;}
+  .golf-home-standings-thru{font-weight:400;color:var(--muted);}
+  .golf-home-standings-score{font-family:var(--mono-font);font-size:13px;font-weight:700;}
+  .golf-home-standings-angles{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+  .golf-home-standings-angle{font-size:12px;line-height:1.4;color:var(--soft);}
+  .golf-home-standings-angle-label{font-family:var(--mono-font);font-size:9px;letter-spacing:.12em;text-transform:uppercase;margin-right:6px;}
+  .golf-home-standings-angle--sleeper .golf-home-standings-angle-label{color:#00E676;}
+  .golf-home-standings-angle--fader .golf-home-standings-angle-label{color:#FF8A80;}
+  .golf-home-standings-foot{display:flex;justify-content:space-between;gap:10px;margin-top:12px;font-size:11px;color:var(--muted);}
+  .golf-home-standings-open{color:#C8D4E0;font-family:var(--mono-font);letter-spacing:.04em;}
+  .golf-board-section{margin-bottom:14px;}
+  .golf-board-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .golf-board-card-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:2px;}
+  .golf-board-card-sub{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .golf-board-card-facts{font-family:var(--mono-font);font-size:11px;color:var(--muted);margin-bottom:8px;}
+  .golf-board-card-copy{font-size:13px;line-height:1.45;color:var(--soft);margin:0 0 6px;}
+  .golf-board-card-copy--muted{color:var(--muted);}
+  .golf-board-tips{margin:0;padding:0 0 0 18px;color:var(--soft);font-size:13px;line-height:1.45;}
+  .golf-board-tips li{margin-bottom:6px;}
+  .golf-board-picks{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width: 520px){.golf-board-picks{grid-template-columns:1fr;}}
+  .golf-board-picks-label{font-family:var(--mono-font);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .golf-board-pick{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;color:inherit;}
+  .golf-board-pick:hover{border-color:rgba(255,255,255,.28);}
+  .golf-board-pick--sleeper{border-color:rgba(0,230,118,.2);}
+  .golf-board-pick--fader{border-color:rgba(255,68,68,.2);}
+  .golf-board-pick-name{display:block;font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px;}
+  .golf-board-pick-reason{display:block;font-size:12px;line-height:1.4;color:var(--muted);}
+  .golf-board-count{font-family:var(--mono-font);font-size:11px;color:var(--muted);margin-left:8px;font-weight:400;}
+  .golf-board-standings{max-height:min(70vh,520px);overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:4px;}
   .golf-ask-shell{background:var(--surface);border:1px solid rgba(255,255,255,.15);border-radius:14px;padding:14px;margin-bottom:16px;}
   .tennis-ask-shell{background:var(--surface);border:1px solid rgba(255,230,0,.2);border-radius:14px;padding:14px;margin-bottom:16px;}
   .tennis-ask-shell-kicker{font-size:10px;color:#FFE600;font-family:var(--mono-font);letter-spacing:2px;margin-bottom:8px;text-transform:uppercase;}

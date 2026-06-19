@@ -7,6 +7,7 @@
 /** @typedef {"nba"|"mlb"|"nfl"|"f1"|"tennis"|"golf"|"worldcup"} HomeTickerSportSlug */
 /** @typedef {"nba"|"mlb"|"tennis"|"f1"|"golf"|"nflDraft"} HomeCardSportSlug */
 /** @typedef {"mlb"|"tennis"|"nfl"} HomePromptSportSlug */
+/** @typedef {"nba"|"worldcup"|"mlb"|"tennis"} DailyTakeSportSlug */
 
 export const SITE_SPORT_VISIBILITY = Object.freeze({
   nav: Object.freeze({
@@ -42,6 +43,12 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
     tennis: false,
   }),
   todaySlate: Object.freeze({
+    mlb: false,
+    tennis: false,
+  }),
+  dailyTake: Object.freeze({
+    nba: true,
+    worldcup: true,
     mlb: false,
     tennis: false,
   }),
@@ -91,6 +98,15 @@ export function isTodaySlateSportVisible(slug) {
   if (!key) return true;
   if (SITE_SPORT_VISIBILITY.todaySlate[key] === false) return false;
   return true;
+}
+
+/**
+ * @param {DailyTakeSportSlug | string} slug
+ */
+export function isDailyTakeSportVisible(slug) {
+  const key = String(slug || "").toLowerCase();
+  if (!key) return false;
+  return SITE_SPORT_VISIBILITY.dailyTake[key] !== false;
 }
 
 /**

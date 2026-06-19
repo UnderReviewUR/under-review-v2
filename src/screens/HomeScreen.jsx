@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import HomeWcFeaturedCard from "../components/HomeWcFeaturedCard.jsx";
 import AskBar from "../components/AskBar.jsx";
+import GolfHomeStandingsCard from "../components/GolfHomeStandingsCard.jsx";
 import HomeLastLeanCard from "../components/HomeLastLeanCard.jsx";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
@@ -61,6 +62,7 @@ export default function HomeScreen({
   getSeriesLabel,
   tennisTickerMatches,
   golfData,
+  golfLoading = false,
   mlbGames,
   mlbData,
   f1Data,
@@ -272,6 +274,12 @@ export default function HomeScreen({
           </div>
         </section>
       ) : null}
+
+      <GolfHomeStandingsCard
+        golfData={golfData}
+        golfLoading={golfLoading}
+        onOpenGolf={_goGolf}
+      />
 
       {!narrowHome ? (
       <div className="ur-home-feed">

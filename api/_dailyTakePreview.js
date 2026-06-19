@@ -3,6 +3,8 @@ import { condensedPreviewFromUrTakeResponse } from "./_dailyTakeCondensed.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { buildNbaUrTakeBoard } from "./nba.js";
 import { getNbaFinalsSeriesState } from "../shared/nbaFinalsUtils.js";
+import { isDailyTakeSportVisible } from "../shared/siteSportVisibility.js";
+import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
 const STORAGE_PREFIX = "daily_take:v2:";
@@ -54,79 +56,119 @@ function scoreTennisRow(row) {
   return s;
 }
 
+function scoreWcMatch(m) {
+  const st = String(m?.status || "").toLowerCase();
+  if (["live", "ht", "1h", "2h"].includes(st)) return 100;
+  if (st === "ns" || st === "scheduled" || st === "upcoming") return 50;
+  return 10;
+}
+
+function wcMatchupLabel(m) {
+  const away = String(m?.awayTeam || "").trim() || "Away";
+  const home = String(m?.homeTeam || "").trim() || "Home";
+  return `${away} vs ${home}`;
+}
+
 /**
- * NBA → MLB → Tennis: first sport with a playable slate wins; games ranked by live/postseason proxy.
+ * NBA → World Cup → MLB → Tennis: first visible sport with a playable slate wins.
  * @returns {Promise<{ sportHint: string, question: string, matchupLabel: string } | null>}
  */
 export async function pickDailySlateTarget(fetchImpl = fetch) {
-  try {
-    const board = await buildNbaUrTakeBoard("");
-    const games = board?.todaysGames || [];
-    const playable = games.filter((g) => {
-      const st = String(g?.state || "").toLowerCase();
-      return st === "pre" || st === "scheduled" || st === "in";
-    });
-    if (playable.length) {
-      const g = [...playable].sort((a, b) => scoreNbaGame(b) - scoreNbaGame(a))[0];
-      const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";
-      const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
-      return {
-        sportHint: "nba",
-        question: `What's your sharpest lean on ${away} @ ${home} tonight — who you like, why, and what line or prop jumps out from the board?`,
-        matchupLabel: `${away} @ ${home}`,
-      };
+  if (isDailyTakeSportVisible("nba")) {
+    try {
+      const board = await buildNbaUrTakeBoard("");
+      const games = board?.todaysGames || [];
+      const playable = games.filter((g) => {
+        const st = String(g?.state || "").toLowerCase();
+        return st === "pre" || st === "scheduled" || st === "in";
+      });
+      if (playable.length) {
+        const g = [...playable].sort((a, b) => scoreNbaGame(b) - scoreNbaGame(a))[0];
+        const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";
+        const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
+        return {
+          sportHint: "nba",
+          question: `What's your sharpest lean on ${away} @ ${home} tonight — who you like, why, and what line or prop jumps out from the board?`,
+          matchupLabel: `${away} @ ${home}`,
+        };
+      }
+    } catch (err) {
+      console.warn("[daily-take] NBA slate pick failed:", err?.message || err);
     }
-  } catch (err) {
-    console.warn("[daily-take] NBA slate pick failed:", err?.message || err);
+  }
+
+  if (isDailyTakeSportVisible("worldcup")) {
+    try {
+      const board = await loadWorldCupSlateBoard();
+      const candidates = [
+        ...(Array.isArray(board?.live) ? board.live : []),
+        ...(Array.isArray(board?.upcoming) ? board.upcoming : []),
+      ].filter((m) => m?.homeTeam && m?.awayTeam);
+      if (candidates.length) {
+        const m = [...candidates].sort((a, b) => scoreWcMatch(b) - scoreWcMatch(a))[0];
+        const label = wcMatchupLabel(m);
+        return {
+          sportHint: "worldcup",
+          question: `What's your sharpest lean on ${label} — who advances or covers, why, and which line or prop on the board looks mispriced?`,
+          matchupLabel: label,
+        };
+      }
+    } catch (err) {
+      console.warn("[daily-take] World Cup slate pick failed:", err?.message || err);
+    }
   }
 
   const origin = resolveInternalApiOrigin();
 
-  try {
-    const res = await fetchImpl(`${origin}/api/mlb?view=board`, {
-      headers: { Accept: "application/json" },
-    });
-    if (res.ok) {
-      const board = await res.json();
-      const games = board?.games || [];
-      const playable = games.filter((g) => String(g?.state || "").toLowerCase() !== "post");
-      if (playable.length) {
-        const g = [...playable].sort((a, b) => scoreMlbGame(b) - scoreMlbGame(a))[0];
-        const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";
-        const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
-        return {
-          sportHint: "mlb",
-          question: `What's your sharpest lean on ${away} @ ${home} today — pitching, bullpen, and the play you'd actually make from the board?`,
-          matchupLabel: `${away} @ ${home}`,
-        };
+  if (isDailyTakeSportVisible("mlb")) {
+    try {
+      const res = await fetchImpl(`${origin}/api/mlb?view=board`, {
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const board = await res.json();
+        const games = board?.games || [];
+        const playable = games.filter((g) => String(g?.state || "").toLowerCase() !== "post");
+        if (playable.length) {
+          const g = [...playable].sort((a, b) => scoreMlbGame(b) - scoreMlbGame(a))[0];
+          const away = g?.awayTeam?.abbr || g?.awayTeam?.name || "Away";
+          const home = g?.homeTeam?.abbr || g?.homeTeam?.name || "Home";
+          return {
+            sportHint: "mlb",
+            question: `What's your sharpest lean on ${away} @ ${home} today — pitching, bullpen, and the play you'd actually make from the board?`,
+            matchupLabel: `${away} @ ${home}`,
+          };
+        }
       }
+    } catch (err) {
+      console.warn("[daily-take] MLB slate pick failed:", err?.message || err);
     }
-  } catch (err) {
-    console.warn("[daily-take] MLB slate pick failed:", err?.message || err);
   }
 
-  try {
-    const res = await fetchImpl(`${origin}/api/tennis?tour=atp`, {
-      headers: { Accept: "application/json" },
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const rows = Array.isArray(data) ? data : [];
-      const usable = rows.filter((r) => r?.home_team && r?.away_team);
-      if (usable.length) {
-        const row = [...usable].sort((a, b) => scoreTennisRow(b) - scoreTennisRow(a))[0];
-        const p1 = String(row.home_team || "").trim();
-        const p2 = String(row.away_team || "").trim();
-        const label = `${p1} vs ${p2}`;
-        return {
-          sportHint: "tennis",
-          question: `Give me the sharpest betting edge for ${label} — market mispricing, form, and the structural angle from today's board.`,
-          matchupLabel: label,
-        };
+  if (isDailyTakeSportVisible("tennis")) {
+    try {
+      const res = await fetchImpl(`${origin}/api/tennis?tour=atp`, {
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const rows = Array.isArray(data) ? data : [];
+        const usable = rows.filter((r) => r?.home_team && r?.away_team);
+        if (usable.length) {
+          const row = [...usable].sort((a, b) => scoreTennisRow(b) - scoreTennisRow(a))[0];
+          const p1 = String(row.home_team || "").trim();
+          const p2 = String(row.away_team || "").trim();
+          const label = `${p1} vs ${p2}`;
+          return {
+            sportHint: "tennis",
+            question: `Give me the sharpest betting edge for ${label} — market mispricing, form, and the structural angle from today's board.`,
+            matchupLabel: label,
+          };
+        }
       }
+    } catch (err) {
+      console.warn("[daily-take] Tennis slate pick failed:", err?.message || err);
     }
-  } catch (err) {
-    console.warn("[daily-take] Tennis slate pick failed:", err?.message || err);
   }
 
   return null;

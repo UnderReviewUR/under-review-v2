@@ -6,6 +6,7 @@ import {
   getEtDateKey,
   readStoredDailyTake,
 } from "./_dailyTakePreview.js";
+import { isDailyTakeSportVisible } from "../shared/siteSportVisibility.js";
 
 const PREVIEW_TRIM_VERSION = 4;
 
@@ -15,7 +16,10 @@ const PREVIEW_TRIM_VERSION = 4;
 function isDailyTakeCacheServable(cached) {
   if (!cached?.ok) return false;
   const trimVersion = Number(cached.previewTrimVersion || 0);
-  return trimVersion >= PREVIEW_TRIM_VERSION;
+  if (trimVersion < PREVIEW_TRIM_VERSION) return false;
+  const sport = String(cached.sportHint || cached.sport || "").toLowerCase();
+  if (sport && !isDailyTakeSportVisible(sport)) return false;
+  return true;
 }
 
 export default async function handler(req, res) {

@@ -106,6 +106,7 @@ export function buildHomeEventPipeline(input) {
     validNbaGames: base.nbaGamesForHome,
     validMlbGames: base.mlbGamesForHome,
     golfSnapshotKey: typeof input.golfSnapshotKeyFn === "function" ? input.golfSnapshotKeyFn : () => null,
+    golfData: input.golfData,
   });
 
   base.meta = {

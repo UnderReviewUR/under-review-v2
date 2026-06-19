@@ -3368,46 +3368,8 @@ ${themeCss}
     }
 
     if (golfHomeValidity.isActive && topThree.length > 0) {
-      const gkLb = golfKeyForLiveSnapshot(golfData);
-      if (gkLb && cardExcludeSet.has(gkLb)) {
-        /* Leaderboard tile already on Live Snapshot */
-      } else {
-      const leaderboardLine = topThree
-        .map((p, i) => {
-          const thru = String(p?.thru || "").trim();
-          const thruLabel = thru && thru !== "—" && thru !== "-" ? ` (${thru})` : "";
-          return `${i + 1}. ${shortName(readName(p))} ${formatScore(p?.score)}${thruLabel}`;
-        })
-        .join("\n");
-
-      return [{
-        id: "golf-home-leaderboard",
-        league: isGolfFinal ? "GOLF · FINAL" : looksInProgress ? "GOLF LIVE" : "GOLF",
-        leagueColor: "#FFFFFF",
-        title: currentEvent?.shortName || currentEvent?.name || "PGA Tour",
-        time: isGolfFinal ? "Final" : currentEvent?.round || (looksInProgress ? "Live" : "Leaderboard"),
-        network: currentEvent?.course || "PGA Tour",
-        blurb: `${leaderboardLine}\n${sourceLabel} · ${freshnessLabel}`,
-        topThree: topThree.map((p, i) => ({
-          rank: i + 1,
-          name: shortName(readName(p)),
-          score: formatScore(p?.score),
-          thru: String(p?.thru || "").trim(),
-        })),
-        sourceLine: `${sourceLabel} · ${freshnessLabel}`,
-        whatMatters: isGolfFinal
-          ? "Tournament closed — recap angles and grading live on Golf."
-          : looksInProgress
-            ? "Live: ride form that matches the course card, fade volatility without a floor."
-            : "Pre-wave: attack course-fit vs market chalk before the next leaderboard jump.",
-        quickHitters: isGolfFinal
-          ? []
-          : looksInProgress
-            ? ["Best live placement?", "Fade volatile chalk?", "Who has the cleanest ball-striking?"]
-            : ["Leader mispriced vs field?", "Best top-10 before the move?", "Who is the live chaser?"],
-        confirmed: true,
-      }];
-    }
+      /* Prominent standings live in GolfHomeStandingsCard */
+      return [];
     }
 
     const nextEventName =
@@ -4906,6 +4868,7 @@ ${themeCss}
             getSeriesLabel={getSeriesLabel}
             tennisTickerMatches={tennisTickerMatches}
             golfData={golfData}
+            golfLoading={golfLoading}
             mlbGames={homePipeline?.mlbGamesForHome}
             mlbData={mlbData}
             f1Data={f1Data}
