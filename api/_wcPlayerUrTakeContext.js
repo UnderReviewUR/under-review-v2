@@ -277,6 +277,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
   const loadMatchProps =
     (Boolean(wcEventId) || loadSlateMatchProps) &&
     (opts.wcIntent === WC_INTENT.PLAYER_PROP ||
+      opts.wcIntent === WC_INTENT.PARLAY ||
       isWcLiveDominanceQuestion(question) ||
       isWcFixturePlayerPropsQuestion(question) ||
       isWcFixtureScopedPlayerMarketQuestion(question) ||
@@ -307,23 +308,29 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
           const requireShotsRows = isWcShotsPropQuestion(question);
           let payload = readCachedMatchPlayerPropsForEvent(wcEventId, matchPropsKvRoot, nowMs);
           const shotsOk = !requireShotsRows || matchPropsPayloadHasShotsRows(payload);
+          const m = matches.find((row) => String(row?.id) === String(wcEventId));
+          const matchDayForceFresh =
+            Boolean(m) &&
+            isWcScheduledMatchStatus(m.status) &&
+            wcMatchOnEtBroadcastSlateDay(m, wcTodayEtYmd(nowMs));
           const needsLiveRefresh =
             isWcGoatPrimaryEnabled() &&
-            (!payload ||
+            (matchDayForceFresh ||
+              !payload ||
               !hasMatchPlayerPropRows(payload) ||
               !shotsOk ||
               wcGoatMatchPlayerPropsNeedsLiveRefresh(payload, {
-                matchStatus: fixtureTeams.status,
+                matchStatus: fixtureTeams.status || m?.status,
                 nowMs,
               }));
           if (needsLiveRefresh) {
-            const m = matches.find((row) => String(row?.id) === String(wcEventId));
             const live = await refreshWcGoatMatchPlayerPropsIfNeeded(
               wcEventId,
               {
                 ...fixtureTeams,
                 ...wcMatchMetaFromRow(m),
                 requireShotsRows,
+                forceFresh: matchDayForceFresh,
               },
               nowMs,
             );
@@ -405,7 +412,7 @@ async function loadWcMatchPlayerPropsForNamedLegs(legs, matches, nowMs) {
 const MATCH_PROPS_MEMORY_CACHE = new Map();
 /** GOAT: short TTL — BDL is live source; KV is write-through cache only. */
 const MATCH_PROPS_MEMORY_CACHE_TTL_MS = 90 * 1000;
-const MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS = 14_000;
+const MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS = 28_000;
 const MATCH_PROPS_NAMED_SHOTS_TIMEOUT_MS = 30_000;
 
 /**
@@ -516,7 +523,17 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
       matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_sot_ou", 2).length >= 1
     );
   }
-  return matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "anytime_scorer", 6).length >= 2;
+  const totalRows = WC_MATCH_PLAYER_PROP_MARKET_KEYS.reduce(
+    (n, key) => n + matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, key, 999).length,
+    0,
+  );
+  if (totalRows >= 4) return true;
+  return (
+    matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "anytime_scorer", 6).length >= 2 ||
+    matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_shots_ou", 6).length >= 2 ||
+    matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_sot_ou", 6).length >= 2 ||
+    matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_tackles_ou", 6).length >= 2
+  );
 }
 
 function readMatchPropsMemoryCache(eventId) {

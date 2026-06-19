@@ -72,7 +72,8 @@ export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, 
   if (!isWcGoatPrimaryEnabled()) {
     return readWcMatchPlayerPropsForEvent(id, nowMs);
   }
-  const cached = await readWcMatchPlayerPropsForEvent(id, nowMs);
+  const forceFresh = meta.forceFresh === true;
+  const cached = forceFresh ? null : await readWcMatchPlayerPropsForEvent(id, nowMs);
   const needsShotsRefresh =
     meta.requireShotsRows === true &&
     cached &&
@@ -80,6 +81,7 @@ export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, 
     matchPlayerPropRowsFromEvent(cached, "player_shots_ou", 1).length === 0 &&
     matchPlayerPropRowsFromEvent(cached, "player_shots_each_half", 1).length === 0;
   if (
+    !forceFresh &&
     !needsShotsRefresh &&
     !wcGoatMatchPlayerPropsNeedsLiveRefresh(cached, {
       matchStatus: meta.status,
@@ -88,7 +90,22 @@ export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, 
   ) {
     return cached;
   }
-  return (await ensureWcBdlMatchPlayerPropsForEvent(id, meta)) || cached;
+  const result = await ensureWcBdlMatchPlayerPropsForEvent(id, meta);
+  if (result && hasMatchPlayerPropRows(result)) {
+    console.log(
+      JSON.stringify({
+        event: "wc_goat_match_props_refreshed",
+        eventId: id,
+        forceFresh,
+        storedPropRows: WC_MATCH_PLAYER_PROP_MARKET_KEYS.reduce(
+          (n, key) => n + (result.markets?.[key]?.length || 0),
+          0,
+        ),
+        anytimeCount: (result.markets?.anytime_scorer || []).length,
+      }),
+    );
+  }
+  return result || cached;
 }
 
 /**

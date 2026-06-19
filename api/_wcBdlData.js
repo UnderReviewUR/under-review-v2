@@ -432,7 +432,30 @@ export async function resolveBdlPlayerLookupForPropRows(rows, meta = {}) {
         .map(String),
     ),
   ];
-  const missing = needed.filter((id) => !lookup[id]);
+  let missing = needed.filter((id) => !lookup[id]);
+  if (!missing.length) return lookup;
+
+  // Fast path: batch-resolve only the player_ids referenced in this prop payload.
+  const PLAYER_ID_CHUNK = 40;
+  for (let i = 0; i < missing.length; i += PLAYER_ID_CHUNK) {
+    const chunk = missing.slice(i, i + PLAYER_ID_CHUNK);
+    const playersRes = await bdlFifaFetch("/players", {
+      "seasons[]": 2026,
+      "player_ids[]": chunk,
+      per_page: PLAYER_ID_CHUNK,
+    });
+    const playerRows = Array.isArray(playersRes.data?.data) ? playersRes.data.data : [];
+    for (const row of playerRows) {
+      const normalized = normalizeBdlPlayerRow(row);
+      if (!normalized) continue;
+      lookup[String(normalized.id)] = {
+        name: normalized.name,
+        nationAbbr: normalized.countryCode || null,
+      };
+    }
+  }
+
+  missing = needed.filter((id) => !lookup[id]);
   if (!missing.length) return lookup;
 
   const home = String(meta.homeTeam || "").trim().toUpperCase();
@@ -507,12 +530,34 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
     (n, key) => n + (markets[key]?.length || 0),
     0,
   );
+  const missingPlayerIds = ingestAudit?.missingPlayerLookup ?? 0;
   const sufficient =
-    anytimeCount >= 2 ||
+    anytimeCount >= 1 ||
     shotsCount >= 1 ||
     sotCount >= 1 ||
     savesCount >= 1 ||
-    totalRows >= 3;
+    totalRows >= 1;
+  console.log(
+    JSON.stringify({
+      event: "wc_bdl_match_props_pull",
+      eventId: String(eventId),
+      bdlMatchId,
+      homeTeam: meta.homeTeam || null,
+      awayTeam: meta.awayTeam || null,
+      rawRowCount: rows.length,
+      lookupSize: Object.keys(playerLookup).length,
+      missingPlayerIds,
+      marketCounts: {
+        anytimeCount,
+        shotsCount,
+        sotCount,
+        savesCount,
+        totalRows,
+      },
+      sufficient,
+      ingestHealthy: ingestAudit?.healthy ?? null,
+    }),
+  );
   if (!sufficient) {
     return {
       ok: false,
@@ -521,6 +566,7 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
       anytimeCount,
       shotsCount,
       totalRows,
+      missingPlayerIds,
     };
   }
 
@@ -547,11 +593,28 @@ export async function scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, m
     { ttlSeconds: WC_MATCH_PLAYER_PROPS_TTL_SECONDS },
   );
 
+  const storedRows = WC_MATCH_PLAYER_PROP_MARKET_KEYS.reduce(
+    (n, key) => n + (markets[key]?.length || 0),
+    0,
+  );
+  console.log(
+    JSON.stringify({
+      event: "wc_bdl_match_props_cached",
+      eventId: String(eventId),
+      bdlMatchId,
+      storedPropRows: storedRows,
+      anytimeCount,
+      shotsCount,
+      sotCount,
+    }),
+  );
+
   return {
     ok: true,
     eventId,
     source: "balldontlie",
     anytimeCount,
+    storedPropRows: storedRows,
     ingestAudit,
   };
 }

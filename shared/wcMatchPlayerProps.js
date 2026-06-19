@@ -490,8 +490,9 @@ export function pickFixturePropBoardFromEvent(eventPayload, limit = 24) {
     const rawRows = matchPlayerPropRowsFromEvent(eventPayload, entry.key, limit);
     const collapsed = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
     const rows = rankFixturePropBoardRows(collapsed, limit, entry.key);
-    if (rows.length >= 2) {
-      return { ...entry, rows };
+    const boardRows = rows.length >= 2 ? rows : collapsed.slice(0, limit);
+    if (boardRows.length >= 2) {
+      return { ...entry, rows: boardRows };
     }
   }
   return null;
