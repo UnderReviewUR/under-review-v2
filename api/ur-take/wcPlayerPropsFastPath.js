@@ -59,7 +59,7 @@ import {
 } from "../_wcGroundingUrTake.js";
 import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
 import { shouldSkipWcPlayerPropsFastPathForV2Deliver } from "../../shared/wcUrTakePipeline.js";
-import { WC_CARD_TYPE } from "./wcThreadState.js";
+import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
 
 /**
  * @param {object | null | undefined} structured
