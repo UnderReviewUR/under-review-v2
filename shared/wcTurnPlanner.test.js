@@ -346,6 +346,65 @@ test("resolveWcTurnPlan — generic props ask after live prebuilt routes to llm_
   }
 });
 
+test("resolveWcTurnPlan — generic props follow-up without structured history still routes llm_thread", async () => {
+  const scoMarMatches = [
+    {
+      id: "1001",
+      homeTeam: "SCO",
+      awayTeam: "MAR",
+      status: "live",
+      homeScore: 0,
+      awayScore: 1,
+      minute: "67",
+      odds: {
+        home: { moneyline: "+450" },
+        away: { moneyline: "-120" },
+        draw: { moneyline: "+280" },
+        totalLine: "3.5",
+        totalOver: { moneyline: "+105" },
+        totalUnder: { moneyline: "-125" },
+      },
+    },
+  ];
+  const turn1Plan = resolveWcTurnPlan({
+    question: "Best live angle on SCO vs MAR right now?",
+    history: [],
+    matches: scoMarMatches,
+    incomingWcEventId: "1001",
+    hasKvFixture: true,
+  });
+  const turn1Built = await buildWcStructuredForPlan(turn1Plan, {
+    question: "Best live angle on SCO vs MAR right now?",
+    matches: scoMarMatches,
+  });
+  const lean = String(turn1Built?.structured?.lean || "");
+  assert.ok(lean, "expected live prebuilt lean");
+
+  const historyNoStructured = [
+    { role: "user", content: "Best live angle on SCO vs MAR right now?" },
+    {
+      role: "assistant",
+      content: lean,
+      wcEventId: "1001",
+      wcMatchTeams: { home: "SCO", away: "MAR" },
+    },
+  ];
+
+  const plan = resolveWcTurnPlan({
+    question: "any player props to consider?",
+    history: historyNoStructured,
+    matches: scoMarMatches,
+    incomingWcEventId: "1001",
+    hasKvFixture: true,
+    routeHeader: "1",
+  });
+  assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD);
+  assert.equal(plan.reason, "generic_props_followup_after_prebuilt");
+  assert.ok(plan.priorLean);
+  assert.match(String(plan.priorLean?.lean || ""), /live lean|Under 3\.5/i);
+  assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), false);
+});
+
 test("buildWcThreadAwareNoPropsFallback — references prior totals lean and live score", () => {
   const msg = buildWcThreadAwareNoPropsFallback(
     {

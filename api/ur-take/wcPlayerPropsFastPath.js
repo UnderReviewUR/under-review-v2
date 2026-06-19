@@ -60,11 +60,15 @@ import {
 import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
 import { shouldSkipWcPlayerPropsFastPathForV2Deliver } from "../../shared/wcUrTakePipeline.js";
 import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
+import { WC_TURN_LANE } from "../../shared/wcTurnConstants.js";
 import {
   shouldActivateWcPropsFastPath,
   buildWcThreadAwareNoPropsFallback,
 } from "../../shared/wcTurnDelivery.js";
-import { extractLastAssistantStructured } from "../../shared/wcCardContractFollowUpScorer.js";
+import {
+  extractWcPriorThreadLeanFromHistory,
+  isWcGenericPlayerPropsThreadFollowUp,
+} from "../../shared/wcTurnIntent.js";
 
 /**
  * @param {object | null | undefined} structured
@@ -229,6 +233,15 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   } = ctx;
 
   if (sportHint !== "worldcup") return { handled: false };
+
+  if (
+    wcTurnPlannerEnabled &&
+    wcTurnPlan &&
+    (wcTurnPlan.lane === WC_TURN_LANE.LLM_THREAD ||
+      wcTurnPlan.reason === "generic_props_followup_after_prebuilt")
+  ) {
+    return { handled: false };
+  }
 
   const v2Deliver = Boolean(wcRelevanceLog?.wcUrTakeV2Deliver);
   const v2Turn = wcContext?.wcUrTakeV2Turn || null;
@@ -507,7 +520,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
           priorLean:
             wcTurnPlannerEnabled && wcTurnPlan?.priorLean
               ? wcTurnPlan.priorLean
-              : extractLastAssistantStructured(history),
+              : extractWcPriorThreadLeanFromHistory(history),
         },
       );
       passKind = "player_props_not_posted";

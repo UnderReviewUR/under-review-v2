@@ -3,6 +3,7 @@
  * Extracted from wcTurnPlanner.js so routing vs delivery stay separate.
  */
 
+import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
   classifyWcQuestionIntent,
@@ -68,6 +69,84 @@ export function isWcPriorPrebuiltThreadLean(priorLean) {
 }
 
 /**
+ * Last assistant prebuilt lean for thread routing — prefers structured, falls back to
+ * wcMatchTeams + prose when the client omits structured on history rows.
+ * @param {object[]} history
+ */
+export function extractWcPriorThreadLeanFromHistory(history) {
+  if (!Array.isArray(history)) return null;
+
+  const fromStructured = extractLastAssistantStructured(history);
+  if (fromStructured && isWcPriorPrebuiltThreadLean(fromStructured)) {
+    return fromStructured;
+  }
+
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const turn = history[i];
+    const role = String(turn?.role || "").toLowerCase();
+    if (role !== "assistant" && role !== "ai") continue;
+
+    const s = turn.structured && typeof turn.structured === "object" ? turn.structured : null;
+    const ctRaw = String(s?.callType || "").trim().toLowerCase();
+    if (ctRaw.startsWith("player_market")) continue;
+
+    const home = String(s?.fixtureHome || turn.wcMatchTeams?.home || "")
+      .trim()
+      .toUpperCase();
+    const away = String(s?.fixtureAway || turn.wcMatchTeams?.away || "")
+      .trim()
+      .toUpperCase();
+    const lean = String(s?.lean || s?.call || turn.content || "").trim();
+    if (!lean || !home || !away) continue;
+
+    /** @type {Record<string, unknown>} */
+    const reconstructed = {
+      ...(s || {}),
+      callType: ctRaw || "matchup",
+      fixtureHome: home,
+      fixtureAway: away,
+      lean,
+      call: String(s?.call || lean).slice(0, 400),
+    };
+    const eventId = turn.wcEventId ?? s?.wcEventId;
+    if (eventId != null && String(eventId).trim()) {
+      reconstructed.wcEventId = String(eventId).trim();
+    }
+    if (isWcPriorPrebuiltThreadLean(reconstructed)) return reconstructed;
+  }
+
+  return fromStructured;
+}
+
+/**
+ * Thread continues when follow-up gate fires OR a prebuilt lean anchors fixture context.
+ * @param {object} params
+ */
+export function isWcThreadAnchoredFollowUp(params) {
+  const {
+    isConversationFollowUp = false,
+    priorLean = null,
+    pinnedEventId = null,
+    pinnedHome = null,
+    pinnedAway = null,
+    history = [],
+  } = params;
+  if (isConversationFollowUp) return true;
+  if (!priorLean || !isWcPriorPrebuiltThreadLean(priorLean)) return false;
+  if (pinnedEventId || (pinnedHome && pinnedAway)) return true;
+  if (
+    Array.isArray(history) &&
+    history.some((t) => {
+      const role = String(t?.role || "").toLowerCase();
+      return role === "assistant" || role === "ai";
+    })
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Vague fixture-thread props ask after a prebuilt lean — not explicit "Team A vs Team B player props".
  * @param {string} question
  * @param {object[]} history
@@ -84,7 +163,7 @@ export function isWcGenericPlayerPropsThreadFollowUp(question, history, priorLea
 
   return (
     isGenericWcPlayerPropQuestion(q) ||
-    /\b(any\s+bets?\s+on\s+players?|props?\s+for\s+this\s+match|player props?\s+to\s+consider)\b/i.test(
+    /\b(any\s+bets?\s+on\s+players?|props?\s+for\s+this\s+match|player props?\s+to\s+consider|got\s+any\s+player props?|what\s+player props?)\b/i.test(
       q,
     ) ||
     /^\s*player props?\??\s*$/i.test(q)
@@ -120,11 +199,18 @@ export function isWcConditionalMatchupFollowUp(question, priorLean) {
  * @param {Record<string, unknown> | null | undefined} priorLean
  */
 export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
+  const prior =
+    priorLean && isWcPriorPrebuiltThreadLean(priorLean)
+      ? priorLean
+      : extractWcPriorThreadLeanFromHistory(history);
+  const threadAnchored =
+    isFollowUp || Boolean(prior && isWcPriorPrebuiltThreadLean(prior));
+
   const followUpIntent = classifyWcFollowUpIntent(question, history);
   if (followUpIntent) return /** @type {WcUrTakeIntent} */ (followUpIntent);
 
-  if (isFollowUp && priorLean) {
-    if (isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean)) {
+  if (threadAnchored && prior) {
+    if (isWcGenericPlayerPropsThreadFollowUp(question, history, prior)) {
       return WC_INTENT.MATCHUP;
     }
     if (isWcPlayerPropFollowUpExplain(question, history)) {
@@ -135,7 +221,7 @@ export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
       subject.kind === "totals" ||
       isWcTotalsExplainFollowUp(question) ||
       isWcMatchupAltMarketFollowUp(question) ||
-      isWcConditionalMatchupFollowUp(question, priorLean)
+      isWcConditionalMatchupFollowUp(question, prior)
     ) {
       return WC_INTENT.MATCHUP;
     }
@@ -148,10 +234,10 @@ export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
   const legacy = classifyWcQuestionIntent(question, history);
 
   if (
-    isFollowUp &&
+    threadAnchored &&
     legacy === WC_INTENT.CONTINUATION &&
-    priorLean &&
-    (isWcMatchupAltMarketFollowUp(question) || isWcConditionalMatchupFollowUp(question, priorLean))
+    prior &&
+    (isWcMatchupAltMarketFollowUp(question) || isWcConditionalMatchupFollowUp(question, prior))
   ) {
     return WC_INTENT.MATCHUP;
   }
@@ -160,7 +246,8 @@ export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
     !isWcPlayerMarketIntent(legacy) &&
     !isWcMatchTotalsQuestion(question) &&
     isWcFixtureScopedPlayerMarketQuestion(question) &&
-    isFollowUp
+    threadAnchored &&
+    !(prior && isWcGenericPlayerPropsThreadFollowUp(question, history, prior))
   ) {
     return WC_INTENT.PLAYER_PROP;
   }

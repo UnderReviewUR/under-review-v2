@@ -19,7 +19,6 @@
 
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { resolveUrTakeConversationFollowUp } from "./urTakeFollowUpDetection.js";
-import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import {
   classifyWcQuestionIntent,
   isWcMatchTotalsQuestion,
@@ -82,6 +81,8 @@ import {
   isWcConditionalMatchupFollowUp,
   priorLaneHintFromStructured,
   isWcGenericPlayerPropsThreadFollowUp,
+  extractWcPriorThreadLeanFromHistory,
+  isWcThreadAnchoredFollowUp,
   resolveWcTurnIntent,
   resolveWcTurnUseLiteContext,
 } from "./wcTurnIntent.js";
@@ -91,6 +92,8 @@ export {
   isWcConditionalMatchupFollowUp,
   isWcGenericPlayerPropsThreadFollowUp,
   isWcPriorPrebuiltThreadLean,
+  isWcThreadAnchoredFollowUp,
+  extractWcPriorThreadLeanFromHistory,
   priorLaneHintFromStructured,
   resolveWcTurnIntent,
   resolveWcTurnUseLiteContext,
@@ -287,7 +290,7 @@ export function resolveWcTurnPlan(params = {}) {
     : resolveUrTakeConversationFollowUp(questionRaw || question, history);
   const isConversationFollowUp = followUpMeta.isFollowUp;
 
-  const priorLean = extractLastAssistantStructured(history);
+  const priorLean = extractWcPriorThreadLeanFromHistory(history);
   const priorLaneHint = priorLaneHintFromStructured(priorLean);
   const historyPair = resolveWcFixturePairFromHistory(history);
 
@@ -306,6 +309,15 @@ export function resolveWcTurnPlan(params = {}) {
   const pinnedHome = threadFixture.pinned?.home || historyPair?.home || null;
   const pinnedAway = threadFixture.pinned?.away || historyPair?.away || null;
   const pinMethod = threadFixture.pinned?.pinMethod || (historyPair ? "history_pair" : "unresolved");
+
+  const threadAnchoredFollowUp = isWcThreadAnchoredFollowUp({
+    isConversationFollowUp,
+    priorLean,
+    pinnedEventId,
+    pinnedHome,
+    pinnedAway,
+    history,
+  });
 
   const intent = resolveWcTurnIntent(question, history, isConversationFollowUp, priorLean);
 
@@ -424,7 +436,7 @@ export function resolveWcTurnPlan(params = {}) {
   // "any player props?" on a live/matchup card thread should not cold-start props_fast
   // when books have no lines; defer to LLM with priorLean injected.
   if (
-    isConversationFollowUp &&
+    threadAnchoredFollowUp &&
     priorLean &&
     isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean)
   ) {
@@ -451,13 +463,16 @@ export function resolveWcTurnPlan(params = {}) {
   if (skipPropsFastForShape && propsPreview.askShape === "fixture_board" && pinnedEventId) {
     skipPropsFastForShape = false;
   }
+  const genericPropsThreadFollowUp =
+    priorLean && isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean);
   const playerPropsEligible =
-    isWcPlayerMarketIntent(intent) ||
-    isWcFixtureScopedPlayerMarketQuestion(question) ||
-    (detectParlayIntent(question) && /\bplayer\b/i.test(question)) ||
-    isWcNamedPlayerPropQuestion(question) ||
-    isWcPlayerPropFollowUpExplain(question, history) ||
-    propsRouteV2Apply;
+    !genericPropsThreadFollowUp &&
+    (isWcPlayerMarketIntent(intent) ||
+      isWcFixtureScopedPlayerMarketQuestion(question) ||
+      (detectParlayIntent(question) && /\bplayer\b/i.test(question)) ||
+      isWcNamedPlayerPropQuestion(question) ||
+      isWcPlayerPropFollowUpExplain(question, history) ||
+      propsRouteV2Apply);
 
   if (playerPropsEligible) {
     if (skipPropsFastForShape) {
