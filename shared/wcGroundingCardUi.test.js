@@ -18,7 +18,7 @@ test("buildWcGroundingStripModel formats Phase 1 Ghana vs Panama strip", () => {
   });
 
   assert.equal(model?.pinnedLine, "PINNED · Ghana vs Panama (GHA–PAN)");
-  assert.equal(model?.statusLine, "Live · 1st half, 2' · Updated 45s ago (BDL)");
+  assert.equal(model?.statusLine, "Live · 1st half, 2' · Updated 45s ago");
   assert.equal(model?.postedLine, "Posted: Shots · SOT");
   assert.equal(model?.notPostedLine, "Not posted: Anytime goals");
 });

@@ -13,6 +13,7 @@ import {
 } from "./_wcMatchPlayerProps.js";
 import { getMatchesPayload } from "./world-cup.js";
 import { scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
+import { emitWcPropsMonitoringAlert } from "./_wcPropsMonitoringAlert.js";
 import { getDurableJson } from "./_durableStore.js";
 import {
   isWcGoatPrimaryEnabled,
@@ -48,6 +49,7 @@ import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 import {
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
+  isWcUrTakeBlockedSeedPropsPayload,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
   readFreshMatchPlayerPropsForEvent,
@@ -166,7 +168,7 @@ async function resolveWcPlayerMarketMatches(matches, question) {
     detectParlayIntent(question);
   if (!needsMatches) return [];
   try {
-    const payload = await getMatchesPayload({ preferGoat: true });
+    const payload = await getMatchesPayload({ preferGoat: true, forUrTake: true });
     return payload?.matches || [];
   } catch {
     return [];
@@ -428,6 +430,15 @@ function readCachedMatchPlayerPropsForEvent(eventId, kvRoot, nowMs) {
 }
 
 /**
+ * @param {Record<string, unknown> | null | undefined} payload
+ */
+function isUsableUrTakeMatchPropsPayload(payload) {
+  if (!payload || !hasMatchPlayerPropRows(payload)) return false;
+  if (isWcGoatPrimaryEnabled() && isWcUrTakeBlockedSeedPropsPayload(payload)) return false;
+  return true;
+}
+
+/**
  * @param {object | null | undefined} kvBlocks
  * @param {object} [opts]
  */
@@ -449,7 +460,7 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
       }
     }
     for (const payload of propPayloads) {
-      if (!hasMatchPlayerPropRows(payload)) continue;
+      if (!isUsableUrTakeMatchPropsPayload(payload)) continue;
       if (isWcShotsPropQuestion(question)) {
         const shotRows =
           matchPlayerPropRowsFromEvent(payload, "player_shots_ou", 1).length +
@@ -463,7 +474,7 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
 
     if (byEvent && typeof byEvent === "object") {
       for (const payload of Object.values(byEvent)) {
-        if (!hasMatchPlayerPropRows(payload)) continue;
+        if (!isUsableUrTakeMatchPropsPayload(payload)) continue;
         for (const leg of namedLegs) {
           if (findWcNamedPlayerPropLegMatch(leg, payload)) return true;
         }
@@ -480,6 +491,7 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
   }
 
   if (!kvBlocks?.matchPlayerProps) return false;
+  if (!isUsableUrTakeMatchPropsPayload(kvBlocks.matchPlayerProps)) return false;
   const teams = resolveWcPlayerPropFixtureTeams(question, history, {
     requiredEntities: opts.requiredEntities,
     conversationHistory: history,
@@ -653,16 +665,20 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
     }),
   );
   if (rejectedWithData) {
-    console.error(
-      JSON.stringify({
-        event: "wc_props_monitoring_alert",
-        arm: "kv_usability_rejected_with_data",
-        wcEventId: eventIdHint || last?.wcEventId || null,
-        loadMs,
-        shotRowCount: matchPlayerPropRowsFromEvent(last.matchPlayerProps, "player_shots_ou", 999)
-          .length,
-      }),
-    );
+    emitWcPropsMonitoringAlert({
+      arm: "kv_usability_rejected_with_data",
+      wcEventId: eventIdHint || last?.wcEventId || null,
+      loadMs,
+      shotRowCount: matchPlayerPropRowsFromEvent(last.matchPlayerProps, "player_shots_ou", 999)
+        .length,
+    });
+  } else {
+    emitWcPropsMonitoringAlert({
+      arm: "kv_props_fetch_failed",
+      wcEventId: eventIdHint || last?.wcEventId || null,
+      loadMs,
+      error: lastError?.message || "no_usable_rows",
+    });
   }
   return {
     ...(last || {

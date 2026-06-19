@@ -802,7 +802,7 @@ async function loadWorldCupGroupsPayload() {
 async function loadWorldCupMatchesPayload() {
   const preferGoat = isWcGoatPrimaryEnabled();
   if (preferGoat) {
-    return getMatchesPayload({ preferGoat: true });
+    return getMatchesPayload({ preferGoat: true, forUrTake: true });
   }
   const nowMs = Date.now();
   let kv = await getDurableJson("wc2026_matches");

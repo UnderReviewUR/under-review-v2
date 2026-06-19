@@ -175,6 +175,22 @@ export function mergeMatchPlayerPropMarketMaps(a, b) {
 /**
  * @param {Record<string, unknown> | null | undefined} eventPayload
  */
+/** Seed/demo props must never back UR Take answers when GOAT is primary. */
+export function isWcUrTakeBlockedSeedPropsPayload(eventPayload) {
+  if (!eventPayload || typeof eventPayload !== "object") return false;
+  const source = String(eventPayload.source || "").toLowerCase();
+  if (source === "seed") return true;
+  const books = eventPayload.booksUsed;
+  if (
+    Array.isArray(books) &&
+    books.length > 0 &&
+    books.every((b) => String(b).toLowerCase() === "seed")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function hasMatchPlayerPropRows(eventPayload) {
   if (!eventPayload?.markets || typeof eventPayload.markets !== "object") return false;
   return WC_MATCH_PLAYER_PROP_MARKET_KEYS.some((key) => {

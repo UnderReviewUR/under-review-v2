@@ -3,6 +3,7 @@ import { runUnderReviewPostProcess } from "../_urTakeOutputQA.js";
 import { runWcUrTakeQA } from "../_wcUrTakeQA.js";
 import { getMatchesPayload } from "../world-cup.js";
 import { loadWcPlayerMarketKvBlocksWithRetry } from "../_wcPlayerUrTakeContext.js";
+import { emitWcPropsMonitoringAlert } from "../_wcPropsMonitoringAlert.js";
 import {
   buildWcCompactStructured,
   formatWcCompactDisplayText,
@@ -26,6 +27,10 @@ import {
   isWcNamedPlayerPropQuestion,
   isWcPerTeamPlayerPropsQuestion,
   prefersWcFixtureScorerIntelFallback,
+  extractWcNamedPlayerPropLegsFromQuestion,
+  buildWcNamedPlayerPropNoLineHeadline,
+  buildWcNamedPlayerPropNoLineWhyNow,
+  buildWcNamedPlayerPropNoLineEdge,
 } from "../../shared/wcUrTakePlayerMarket.js";
 import { resolveWcFixturePairFromHistory } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
@@ -99,7 +104,7 @@ async function resolveWcMatchesForPlayerProps(wcContext) {
     return wcContext.allMatches;
   }
   try {
-    const payload = await getMatchesPayload();
+    const payload = await getMatchesPayload({ preferGoat: true, forUrTake: true });
     return payload?.matches || [];
   } catch {
     return [];
@@ -107,13 +112,47 @@ async function resolveWcMatchesForPlayerProps(wcContext) {
 }
 
 /**
+ * Honest empty state after live GOAT fetch — never "tap again".
  * @param {string} question
  * @param {{ home: string, away: string, eventId?: string | null }} pinned
  * @param {string | null | undefined} wcEventId
+ * @param {{ namedLegs?: import("../../shared/wcUrTakePlayerMarket.js").WcNamedPlayerPropLeg[] }} [opts]
  */
-function buildWcPlayerPropsLoadingStructured(question, pinned, wcEventId) {
+function buildWcPlayerPropsNotPostedStructured(question, pinned, wcEventId, opts = {}) {
   const home = String(pinned.home || "").toUpperCase();
   const away = String(pinned.away || "").toUpperCase();
+  const homeName = wcMatchupTeamDisplayName(home);
+  const awayName = wcMatchupTeamDisplayName(away);
+  const legs = Array.isArray(opts.namedLegs) ? opts.namedLegs : [];
+  const wcContext = { fixtureHome: home, fixtureAway: away };
+
+  if (legs.length > 0) {
+    const noLineLean =
+      legs.length === 1
+        ? buildWcNamedPlayerPropNoLineHeadline(legs, question)
+        : legs
+            .map((leg, i) => `${i + 1}. ${buildWcNamedPlayerPropNoLineHeadline([leg], question)}`)
+            .join("\n");
+    return finalizeWcPlayerPropStructured(
+      {
+        sport: "worldcup",
+        callType: "player_market_odds",
+        playerMarketTier: WC_PLAYER_MARKET_TIER.MARKET_ONLY,
+        wcEventId: wcEventId || undefined,
+        fixtureHome: home,
+        fixtureAway: away,
+        wcNamedPlayerPropsCard: true,
+        call: buildWcNamedPlayerPropNoLineHeadline(legs, question),
+        lean: noLineLean,
+        whyNow: buildWcNamedPlayerPropNoLineWhyNow(legs, wcContext),
+        edge: buildWcNamedPlayerPropNoLineEdge(legs, wcContext),
+        confidence: "Speculative",
+        analysis: String(question || "").trim(),
+      },
+      question,
+    );
+  }
+
   return finalizeWcPlayerPropStructured(
     {
       sport: "worldcup",
@@ -122,10 +161,10 @@ function buildWcPlayerPropsLoadingStructured(question, pinned, wcEventId) {
       wcEventId: wcEventId || undefined,
       fixtureHome: home,
       fixtureAway: away,
-      call: "Match player props — lines loading",
-      lean: "Player lines are still syncing — tap again in a few seconds or check back closer to kickoff.",
-      whyNow: `Fixture ${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)} — waiting for books to publish player markets.`,
-      edge: "Books usually post 30–60 minutes before kickoff. Try a team or group angle while you wait.",
+      call: `Player prop lines aren't posted yet for ${homeName} vs ${awayName}.`,
+      lean: `No player prop lines posted yet for ${homeName} vs ${awayName} — books typically publish closer to kickoff once lineups are confirmed.`,
+      whyNow: `Live BallDontLie pull completed; player markets for this fixture aren't available yet.`,
+      edge: "Moneyline and match totals are usually up earlier — or check back closer to kickoff.",
       confidence: "Speculative",
       analysis: String(question || "").trim(),
     },
@@ -303,7 +342,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   const propBoard = pickFixturePropBoardFromEvent(kvBlocks.matchPlayerProps, 24);
   const propRows = propBoard?.rows || [];
   let structuredResponse = null;
-  let passKind = "player_props_loading";
+  let passKind = "player_props_not_posted";
 
   if (isWcPlayerPropFollowUpExplain(routingQ, history)) {
     const subject = resolveWcFollowUpSubject(history, routingQ);
@@ -380,13 +419,26 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       isGenericWcPlayerPropQuestion(routingQ) ||
       isWcPerTeamPlayerPropsQuestion(routingQ) ||
       (detectParlayIntent(routingQ) && /\bplayers?\s+props?\b/i.test(routingQ));
-    if (hasEvent && (genericPropsAsk || namedPlayerPropsAsk || !loadMeta.failed)) {
-      structuredResponse = buildWcPlayerPropsLoadingStructured(
+    if (hasEvent && (genericPropsAsk || namedPlayerPropsAsk)) {
+      const namedLegs = namedPlayerPropsAsk
+        ? extractWcNamedPlayerPropLegsFromQuestion(routingQ)
+        : [];
+      structuredResponse = buildWcPlayerPropsNotPostedStructured(
         String(question || ""),
         pinned,
         resolvedEventId,
+        { namedLegs },
       );
-      passKind = "player_props_loading";
+      passKind = "player_props_not_posted";
+      emitWcPropsMonitoringAlert({
+        arm: "props_not_posted_after_live_fetch",
+        wcEventId: resolvedEventId,
+        loadMs: loadMeta.loadMs,
+        failed: loadMeta.failed,
+        home: pinned.home,
+        away: pinned.away,
+        namedLegCount: namedLegs.length,
+      });
     } else if ((!hasEvent && !namedPlayerPropsAsk) || (loadMeta.failed && !namedPlayerPropsAsk)) {
       return { handled: false };
     }
@@ -436,7 +488,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
 
   const v2PlayerPropsDelivered =
     wcPropsRoute?.applyRoute &&
-    passKind !== "player_props_loading" &&
+    passKind !== "player_props_not_posted" &&
     passKind !== "player_prop_explain";
   const deliveryIntent = v2PlayerPropsDelivered ? WC_INTENT.PLAYER_PROP : wcIntent;
 

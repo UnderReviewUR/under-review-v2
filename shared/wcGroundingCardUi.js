@@ -24,8 +24,10 @@ export function formatWcGroundingStatusLine(pinBanner, inventoryStrip) {
   const subline = String(pinBanner?.subline || "").trim();
   let freshness = String(inventoryStrip?.freshnessLabel || "").trim();
   freshness = freshness
-    .replace(/\s+via\s+balldontlie\s*$/i, " (BDL)")
-    .replace(/\s+via\s+bdl\s*$/i, " (BDL)");
+    .replace(/\s+via\s+balldontlie\s*$/i, "")
+    .replace(/\s+via\s+bdl\s*$/i, "")
+    .replace(/\s*\(BDL\)\s*$/i, "")
+    .trim();
   if (subline) parts.push(subline);
   if (freshness) parts.push(freshness);
   return parts.length ? parts.join(" · ") : null;

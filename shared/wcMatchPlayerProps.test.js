@@ -4,6 +4,7 @@ import {
   collapseMatchPlayerPropRowsForDisplay,
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
+  isWcUrTakeBlockedSeedPropsPayload,
   isMatchPlayerPropsFresh,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
@@ -120,4 +121,19 @@ test("kvHasFreshMatchPlayerProps — fresh single-event payload", () => {
     true,
   );
   assert.equal(kvHasFreshMatchPlayerProps(event, { teams: ["ECU", "CIV"] }), false);
+});
+
+test("isWcUrTakeBlockedSeedPropsPayload blocks seed-only payloads", () => {
+  assert.ok(
+    isWcUrTakeBlockedSeedPropsPayload({
+      source: "seed",
+      booksUsed: ["seed"],
+      markets: { anytime_scorer: [{ name: "Test", americanOdds: "+100" }] },
+    }),
+  );
+  assert.ok(!isWcUrTakeBlockedSeedPropsPayload({
+    ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+    source: "balldontlie",
+    booksUsed: ["balldontlie"],
+  }));
 });

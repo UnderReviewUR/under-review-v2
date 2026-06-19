@@ -319,7 +319,7 @@ export async function scrapeAndCacheWcMatchPlayerProps(eventId, meta = {}) {
     }
 
     const seed = WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT[id];
-    if (seed?.markets) {
+    if (seed?.markets && !isWcGoatPrimaryEnabled()) {
       const cached = (await getDurableJson(WC_MATCH_PLAYER_PROPS_KV_KEY)) || {};
       const byEventId =
         cached.byEventId && typeof cached.byEventId === "object" ? { ...cached.byEventId } : {};

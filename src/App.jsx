@@ -1922,6 +1922,7 @@ ${themeCss}
       "Content-Type": "application/json",
       /** Redundant with body.structured — ensures API enables structured mode even if JSON body is narrowed en route. */
       "X-UR-Take-Structured": "1",
+      ...(effectiveSportHint === "worldcup" ? { "X-WC-Props-Route-V2": "1" } : {}),
       ...authHeaders,
     };
 

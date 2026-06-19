@@ -594,3 +594,13 @@ test("normalizeWcStructuredForDelivery — player prop pass repair", () => {
   );
   assert.equal(out.call, "No posted Son shots line — Pass.");
 });
+
+test("extractWcNamedPlayerPropLegsFromQuestion — bare each going over extracts all three names", () => {
+  const q = "Son, Jimenez, and Quinones each going over 2.5 shots attempted?";
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(q);
+  assert.equal(legs.length, 3);
+  assert.deepEqual(
+    legs.map((l) => l.name),
+    ["Son", "Jimenez", "Quinones"],
+  );
+});

@@ -1287,8 +1287,15 @@ function pickWcFixturePrebuiltLean(row) {
     }
   }
 
+  if (/\bwho wins\b/i.test(q) && !/\bgroup context\b/i.test(q)) {
+    if (resolvedHomeMl && resolvedAwayMl) {
+      const fav = pickMlFavorite(resolvedHomeMl, resolvedAwayMl, home, away);
+      return `${wcMatchupTeamDisplayName(fav.abbr)} ${fav.odds} to win`;
+    }
+  }
+
   if (
-    (isWcMatchWinnerQuestion(q) && !/\bgroup context\b/i.test(q)) ||
+    (isWcMatchWinnerQuestion(q) && !/\bwho wins\b/i.test(q) && !/\bgroup context\b/i.test(q)) ||
     (/\b(best bet|only know the moneyline)\b/i.test(q) && !/\bgroup context\b/i.test(q))
   ) {
     if (resolvedHomeMl && resolvedAwayMl) {

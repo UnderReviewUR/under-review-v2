@@ -789,6 +789,9 @@ const WC_NAMED_PROP_LEG_CHUNK_RE =
 const WC_EACH_GOING_NAMED_PROP_RE =
   /\b(?:on|for|thoughts on)\s+(.+?)\s+each\s+going\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)/i;
 
+const WC_BARE_EACH_GOING_NAMED_PROP_RE =
+  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)+)\s+each\s+going\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)/i;
+
 const WC_COMMA_LIST_SHARED_THRESHOLD_RE =
   /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)+)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i;
 
@@ -945,9 +948,20 @@ function extractWcEachGoingNamedPropLegs(question) {
   );
 }
 
+function extractWcBareEachGoingNamedPropLegs(question) {
+  const q = String(question || "").trim();
+  const m = q.match(WC_BARE_EACH_GOING_NAMED_PROP_RE);
+  if (!m?.[1] || !m?.[2]) return [];
+  const names = parseWcCommaSeparatedPlayerNames(m[1]);
+  if (names.length < 2) return [];
+  const legs = buildWcNamedPropLegsFromNames(names, String(m[2]).trim(), m[0], q);
+  return legs.length >= 2 ? legs : [];
+}
+
 function extractWcSharedThresholdListLegs(question) {
   const q = String(question || "").trim();
   if (/\bshots?\s+for\s+/i.test(q)) return [];
+  if (/\beach\s+going\s+over\b/i.test(q)) return [];
   const m = q.match(WC_COMMA_LIST_SHARED_THRESHOLD_RE);
   if (!m?.[1] || !m?.[2]) return [];
   const names = parseWcCommaSeparatedPlayerNames(m[1]);
@@ -998,6 +1012,9 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
 
   const eachGoingLegs = extractWcEachGoingNamedPropLegs(q);
   if (eachGoingLegs.length) return eachGoingLegs;
+
+  const bareEachGoingLegs = extractWcBareEachGoingNamedPropLegs(q);
+  if (bareEachGoingLegs.length) return bareEachGoingLegs;
 
   const shotsForLegs = extractWcShotsForNamedListLegs(q);
   if (shotsForLegs.length) return shotsForLegs;

@@ -202,6 +202,7 @@ function buildMatchesPayloadFromKv(kv, nowMs) {
 
 export async function getMatchesPayload(opts = {}) {
   const nowMs = Date.now();
+  const forUrTake = opts.forUrTake === true;
   const preferGoat = opts.preferGoat ?? (isWcGoatPrimaryEnabled() && !opts.preferEspn);
 
   let kv = await readWcMatchesFromKv(MATCHES_TTL * 1000);
@@ -304,6 +305,17 @@ export async function getMatchesPayload(opts = {}) {
     return payload;
   }
 
+  if (forUrTake && preferGoat) {
+    return {
+      matches: [],
+      lastUpdated: nowMs,
+      source: "balldontlie",
+      fallback: true,
+      error: bdlFetched.error || "bdl_matches_unavailable",
+      urTakeBlockedPromo: true,
+    };
+  }
+
   if (kv?.matches?.length) {
     return {
       ...kv,
@@ -313,7 +325,7 @@ export async function getMatchesPayload(opts = {}) {
   }
 
   const promoMatches = buildStaticPromoMatchesFallback(nowMs);
-  if (promoMatches.length && isWcHomePromoWindow(nowMs)) {
+  if (!forUrTake && promoMatches.length && isWcHomePromoWindow(nowMs)) {
     return {
       matches: promoMatches,
       lastUpdated: nowMs,
@@ -327,6 +339,16 @@ export async function getMatchesPayload(opts = {}) {
   const hydrated = await hydrateWcPublicMatchesIfEmpty({ matches: [] }, nowMs);
   if (hydrated?.matches?.length) {
     return hydrated;
+  }
+  if (forUrTake) {
+    return {
+      matches: [],
+      lastUpdated: nowMs,
+      source: "balldontlie",
+      fallback: true,
+      error: "ur_take_no_promo_matches",
+      urTakeBlockedPromo: true,
+    };
   }
   return ensureWcPublicMatches({ matches: buildStaticPromoMatchesFallback(nowMs) }, nowMs);
 }

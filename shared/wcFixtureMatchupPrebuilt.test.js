@@ -230,9 +230,9 @@ test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () =>
       PAR: { advancePct: 75.95 },
     },
   });
-  assert.equal(structured?.call, "Lean Under 2.5 goals");
-  assert.match(structured?.whyNow || "", /tight script|point first|Toss-up/i);
-  assert.doesNotMatch(structured?.whyNow || "", /advances in \d/i);
+  assert.equal(structured?.call, "United States +110 to win");
+  assert.match(structured?.lean || "", /United States \+110 to win/i);
+  assert.doesNotMatch(structured?.call || "", /Under 2\.5/i);
   assert.match(structured?.deep || "", /WINS IF:/i);
   assert.match(structured?.deep || "", /DIES IF:/i);
   assert.match(structured?.deep || "", /MATCH ODDS:/i);
@@ -300,9 +300,8 @@ test("prepareWcCardFaceDisplay shows prebuilt winner + alt play", () => {
     lineSlot: structured.line,
     question: "Who wins USA vs PAR (Group D)?",
   });
-  assert.equal(face.headline, "Lean Under 2.5 goals");
-  assert.match(face.sections.thePlay, /Alt:.*United States \+110 to win/i);
-  assert.match(face.sections.why, /tight script|point first|Under 2\.5/i);
+  assert.equal(face.headline, "United States +110 to win");
+  assert.doesNotMatch(face.sections.why || "", /Under 2\.5 goals/i);
 });
 
 test("runWcUrTakeQA passes prebuilt USA vs PAR", () => {
@@ -819,4 +818,27 @@ test("buildWcLiveMatchWinnerWhyNow cites live chance index", () => {
     },
   });
   assert.match(why, /Chance index Iraq 0\.62 · Norway 1\.18/i);
+});
+
+test("buildWcFixtureMatchupPrebuiltStructured who wins answers moneyline not totals", () => {
+  const structured = buildWcFixtureMatchupPrebuiltStructured({
+    home: "MEX",
+    away: "KOR",
+    group: "A",
+    question: "Who wins MEX vs KOR?",
+    match: {
+      odds: {
+        home: { moneyline: "+100" },
+        away: { moneyline: "+280" },
+        draw: { moneyline: "+240" },
+        totalLine: 2.5,
+        totalUnder: "-110",
+        totalOver: "+120",
+        provider: "draftkings",
+      },
+    },
+  });
+  assert.match(structured?.call || "", /to win/i);
+  assert.match(structured?.lean || "", /Mexico \+100 to win/i);
+  assert.doesNotMatch(structured?.call || "", /Under 2\.5/i);
 });

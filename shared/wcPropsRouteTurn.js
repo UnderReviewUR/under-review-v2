@@ -1,18 +1,22 @@
 /**
  * Phase 2 — unified WC props route decision (handler + shadow).
- * Behind WC_PROPS_ROUTE_V2=1.
+ * Phase 1: default ON when GOAT primary (override with WC_PROPS_ROUTE_V2=0 or header 0).
  */
 
 import { previewWcPropsRoute } from "./wcPropsRoutePreview.js";
 import { logWcPropsRoute } from "./wcPropsRouteLog.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { isWcGoatPrimaryEnabled } from "./wcBdlPolicy.js";
 
 /** @returns {boolean} */
 export function isWcPropsRouteV2Enabled(opts = {}) {
   const header = String(opts.routeHeader ?? "").trim();
   if (header === "0") return false;
   if (header === "1") return true;
-  return process.env.WC_PROPS_ROUTE_V2 === "1";
+  const envFlag = String(process.env.WC_PROPS_ROUTE_V2 ?? "").trim().toLowerCase();
+  if (envFlag === "0" || envFlag === "false" || envFlag === "no") return false;
+  if (envFlag === "1" || envFlag === "true" || envFlag === "yes") return true;
+  return isWcGoatPrimaryEnabled();
 }
 
 /**
