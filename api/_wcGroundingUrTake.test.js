@@ -87,6 +87,69 @@ test("buildWcGroundingPacketForUrTake — Ghana vs Panama surfaces card groundin
   assert.match(strip?.notPostedLine || "", /Not posted:.*Anytime goals/);
 });
 
+test("applyWcGroundingCardToStructured — mixed ask re-resolves lean after propBoardRows merge", () => {
+  const packet = buildWcGroundingPacketForUrTake({
+    requestId: "mixed-lean",
+    question: "best player props and total goal bet for usa vs australia?",
+    routingQuestion: "best player props and total goal bet for usa vs australia?",
+    history: [],
+    matches: [
+      {
+        id: "29",
+        homeTeam: "AUS",
+        awayTeam: "USA",
+        status: "NS",
+        commenceTs: Date.parse("2026-06-18T18:00:00.000Z"),
+        odds: {
+          totalLine: "2.5",
+          totalUnder: { moneyline: "-110" },
+          totalOver: { moneyline: "-110" },
+          home: { moneyline: "+140" },
+          away: { moneyline: "-165" },
+        },
+      },
+    ],
+    fixtureTeams: ["AUS", "USA"],
+    resolvedEventId: "29",
+    matchPlayerProps: {
+      eventId: "29",
+      homeTeam: "AUS",
+      awayTeam: "USA",
+      source: "bdl",
+      lastUpdated: Date.now() - 45_000,
+      markets: {
+        player_sot_ou: [
+          {
+            name: "Christian Pulišić",
+            americanOdds: "-220",
+            line: "0.5",
+            side: "over",
+            nationAbbr: "USA",
+          },
+        ],
+        player_shots_ou: makeMarketRows(6, "Shot"),
+        anytime_scorer: makeMarketRows(4, "Any"),
+      },
+    },
+    loadMeta: { attempts: 1, coldStart: false, fromCache: true, loadMs: 12, failed: false },
+  });
+
+  const structured = applyWcGroundingCardToStructured(
+    {
+      sport: "worldcup",
+      callType: "player_market_verified",
+      call: "United States vs Australia — top player props",
+      lean: "Tim Ream anytime scorer +950",
+      whyNow: "Posted anytime scorer lines for United States vs Australia.",
+      analysis: "best player props and total goal bet for usa vs australia?",
+    },
+    packet,
+  );
+
+  assert.doesNotMatch(String(structured.lean || ""), /Tim Ream anytime/i);
+  assert.match(String(structured.lean || ""), /Pulišić|Under 2\.5|\+/i);
+});
+
 test("applyWcGroundingCardToStructured — fixture ambiguity caveat", () => {
   const packet = buildWcGroundingPacketForUrTake({
     requestId: "phase1-ambiguity",

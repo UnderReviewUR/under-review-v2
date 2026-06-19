@@ -1052,6 +1052,9 @@ function buildWcCompactStructuredBody(opts = {}) {
           deep,
           question,
           propBoardRows,
+          matchOdds: seed.matchOdds,
+          fixtureHome: seed.fixtureHome,
+          fixtureAway: seed.fixtureAway,
         });
     return finalizeWcPlayerPropStructured(
       {
@@ -1093,6 +1096,9 @@ function buildWcCompactStructuredBody(opts = {}) {
           deep,
           question,
           propBoardRows,
+          matchOdds: seed?.matchOdds,
+          fixtureHome: seed?.fixtureHome,
+          fixtureAway: seed?.fixtureAway,
         });
   const pass = nonBetting ? false : isWcPassVerdict(summary, lean);
   let whyNow = buildWhyNow(summary, deep, wcIntent);

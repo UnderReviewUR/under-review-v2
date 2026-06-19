@@ -6,6 +6,7 @@
 import { wcMatchupTeamDisplayName } from "../shared/wcMatchupWinnerLine.js";
 import {
   collapseMatchPlayerPropRowsForDisplay,
+  fixturePropBoardPlayabilityScore,
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
@@ -405,6 +406,54 @@ function buildClaudeView(ask, pinnedFixture, dataFreshness, marketsSummary, bloc
 }
 
 /**
+ * @param {import("../shared/wcGroundingPacket.types.js").WcPropLeg} leg
+ * @param {string} marketKey
+ */
+function propBoardRowFromLeg(leg, marketKey) {
+  const marketLabel = WC_GROUNDING_MARKET_LABELS[marketKey] || marketKey;
+  return {
+    label: leg.playerName,
+    lean:
+      leg.line && String(marketKey).includes("_ou")
+        ? `${leg.playerName} over ${leg.line} ${marketLabel} ${leg.americanOdds}`
+        : `${leg.playerName} ${marketLabel} ${leg.americanOdds}`,
+    market: marketKey,
+    odds: leg.americanOdds,
+    legId: leg.legId,
+    nationAbbr: leg.nationAbbr,
+  };
+}
+
+/**
+ * Prefer SOT + shots legs for mixed prop/totals leans — not only the primary board market.
+ * @param {import("../shared/wcGroundingPacket.types.js").WcMarketsSummary} marketsSummary
+ */
+function buildCardPropBoardRows(marketsSummary) {
+  const priorityMarkets = [
+    "player_sot_ou",
+    "player_shots_ou",
+    "player_goal_or_assist",
+    "anytime_scorer",
+  ];
+  /** @type {Array<ReturnType<typeof propBoardRowFromLeg>>} */
+  const rows = [];
+  for (const key of priorityMarkets) {
+    const entry = marketsSummary.posted.find((m) => m.market === key);
+    if (!entry) continue;
+    for (const leg of entry.topLegs.slice(0, 4)) {
+      rows.push(propBoardRowFromLeg(leg, key));
+    }
+  }
+  return rows
+    .sort(
+      (a, b) =>
+        fixturePropBoardPlayabilityScore(String(b.odds || "")) -
+        fixturePropBoardPlayabilityScore(String(a.odds || "")),
+    )
+    .slice(0, 8);
+}
+
+/**
  * @param {import("../shared/wcGroundingPacket.types.js").WcPinnedFixture | null} pinnedFixture
  * @param {import("../shared/wcGroundingPacket.types.js").WcDataFreshness} dataFreshness
  * @param {import("../shared/wcGroundingPacket.types.js").WcMarketsSummary} marketsSummary
@@ -419,19 +468,13 @@ function buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers) {
   );
 
   const primary = marketsSummary.posted[0];
+  const cardPropRows = buildCardPropBoardRows(marketsSummary);
   /** @type {import("../shared/wcGroundingPacket.types.js").WcGroundingCardView["structuredSeed"]["propBoardRows"]} */
-  const propBoardRows = primary
-    ? primary.topLegs.slice(0, 6).map((leg) => ({
-        label: leg.playerName,
-        lean:
-          leg.line && leg.market.includes("_ou")
-            ? `${leg.playerName} over ${leg.line} ${WC_GROUNDING_MARKET_LABELS[leg.market]} ${leg.americanOdds}`
-            : `${leg.playerName} ${WC_GROUNDING_MARKET_LABELS[leg.market]} ${leg.americanOdds}`,
-        market: leg.market,
-        odds: leg.americanOdds,
-        legId: leg.legId,
-      }))
-    : undefined;
+  const propBoardRows = cardPropRows.length
+    ? cardPropRows
+    : primary
+      ? primary.topLegs.slice(0, 6).map((leg) => propBoardRowFromLeg(leg, primary.market))
+      : undefined;
 
   return {
     pinBanner: pinnedFixture
@@ -463,6 +506,7 @@ function buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers) {
       wcEventId: pinnedFixture?.eventId,
       fixtureHome: pinnedFixture?.home,
       fixtureAway: pinnedFixture?.away,
+      matchOdds: pinnedFixture?.matchOdds,
       groundingVisible: true,
       propBoardRows,
     },

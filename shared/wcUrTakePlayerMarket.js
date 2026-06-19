@@ -24,6 +24,11 @@ import {
 } from "./wcUrTakePhilosophy.js";
 import { splitWcSentences, capWcDeepWords } from "./wcSentenceBoundaries.js";
 import { ensureWcCardFaceNumericWhy } from "./wcTakeRetentionQA.js";
+import { fixturePropBoardPlayabilityScore } from "./wcMatchPlayerProps.js";
+import {
+  pickWcFixtureTotalsAlternateLean,
+} from "./wcFixtureMatchupPrebuilt.js";
+import { readWcMatchMoneylineAmerican } from "./wcMatchMoneylineProbs.js";
 
 const SCORING_PRED_RE =
   /\b(will score|scores the most|score the most|top scorer|most goals|golden boot|leading scorer)\b/i;
@@ -355,6 +360,84 @@ export function synthesizePlayerPropPlayFromCitedOdds(summary, deep, question = 
 const TOTALS_CANDIDATE_RE =
   /\b(?:total\s+)?(under|over)\s+(\d+(?:\.\d+)?)\s+goals?\s*(?:at\s+([+-]\d{2,}))?/gi;
 
+const GENERIC_PROP_LIST_CALL_RE =
+  /\btop player props\b|\bprops per side\b|\d+\s+props per side\b/i;
+
+/** @type {Record<string, number>} */
+const MIXED_LEAN_PROP_MARKET_PRIORITY = {
+  player_sot_ou: 100,
+  player_sot_each_half: 90,
+  player_shots_ou: 80,
+  player_shots_each_half: 70,
+  player_goal_or_assist: 60,
+  player_assists_ou: 50,
+  anytime_scorer: 20,
+  first_goalscorer: 15,
+  last_goalscorer: 15,
+};
+
+/**
+ * @param {string} call
+ */
+function isGenericPropListHeadline(call) {
+  return GENERIC_PROP_LIST_CALL_RE.test(String(call || ""));
+}
+
+/**
+ * @param {Array<{ market?: string, odds?: string, lean?: string, nationAbbr?: string }>} propBoardRows
+ * @param {string} [question]
+ */
+function pickBestPropBoardRowForMixedLean(propBoardRows, question = "") {
+  const rows = Array.isArray(propBoardRows) ? propBoardRows : [];
+  if (!rows.length) return null;
+  const teams = extractMentionedWcTeams(question).map((t) => String(t).toUpperCase());
+  const scored = rows.map((row) => {
+    const market = String(row?.market || "");
+    let score = MIXED_LEAN_PROP_MARKET_PRIORITY[market] ?? 10;
+    const odds =
+      String(row?.odds || "").trim() ||
+      String(row?.lean || "").match(/([+-]\d{2,})/)?.[1] ||
+      "";
+    score += fixturePropBoardPlayabilityScore(odds);
+    if (teams.length && row?.nationAbbr && teams.includes(String(row.nationAbbr).toUpperCase())) {
+      score += 12;
+    }
+    return { row, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.row || rows[0];
+}
+
+/**
+ * @param {object} opts
+ */
+function compactTotalsLegFromMatchOdds(opts = {}) {
+  const matchOdds = opts.matchOdds;
+  const home = String(opts.fixtureHome || opts.home || "").trim().toUpperCase();
+  const away = String(opts.fixtureAway || opts.away || "").trim().toUpperCase();
+  if (!matchOdds || !home || !away) return "";
+
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
+  const picked = pickWcFixtureTotalsAlternateLean({
+    home,
+    away,
+    homeMl,
+    awayMl,
+    matchOdds,
+    question: String(opts.question || ""),
+    passOnMlPrefix: false,
+  });
+  const kind = picked.kind === "over" ? "over" : "under";
+  const line = String(picked.line || matchOdds?.totalLine || "2.5").trim();
+  const sideLabel = kind === "under" ? "Under" : "Over";
+  const odds =
+    kind === "under"
+      ? readWcMatchMoneylineAmerican(matchOdds?.totalUnder)
+      : readWcMatchMoneylineAmerican(matchOdds?.totalOver);
+  return odds ? `${sideLabel} ${line} goals ${odds}` : `${sideLabel} ${line} goals`;
+}
+
 /**
  * @param {string} question
  */
@@ -442,6 +525,8 @@ function compactPropLegFromBoardRow(row) {
  */
 function compactPropLegFromSources(opts = {}) {
   const call = String(opts.call || "").trim();
+  const question = String(opts.question || "").trim();
+  const mixedAsk = Boolean(opts.mixedAsk);
   const propBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
   if (!call && !propBoardRows.length) return "";
 
@@ -487,8 +572,15 @@ function compactPropLegFromSources(opts = {}) {
       .trim();
   }
 
-  if (propBoardRows[0]) {
-    return compactPropLegFromBoardRow(propBoardRows[0]);
+  if (propBoardRows.length) {
+    const row =
+      isGenericPropListHeadline(call) || mixedAsk
+        ? pickBestPropBoardRowForMixedLean(propBoardRows, question)
+        : propBoardRows[0];
+    if (row) {
+      const fromBoard = compactPropLegFromBoardRow(row);
+      if (fromBoard) return fromBoard;
+    }
   }
 
   return "";
@@ -523,16 +615,34 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
   const mixedAsk = questionAsksPlayerPropsAndTotals(question);
   const hasPropRows = propBoardRows.length > 0;
   const hasCitedOdds = CITED_BOOK_ODDS_RE.test(blob);
-  const totalsLeg = extractStrongestTotalsLeanFromBlob(`${whyNow}\n${deep}\n${summary}\n${line}`);
+  const totalsBlob = `${call}\n${whyNow}\n${deep}\n${summary}\n${line}`;
+  const totalsFromBlob = extractStrongestTotalsLeanFromBlob(totalsBlob);
+  const totalsFromOdds =
+    mixedAsk && !totalsFromBlob
+      ? compactTotalsLegFromMatchOdds({
+          matchOdds: opts.matchOdds,
+          fixtureHome: opts.fixtureHome,
+          fixtureAway: opts.fixtureAway,
+          question,
+        })
+      : "";
+  const totalsLeg = totalsFromBlob || totalsFromOdds;
 
   const buildConciseMixedLean = () => {
-    const propLeg = compactPropLegFromSources({ call, propBoardRows, summary, whyNow, question });
+    const propLeg = compactPropLegFromSources({
+      call,
+      propBoardRows,
+      summary,
+      whyNow,
+      question,
+      mixedAsk,
+    });
     if (!propLeg) return "";
     if (totalsLeg) return `${propLeg} + ${totalsLeg}`;
     return propLeg;
   };
 
-  if (mixedAsk && (hasPropRows || hasCitedOdds || totalsLeg)) {
+  if (mixedAsk && (hasPropRows || hasCitedOdds || totalsLeg || opts.matchOdds)) {
     const concise = buildConciseMixedLean();
     if (concise) return concise;
   }
@@ -561,7 +671,14 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
 
   if (propLean && GENERIC_PASS_LEAN_RE.test(propLean)) propLean = "";
 
-  const propLeg = compactPropLegFromSources({ call, propBoardRows, summary, whyNow, question }) ||
+  const propLeg = compactPropLegFromSources({
+      call,
+      propBoardRows,
+      summary,
+      whyNow,
+      question,
+      mixedAsk,
+    }) ||
     (propLean ? propLean.replace(/^lean:\s*/i, "").trim() : "");
 
   if (propLeg && totalsLeg && mixedAsk) {
@@ -778,8 +895,13 @@ export function finalizeWcPlayerPropStructured(structured, question = "") {
       call: out.call,
       whyNow: out.whyNow,
       line: out.line,
+      summary: out.summary,
+      deep: out.deep,
       question,
       propBoardRows: Array.isArray(out.propBoardRows) ? out.propBoardRows : [],
+      matchOdds: out.matchOdds,
+      fixtureHome: out.fixtureHome,
+      fixtureAway: out.fixtureAway,
     }),
   };
   if (structured.wcNamedPlayerPropsCard) {

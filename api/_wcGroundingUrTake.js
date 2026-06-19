@@ -13,6 +13,7 @@ import {
 import { formatWcLiveGameStateLine } from "../shared/wcKickoffDisplay.js";
 import { isWcBdlSource } from "../shared/wcBdlPolicy.js";
 import { detectParlayIntent } from "../shared/detectParlayIntent.js";
+import { resolveWcPlayerPropDisplayLean } from "../shared/wcUrTakePlayerMarket.js";
 import {
   isWcNamedPlayerPropQuestion,
   isGenericWcPlayerPropQuestion,
@@ -110,6 +111,16 @@ function findMatchByEventId(matches, eventId) {
 }
 
 /**
+ * @param {Record<string, unknown> | null | undefined} match
+ */
+function matchOddsFromFixtureMatch(match) {
+  const odds = match?.odds;
+  return odds && typeof odds === "object" && !Array.isArray(odds)
+    ? /** @type {Record<string, unknown>} */ (odds)
+    : undefined;
+}
+
+/**
  * @param {object} params
  */
 export function resolveWcGroundingPinnedFixture(params) {
@@ -186,6 +197,7 @@ export function resolveWcGroundingPinnedFixture(params) {
           slateDateEt: match?.date ? String(match.date).slice(0, 10) : null,
           clockDisplay: resolveClockDisplayFromMatch(match),
           pinMethod,
+          matchOdds: matchOddsFromFixtureMatch(match),
           alternateCandidates: alts,
         };
       }
@@ -207,6 +219,7 @@ export function resolveWcGroundingPinnedFixture(params) {
     slateDateEt: match?.date ? String(match.date).slice(0, 10) : null,
     clockDisplay: resolveClockDisplayFromMatch(match),
     pinMethod,
+    matchOdds: matchOddsFromFixtureMatch(match),
     alternateCandidates,
   };
 }
@@ -528,7 +541,7 @@ export function applyWcGroundingCardToStructured(structured, packet) {
   const { propBoardRows: _boardRows, ...seedRest } = seed;
   const seedMerge = namedLegCard ? seedRest : seed;
 
-  return {
+  const merged = {
     ...structured,
     ...seedMerge,
     groundingVisible: true,
@@ -538,7 +551,30 @@ export function applyWcGroundingCardToStructured(structured, packet) {
     wcEventId: structured.wcEventId || seed.wcEventId || packet.pinnedFixture?.eventId,
     fixtureHome: structured.fixtureHome || seed.fixtureHome || packet.pinnedFixture?.home,
     fixtureAway: structured.fixtureAway || seed.fixtureAway || packet.pinnedFixture?.away,
+    matchOdds:
+      structured.matchOdds || seed.matchOdds || packet.pinnedFixture?.matchOdds || undefined,
   };
+
+  const question = String(
+    structured.analysis || packet?.ask?.question || structured.userQuestion || "",
+  ).trim();
+  if (question && !namedLegCard) {
+    merged.lean = resolveWcPlayerPropDisplayLean({
+      lean: merged.lean,
+      call: merged.call,
+      whyNow: merged.whyNow,
+      line: merged.line,
+      summary: merged.summary,
+      deep: merged.deep,
+      question,
+      propBoardRows: Array.isArray(merged.propBoardRows) ? merged.propBoardRows : [],
+      matchOdds: merged.matchOdds,
+      fixtureHome: merged.fixtureHome,
+      fixtureAway: merged.fixtureAway,
+    });
+  }
+
+  return merged;
 }
 
 /**

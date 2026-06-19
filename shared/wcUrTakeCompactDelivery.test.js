@@ -399,3 +399,56 @@ test("buildWcCompactStructured — mixed props+totals replaces generic pass lean
   assert.match(s.lean, /\+/);
   assert.ok(s.lean.length < 80, "lean should stay punchy");
 });
+
+test("buildWcCompactStructured — mixed props+totals list headline uses board + match odds totals", () => {
+  const s = buildWcCompactStructured({
+    question: "best player props and total goal bet for usa vs australia?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    playerMarketTier: "verified",
+    summary: "United States vs Australia — top player props",
+    deep: "",
+    structuredSeed: {
+      callType: "player_market_verified",
+      call: "United States vs Australia — top player props",
+      lean: "Tim Ream anytime scorer +950",
+      whyNow: "Posted anytime scorer lines for United States vs Australia.",
+      fixtureHome: "AUS",
+      fixtureAway: "USA",
+      matchOdds: {
+        totalLine: "2.5",
+        totalUnder: { moneyline: "-110" },
+        totalOver: { moneyline: "-110" },
+        home: { moneyline: "+140" },
+        away: { moneyline: "-165" },
+      },
+      propBoardRows: [
+        {
+          label: "Tim Ream",
+          lean: "Tim Ream anytime scorer +950",
+          market: "anytime_scorer",
+          odds: "+950",
+          nationAbbr: "USA",
+        },
+        {
+          label: "Christian Pulišić",
+          lean: "Christian Pulišić over 0.5 shots on target -220",
+          market: "player_sot_ou",
+          odds: "-220",
+          nationAbbr: "USA",
+        },
+        {
+          label: "Jackson Irvine",
+          lean: "Jackson Irvine over 0.5 shots -175",
+          market: "player_shots_ou",
+          odds: "-175",
+          nationAbbr: "AUS",
+        },
+      ],
+    },
+  });
+  assert.doesNotMatch(s.lean, /Tim Ream anytime/i);
+  assert.match(s.lean, /Pulišić|0\.5/i);
+  assert.match(s.lean, /Under 2\.5/i);
+  assert.match(s.lean, /\+/);
+  assert.match(s.lean, /-110|-220/);
+});
