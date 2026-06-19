@@ -7,6 +7,7 @@ import {
 } from "./wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "./wcOddsFreshness.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
+import { isWcBdlSource, isWcInPlayMatchStatus } from "./wcBdlPolicy.js";
 
 export { WC_MATCH_PLAYER_PROPS_MAX_AGE_MS };
 
@@ -365,6 +366,20 @@ export function isMatchPlayerPropsFresh(eventPayload, nowMs = Date.now()) {
 }
 
 /**
+ * UR Take may use pre-match BDL boards during live play when in-play lines are pulled.
+ * @param {Record<string, unknown> | null | undefined} eventPayload
+ * @param {{ nowMs?: number, matchStatus?: string }} [opts]
+ */
+export function matchPlayerPropsUsableForUrTake(eventPayload, opts = {}) {
+  if (!eventPayload || !hasMatchPlayerPropRows(eventPayload)) return false;
+  if (isWcUrTakeBlockedSeedPropsPayload(eventPayload)) return false;
+  const nowMs = opts.nowMs ?? Date.now();
+  if (isMatchPlayerPropsFresh(eventPayload, nowMs)) return true;
+  const status = String(opts.matchStatus || eventPayload.matchStatus || "");
+  return isWcInPlayMatchStatus(status) && isWcBdlSource(eventPayload.source);
+}
+
+/**
  * @param {Array<{ name?: string, nationAbbr?: string }>} rows
  * @param {string} [homeTeam]
  * @param {string} [awayTeam]
@@ -404,12 +419,24 @@ export function readFreshMatchPlayerPropsForEvent(kvRoot, eventId, nowMs = Date.
 export function kvHasFreshMatchPlayerProps(kvRoot, opts = {}) {
   if (!kvRoot) return false;
   const resolved = resolveMatchPlayerPropsPayload(kvRoot, opts);
-  if (resolved) return isMatchPlayerPropsFresh(resolved.payload, opts.nowMs);
+  if (resolved) {
+    return matchPlayerPropsUsableForUrTake(resolved.payload, {
+      nowMs: opts.nowMs,
+      matchStatus: opts.matchStatus,
+    });
+  }
 
   const by = kvRoot.byEventId;
   if (!by || typeof by !== "object") return false;
   for (const payload of Object.values(by)) {
-    if (isMatchPlayerPropsFresh(payload, opts.nowMs)) return true;
+    if (
+      matchPlayerPropsUsableForUrTake(payload, {
+        nowMs: opts.nowMs,
+        matchStatus: opts.matchStatus,
+      })
+    ) {
+      return true;
+    }
   }
   return false;
 }

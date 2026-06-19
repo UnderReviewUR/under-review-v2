@@ -9,7 +9,9 @@ import {
 } from "./_wcBdlData.js";
 import {
   isWcFinishedMatchStatus,
+  isWcLiveMatchStatus,
   isWcScheduledMatchStatus,
+  getWcMatchCommenceMs,
 } from "../shared/wcFeaturedMatch.js";
 
 /** Warm props for NS fixtures within this window (7 days). */
@@ -32,11 +34,17 @@ export async function warmWcBdlMatchPlayerPropsForMatches(matches, nowMs = Date.
   const targets = (Array.isArray(matches) ? matches : [])
     .filter((m) => {
       if (isWcFinishedMatchStatus(m?.status)) return false;
+      if (isWcLiveMatchStatus(m?.status)) return true;
       if (!isWcScheduledMatchStatus(m?.status)) return false;
       const ts = Number(m?.commenceTs);
       return Number.isFinite(ts) && ts <= cutoff;
     })
-    .sort((a, b) => Number(a.commenceTs) - Number(b.commenceTs))
+    .sort((a, b) => {
+      const aLive = isWcLiveMatchStatus(a?.status) ? 0 : 1;
+      const bLive = isWcLiveMatchStatus(b?.status) ? 0 : 1;
+      if (aLive !== bLive) return aLive - bLive;
+      return getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b);
+    })
     .slice(0, maxMatches);
 
   let warmed = 0;
@@ -61,6 +69,7 @@ export async function warmWcBdlMatchPlayerPropsForMatches(matches, nowMs = Date.
       const r = await scrapeAndCacheWcBdlMatchPlayerProps(bdlMatchId, eventId, {
         homeTeam: m?.homeTeam,
         awayTeam: m?.awayTeam,
+        status: m?.status,
       });
       if (r?.ok) warmed += 1;
       else failed += 1;

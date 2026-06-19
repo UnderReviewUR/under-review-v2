@@ -42,6 +42,24 @@ export const WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS = 5 * 60 * 1000;
 /** In-play fixtures — shorter refresh cadence without blocking every UR Take read. */
 export const WC_GOAT_MATCH_PROPS_INPLAY_MAX_AGE_MS = 90 * 1000;
 
+/**
+ * @param {string | null | undefined} status
+ */
+export function isWcInPlayMatchStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return /live|in.progress|in progress|1h|2h|ht|halftime/.test(s);
+}
+
+/**
+ * Max age before UR Take treats match props KV as stale for refresh triggers.
+ * @param {string | null | undefined} matchStatus
+ */
+export function wcGoatMatchPlayerPropsMaxAgeMs(matchStatus) {
+  return isWcInPlayMatchStatus(matchStatus)
+    ? WC_GOAT_MATCH_PROPS_INPLAY_MAX_AGE_MS
+    : WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS;
+}
+
 export function hasWcBdlApiKey() {
   return Boolean(String(getEnv("BALLDONTLIE_API_KEY") || "").trim());
 }
@@ -91,7 +109,7 @@ export function wcGoatMatchPlayerPropsNeedsLiveRefresh(eventPayload, opts = {}) 
   const nowMs = opts.nowMs ?? Date.now();
   const ageMs = nowMs - (Number(eventPayload.lastUpdated) || 0);
   const status = String(opts.matchStatus || eventPayload.matchStatus || "").toLowerCase();
-  const inPlay = /live|in.progress|in progress|1h|2h|ht|halftime/.test(status);
+  const inPlay = isWcInPlayMatchStatus(status);
   const maxAgeMs = inPlay
     ? WC_GOAT_MATCH_PROPS_INPLAY_MAX_AGE_MS
     : WC_GOAT_MATCH_PROPS_LIVE_MAX_AGE_MS;

@@ -51,6 +51,7 @@ import {
   hasMatchPlayerPropRows,
   isWcUrTakeBlockedSeedPropsPayload,
   kvHasFreshMatchPlayerProps,
+  matchPlayerPropsUsableForUrTake,
   matchPlayerPropRowsFromEvent,
   readFreshMatchPlayerPropsForEvent,
   resolveMatchPlayerPropsEventForTeams,
@@ -307,11 +308,14 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
       ? (async () => {
           const requireShotsRows = isWcShotsPropQuestion(question);
           let payload = readCachedMatchPlayerPropsForEvent(wcEventId, matchPropsKvRoot, nowMs);
+          const cachedBeforeRefresh =
+            payload && hasMatchPlayerPropRows(payload) ? payload : null;
           const shotsOk = !requireShotsRows || matchPropsPayloadHasShotsRows(payload);
           const m = matches.find((row) => String(row?.id) === String(wcEventId));
+          const matchInPlay = Boolean(m && isWcLiveMatchStatus(m.status));
           const matchDayForceFresh =
             Boolean(m) &&
-            isWcScheduledMatchStatus(m.status) &&
+            (isWcScheduledMatchStatus(m.status) || matchInPlay) &&
             wcMatchOnEtBroadcastSlateDay(m, wcTodayEtYmd(nowMs));
           const needsLiveRefresh =
             isWcGoatPrimaryEnabled() &&
@@ -320,7 +324,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
               !hasMatchPlayerPropRows(payload) ||
               !shotsOk ||
               wcGoatMatchPlayerPropsNeedsLiveRefresh(payload, {
-                matchStatus: fixtureTeams.status || m?.status,
+                matchStatus: m?.status,
                 nowMs,
               }));
           if (needsLiveRefresh) {
@@ -334,7 +338,8 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
               },
               nowMs,
             );
-            if (live) payload = live;
+            if (live && hasMatchPlayerPropRows(live)) payload = live;
+            else if (cachedBeforeRefresh) payload = cachedBeforeRefresh;
           }
           if (!payload || !hasMatchPlayerPropRows(payload)) {
             payload = await readWcMatchPlayerPropsForEvent(wcEventId, nowMs, matchPropsKvRoot);
@@ -445,11 +450,24 @@ function isUsableUrTakeMatchPropsPayload(payload) {
   return true;
 }
 
+function resolveWcMatchStatusForPropsOpts(opts = {}, kvBlocks = null) {
+  const eventId = String(kvBlocks?.wcEventId || opts.wcEventId || "").trim();
+  const matches = Array.isArray(opts.matches) ? opts.matches : [];
+  if (eventId && matches.length) {
+    const m = matches.find((row) => String(row?.id) === eventId);
+    if (m?.status) return String(m.status);
+  }
+  const payload = kvBlocks?.matchPlayerProps;
+  if (payload?.matchStatus) return String(payload.matchStatus);
+  return null;
+}
+
 /**
  * @param {object | null | undefined} kvBlocks
  * @param {object} [opts]
  */
 function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
+  const matchStatus = resolveWcMatchStatusForPropsOpts(opts, kvBlocks);
   const history = Array.isArray(opts.conversationHistory) ? opts.conversationHistory : [];
   const question = String(opts.question || "");
   const namedLegs = isWcNamedPlayerPropQuestion(question)
@@ -505,11 +523,9 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
   });
   const eventId = String(kvBlocks?.wcEventId || opts.wcEventId || "").trim();
   if (
-    !kvHasFreshMatchPlayerProps(kvBlocks.matchPlayerProps, {
-      eventId,
-      question,
-      teams,
+    !matchPlayerPropsUsableForUrTake(kvBlocks.matchPlayerProps, {
       nowMs: opts.nowMs,
+      matchStatus,
     })
   ) {
     return false;
@@ -646,8 +662,14 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
     rejectedWithData &&
     isWcShotsPropQuestion(question) &&
     matchPropsPayloadHasShotsRows(last.matchPlayerProps);
+  const rejectedInPlayUsable =
+    rejectedWithData &&
+    matchPlayerPropsUsableForUrTake(last.matchPlayerProps, {
+      nowMs,
+      matchStatus: resolveWcMatchStatusForPropsOpts(opts, last),
+    });
 
-  if (rejectedWithShots && namedShotsAsk) {
+  if ((rejectedWithShots && namedShotsAsk) || rejectedInPlayUsable) {
     const eventId = String(last?.wcEventId || eventIdHint || "").trim();
     writeMatchPropsMemoryCache(eventId, last);
     console.log(

@@ -73,7 +73,7 @@ export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, 
     return readWcMatchPlayerPropsForEvent(id, nowMs);
   }
   const forceFresh = meta.forceFresh === true;
-  const cached = forceFresh ? null : await readWcMatchPlayerPropsForEvent(id, nowMs);
+  const cached = await readWcMatchPlayerPropsForEvent(id, nowMs);
   const needsShotsRefresh =
     meta.requireShotsRows === true &&
     cached &&
