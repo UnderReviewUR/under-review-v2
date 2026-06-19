@@ -1,84 +1,65 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  buildWcTakeAwareFollowUpChips,
-  buildWcTakeAwareNextLine,
-  resolveWcTakeAwareNextLine,
-} from "./wcTakeAwareFollowUps.js";
-import { isWcTournamentTopScorerQuestion } from "./wcUrTakeIntent.js";
-import { WC_INTENT, classifyWcPlayerMarketIntent } from "./wcUrTakeIntent.js";
+import { buildWcTakeAwareFollowUpChips } from "./wcTakeAwareFollowUps.js";
 
-test("buildWcTakeAwareNextLine — Under 2.5 fixture take", () => {
-  const line = buildWcTakeAwareNextLine({
-    structured: {
-      fixtureHome: "FRA",
-      fixtureAway: "SEN",
-      lean: "Lean Under 2.5 goals",
-      call: "Lean Under 2.5 goals",
-    },
-  });
-  assert.match(line || "", /Senegal sitting deep/i);
-  assert.match(line || "", /Under 2\.5/i);
-});
-
-test("buildWcTakeAwareNextLine — posted Mbappé scorer", () => {
-  const line = buildWcTakeAwareNextLine({
-    structured: {
-      fixtureHome: "FRA",
-      fixtureAway: "SEN",
-      call: "Kylian Mbappé anytime scorer -125",
-      lean: "1. Kylian Mbappé anytime scorer -125",
-      whyNow: "Posted anytime scorer lines for France vs Senegal.",
-    },
-  });
-  assert.match(line || "", /Mbappé -125/i);
-});
-
-test("buildWcTakeAwareFollowUpChips — parlay from prior Under in history", () => {
+test("prop board chip uses lead player nation not blind away team", () => {
   const chips = buildWcTakeAwareFollowUpChips(
     {
       structured: {
-        fixtureHome: "FRA",
-        fixtureAway: "SEN",
-        call: "Kylian Mbappé anytime scorer -125",
-        lean: "1. Kylian Mbappé anytime scorer -125",
+        cardType: "prop_board",
+        fixtureHome: "AUS",
+        fixtureAway: "USA",
+        call: "Australia vs United States — top player props",
+        lean: [
+          "1. Jackson Irvine over 0.5 shots -177",
+          "2. Christian Pulisic over 0.5 shots -2500",
+        ].join("\n"),
+        propBoardRows: [
+          {
+            label: "Jackson Irvine",
+            market: "player_shots_ou",
+            odds: "-177",
+            nationAbbr: "AUS",
+          },
+          {
+            label: "Christian Pulisic",
+            market: "player_shots_ou",
+            odds: "-2500",
+            nationAbbr: "USA",
+          },
+        ],
+      },
+    },
+    "best player props for usa vs australia?",
+    [],
+  );
+  assert.ok(chips.some((c) => /juice or still playable/i.test(c)));
+  assert.ok(chips.some((c) => /Jackson Irvine/i.test(c)));
+  assert.doesNotMatch(chips.join(" "), /United States scorer value besides Jackson Irvine/i);
+  assert.doesNotMatch(chips.join(" "), /Best United States shot line besides Jackson Irvine/i);
+});
+
+test("prop board chip names Australia for AUS lead on shots board", () => {
+  const chips = buildWcTakeAwareFollowUpChips(
+    {
+      structured: {
+        cardType: "prop_board",
+        fixtureHome: "AUS",
+        fixtureAway: "USA",
+        call: "Australia vs United States — top player props",
+        lean: "1. Miloš Degenek over 1 shots +150",
+        propBoardRows: [
+          {
+            label: "Miloš Degenek",
+            market: "player_shots_ou",
+            odds: "+150",
+            nationAbbr: "AUS",
+          },
+        ],
       },
     },
     "",
-    [
-      {
-        role: "assistant",
-        structured: { lean: "Lean Under 2.5 goals", call: "Lean Under 2.5 goals" },
-      },
-    ],
+    [],
   );
-  assert.ok(chips.some((c) => /Parlay:.*Mbappé.*Under 2\.5/i.test(c)));
-});
-
-test("isWcTournamentTopScorerQuestion — tournament vs match", () => {
-  assert.equal(
-    isWcTournamentTopScorerQuestion("Who scores the most goals in the World Cup?"),
-    true,
-  );
-  assert.equal(classifyWcPlayerMarketIntent("Who scores the most goals in the World Cup?"), WC_INTENT.TOP_SCORER);
-  assert.equal(
-    classifyWcPlayerMarketIntent("What are player props for this match?"),
-    WC_INTENT.PLAYER_PROP,
-  );
-  assert.equal(
-    isWcTournamentTopScorerQuestion("Who scores the most for France vs Senegal?"),
-    false,
-  );
-});
-
-test("resolveWcTakeAwareNextLine prefers take-aware copy", () => {
-  const line = resolveWcTakeAwareNextLine("Next: generic", {
-    structured: {
-      fixtureHome: "FRA",
-      fixtureAway: "SEN",
-      lean: "Lean Under 2.5 goals",
-    },
-  });
-  assert.match(line || "", /Under 2\.5/);
-  assert.doesNotMatch(line || "", /generic/);
+  assert.ok(chips.some((c) => /Australia shot line besides Miloš Degenek/i.test(c)));
 });

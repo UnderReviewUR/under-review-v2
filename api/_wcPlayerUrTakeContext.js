@@ -551,11 +551,12 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
   const question = String(opts.question || "");
   const namedShotsAsk =
     isWcNamedPlayerPropQuestion(question) && isWcShotsPropQuestion(question);
-  const maxRetries = retryOpts.maxRetries ?? (isWcGoatPrimaryEnabled() ? 2 : 3);
+  const goatEnabled = isWcGoatPrimaryEnabled();
+  const maxRetries = retryOpts.maxRetries ?? (goatEnabled ? 2 : 3);
   const backoffMs = retryOpts.backoffMs ?? 400;
   const timeoutMs =
     retryOpts.timeoutMs ??
-    (isWcGoatPrimaryEnabled()
+    (goatEnabled
       ? namedShotsAsk
         ? MATCH_PROPS_NAMED_SHOTS_TIMEOUT_MS
         : MATCH_PROPS_GOAT_REQUEST_TIMEOUT_MS
@@ -563,7 +564,7 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
   const start = Date.now();
   const eventIdHint = String(opts.wcEventId || "").trim();
 
-  if (eventIdHint && !isWcGoatPrimaryEnabled()) {
+  if (eventIdHint) {
     const cached = readMatchPropsMemoryCache(eventIdHint);
     if (cached && wcPlayerMarketKvBlocksAreUsable(cached, { ...opts, wcEventId: eventIdHint, nowMs })) {
       return {

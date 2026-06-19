@@ -417,11 +417,52 @@ export function kvHasFreshMatchPlayerProps(kvRoot, opts = {}) {
 /** @type {Array<{ key: string, label: string }>} */
 export const WC_FIXTURE_PROP_BOARD_MARKETS = [
   { key: "anytime_scorer", label: "anytime scorer" },
-  { key: "player_shots_ou", label: "shots" },
-  { key: "player_sot_ou", label: "shots on target" },
   { key: "player_goal_or_assist", label: "goal or assist" },
+  { key: "player_sot_ou", label: "shots on target" },
+  { key: "player_shots_ou", label: "shots" },
   { key: "player_assists_ou", label: "assists" },
 ];
+
+/**
+ * Higher = more interesting on the card face (avoid -2500 juice traps).
+ * @param {string} americanOdds
+ */
+export function fixturePropBoardPlayabilityScore(americanOdds) {
+  const raw = String(americanOdds || "").trim();
+  const n = Number.parseInt(raw.replace(/^\+/, ""), 10);
+  if (!Number.isFinite(n) || n === 0) return -999;
+  if (raw.startsWith("+")) {
+    if (n >= 250) return 90;
+    if (n >= 120) return 80;
+    return 65;
+  }
+  if (n <= -500) return 5;
+  if (n <= -250) return 15;
+  if (n <= -200) return 30;
+  if (n <= -150) return 55;
+  if (n <= -120) return 70;
+  return 60;
+}
+
+/**
+ * Rank posted rows for fixture boards — playable prices first, one row per player.
+ * @param {Array<{ name?: string, americanOdds?: string, nationAbbr?: string, line?: string, side?: string }>} rows
+ * @param {number} [limit]
+ * @param {string} [marketKey]
+ */
+export function rankFixturePropBoardRows(rows, limit = 12, marketKey = "") {
+  const list = Array.isArray(rows) ? rows : [];
+  const deduped = collapseMatchPlayerPropRowsForDisplay(list, marketKey);
+  return deduped
+    .map((row) => ({
+      row,
+      score: fixturePropBoardPlayabilityScore(String(row.americanOdds || "")),
+    }))
+    .filter(({ score }) => score >= 20)
+    .sort((a, b) => b.score - a.score || a.row.name.localeCompare(b.row.name))
+    .map(({ row }) => row)
+    .slice(0, limit);
+}
 
 /**
  * @param {{ name?: string, americanOdds?: string, line?: string }} row
@@ -447,7 +488,8 @@ export function pickFixturePropBoardFromEvent(eventPayload, limit = 24) {
   if (!eventPayload?.markets) return null;
   for (const entry of WC_FIXTURE_PROP_BOARD_MARKETS) {
     const rawRows = matchPlayerPropRowsFromEvent(eventPayload, entry.key, limit);
-    const rows = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
+    const collapsed = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
+    const rows = rankFixturePropBoardRows(collapsed, limit, entry.key);
     if (rows.length >= 2) {
       return { ...entry, rows };
     }

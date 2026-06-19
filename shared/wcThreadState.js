@@ -92,6 +92,9 @@ export function parsePropBoardFromStructured(structured) {
         market: String(row?.market || "anytime_scorer").trim(),
         odds: String(row?.odds || row?.lean || "")
           .match(/([+-]\d{2,})/)?.[1] || "",
+        nationAbbr: row?.nationAbbr
+          ? String(row.nationAbbr).toUpperCase()
+          : undefined,
       }))
       .filter((r) => r.player);
   }

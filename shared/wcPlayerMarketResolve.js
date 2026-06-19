@@ -15,6 +15,7 @@ import {
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
   pickFixturePropBoardFromEvent,
+  rankFixturePropBoardRows,
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
@@ -632,22 +633,6 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   if (!propBoard) return null;
   const { key: marketKey, label: marketLabel, rows } = propBoard;
 
-  const teamSet = new Set(teams.map((t) => String(t).toUpperCase()));
-  const byTeam = { home: [], away: [] };
-  for (const r of rows) {
-    const abbr = String(r.nationAbbr || "").toUpperCase();
-    if (teamSet.has(abbr)) {
-      if (!byTeam.home.length || byTeam.home[0]?.nationAbbr === abbr) {
-        byTeam.home.push(r);
-      } else {
-        byTeam.away.push(r);
-      }
-    }
-  }
-  if (!byTeam.away.length) {
-    byTeam.away = rows.filter((r) => !byTeam.home.includes(r));
-  }
-
   const perTeamAsk = isWcPerTeamPlayerPropsQuestion(question);
   const pluralPropsAsk =
     isGenericWcPlayerPropQuestion(question) ||
@@ -655,24 +640,35 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
     perTeamAsk ||
     /\bwhat about player props?\b/i.test(String(question || ""));
   const perSide = perTeamAsk ? extractWcPerTeamPlayerPropCount(question) : pluralPropsAsk ? 3 : 2;
-  const homePicks = byTeam.home.slice(0, perSide);
-  const awayPicks = byTeam.away.slice(0, perSide);
+
+  const homeAbbr = String(eventPayload?.homeTeam || teams[0] || "").toUpperCase();
+  const awayAbbr = String(eventPayload?.awayTeam || teams[1] || "").toUpperCase();
+  const homeLabel = wcMatchupTeamDisplayName(homeAbbr);
+  const awayLabel = wcMatchupTeamDisplayName(awayAbbr);
+
+  const homePool = rankFixturePropBoardRows(
+    rows.filter((r) => String(r.nationAbbr || "").toUpperCase() === homeAbbr),
+    perSide * 2,
+    marketKey,
+  );
+  const awayPool = rankFixturePropBoardRows(
+    rows.filter((r) => String(r.nationAbbr || "").toUpperCase() === awayAbbr),
+    perSide * 2,
+    marketKey,
+  );
+  const homePicks = homePool.slice(0, perSide);
+  const awayPicks = awayPool.slice(0, perSide);
 
   /** @type {typeof rows} */
   const picked = [...homePicks, ...awayPicks];
   if (picked.length < 2) {
-    for (const r of rows) {
+    for (const r of rankFixturePropBoardRows(rows, perSide * 2, marketKey)) {
       if (picked.length >= perSide * 2) break;
       if (!picked.includes(r)) picked.push(r);
     }
   }
   if (picked.length < 2) return null;
   if (!eventPayload || !isMatchPlayerPropsFresh(eventPayload)) return null;
-
-  const homeAbbr = String(eventPayload?.homeTeam || teams[0] || "").toUpperCase();
-  const awayAbbr = String(eventPayload?.awayTeam || teams[1] || "").toUpperCase();
-  const homeLabel = wcMatchupTeamDisplayName(homeAbbr);
-  const awayLabel = wcMatchupTeamDisplayName(awayAbbr);
 
   let numbered;
   if (perTeamAsk && homePicks.length && awayPicks.length) {
@@ -705,6 +701,7 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
     lean: formatFixturePropBoardRowLabel(r, marketKey, marketLabel),
     market: marketKey,
     odds: r.americanOdds,
+    nationAbbr: r.nationAbbr ? String(r.nationAbbr).toUpperCase() : undefined,
   }));
   const leadLabel = formatFixturePropBoardRowLabel(lead, marketKey, marketLabel);
   const call = pluralPropsAsk

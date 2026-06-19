@@ -122,6 +122,7 @@ import {
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
 import { loadWcPlayerMarketKvBlocksWithRetry, formatWcPlayerMarketsPromptBlock } from "../_wcPlayerUrTakeContext.js";
+import { isWcGoatPrimaryEnabled } from "../../shared/wcBdlPolicy.js";
 import {
   prepareWcGroundingPacketForHandler,
   tryApplyWcPlayerPropsGroundingToStructured,
@@ -3435,7 +3436,7 @@ export default async function handler(req, res) {
                 ? [wcPropsRoute.fixtureHome, wcPropsRoute.fixtureAway].filter(Boolean)
                 : wcRequiredEntities,
             },
-            { maxRetries: 3, backoffMs: 600, timeoutMs: 6500 },
+            { maxRetries: 3, backoffMs: 600, timeoutMs: isWcGoatPrimaryEnabled() ? 14_000 : 6500 },
           );
           const playerEventIdResolved = playerMarketKv.wcEventId || playerEventId || null;
           wcRelevanceLog.wcPropsMarketTypesLoaded = countWcMatchPlayerPropMarkets(
