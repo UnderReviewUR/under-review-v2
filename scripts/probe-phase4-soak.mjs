@@ -261,6 +261,23 @@ async function soakHttpGoldenThread() {
     pass("http-who-wins", String(w.call).slice(0, 72));
   }
 
+  const twoLeg = await postUrTake(
+    "Jimenez and Quinones each going over 2.5 shots attempted?",
+    MEX_KOR_HISTORY.slice(0, 2),
+  );
+  const t = twoLeg.structured || {};
+  if (!/Jimenez/i.test(String(t.lean || "") + String(t.call || ""))) {
+    fail("http-two-leg-shots", "Jimenez missing");
+  } else if (!/Quinones/i.test(String(t.lean || "") + String(t.call || ""))) {
+    fail("http-two-leg-shots", "Quinones missing");
+  } else if (/No shots line posted yet for Jimenez and Quinones/i.test(String(t.call || ""))) {
+    fail("http-two-leg-shots", "parser collapsed two names into one player");
+  } else if (!/of 2 playable|playable/i.test(String(t.call || "") + String(t.lean || ""))) {
+    fail("http-two-leg-shots", `expected playable got ${t.call}`);
+  } else {
+    pass("http-two-leg-shots", String(t.call).slice(0, 72));
+  }
+
   const parlay = await postUrTake(
     "4 player prop parlay for MEX vs KOR",
     MEX_KOR_HISTORY.slice(0, 2),

@@ -604,3 +604,14 @@ test("extractWcNamedPlayerPropLegsFromQuestion — bare each going over extracts
     ["Son", "Jimenez", "Quinones"],
   );
 });
+
+test("extractWcNamedPlayerPropLegsFromQuestion — two names with and (no comma) each going", () => {
+  const q = "Jimenez and Quinones each going over 2.5 shots attempted?";
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(q);
+  assert.equal(legs.length, 2);
+  assert.deepEqual(
+    legs.map((l) => l.name),
+    ["Jimenez", "Quinones"],
+  );
+  assert.equal(legs[0].threshold, "2.5");
+});

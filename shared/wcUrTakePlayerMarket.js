@@ -790,10 +790,10 @@ const WC_EACH_GOING_NAMED_PROP_RE =
   /\b(?:on|for|thoughts on)\s+(.+?)\s+each\s+going\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)/i;
 
 const WC_BARE_EACH_GOING_NAMED_PROP_RE =
-  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)+)\s+each\s+going\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)/i;
+  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s+and\s+[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+|\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)*)\s+each\s+going\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)/i;
 
 const WC_COMMA_LIST_SHARED_THRESHOLD_RE =
-  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)+)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i;
+  /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s+and\s+[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+|\s*,\s*(?:and\s+)?[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)*)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i;
 
 const WC_EACH_HAVE_NAMED_PROP_RE =
   /\b([A-Za-zÀ-ÿ][\wÀ-ÿ' -]+(?:\s+and\s+[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+|\s*,\s*[A-Za-zÀ-ÿ][\wÀ-ÿ' -]+)*)\s+to\s+each\s+have\s+(\d+(?:\.\d+)?)\+?\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i;
@@ -1037,6 +1037,7 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
     const chunk = m[0].toLowerCase();
     if (!name || !threshold) continue;
     if (!isWcNamedPropLegNameValid(name)) continue;
+    if (/\beach\s+going\b/i.test(name)) continue;
     if (isWcNationOrAwardFalsePositive(name, q)) continue;
     const first = name.split(/\s+/)[0]?.toLowerCase();
     if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) continue;
@@ -1057,7 +1058,7 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
   if (legs.length) return legs;
 
   const single = extractWcNamedPlayerFromQuestion(q);
-  if (single && /\bover\s+\d+(?:\.\d+)?\b/i.test(q)) {
+  if (single && /\bover\s+\d+(?:\.\d+)?\b/i.test(q) && !/\beach\s+going\b/i.test(q)) {
     const threshold = q.match(/\bover\s+(\d+(?:\.\d+)?)\b/i)?.[1] || "";
     const isSot = /\b(?:shots?\s+on\s+target|\bsot\b)\b/i.test(q);
     return [
