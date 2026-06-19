@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import { textOrEmpty } from "../lib/urTakeRenderSafe.js";
+import { isUrTakeLoadingPlaceholder } from "../../shared/wcNamedLegCardUi.js";
 
 /**
  * Post–first-answer retention: slip upload nudge + save take + minimal saved list.
@@ -22,7 +23,7 @@ export default function AskUrTakeRetentionStrip({
   const lastCompleteAi = useMemo(() => {
     for (let i = safeMsgs.length - 1; i >= 0; i--) {
       const m = safeMsgs[i];
-      if (m && m.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...") {
+      if (m && m.role === "ai" && !m.loading && String(m.text || "").trim() && !isUrTakeLoadingPlaceholder(m.text)) {
         return m;
       }
     }

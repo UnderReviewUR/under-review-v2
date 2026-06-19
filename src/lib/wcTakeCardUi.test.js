@@ -60,6 +60,30 @@ test("prepareWcCardFaceDisplay — numbered fixture props list in why", () => {
   assert.doesNotMatch(face.headline, /\+2 more/i);
 });
 
+test("prepareWcCardFaceDisplay — named-leg card skips prop-board list face", () => {
+  const lean = [
+    "1. Son Heung-min over 2.5 shots +105 — playable",
+    "2. Jimenez over 2.5 shots -110 — playable",
+    "3. Quinones over 2.5 shots -550 — juice, skip",
+  ].join("\n");
+  const face = prepareWcCardFaceDisplay({
+    callType: "player_market_verified",
+    call: "2 of 3 playable on named legs",
+    propBoardRows: [
+      { label: "Gallardo", lean: "Over 0.5 shots +120" },
+      { label: "Álvarez", lean: "Over 0.5 shots -105" },
+      { label: "Lee Jae-sung", lean: "Over 0.5 shots +180" },
+    ],
+    lean,
+    why: "Son and Jimenez clear at 2.5; Quinones priced out.",
+    focusLayout: true,
+    question: "Son, Jimenez, and Quinones each going over 2.5 shots attempted?",
+  });
+  assert.equal(face.slateListFace, null);
+  assert.match(face.headline, /Son Heung-min/i);
+  assert.doesNotMatch(face.headline, /Gallardo/i);
+});
+
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
     "Bruno Fernandes recording 7 assists in a single World Cup tournament is structurally implausible — Portugal's group strength and likely knockout run don't support that volume.";

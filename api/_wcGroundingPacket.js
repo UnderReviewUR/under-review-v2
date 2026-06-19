@@ -454,8 +454,8 @@ function buildCardView(pinnedFixture, dataFreshness, marketsSummary, blockers) {
       notPosted,
       freshnessLabel:
         dataFreshness.source === "balldontlie"
-          ? `Updated ${dataFreshness.ageSec}s ago (BDL)`
-          : `Updated ${dataFreshness.ageSec}s ago (${dataFreshness.source})`,
+          ? `Updated ${dataFreshness.ageSec}s ago`
+          : `Updated ${dataFreshness.ageSec}s ago`,
     },
     blockers: blockers.messages,
     structuredSeed: {

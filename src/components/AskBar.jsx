@@ -33,7 +33,6 @@ const AskBar = memo(function AskBar({
   pastedImage,
   clearImage,
   isAsking,
-  prefetchingContext = false,
   processImageFile,
   /** When false, skip the "PASTE IMAGE…" subline (e.g. hero copy already covers it). */
   showPasteHint = true,
@@ -48,7 +47,7 @@ const AskBar = memo(function AskBar({
   /** `home` = multiline hero; `wc-inline` = single-row form (mobile keyboard send). */
   layout = "default",
 }) {
-  const busy = isAsking || prefetchingContext;
+  const busy = isAsking;
   const canSubmit = !busy && String(value || "").trim().length > 0;
 
   const askInputProps = {
@@ -167,11 +166,11 @@ const AskBar = memo(function AskBar({
               <button
                 className="send-btn ur-dock-icon-btn ur-dock-send"
                 disabled={!canSubmit}
-                title={prefetchingContext ? "Loading context…" : "Send"}
+                title={isAsking ? "Working…" : "Send"}
                 type="submit"
                 aria-label="Send"
               >
-                {prefetchingContext ? (
+                {isAsking ? (
                   <span className="ur-dock-send-busy" aria-hidden>
                     …
                   </span>
@@ -218,12 +217,12 @@ const AskBar = memo(function AskBar({
               <button
                 className="ask-wc-inline-send"
                 disabled={!canSubmit}
-                title={prefetchingContext ? "Loading context…" : "Send"}
+                title={isAsking ? "Working…" : "Send"}
                 type="submit"
                 aria-label="Send"
                 style={btnColor ? { background: btnColor } : undefined}
               >
-                {prefetchingContext ? (
+                {isAsking ? (
                   <span aria-hidden>…</span>
                 ) : (
                   <IconSend className="ask-wc-inline-icon ask-wc-inline-icon--send" />
@@ -281,11 +280,11 @@ const AskBar = memo(function AskBar({
                     className="ask-home-hero-send"
                     onClick={onSubmit}
                     disabled={busy || !String(value || "").trim()}
-                    title={prefetchingContext ? "Loading context…" : "Send"}
+                    title={isAsking ? "Working…" : "Send"}
                     type="button"
                     aria-label="Send"
                   >
-                    {prefetchingContext ? (
+                    {isAsking ? (
                       <span aria-hidden>…</span>
                     ) : (
                       <IconSend className="ask-home-hero-send-icon" />
@@ -352,10 +351,10 @@ const AskBar = memo(function AskBar({
               style={btnColor ? { background: btnColor, color: "#080A0C" } : undefined}
               onClick={onSubmit}
               disabled={busy}
-              title={prefetchingContext ? "Loading context…" : undefined}
+              title={isAsking ? "Working…" : undefined}
               type="button"
             >
-              {prefetchingContext ? "…" : "➤"}
+              {isAsking ? "…" : "➤"}
             </button>
         </div>
       )}

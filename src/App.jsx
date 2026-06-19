@@ -127,6 +127,7 @@ import {
   shouldLockWorldCupThreadSport,
 } from "../shared/urTakeSportRouting.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
+import { urTakeLoadingLabelForSport, isUrTakeLoadingPlaceholder } from "../shared/wcNamedLegCardUi.js";
 import {
   alignMergedGamesToVerifiedSlate,
   augmentNbaRosterGroundingWithUi,
@@ -571,7 +572,6 @@ ${themeCss}
   const [matchupMsgs, setMatchupMsgs] = useState([]);
 
   const [isAsking, setIsAsking]         = useState(false);
-  const [prefetchingUrTakeContext, setPrefetchingUrTakeContext] = useState(false);
   const [pastedImage, setPastedImage]   = useState(null);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
@@ -1580,7 +1580,7 @@ ${themeCss}
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry, wcEventId, wcMatchTeams }) => {
   text = autocorrectUrTakeQuestion(String(text || "").trim()).text;
-  if (!text || isAsking || prefetchingUrTakeContext) return;
+  if (!text || isAsking) return;
   if (!canAsk()) return;
   if (urTakeInFlightRef.current) return;
   urTakeInFlightRef.current = true;
@@ -1707,7 +1707,7 @@ ${themeCss}
       },
       {
         role: "ai",
-        text: "ANALYZING...",
+        text: urTakeLoadingLabelForSport(loadingSport),
         loading: true,
         sport: loadingSport,
         msgId: pendingMsgId,
@@ -1721,7 +1721,6 @@ ${themeCss}
   let fuTelemetryState = null;
 
   try {
-    setPrefetchingUrTakeContext(true);
     const ensureStart = typeof performance !== "undefined" ? performance.now() : Date.now();
     const ensured = await ensureUrTakeSportContext(hintForEnsure || "generic", {
       nbaData,
@@ -1736,7 +1735,6 @@ ${themeCss}
     const ensureMs = Math.round(
       (typeof performance !== "undefined" ? performance.now() : Date.now()) - ensureStart,
     );
-    setPrefetchingUrTakeContext(false);
 
     if (hintForEnsure && hintForEnsure !== "generic") {
       console.log(
@@ -2548,7 +2546,6 @@ ${themeCss}
       loadPerformanceSnapshot().catch(() => {});
     }
   } catch (err) {
-    setPrefetchingUrTakeContext(false);
     if (fuTelemetryState) {
       const end = typeof performance !== "undefined" ? performance.now() : Date.now();
       telemetryUrTakeFollowUpResponseCompleted({
@@ -2621,7 +2618,6 @@ ${themeCss}
   clearImage,
   context,
   isAsking,
-  prefetchingUrTakeContext,
   liveMatches,
   pastedImage,
   players,
@@ -3891,7 +3887,7 @@ ${themeCss}
           m?.defaultPrompt ||
             "Which team has the most interesting draft situation?",
         ).trim();
-        if (!prompt || isAsking || prefetchingUrTakeContext) return;
+        if (!prompt || isAsking) return;
         if (screen !== "ask" || tab !== "ask") {
           setNavHistory((h) => [...h, { screen, tab }]);
         }
@@ -3976,7 +3972,7 @@ ${themeCss}
       setScreen("matchup");
       setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
     },
-    [screen, tab, askUrTake, isAsking, prefetchingUrTakeContext],
+    [screen, tab, askUrTake, isAsking],
   );
 
   useEffect(() => {
@@ -4032,7 +4028,7 @@ ${themeCss}
 
   const firePrompt = useCallback(
     (prompt, sportHint = null) => {
-      if (isAsking || prefetchingUrTakeContext || urTakeInFlightRef.current) return;
+      if (isAsking || urTakeInFlightRef.current) return;
       const text = String(prompt ?? "").trim();
       if (!text) return;
       if (!canAsk()) return;
@@ -4055,13 +4051,13 @@ ${themeCss}
         pendingScrollTimeoutIdsRef.current.push(t120);
       });
     },
-    [askUrTake, canAsk, scheduleChatScroll, screen, tab, isAsking, prefetchingUrTakeContext],
+    [askUrTake, canAsk, scheduleChatScroll, screen, tab, isAsking],
   );
 
   /** Navigate to UR Take with the question pre-filled (sport hint stored for submit). */
   const prefillUrTakeQuestion = useCallback(
     (prompt, sportHint = null) => {
-      if (isAsking || prefetchingUrTakeContext) return;
+      if (isAsking) return;
       pendingExplicitSportHintRef.current =
         typeof sportHint === "string" && sportHint.trim() !== "" ? sportHint.trim() : null;
       if (screen !== "ask" || tab !== "ask") {
@@ -4075,13 +4071,13 @@ ${themeCss}
         askInputRef.current?.focus?.();
       });
     },
-    [askInputRef, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab],
+    [askInputRef, isAsking, scheduleChatScroll, screen, tab],
   );
 
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome = useCallback(() => {
     const t = askInput.trim();
-    if (!t || isAsking || prefetchingUrTakeContext || urTakeInFlightRef.current) return;
+    if (!t || isAsking || urTakeInFlightRef.current) return;
     if (!canAsk()) return;
     if (screen !== "ask" || tab !== "ask") {
       setNavHistory((h) => [...h, { screen, tab }]);
@@ -4103,10 +4099,10 @@ ${themeCss}
       const t120 = setTimeout(() => scheduleChatScroll(askScreenRef), 120);
       pendingScrollTimeoutIdsRef.current.push(t120);
     });
-  }, [askUrTake, askInput, canAsk, isAsking, prefetchingUrTakeContext, scheduleChatScroll, screen, tab]);
+  }, [askUrTake, askInput, canAsk, isAsking, scheduleChatScroll, screen, tab]);
   const submitAsk = useCallback(() => {
     const t = askInput.trim();
-    if (!t || isAsking || prefetchingUrTakeContext) return;
+    if (!t || isAsking) return;
     setAskInput("");
     const askSportHint =
       questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t)
@@ -4121,28 +4117,28 @@ ${themeCss}
     requestAnimationFrame(() => {
       askInputRef.current?.focus({ preventScroll: true });
     });
-  }, [askInput, askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll]);
-  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,tennisInput,scheduleChatScroll]);
+  }, [askInput, askUrTake, isAsking, scheduleChatScroll]);
+  const submitTennis  = useCallback(forced=>{ const t=(forced??tennisInput).trim(); if(!t||isAsking)return; if(!forced)setTennisInput(""); askUrTake({text:t,setMsgs:setTennisMsgs,sportHint:"tennis"}); scheduleChatScroll(tennisScreenRef); },[askUrTake,isAsking,tennisInput,scheduleChatScroll]);
   const submitWta = useCallback(
     (forced) => {
       const t = (forced ?? wtaInput).trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       if (!forced) setWtaInput("");
       askUrTake({ text: t, setMsgs: setTennisMsgs, sportHint: "tennis_wta_profile" });
       scheduleChatScroll(tennisScreenRef);
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, wtaInput, scheduleChatScroll],
+    [askUrTake, isAsking, wtaInput, scheduleChatScroll],
   );
-  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,nflInput,scheduleChatScroll]);
-  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,f1Input,scheduleChatScroll]);
-  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,nbaInput,scheduleChatScroll]);
-  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,mlbInput,scheduleChatScroll]);
+  const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,nflInput,scheduleChatScroll]);
+  const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,f1Input,scheduleChatScroll]);
+  const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,nbaInput,scheduleChatScroll]);
+  const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,mlbInput,scheduleChatScroll]);
 
-  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,golfInput,scheduleChatScroll]);
+  const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,golfInput,scheduleChatScroll]);
   const submitWc = useCallback(
     (forced, opts = {}) => {
       const t = (typeof forced === "string" ? forced : wcInput).trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       if (typeof forced !== "string") setWcInput("");
       let wcMatchTeams = null;
       const eid = opts.eventId != null ? String(opts.eventId).trim() : "";
@@ -4161,7 +4157,7 @@ ${themeCss}
       });
       scheduleChatScroll(wcScreenRef);
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, wcInput, scheduleChatScroll, wcMatches],
+    [askUrTake, isAsking, wcInput, scheduleChatScroll, wcMatches],
   );
 
   const askWorldCup = useCallback(
@@ -4193,7 +4189,7 @@ ${themeCss}
   );
 
   useEffect(() => {
-    if (screen !== "worldcup" || !wcDeepLinkAction || isAsking || prefetchingUrTakeContext) {
+    if (screen !== "worldcup" || !wcDeepLinkAction || isAsking) {
       return;
     }
     const t = String(wcDeepLinkAction.q || "").trim();
@@ -4213,17 +4209,16 @@ ${themeCss}
     screen,
     wcDeepLinkAction,
     isAsking,
-    prefetchingUrTakeContext,
     submitWc,
     scheduleChatScroll,
   ]);
-  const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking||prefetchingUrTakeContext)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,prefetchingUrTakeContext,matchupInput,selectedMatchup,scheduleChatScroll]);
+  const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   /** Insert suggested live follow-up from thread pills and submit (matches each sport's ask flow). */
   const urTakeFollowUpAsk = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setAskInput("");
       askUrTake({
         text: t,
@@ -4244,7 +4239,7 @@ ${themeCss}
         askInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
 
   const refreshSavedTakes = useCallback(() => {
@@ -4259,7 +4254,7 @@ ${themeCss}
   const saveTakeFromMsgs = useCallback(
     (msgs) => {
       const last = [...msgs].reverse().find(
-        (m) => m.role === "ai" && !m.loading && String(m.text || "").trim() && m.text !== "ANALYZING...",
+        (m) => m.role === "ai" && !m.loading && String(m.text || "").trim() && !isUrTakeLoadingPlaceholder(m.text),
       );
       if (!last) return;
       let headlineSnippet = "";
@@ -4321,7 +4316,7 @@ ${themeCss}
   const urTakeFollowUpTennis = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setTennisInput("");
       askUrTake({
         text: t,
@@ -4343,12 +4338,12 @@ ${themeCss}
         tennisInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
   const urTakeFollowUpNfl = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setNflInput("");
       askUrTake({
         text: t,
@@ -4370,12 +4365,12 @@ ${themeCss}
         nflInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
   const urTakeFollowUpF1 = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setF1Input("");
       askUrTake({
         text: t,
@@ -4397,12 +4392,12 @@ ${themeCss}
         f1InputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
   const urTakeFollowUpNba = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setNbaInput("");
       askUrTake({
         text: t,
@@ -4424,12 +4419,12 @@ ${themeCss}
         nbaInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
   const urTakeFollowUpMlb = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setMlbInput("");
       askUrTake({
         text: t,
@@ -4451,12 +4446,12 @@ ${themeCss}
         mlbInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
   const urTakeFollowUpGolf = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setGolfInput("");
       askUrTake({
         text: t,
@@ -4478,12 +4473,12 @@ ${themeCss}
         golfInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, scheduleChatScroll],
+    [askUrTake, isAsking, scheduleChatScroll],
   );
   const urTakeFollowUpWc = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setWcInput("");
       const threadWcEventId = [...wcMsgs]
         .reverse()
@@ -4509,12 +4504,12 @@ ${themeCss}
         wcInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, wcMsgs, scheduleChatScroll],
+    [askUrTake, isAsking, wcMsgs, scheduleChatScroll],
   );
   const urTakeFollowUpMatchup = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
-      if (!t || isAsking || prefetchingUrTakeContext) return;
+      if (!t || isAsking) return;
       setMatchupInput("");
       const league = String(selectedMatchup?.league || "").toUpperCase();
       const hint = league.includes("NFL")
@@ -4549,7 +4544,7 @@ ${themeCss}
         matchupInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, prefetchingUrTakeContext, selectedMatchup, scheduleChatScroll],
+    [askUrTake, isAsking, selectedMatchup, scheduleChatScroll],
   );
 
   const askBarCommon = {
@@ -4557,7 +4552,6 @@ ${themeCss}
     pastedImage,
     clearImage,
     isAsking,
-    prefetchingContext: prefetchingUrTakeContext,
     processImageFile,
     bettingStyle,
     isUnlimited,

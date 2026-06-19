@@ -1410,7 +1410,7 @@ const UR_TAKE_LOADING_PHASES = [
 
 /** World Cup — longer backend path (sims + structured JSON); avoid early "Almost there". */
 const UR_TAKE_LOADING_PHASES_WC = [
-  { delay: 0, text: "Pulling match odds..." },
+  { delay: 0, text: "Pulling live lines…" },
   { delay: 3000, text: "Running tournament sims..." },
   { delay: 8000, text: "Building the match lean..." },
   { delay: 16000, text: "Still working — full sim stack on match day..." },

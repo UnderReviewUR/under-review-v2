@@ -6,6 +6,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { buildWcGroundingStripModel } from "../shared/wcGroundingCardUi.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config({ path: path.join(root, ".env") });
@@ -71,6 +72,9 @@ const shotsQ =
 const shots = await post(shotsQ, korMexHistory.slice(0, 2));
 const s = shots.structured || {};
 const shotsFreshness = s.groundingInventoryStrip?.freshnessLabel || null;
+const shotsStatusLine = buildWcGroundingStripModel({
+  inventoryStrip: s.groundingInventoryStrip,
+})?.statusLine;
 console.log("1) Named shots (exact screenshot wording)");
 console.log({
   call: s.call,
@@ -78,7 +82,8 @@ console.log({
   hasQuinones: /Quinones|Quiñones/i.test(String(s.lean || "") + String(s.call || "")),
   countPlayable: /(\d+) of (\d+) playable/.exec(String(s.call || ""))?.[0] || s.call,
   freshnessLabel: shotsFreshness,
-  bdlLeaked: /\bBDL\b|balldontlie/i.test(String(shotsFreshness || "")),
+  statusLine: shotsStatusLine,
+  bdlLeaked: /\bBDL\b|balldontlie/i.test(String(shotsStatusLine || "")),
 });
 
 const whoWins = await post("Who wins MEX vs KOR?", korMexHistory);
@@ -98,8 +103,11 @@ const errors = [];
 if (!/Quinones|Quiñones/i.test(String(s.lean || "") + String(s.call || ""))) {
   errors.push("shots: Quinones missing");
 }
-if (/\bBDL\b|balldontlie/i.test(String(shotsFreshness || ""))) {
-  errors.push("shots: BDL leaked in freshness strip");
+if (!/of 3 playable/i.test(String(s.call || ""))) {
+  errors.push(`shots: expected N of 3 playable got ${s.call}`);
+}
+if (/\bBDL\b|balldontlie/i.test(String(shotsStatusLine || ""))) {
+  errors.push("shots: BDL leaked in UI status strip");
 }
 if (!/\bto win\b/i.test(String(w.call || "") + String(w.lean || ""))) {
   errors.push(`who-wins: expected ML winner got ${w.call || w.lean}`);

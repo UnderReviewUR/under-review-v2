@@ -23,6 +23,7 @@ import {
   wcCardFaceBlobHasNumericWhy,
   detectWcDeepMetaLeak,
 } from "../../shared/wcTakeRetentionQA.js";
+import { isWcNamedLegPropsStructuredCard } from "../../shared/wcNamedLegCardUi.js";
 
 export const UR_TAKE_BREAKDOWN_LABEL = "More detail";
 export const UR_TAKE_SLATE_BREAKDOWN_LABEL = "View full board";
@@ -719,14 +720,20 @@ export function prepareWcCardFaceDisplay(opts = {}) {
           parlayLegs: opts.parlayLegs,
           parlayCombinedOdds: opts.parlayCombinedOdds,
         }) ||
-        buildWcPropsListFace({
+        (isWcNamedLegPropsStructuredCard({
           call: opts.call,
           lean: opts.lean,
-          propBoardRows: opts.propBoardRows,
-          cardType: opts.cardType,
-          fixtureHome: opts.fixtureHome,
-          fixtureAway: opts.fixtureAway,
-        });
+          wcNamedPlayerPropsCard: opts.wcNamedPlayerPropsCard,
+        })
+          ? null
+          : buildWcPropsListFace({
+              call: opts.call,
+              lean: opts.lean,
+              propBoardRows: opts.propBoardRows,
+              cardType: opts.cardType,
+              fixtureHome: opts.fixtureHome,
+              fixtureAway: opts.fixtureAway,
+            }));
 
   let headline = pickWcCardHeadline({
     lean: opts.lean,

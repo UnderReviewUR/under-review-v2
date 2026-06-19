@@ -25,6 +25,7 @@ import {
   resolveWcEventIdForFixtureTeams,
   findWcNamedPlayerPropLegMatch,
 } from "../shared/wcPlayerPropFixture.js";
+import { isWcNamedLegPropsStructuredCard } from "../shared/wcNamedLegCardUi.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
@@ -519,9 +520,17 @@ export function applyWcGroundingCardToStructured(structured, packet) {
   ];
 
   const seed = card.structuredSeed || {};
+  const namedLegCard = isWcNamedLegPropsStructuredCard({
+    call: structured.call,
+    lean: structured.lean,
+    wcNamedPlayerPropsCard: structured.wcNamedPlayerPropsCard,
+  });
+  const { propBoardRows: _boardRows, ...seedRest } = seed;
+  const seedMerge = namedLegCard ? seedRest : seed;
+
   return {
     ...structured,
-    ...seed,
+    ...seedMerge,
     groundingVisible: true,
     groundingPinBanner: card.pinBanner,
     groundingInventoryStrip: card.inventoryStrip,
