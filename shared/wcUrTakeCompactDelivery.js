@@ -35,6 +35,8 @@ import {
   splitWcSentences,
 } from "./wcSentenceBoundaries.js";
 import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
+import { buildWcThreadAwarePassFallback } from "./wcTurnDelivery.js";
+import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import {
   extractWcMatchupPlayHeadline,
   isWcMatchWinnerQuestion,
@@ -311,7 +313,13 @@ function buildWcMatchupCompactStructured(opts = {}) {
     const pass = isWcPassVerdict(summary, lean);
     lean =
       synthesizeWcMatchupPlay(summary, deep, question, teams, pass) ||
-      extractPlayDecision(summary, deep, call, { line, question, wcIntent: WC_INTENT.MATCHUP, pass });
+      extractPlayDecision(summary, deep, call, {
+        line,
+        question,
+        wcIntent: WC_INTENT.MATCHUP,
+        pass,
+        history: opts.history,
+      });
   }
   if (WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
     lean = synthesizeWcMatchupPlay(summary, deep, question, teams, true);
@@ -548,7 +556,10 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
     }
   }
 
-  return "Pass — no actionable line yet; see Watch For before locking a bet.";
+  const priorLean =
+    opts.priorLean ||
+    (Array.isArray(opts.history) ? extractLastAssistantStructured(opts.history) : null);
+  return buildWcThreadAwarePassFallback(priorLean);
 }
 
 /**
@@ -985,6 +996,7 @@ function buildWcCompactStructuredBody(opts = {}) {
       deep,
       question,
       structuredSeed: seed,
+      history: opts.history,
     });
   }
 
@@ -1013,7 +1025,13 @@ function buildWcCompactStructuredBody(opts = {}) {
     ).trim();
     const lean = String(
       seed?.lean ||
-        extractPlayDecision(summary, deep, call, { line, question, wcIntent, pass: isWcPassVerdict(summary, "") }),
+        extractPlayDecision(summary, deep, call, {
+          line,
+          question,
+          wcIntent,
+          pass: isWcPassVerdict(summary, ""),
+          history: opts.history,
+        }),
     ).trim();
     const pass = isWcPassVerdict(summary, lean);
     const whyNow = String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim();
@@ -1115,7 +1133,12 @@ function buildWcCompactStructuredBody(opts = {}) {
     : nonBetting
       ? synthesizeNonBettingPlay(summary, call)
       : resolveWcPlayerPropDisplayLean({
-          lean: extractPlayDecision(summary, deep, call, { line, question, wcIntent }),
+          lean: extractPlayDecision(summary, deep, call, {
+            line,
+            question,
+            wcIntent,
+            history: opts.history,
+          }),
           call,
           whyNow: String(seed?.whyNow || buildWhyNow(summary, deep, wcIntent)).trim(),
           line,

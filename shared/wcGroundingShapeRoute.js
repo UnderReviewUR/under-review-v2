@@ -146,6 +146,10 @@ export function buildWcGroundingClaudePromptBlock(packet, opts = {}) {
       "Cite only legIds from markets[].topLegs when quoting odds, or explain blockers when you cannot.",
   };
 
+  if (claude.priorStructuredLean && typeof claude.priorStructuredLean === "object") {
+    payload.priorStructuredLean = claude.priorStructuredLean;
+  }
+
   if (packet.ask.shape === "slate" && Array.isArray(opts.slateFixtures)) {
     payload.slateFixtures = opts.slateFixtures;
   }

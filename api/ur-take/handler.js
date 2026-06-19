@@ -209,6 +209,17 @@ import {
   WC_INTENT,
   WC_STATIC_RULES_BLOCK,
 } from "../../shared/wcUrTakeIntent.js";
+import { isWcTurnPlannerEnabled, resolveWcTurnPlan } from "../../shared/wcTurnPlanner.js";
+import { WC_TURN_LANE } from "../../shared/wcTurnConstants.js";
+import {
+  shouldActivateWcFixturePrebuiltBlock,
+  shouldActivateWcPrebuiltLane,
+  shouldActivateWcPropsFastPath,
+  applyWcLlmThreadPriorLeanToContext,
+  applyWcLlmThreadPriorLeanToGroundingPacket,
+  buildWcPriorLeanPromptBlock,
+} from "../../shared/wcTurnDelivery.js";
+import { deliverWcTurnByPlan } from "./wcTurnPlanDelivery.js";
 import {
   classifyWcAdvancementMarket,
   isWcAdvancementMarketQuestion,
@@ -2870,8 +2881,16 @@ export default async function handler(req, res) {
   let wcIntent = null;
   let wcRequiredEntities = [];
   let wcForbiddenEntities = [];
+  /** @type {import("../../shared/wcTurnPlanner.js").WcTurnPlan | null} */
+  let wcTurnPlan = null;
+  /** @type {import("../../shared/wcTurnPlanner.js").WcTurnPlan | null} */
+  let wcTurnPlanLiteHint = null;
+  const wcTurnPlannerHeader = String(req?.headers?.["x-wc-turn-planner"] ?? "").trim();
+  const wcTurnPlannerEnabled = isWcTurnPlannerEnabled({ plannerHeader: wcTurnPlannerHeader });
   /** @type {Record<string, string>} */
   let wcStrengthTags = {};
+  // All World Cup routing decisions now live in shared/wcTurnPlanner.js.
+  // Do not add new routing logic or shouldUseWc* guards here.
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
@@ -2909,6 +2928,37 @@ export default async function handler(req, res) {
           ? String(historyPinnedFixture.eventId).trim()
           : null;
     wcRelevanceLog.wcEventId = wcEventIdTrimmed;
+    if (wcTurnPlannerEnabled) {
+      wcTurnPlanLiteHint = resolveWcTurnPlan({
+        question: routingQuestion,
+        fullQuestion: String(question || ""),
+        history: normalizedUrTakeHistoryForGate,
+        incomingWcEventId: wcEventIdTrimmed,
+        isConversationFollowUp,
+        hasImage,
+        wcRunnerUpFollowUpQuestion,
+        mentionedTeams: wcRelevanceLog.mentionedTeams,
+        routeHeader: String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim(),
+      });
+      wcIntent = wcTurnPlanLiteHint.intent;
+      wcRelevanceLog.wcIntent = wcIntent;
+      wcRelevanceLog.wcTurnPlanner = true;
+      wcRelevanceLog.wcTurnLane = wcTurnPlanLiteHint.lane;
+      wcRelevanceLog.wcTurnPlanReason = wcTurnPlanLiteHint.reason;
+      wcRelevanceLog.wcTurnPlanUseLiteContext = wcTurnPlanLiteHint.useLiteContext;
+      try {
+        wcRequiredEntities = resolveRequiredEntities(routingQuestion, incomingHistory, wcIntent);
+      } catch (entityErr) {
+        console.warn(
+          "[ur-take] resolveRequiredEntities failed after turn planner:",
+          entityErr?.message || entityErr,
+        );
+        wcRequiredEntities = extractMentionedWcTeams(String(question || ""));
+      }
+      wcRelevanceLog.requiredEntities = wcRequiredEntities;
+      wcRelevanceLog.knockoutRulesInjected = shouldInjectStaticRules(String(question || ""), wcIntent);
+      wcRelevanceLog.playerPropDetected = isWcPlayerMarketIntent(wcIntent);
+    }
     const sessionEntities = extractSessionWcEntities(incomingHistory);
     const reqSet = new Set(wcRequiredEntities);
     wcForbiddenEntities = sessionEntities.filter((e) => !reqSet.has(e));
@@ -2940,12 +2990,18 @@ export default async function handler(req, res) {
         console.warn("[ur-take] tomorrow slate prebuilt resolve failed:", tomorrowErr?.message);
       }
     }
+    const plannerGroupSlate =
+      wcTurnPlannerEnabled &&
+      wcTurnPlanLiteHint?.shouldUseFastPath &&
+      wcTurnPlanLiteHint.lane === WC_TURN_LANE.GROUP_SLATE;
     const wcUpsetScanCandidate =
       !wcTomorrowSlatePrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
-      shouldUseWcGroupUpsetScanPrebuilt(routingQuestion, wcIntent) &&
-      !isWcPlayerMarketIntent(wcIntent);
+      (plannerGroupSlate
+        ? wcTurnPlanLiteHint.reason === "group_upset_scan"
+        : shouldUseWcGroupUpsetScanPrebuilt(routingQuestion, wcIntent) &&
+          !isWcPlayerMarketIntent(wcIntent));
     if (wcUpsetScanCandidate) {
       try {
         const nowMs = Date.now();
@@ -2985,8 +3041,11 @@ export default async function handler(req, res) {
       !wcGroupUpsetScanPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
-      shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
-      !isWcPlayerMarketIntent(wcIntent);
+      (plannerGroupSlate
+        ? wcTurnPlanLiteHint.reason === "group_slate_prebuilt" &&
+          shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent)
+        : shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent) &&
+          !isWcPlayerMarketIntent(wcIntent));
     if (wcCrossGroupCandidate) {
       try {
         const nowMs = Date.now();
@@ -3036,14 +3095,20 @@ export default async function handler(req, res) {
     }
     const wcFixtureMoneylineRepeatFollowUp =
       isConversationFollowUp &&
-      shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(routingQuestion, wcIntent, {
-        isConversationFollowUp,
-        wcRunnerUpFollowUpQuestion,
-        mentionedTeams: wcRelevanceLog.mentionedTeams,
-        wcEventId: wcEventIdTrimmed,
-        hasKvFixture: Boolean(wcEventIdTrimmed),
-        history: normalizedUrTakeHistoryForGate,
-      });
+      shouldActivateWcPrebuiltLane(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        WC_TURN_LANE.MATCHUP_ML_REPEAT,
+        () =>
+          shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcEventIdTrimmed,
+            hasKvFixture: Boolean(wcEventIdTrimmed),
+            history: normalizedUrTakeHistoryForGate,
+          }),
+      );
     const wcPropsRouteHeaderEarly = String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim();
     const wcPropsDeliverHeaderEarly = String(req?.headers?.["x-wc-props-route-v2-deliver"] ?? "").trim();
     const wcUrTakeV2DeliverEarly = isWcUrTakeV2DeliverEnabled({
@@ -3062,64 +3127,99 @@ export default async function handler(req, res) {
         wcIntent,
         v2Deliver: wcUrTakeV2DeliverEarly,
       }) &&
-      shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
-        isConversationFollowUp,
-        wcRunnerUpFollowUpQuestion,
-        mentionedTeams: wcRelevanceLog.mentionedTeams,
-        wcEventId: wcEventIdTrimmed,
-        history: normalizedUrTakeHistoryForGate,
-      });
+      shouldActivateWcPrebuiltLane(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP,
+        () =>
+          shouldUseWcFixtureMatchupAltFollowUpPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcEventIdTrimmed,
+            history: normalizedUrTakeHistoryForGate,
+          }),
+      );
     const wcFixturePrebuiltCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !detectParlayIntent(routingQuestion) &&
       !isWcMatchProbabilityQuestion(routingQuestion) &&
       (!isConversationFollowUp || wcFixtureMoneylineRepeatFollowUp) &&
-      shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
-        isConversationFollowUp,
-        wcRunnerUpFollowUpQuestion,
-        mentionedTeams: wcRelevanceLog.mentionedTeams,
-        wcEventId: wcEventIdTrimmed,
-      });
+      shouldActivateWcPrebuiltLane(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        WC_TURN_LANE.MATCHUP_PREBUILT,
+        () =>
+          shouldUseWcFixtureMatchupPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcEventIdTrimmed,
+          }),
+      );
     const wcLiveBetTimingCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !detectParlayIntent(routingQuestion) &&
       isConversationFollowUp &&
-      shouldUseWcLiveBetTimingPrebuilt(routingQuestion, {
-        isConversationFollowUp,
-        history: normalizedUrTakeHistoryForGate,
-        wcEventId: wcEventIdTrimmed,
-      });
+      shouldActivateWcPrebuiltLane(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        WC_TURN_LANE.LIVE_BET_TIMING,
+        () =>
+          shouldUseWcLiveBetTimingPrebuilt(routingQuestion, {
+            isConversationFollowUp,
+            history: normalizedUrTakeHistoryForGate,
+            wcEventId: wcEventIdTrimmed,
+          }),
+      );
     const wcLiveInPlayBetsCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !detectParlayIntent(routingQuestion) &&
-      shouldUseWcLiveInPlayBetsPrebuilt(routingQuestion, {
-        isConversationFollowUp,
-        history: normalizedUrTakeHistoryForGate,
-        mentionedTeams: wcRelevanceLog.mentionedTeams,
-        wcEventId: wcEventIdTrimmed,
-        hasKvFixture: Boolean(wcEventIdTrimmed),
-      });
+      shouldActivateWcPrebuiltLane(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        WC_TURN_LANE.LIVE_IN_PLAY,
+        () =>
+          shouldUseWcLiveInPlayBetsPrebuilt(routingQuestion, {
+            isConversationFollowUp,
+            history: normalizedUrTakeHistoryForGate,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcEventIdTrimmed,
+            hasKvFixture: Boolean(wcEventIdTrimmed),
+          }),
+      );
     const wcLiveMatchWinnerCandidate =
       !wcCrossGroupPrebuiltEarly &&
       !wcRunnerUpFollowUpQuestion &&
       !detectParlayIntent(routingQuestion) &&
       !isWcMatchProbabilityQuestion(routingQuestion) &&
-      shouldUseWcLiveMatchWinnerPrebuilt(routingQuestion, wcIntent, {
-        isConversationFollowUp,
-        history: normalizedUrTakeHistoryForGate,
-        mentionedTeams: wcRelevanceLog.mentionedTeams,
-        wcEventId: wcEventIdTrimmed,
-        hasKvFixture: Boolean(wcEventIdTrimmed),
-      });
+      shouldActivateWcPrebuiltLane(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        WC_TURN_LANE.LIVE_MATCH_WINNER,
+        () =>
+          shouldUseWcLiveMatchWinnerPrebuilt(routingQuestion, wcIntent, {
+            isConversationFollowUp,
+            history: normalizedUrTakeHistoryForGate,
+            mentionedTeams: wcRelevanceLog.mentionedTeams,
+            wcEventId: wcEventIdTrimmed,
+            hasKvFixture: Boolean(wcEventIdTrimmed),
+          }),
+      );
     if (
-      wcFixturePrebuiltCandidate ||
-      wcFixtureAltFollowUpCandidate ||
-      wcLiveBetTimingCandidate ||
-      wcLiveInPlayBetsCandidate ||
-      wcLiveMatchWinnerCandidate
+      shouldActivateWcFixturePrebuiltBlock(
+        wcTurnPlannerEnabled,
+        wcTurnPlanLiteHint,
+        () =>
+          wcFixturePrebuiltCandidate ||
+          wcFixtureAltFollowUpCandidate ||
+          wcLiveBetTimingCandidate ||
+          wcLiveInPlayBetsCandidate ||
+          wcLiveMatchWinnerCandidate,
+      )
     ) {
       try {
         const nowMs = Date.now();
@@ -3293,13 +3393,15 @@ export default async function handler(req, res) {
           wcEventId: wcEventIdTrimmed,
           conversationHistory: normalizedUrTakeHistoryForGate,
           liteFollowUp:
-            isConversationFollowUp &&
-            !isWcPlayerMarketIntent(wcIntent) &&
-            !isWcLiveMatchProbabilityQuestion(routingQuestion, {
-              isConversationFollowUp,
-              match: resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
-            }) &&
-            !wcRunnerUpFollowUpQuestion,
+            wcTurnPlannerEnabled && wcTurnPlanLiteHint
+              ? wcTurnPlanLiteHint.useLiteContext
+              : isConversationFollowUp &&
+                !isWcPlayerMarketIntent(wcIntent) &&
+                !isWcLiveMatchProbabilityQuestion(routingQuestion, {
+                  isConversationFollowUp,
+                  match: resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
+                }) &&
+                !wcRunnerUpFollowUpQuestion,
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
@@ -3357,6 +3459,47 @@ export default async function handler(req, res) {
     if (sportHint === "worldcup" && wcContext && typeof wcContext === "object") {
       if (wcRequiredEntities.length) wcContext.requiredEntities = wcRequiredEntities;
       wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
+
+      if (wcTurnPlannerEnabled) {
+        wcTurnPlan = resolveWcTurnPlan({
+          question: routingQuestion,
+          fullQuestion: String(question || ""),
+          history: normalizedUrTakeHistoryForGate,
+          incomingWcEventId: wcRelevanceLog.wcEventId || wcEventIdTrimmed,
+          isConversationFollowUp,
+          hasImage,
+          matches: wcContext.allMatches || [],
+          match: Array.isArray(wcContext.matchDetails) ? wcContext.matchDetails[0] : null,
+          hasKvFixture: Boolean(
+            (Array.isArray(wcContext.matchDetails) && wcContext.matchDetails.length) ||
+              wcEventIdTrimmed,
+          ),
+          mentionedTeams: wcRelevanceLog.mentionedTeams,
+          wcRunnerUpFollowUpQuestion,
+          routeHeader: String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim(),
+        });
+        wcContext.wcTurnPlan = wcTurnPlan;
+        wcIntent = wcTurnPlan.intent;
+        applyWcLlmThreadPriorLeanToContext(wcContext, wcTurnPlan);
+        wcRelevanceLog.wcIntent = wcIntent;
+        wcRelevanceLog.wcTurnLane = wcTurnPlan.lane;
+        wcRelevanceLog.wcTurnPlanReason = wcTurnPlan.reason;
+        wcRelevanceLog.wcTurnPlanUseLiteContext = wcTurnPlan.useLiteContext;
+        wcRelevanceLog.wcTurnPlanShouldUseFastPath = wcTurnPlan.shouldUseFastPath;
+        wcRelevanceLog.wcTurnPlanDataPackages = wcTurnPlan.dataPackages;
+        console.log(
+          JSON.stringify({
+            event: "ur_take_wc_turn_plan",
+            lane: wcTurnPlan.lane,
+            intent: wcTurnPlan.intent,
+            reason: wcTurnPlan.reason,
+            pinnedEventId: wcTurnPlan.pinnedEventId,
+            shouldUseFastPath: wcTurnPlan.shouldUseFastPath,
+            useLiteContext: wcTurnPlan.useLiteContext,
+            priorLaneHint: wcTurnPlan.priorLaneHint,
+          }),
+        );
+      }
 
       const wcPropsRouteHeader = String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim();
       const wcPropsDeliverHeader = String(req?.headers?.["x-wc-props-route-v2-deliver"] ?? "").trim();
@@ -3476,8 +3619,14 @@ export default async function handler(req, res) {
           requestId,
         });
         if (wcGroundingPacket) {
-          wcContext.wcGroundingPacket = wcGroundingPacket;
-          wcRelevanceLog.wcPropsAskShape = wcGroundingPacket.ask.shape;
+          wcContext.wcGroundingPacket = applyWcLlmThreadPriorLeanToGroundingPacket(
+            wcGroundingPacket,
+            wcTurnPlan,
+          );
+          wcRelevanceLog.wcPropsAskShape = wcContext.wcGroundingPacket.ask.shape;
+          if (wcTurnPlan?.lane === WC_TURN_LANE.LLM_THREAD && wcTurnPlan.priorLean) {
+            wcRelevanceLog.wcPriorLeanInjected = true;
+          }
         }
       } catch (groundErr) {
         console.warn("[ur-take] wc grounding packet build failed:", groundErr?.message || groundErr);
@@ -3552,8 +3701,7 @@ export default async function handler(req, res) {
       wcContext?.wcGroundingPacket &&
       shouldSkipWcPlayerPropsFastPathForShape(wcContext.wcGroundingPacket.ask.shape);
 
-    if (!skipPropsFastPath) {
-      const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath({
+    const wcFastPathCtx = {
       sportHint,
       res,
       requestId,
@@ -3578,23 +3726,8 @@ export default async function handler(req, res) {
       userEmail,
       appendTakeForUser,
       hasImage,
-    });
-    if (wcPlayerPropsFast.handled) return;
-    }
-
-    const wcPrebuiltFast = await tryDeliverWcPrebuiltFastPath({
-      sportHint,
-      res,
-      requestId,
-      requestStart,
-      question,
-      routingQuestion,
-      wcIntent,
-      wcRequiredEntities,
-      wcForbiddenEntities,
-      wcStrengthTags,
-      wcRelevanceLog,
-      wcContext,
+      wcTurnPlan,
+      wcTurnPlannerEnabled,
       wcCrossGroupPrebuiltEarly,
       wcGroupUpsetScanPrebuiltEarly,
       wcTomorrowSlatePrebuiltEarly,
@@ -3604,19 +3737,35 @@ export default async function handler(req, res) {
       wcLiveInPlayBetsPrebuiltEarly,
       wcLiveMatchWinnerPrebuiltEarly,
       wcRunnerUpFollowUpQuestion,
-      isConversationFollowUp,
-      normalizedUrTakeHistoryForGate,
-      intent,
-      gateQuotaEmail,
-      gateQuotaSessionId,
-      setGateQuotaDelivered: (v) => {
-        gateQuotaDelivered = v;
+      earlyPrebuilts: {
+        wcTomorrowSlatePrebuiltEarly,
+        wcGroupUpsetScanPrebuiltEarly,
+        wcCrossGroupPrebuiltEarly,
+        wcFixtureMatchupPrebuiltEarly,
+        wcFixtureAltFollowUpPrebuiltEarly,
+        wcLiveBetTimingPrebuiltEarly,
+        wcLiveInPlayBetsPrebuiltEarly,
+        wcLiveMatchWinnerPrebuiltEarly,
       },
-      extractTakeFromResponse,
-      userEmail,
-      appendTakeForUser,
-    });
-    if (wcPrebuiltFast.handled) return;
+    };
+
+    if (wcTurnPlannerEnabled && wcTurnPlan) {
+      if (wcTurnPlan.shouldUseFastPath) {
+        if (wcTurnPlan.lane === WC_TURN_LANE.PROPS_FAST && !skipPropsFastPath) {
+          const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath(wcFastPathCtx);
+          if (wcPlayerPropsFast.handled) return;
+        } else if (wcTurnPlan.lane !== WC_TURN_LANE.PROPS_FAST) {
+          const planDelivered = await deliverWcTurnByPlan(wcTurnPlan, wcFastPathCtx);
+          if (planDelivered.handled) return;
+        }
+      }
+    } else if (!skipPropsFastPath) {
+      const wcPlayerPropsFast = await tryDeliverWcPlayerPropsFastPath(wcFastPathCtx);
+      if (wcPlayerPropsFast.handled) return;
+
+      const wcPrebuiltFast = await tryDeliverWcPrebuiltFastPath(wcFastPathCtx);
+      if (wcPrebuiltFast.handled) return;
+    }
   }
   let effectiveStructuredModeRequested = structuredModeRequested;
   if (sportHint === "worldcup") {
@@ -5719,10 +5868,15 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
       question: routingQuestion,
       wcIntent,
     });
+    const wcPriorLeanBlock =
+      wcContext?.wcPriorLeanBlock ||
+      (wcTurnPlan?.lane === WC_TURN_LANE.LLM_THREAD && wcTurnPlan?.priorLean
+        ? buildWcPriorLeanPromptBlock(wcTurnPlan.priorLean)
+        : "");
 
     userPrompt = `${wcRoleLine}
 
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext?.promptBlock || WC_STATIC_RULES_BLOCK}
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPriorLeanBlock ? `${wcPriorLeanBlock}\n\n` : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext?.promptBlock || WC_STATIC_RULES_BLOCK}
 
 Question:
 ${question}
@@ -6247,6 +6401,7 @@ You are responding to a Pro subscriber. Apply the following:
 
     if (
       sportHint === "worldcup" &&
+      !(wcTurnPlannerEnabled && wcTurnPlan) &&
       !wcRunnerUpFollowUpQuestion &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&

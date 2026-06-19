@@ -60,6 +60,7 @@ import {
 import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
 import { shouldSkipWcPlayerPropsFastPathForV2Deliver } from "../../shared/wcUrTakePipeline.js";
 import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
+import { shouldActivateWcPropsFastPath } from "../../shared/wcTurnDelivery.js";
 
 /**
  * @param {object | null | undefined} structured
@@ -211,6 +212,8 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     userEmail,
     appendTakeForUser,
     hasImage = false,
+    wcTurnPlan = null,
+    wcTurnPlannerEnabled = false,
   } = ctx;
 
   if (sportHint !== "worldcup") return { handled: false };
@@ -228,7 +231,9 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   if (wcPropsRoute?.applyRoute) {
     // V2 unified route — proceed even when legacy fixture resolvers return [].
   } else if (
-    !shouldRunWcPlayerPropsFastPath(wcIntent, routingQ, history, isConversationFollowUp, hasImage)
+    !shouldActivateWcPropsFastPath(wcTurnPlannerEnabled, wcTurnPlan, () =>
+      shouldRunWcPlayerPropsFastPath(wcIntent, routingQ, history, isConversationFollowUp, hasImage),
+    )
   ) {
     return { handled: false };
   }
