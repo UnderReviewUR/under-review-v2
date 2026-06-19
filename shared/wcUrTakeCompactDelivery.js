@@ -3,6 +3,7 @@
  */
 
 import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_CARD_TYPE } from "./wcThreadState.js";
 import {
   formatWcPlayerPropLadderWhy,
   finalizeWcPlayerPropStructured,
@@ -1036,6 +1037,32 @@ function buildWcCompactStructuredBody(opts = {}) {
   }
 
   const isListIntent = wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST;
+
+  if (String(seed?.callType || "").toLowerCase() === "parlay" && seed?.lean) {
+    return {
+      sport: "worldcup",
+      callType: "parlay",
+      cardType: String(seed.cardType || WC_CARD_TYPE.PARLAY_TICKET),
+      playerMarketTier: String(seed.playerMarketTier || tier),
+      wcEventId: seed.wcEventId,
+      fixtureHome: seed.fixtureHome,
+      fixtureAway: seed.fixtureAway,
+      lean: String(seed.lean || "").trim(),
+      call: String(seed.call || "").trim(),
+      line: String(seed.line || "").trim(),
+      whyNow: String(seed.whyNow || buildWhyNow(summary, deep, WC_INTENT.PARLAY)).trim(),
+      edge: String(seed.edge || extractWatchFor(deep, false)).trim(),
+      deep: capWcDeepWords(String(deep || seed.deep || "").trim(), 220),
+      breakdownAvailable:
+        Boolean(seed.breakdownAvailable) || Boolean(deep && deep.length > 40),
+      confidence: String(seed.confidence || "Medium"),
+      caveats: [],
+      timestamp: seed.timestamp || new Date().toISOString(),
+      parlayLegs: Array.isArray(seed.parlayLegs) ? seed.parlayLegs : undefined,
+      parlayCombinedOdds: seed.parlayCombinedOdds,
+      propBoardRows: Array.isArray(seed.propBoardRows) ? seed.propBoardRows : undefined,
+    };
+  }
 
   if (seed?.lean && seed?.call && (isWcPlayerMarketIntent(wcIntent) || isListIntent)) {
     const call = String(seed.call || "").trim();

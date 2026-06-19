@@ -114,6 +114,11 @@ export function normalizeWcStructuredForDelivery(
     return finishWcStructuredForDelivery(out, intent, question);
   }
 
+  if (intent === WC_INTENT.PARLAY || String(out.callType || "").toLowerCase() === "parlay") {
+    out.callType = "parlay";
+    return finishWcStructuredForDelivery(out, intent, question);
+  }
+
   if (isWcPlayerMarketIntent(intent)) {
     const tier = String(out.playerMarketTier || "");
     if (!out.callType || out.callType === "player_market_pass") {
@@ -129,11 +134,6 @@ export function normalizeWcStructuredForDelivery(
     if (intent === WC_INTENT.PLAYER_PROP) {
       return finishWcStructuredForDelivery(finalizeWcPlayerPropStructured(out, question), intent, question);
     }
-    return finishWcStructuredForDelivery(out, intent, question);
-  }
-
-  if (intent === WC_INTENT.PARLAY || String(out.callType || "").toLowerCase() === "parlay") {
-    out.callType = "parlay";
     return finishWcStructuredForDelivery(out, intent, question);
   }
 

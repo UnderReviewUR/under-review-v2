@@ -44,6 +44,30 @@ test("prepareWcCardFaceDisplay — verified mixed props+totals uses punchy lean,
   assert.doesNotMatch(face.headline, /top player props/i);
 });
 
+test("prepareWcCardFaceDisplay — parlay ticket uses leg-count headline", () => {
+  const lean = [
+    "1. Christian Pulišić over 0.5 SOT -205",
+    "2. Tim Weah over 1 shots +140",
+    "3. Jackson Irvine over 0.5 SOT +210",
+    "4. Mathew Leckie over 0.5 SOT +180",
+  ].join("\n");
+  const face = prepareWcCardFaceDisplay({
+    callType: "parlay",
+    call: "4-Leg Player Parlay — United States vs Australia (+1840)",
+    lean,
+    parlayLegs: lean.split("\n").map((line) => {
+      const body = line.replace(/^\d+\.\s+/, "");
+      const odds = body.match(/([+-]\d{2,})\s*$/)?.[1] || "";
+      return { play: body, odds };
+    }),
+    focusLayout: true,
+    question: "4 player parlay for AUS vs USA?",
+  });
+  assert.match(face.headline, /4-Leg Player Parlay/i);
+  assert.ok(face.slateListFace?.rows?.length >= 4);
+  assert.doesNotMatch(face.headline, /structural longshot/i);
+});
+
 test("prepareWcCardFaceDisplay — pass lean ignores long prop call headline", () => {
   const face = prepareWcCardFaceDisplay({
     callType: "player_market_verified",

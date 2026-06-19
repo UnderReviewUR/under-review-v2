@@ -517,6 +517,37 @@ export function pickWcCardHeadline(opts = {}) {
   const playerMarketCt =
     ct.startsWith("player_market") || ct === "player_prop" || ct === "goalscorers_list";
 
+  if (ct === "parlay") {
+    const callStr = String(call || "").trim();
+    if (callStr && /\d+-leg player parlay/i.test(callStr)) {
+      return capWcCardFaceField(callStr, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    const numbered = leanRaw.match(/^\s*1\.\s+(.+)$/m);
+    if (numbered) {
+      const legCount = (leanRaw.match(/^\s*\d+\.\s+/gm) || []).length;
+      const lead = numbered[1].split("\n")[0].trim();
+      if (legCount > 1) {
+        return capWcCardFaceField(
+          `${legCount}-Leg Player Parlay — ${lead}`,
+          { maxWords: WC_FACE_HEADLINE_WORDS, maxSentences: 1 },
+        );
+      }
+      return capWcCardFaceField(lead, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+    if (callStr) {
+      return capWcCardFaceField(callStr, {
+        maxWords: WC_FACE_HEADLINE_WORDS,
+        maxSentences: 1,
+      });
+    }
+  }
+
   if (playerMarketCt) {
     const propHeadline = pickWcPlayerPropListHeadline(leanRaw, call, opts.cardType, {
       playerMarketTier: opts.playerMarketTier,

@@ -27,6 +27,10 @@ import {
   findWcNamedPlayerPropLegMatch,
 } from "../shared/wcPlayerPropFixture.js";
 import { isWcNamedLegPropsStructuredCard } from "../shared/wcNamedLegCardUi.js";
+
+function isWcParlayStructuredCard(structured) {
+  return String(structured?.callType || "").toLowerCase() === "parlay";
+}
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
@@ -578,7 +582,7 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
       fixtureHome: merged.fixtureHome,
       fixtureAway: merged.fixtureAway,
     });
-    if (String(merged.playerMarketTier || "") === "verified") {
+    if (String(merged.playerMarketTier || "") === "verified" && !isWcParlayStructuredCard(merged)) {
       return repairWcVerifiedPlayerMarketCardFace(merged, question);
     }
   }

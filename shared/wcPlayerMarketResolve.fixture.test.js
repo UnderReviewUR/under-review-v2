@@ -156,8 +156,12 @@ test("buildWcFixturePlayerParlayStructured — four legs from KV", () => {
     4,
   );
   assert.ok(structured);
+  assert.equal(structured.callType, "parlay");
+  assert.match(structured.call, /4-Leg Player Parlay/i);
   assert.match(structured.lean, /^1\./m);
   assert.equal((structured.lean.match(/\n/g) || []).length + 1, 4);
+  assert.equal(structured.parlayLegs?.length, 4);
+  assert.equal(structured.cardType, "parlay_ticket");
 });
 
 test("resolveWcPlayerMarketAnswer — 4 player parlay uses deterministic legs", () => {
@@ -200,6 +204,8 @@ test("resolveWcPlayerMarketAnswer — PARLAY intent routes like PLAYER_PROP (not
   assert.equal(withProps.forcePass, true);
   assert.match(withProps.structured?.call || "", /4-leg player parlay/i);
   assert.equal(withProps.structured?.callType, "parlay");
+  assert.match(withProps.structured?.call || "", /4-Leg Player Parlay/i);
+  assert.equal(withProps.structured?.parlayLegs?.length, 4);
 
   const withoutProps = resolveWcPlayerMarketAnswer(
     "4 player parlay for FRA vs BRA?",

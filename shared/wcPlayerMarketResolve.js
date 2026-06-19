@@ -18,7 +18,16 @@ import {
   rankFixturePropBoardRows,
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
-import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import {
+  extractMentionedWcTeams,
+  extractMentionedWcTeamsInQuestionOrder,
+} from "./wcUrTakeKeywords.js";
+import {
+  calculateParlayOdds,
+  formatParlayAmericanOdds,
+  parseAmericanOddsValue,
+} from "../src/lib/calculateParlayOdds.js";
+import { sortPropBoardRowsForMixedLean } from "./wcUrTakePlayerMarket.js";
 import { resolveWcPlayerPropFixtureTeams } from "./wcPlayerPropFixture.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import {
@@ -731,6 +740,90 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   };
 }
 
+const FIXTURE_PARLAY_MARKET_KEYS = [
+  "player_sot_ou",
+  "player_shots_ou",
+  "player_goal_or_assist",
+  "anytime_scorer",
+];
+
+/**
+ * @param {Record<string, unknown>} eventPayload
+ */
+function fixtureParlayCandidateRowsFromEvent(eventPayload) {
+  /** @type {Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string, line?: string }>} */
+  const rows = [];
+  const seen = new Set();
+  for (const marketKey of FIXTURE_PARLAY_MARKET_KEYS) {
+    const raw = matchPlayerPropRowsFromEvent(eventPayload, marketKey, 24);
+    const collapsed = collapseMatchPlayerPropRowsForDisplay(raw, marketKey);
+    for (const row of collapsed.slice(0, 8)) {
+      const key = `${row.name}|${marketKey}|${row.americanOdds}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({
+        name: String(row.name || "").trim(),
+        americanOdds: String(row.americanOdds || "").trim(),
+        nationAbbr: row.nationAbbr ? String(row.nationAbbr).toUpperCase() : undefined,
+        market: marketKey,
+        line: row.line != null ? String(row.line) : undefined,
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * @param {Array<{ name?: string, americanOdds?: string, nationAbbr?: string, market?: string, line?: string }>} rows
+ * @param {string} question
+ * @param {number} legCount
+ */
+function pickBalancedFixtureParlayLegRows(rows, question, legCount) {
+  const n = Math.max(2, Math.min(5, legCount));
+  const boardRows = rows.map((row) => {
+    const marketKey = String(row.market || "anytime_scorer");
+    const marketLabel = marketKey.replace(/_/g, " ");
+    return {
+      label: row.name,
+      lean: formatFixturePropBoardRowLabel(row, marketKey, marketLabel),
+      market: marketKey,
+      odds: row.americanOdds,
+      nationAbbr: row.nationAbbr,
+      name: row.name,
+      americanOdds: row.americanOdds,
+      line: row.line,
+    };
+  });
+  const sorted = sortPropBoardRowsForMixedLean(boardRows, question);
+  const teams = extractMentionedWcTeamsInQuestionOrder(question).map((t) =>
+    String(t).toUpperCase(),
+  );
+  const perTeam = Math.max(1, Math.ceil(n / 2));
+  /** @type {typeof boardRows} */
+  const picked = [];
+  const byTeam = new Map();
+  for (const row of sorted) {
+    const abbr = String(row.nationAbbr || "").toUpperCase();
+    if (!abbr) continue;
+    if (!byTeam.has(abbr)) byTeam.set(abbr, []);
+    byTeam.get(abbr).push(row);
+  }
+  const teamOrder =
+    teams.length >= 2 ? teams : [...byTeam.keys()].slice(0, 2);
+  for (const team of teamOrder) {
+    const pool = byTeam.get(String(team).toUpperCase()) || [];
+    for (const row of pool.slice(0, perTeam)) {
+      if (picked.length >= n) break;
+      if (!picked.includes(row)) picked.push(row);
+    }
+  }
+  for (const row of sorted) {
+    if (picked.length >= n) break;
+    if (!picked.includes(row)) picked.push(row);
+  }
+  return picked.slice(0, n);
+}
+
 /**
  * Deterministic N-leg player parlay from posted MATCH PLAYER PROPS rows.
  * @param {string} question
@@ -746,34 +839,84 @@ export function buildWcFixturePlayerParlayStructured(
   wcContext,
   legCount = null,
 ) {
-  const list = buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks, wcContext);
-  if (!list?.lean) return null;
+  const q = String(question || "").trim();
+  const teams = resolveWcPlayerPropFixtureTeams(
+    q,
+    wcContext?.conversationHistory || [],
+    wcContext,
+  );
+  if (teams.length < 2) return null;
 
-  const n = legCount ?? extractParlayLegCount(question) ?? 4;
-  const legLines = String(list.lean || "")
-    .split("\n")
-    .map((line) => line.replace(/^\d+\.\s*/, "").trim())
-    .filter(Boolean);
-  if (legLines.length < Math.min(n, 2)) return null;
+  const kvRoot = kvBlocks?.matchPlayerProps;
+  if (!kvRoot) return null;
 
-  const picked = legLines.slice(0, n);
-  const numbered = picked.map((line, i) => `${i + 1}. ${line}`).join("\n");
-  const meta = tierMetaFor(tier);
-  const ticketLabel = `${picked.length}-leg player parlay`;
+  const resolved = resolveMatchPlayerPropsPayload(kvRoot, {
+    eventId: String(kvBlocks?.wcEventId || wcContext?.wcEventId || "").trim(),
+    teams,
+  });
+  if (!resolved?.payload || !isMatchPlayerPropsFresh(resolved.payload)) return null;
+
+  const n = legCount ?? extractParlayLegCount(q) ?? 4;
+  const candidates = fixtureParlayCandidateRowsFromEvent(resolved.payload);
+  if (candidates.length < Math.min(n, 2)) return null;
+
+  const picked = pickBalancedFixtureParlayLegRows(candidates, q, n);
+  if (picked.length < Math.min(n, 2)) return null;
+
+  const homeAbbr = String(resolved.payload?.homeTeam || teams[0] || "").toUpperCase();
+  const awayAbbr = String(resolved.payload?.awayTeam || teams[1] || "").toUpperCase();
+  const homeLabel = wcMatchupTeamDisplayName(homeAbbr);
+  const awayLabel = wcMatchupTeamDisplayName(awayAbbr);
+
+  /** @type {Array<{ play: string, odds: string }>} */
+  const parlayLegs = [];
+  const legLines = picked.map((row, i) => {
+    const marketKey = String(row.market || "anytime_scorer");
+    const marketLabel = marketKey.replace(/_/g, " ");
+    const line = formatFixturePropBoardRowLabel(row, marketKey, marketLabel);
+    parlayLegs.push({ play: line, odds: String(row.odds || row.americanOdds || "").trim() });
+    return `${i + 1}. ${line}`;
+  });
+  const numbered = legLines.join("\n");
+
+  const americanValues = parlayLegs
+    .map((leg) => parseAmericanOddsValue(leg.odds))
+    .filter((v) => v != null);
+  const combined =
+    americanValues.length === parlayLegs.length
+      ? calculateParlayOdds(/** @type {number[]} */ (americanValues))
+      : null;
+  const combinedDisplay = combined != null ? formatParlayAmericanOdds(combined) : null;
+  const ticketLabel = `${picked.length}-Leg Player Parlay`;
+  const propBoardRows = picked.map((row) => ({
+    label: row.name,
+    lean: row.lean,
+    market: row.market,
+    odds: row.odds || row.americanOdds,
+    nationAbbr: row.nationAbbr,
+  }));
 
   return {
     sport: "worldcup",
+    cardType: WC_CARD_TYPE.PARLAY_TICKET,
     callType: "parlay",
     playerMarketTier: tier,
-    wcEventId: list.wcEventId,
-    fixtureHome: list.fixtureHome,
-    fixtureAway: list.fixtureAway,
-    call: `${ticketLabel} — ${picked[0]}`,
+    wcEventId: resolved.eventId || undefined,
+    fixtureHome: homeAbbr,
+    fixtureAway: awayAbbr,
+    call: `${ticketLabel} — ${homeLabel} vs ${awayLabel}${combinedDisplay ? ` (${combinedDisplay})` : ""}`,
     lean: numbered,
-    whyNow: list.whyNow,
-    edge: picked.length >= 2 ? `Alt leg: ${picked[1]}.` : list.edge,
+    parlayLegs,
+    parlayCombinedOdds: combinedDisplay,
+    propBoardRows,
+    whyNow: `Posted player props for ${homeLabel} vs ${awayLabel} — ${picked.length} chalk-weighted legs from match board.`,
+    edge:
+      picked.length >= 2
+        ? `Trim if a late scratch hits ${picked[0].name || "leg 1"} — rest of ticket still needs volume.`
+        : "Re-check lineups before lock.",
     confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
-    analysis: String(question || "").trim(),
+    breakdownAvailable: true,
+    analysis: q,
   };
 }
 

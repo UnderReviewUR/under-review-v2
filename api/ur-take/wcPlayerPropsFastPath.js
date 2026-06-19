@@ -59,7 +59,14 @@ import {
 } from "../_wcGroundingUrTake.js";
 import { countWcMatchPlayerPropMarkets } from "../../shared/wcPropsRouteTurn.js";
 import { shouldSkipWcPlayerPropsFastPathForV2Deliver } from "../../shared/wcUrTakePipeline.js";
-import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
+import { WC_CARD_TYPE } from "./wcThreadState.js";
+
+/**
+ * @param {object | null | undefined} structured
+ */
+function isWcParlayStructuredCard(structured) {
+  return String(structured?.callType || "").toLowerCase() === "parlay";
+}
 
 /**
  * @param {string} wcIntent
@@ -495,7 +502,9 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
-  structuredResponse = finalizeWcPlayerPropStructured(structuredResponse, String(question || ""));
+  if (structuredResponse && !isWcParlayStructuredCard(structuredResponse)) {
+    structuredResponse = finalizeWcPlayerPropStructured(structuredResponse, String(question || ""));
+  }
 
   let responseText =
     formatWcCompactDisplayText(structuredResponse, structuredResponse.lean) || "";
@@ -540,8 +549,17 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   const v2PlayerPropsDelivered =
     wcPropsRoute?.applyRoute &&
     passKind !== "player_props_not_posted" &&
-    passKind !== "player_prop_explain";
-  const deliveryIntent = v2PlayerPropsDelivered ? WC_INTENT.PLAYER_PROP : wcIntent;
+    passKind !== "player_prop_explain" &&
+    !isWcParlayStructuredCard(structuredResponse);
+  const isParlayDelivered =
+    isWcParlayStructuredCard(structuredResponse) ||
+    passKind === "player_props_parlay" ||
+    passKind === "thread_parlay";
+  const deliveryIntent = isParlayDelivered
+    ? WC_INTENT.PARLAY
+    : v2PlayerPropsDelivered
+      ? WC_INTENT.PLAYER_PROP
+      : wcIntent;
 
   structuredResponse = buildWcCompactStructured({
     question: String(question || ""),

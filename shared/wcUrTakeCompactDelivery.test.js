@@ -370,6 +370,33 @@ test("buildWcCompactStructured — live match-winner prebuilt seed passthrough u
   assert.equal(compact.call, seed.call);
 });
 
+test("buildWcCompactStructured — parlay seed preserved through compact delivery", () => {
+  const lean = ["1. Christian Pulišić over 0.5 SOT -205", "2. Tim Weah over 1 shots +140"].join(
+    "\n",
+  );
+  const s = buildWcCompactStructured({
+    question: "4 player parlay for AUS vs USA?",
+    wcIntent: WC_INTENT.PARLAY,
+    playerMarketTier: "verified",
+    summary: lean,
+    deep: "",
+    structuredSeed: {
+      callType: "parlay",
+      cardType: "parlay_ticket",
+      call: "4-Leg Player Parlay — United States vs Australia",
+      lean,
+      parlayLegs: [
+        { play: "Christian Pulišić over 0.5 SOT", odds: "-205" },
+        { play: "Tim Weah over 1 shots", odds: "+140" },
+      ],
+    },
+  });
+  assert.equal(s.callType, "parlay");
+  assert.match(s.call, /4-Leg Player Parlay/i);
+  assert.equal(s.parlayLegs?.length, 2);
+  assert.doesNotMatch(s.lean, /structural longshot/i);
+});
+
 test("buildWcCompactStructured — mixed props+totals replaces generic pass lean when props posted", () => {
   const s = buildWcCompactStructured({
     question: "best player props and total goal bet for usa vs australia?",
