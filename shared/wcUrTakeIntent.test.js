@@ -5,6 +5,9 @@ import {
   classifyWcQuestionIntent,
   classifyWcPlayerMarketIntent,
   shouldInjectStaticRules,
+  isWcPlayerMarketIntent,
+  isWcFixturePlayerMarketIntent,
+  isWcPlayerAwardMarketIntent,
   WC_INTENT,
   WC_INTENT_CATALOG,
 } from "./wcUrTakeIntent.js";
@@ -90,6 +93,15 @@ test("classifyWcQuestionIntent — player parlay beats matchup when fixture name
     WC_INTENT.PARLAY,
   );
   assert.equal(classifyWcQuestionIntent("4 player parlay"), WC_INTENT.PARLAY);
+});
+
+test("isWcPlayerMarketIntent — PLAYER_PROP and PARLAY only in narrow helper", () => {
+  assert.equal(isWcPlayerMarketIntent(WC_INTENT.PLAYER_PROP), true);
+  assert.equal(isWcPlayerMarketIntent(WC_INTENT.PARLAY), true);
+  assert.equal(isWcPlayerMarketIntent(WC_INTENT.GOLDEN_BOOT), false);
+  assert.equal(isWcFixturePlayerMarketIntent(WC_INTENT.PARLAY), true);
+  assert.equal(isWcPlayerAwardMarketIntent(WC_INTENT.GOLDEN_BOOT), true);
+  assert.equal(isWcPlayerAwardMarketIntent(WC_INTENT.PARLAY), false);
 });
 
 test("resolveRequiredEntities — player market returns no teams", () => {

@@ -323,11 +323,22 @@ export function classifyWcPlayerMarketIntent(question) {
  */
 export function isWcPlayerMarketIntent(intent) {
   const i = String(intent || "");
+  return i === WC_INTENT.PLAYER_PROP || i === WC_INTENT.PARLAY;
+}
+
+/** Fixture-scoped player props or N-leg player parlay tickets. */
+export function isWcFixturePlayerMarketIntent(intent) {
+  return isWcPlayerMarketIntent(intent);
+}
+
+/** Golden Boot / top scorer / list intents — separate from fixture props + parlay routing. */
+export function isWcPlayerAwardMarketIntent(intent) {
+  const i = String(intent || "");
   return (
-    i === WC_INTENT.PLAYER_PROP ||
     i === WC_INTENT.GOLDEN_BOOT ||
     i === WC_INTENT.TOP_SCORER ||
-    i === WC_INTENT.TOP_GOALSCORERS_LIST
+    i === WC_INTENT.TOP_GOALSCORERS_LIST ||
+    i === WC_INTENT.GOLDEN_GLOVE
   );
 }
 
@@ -616,7 +627,7 @@ export function buildWcTurnScopeBlock(question, wcIntent, opts = {}) {
 - When lines are missing, Pass honestly — never ask which sport, games, or players to track.
 - Never treat Best/What/Remaining as player names.`;
   }
-  if (isWcPlayerMarketIntent(intent)) {
+  if (isWcPlayerMarketIntent(intent) || isWcPlayerAwardMarketIntent(intent)) {
     return `TURN SCOPE (binding):
 - Answer ONLY the named player market in the current question (Golden Boot / top scorer / prop).
 - Do not pivot to an unrelated group-stage pick unless the user asked for both.`;

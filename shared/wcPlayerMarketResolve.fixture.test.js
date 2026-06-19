@@ -181,6 +181,37 @@ test("resolveWcPlayerMarketAnswer — 4 player parlay uses deterministic legs", 
   assert.equal((String(resolved.structured?.lean || "").match(/\n/g) || []).length + 1, 4);
 });
 
+test("resolveWcPlayerMarketAnswer — PARLAY intent routes like PLAYER_PROP (not LLM fallback)", () => {
+  const eventPayload = {
+    ...WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT["760416"],
+    eventId: "760416",
+    lastUpdated: Date.now(),
+  };
+  const withProps = resolveWcPlayerMarketAnswer(
+    "4 player parlay for FRA vs BRA?",
+    WC_INTENT.PARLAY,
+    { wcEventId: "760416", requiredEntities: ["FRA", "BRA"] },
+    {
+      matchPlayerProps: eventPayload,
+      wcEventId: "760416",
+      goldenBoot: { rows: [{ name: "Mbappé", americanOdds: "+600" }] },
+    },
+  );
+  assert.equal(withProps.forcePass, true);
+  assert.match(withProps.structured?.call || "", /4-leg player parlay/i);
+  assert.equal(withProps.structured?.callType, "parlay");
+
+  const withoutProps = resolveWcPlayerMarketAnswer(
+    "4 player parlay for FRA vs BRA?",
+    WC_INTENT.PARLAY,
+    { wcEventId: "760416", requiredEntities: ["FRA", "BRA"] },
+    { matchPlayerProps: null, wcEventId: "760416" },
+  );
+  assert.equal(withoutProps.forcePass, true);
+  assert.match(withoutProps.structured?.call || "", /Pass on 4-leg player parlay/i);
+  assert.equal(withoutProps.structured?.callType, "parlay");
+});
+
 test("isWcFixtureScopedPlayerMarketQuestion — scorer and pass leader follow-ups", () => {
   const q =
     "Who's most likely to score from each team? And who will lead each team in passes?";

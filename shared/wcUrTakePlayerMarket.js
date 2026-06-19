@@ -7,6 +7,9 @@ import {
   WC_INTENT,
   classifyWcPlayerMarketIntent,
   isWcMatchTotalsQuestion,
+  isWcPlayerMarketIntent as isWcFixturePlayerPropOrParlayIntent,
+  isWcFixturePlayerMarketIntent,
+  isWcPlayerAwardMarketIntent,
 } from "./wcUrTakeIntent.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
@@ -547,14 +550,10 @@ export function finalizeWcPlayerPropStructured(structured, question = "") {
  * @param {string} intent
  */
 export function isWcPlayerMarketIntent(intent) {
-  const i = String(intent || "");
-  return (
-    i === WC_INTENT.PLAYER_PROP ||
-    i === WC_INTENT.GOLDEN_BOOT ||
-    i === WC_INTENT.TOP_SCORER ||
-    i === WC_INTENT.TOP_GOALSCORERS_LIST
-  );
+  return isWcFixturePlayerPropOrParlayIntent(intent) || isWcPlayerAwardMarketIntent(intent);
 }
+
+export { isWcFixturePlayerMarketIntent, isWcPlayerAwardMarketIntent };
 
 export { classifyWcPlayerMarketIntent };
 

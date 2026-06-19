@@ -15,6 +15,7 @@ import {
   buildWcFixturePlayerPropsListStructured,
   buildWcFixtureScorerIntelStructured,
   buildWcNamedPlayerPropsStructured,
+  buildWcPlayerParlayPassStructured,
   resolveWcPlayerMarketTier,
   tierMetaFor,
   WC_PLAYER_MARKET_TIER,
@@ -38,9 +39,9 @@ import {
   resolveWcPlayerPropFixtureTeams,
 } from "../../shared/wcPlayerPropFixture.js";
 import { wcMatchupTeamDisplayName } from "../../shared/wcMatchupWinnerLine.js";
-import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
+import { detectParlayIntent, extractParlayLegCount } from "../../shared/detectParlayIntent.js";
 import { detectWcSgpComboIntent } from "../../shared/wcUrTakePhilosophy.js";
-import { WC_INTENT, isWcMatchTotalsQuestion } from "../../shared/wcUrTakeIntent.js";
+import { WC_INTENT, isWcMatchTotalsQuestion, isWcPlayerMarketIntent } from "../../shared/wcUrTakeIntent.js";
 import {
   buildWcPlayerPropExplainStructured,
   isWcPlayerPropFollowUpExplain,
@@ -349,6 +350,12 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   const gkPropsAsk = isWcGoalkeeperPropsQuestion(routingQ);
   const propBoard = pickFixturePropBoardFromEvent(kvBlocks.matchPlayerProps, 24);
   const propRows = propBoard?.rows || [];
+  const isParlayAsk =
+    wcIntent === WC_INTENT.PARLAY ||
+    detectParlayIntent(routingQ) ||
+    detectWcSgpComboIntent(routingQ);
+  const isParlayOrPlayerProp =
+    isParlayAsk || isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.PLAYER_PROP;
   let structuredResponse = null;
   let passKind = "player_props_not_posted";
 
@@ -379,7 +386,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
-  if (!structuredResponse && (propRows.length >= 2 || gkPropsAsk) && !namedPlayerPropsAsk) {
+  if (!structuredResponse && isParlayAsk && !namedPlayerPropsAsk) {
     if (shouldBuildWcThreadParlay(routingQ, history, wcIntent)) {
       structuredResponse = buildWcThreadParlayStructured(
         String(question || ""),
@@ -389,7 +396,27 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
         syntheticContext,
       );
       passKind = "thread_parlay";
-    } else if (detectParlayIntent(routingQ) || detectWcSgpComboIntent(routingQ)) {
+    } else if (wcIntent === WC_INTENT.PARLAY || detectParlayIntent(routingQ)) {
+      if (propRows.length >= 2) {
+        structuredResponse = buildWcFixturePlayerParlayStructured(
+          String(question || ""),
+          tier,
+          kvBlocks,
+          syntheticContext,
+          extractParlayLegCount(routingQ),
+        );
+        if (structuredResponse) {
+          passKind = "player_props_parlay";
+        }
+      }
+      if (!structuredResponse) {
+        structuredResponse = buildWcPlayerParlayPassStructured(
+          String(question || ""),
+          extractParlayLegCount(routingQ),
+        );
+        passKind = "player_props_parlay_pass";
+      }
+    } else if (detectWcSgpComboIntent(routingQ)) {
       structuredResponse = buildWcFixturePlayerParlayStructured(
         String(question || ""),
         tier,
@@ -397,15 +424,23 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
         syntheticContext,
       );
       passKind = "player_props_parlay";
-    } else {
-      structuredResponse = buildWcFixturePlayerPropsListStructured(
-        String(question || ""),
-        tier,
-        kvBlocks,
-        syntheticContext,
-      );
-      passKind = "player_props_list";
     }
+  }
+
+  if (
+    !structuredResponse &&
+    isParlayOrPlayerProp &&
+    !isParlayAsk &&
+    (propRows.length >= 2 || gkPropsAsk) &&
+    !namedPlayerPropsAsk
+  ) {
+    structuredResponse = buildWcFixturePlayerPropsListStructured(
+      String(question || ""),
+      tier,
+      kvBlocks,
+      syntheticContext,
+    );
+    passKind = "player_props_list";
   }
 
   if (!structuredResponse && prefersWcFixtureScorerIntelFallback(routingQ)) {
@@ -420,13 +455,21 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     }
   }
 
+  if (!structuredResponse && wcIntent === WC_INTENT.PARLAY) {
+    structuredResponse = buildWcPlayerParlayPassStructured(
+      String(question || ""),
+      extractParlayLegCount(routingQ),
+    );
+    passKind = "player_props_parlay_pass";
+  }
+
   if (!structuredResponse) {
     const hasEvent = Boolean(resolvedEventId);
     const genericPropsAsk =
       wcPropsRoute?.applyRoute ||
       isGenericWcPlayerPropQuestion(routingQ) ||
       isWcPerTeamPlayerPropsQuestion(routingQ) ||
-      (detectParlayIntent(routingQ) && /\bplayers?\s+props?\b/i.test(routingQ));
+      detectParlayIntent(routingQ);
     if (hasEvent && (genericPropsAsk || namedPlayerPropsAsk)) {
       const namedLegs = namedPlayerPropsAsk
         ? extractWcNamedPlayerPropLegsFromQuestion(routingQ)
@@ -447,7 +490,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
         away: pinned.away,
         namedLegCount: namedLegs.length,
       });
-    } else if ((!hasEvent && !namedPlayerPropsAsk) || (loadMeta.failed && !namedPlayerPropsAsk)) {
+    } else if ((!hasEvent && !namedPlayerPropsAsk && wcIntent !== WC_INTENT.PARLAY) || (loadMeta.failed && !namedPlayerPropsAsk && wcIntent !== WC_INTENT.PARLAY)) {
       return { handled: false };
     }
   }

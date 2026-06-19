@@ -54,7 +54,7 @@ import {
   WC_NAMED_PROP_MARKET_DISPLAY,
 } from "./wcPlayerPropFixture.js";
 import { lookupStarterGoalkeeper } from "./wcGoldenGloveAdjusted.js";
-import { WC_INTENT } from "./wcUrTakeIntent.js";
+import { WC_INTENT, isWcFixturePlayerMarketIntent } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
 import { WC_CARD_TYPE } from "./wcThreadState.js";
 
@@ -164,7 +164,7 @@ export function resolveWcPlayerMarketTier(opts = {}) {
   const { playerCount } = countRegistryPlayers(players || {});
 
   if (
-    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isWcFixturePlayerMarketIntent(wcIntent) &&
     wcEventId &&
     matchPropsFresh &&
     (lineupConfirmed || gbCount >= 3)
@@ -173,7 +173,7 @@ export function resolveWcPlayerMarketTier(opts = {}) {
   }
 
   if (
-    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isWcFixturePlayerMarketIntent(wcIntent) &&
     lineupConfirmed &&
     (gbFresh || gbCount >= 3)
   ) {
@@ -243,7 +243,7 @@ export function buildWcPlayerParlayPassStructured(question, legCount = null) {
   const ticketLabel = n ? `${n}-leg player parlay` : "player parlay";
   return {
     sport: "worldcup",
-    callType: "single",
+    callType: "parlay",
     playerMarketTier: WC_PLAYER_MARKET_TIER.THIN,
     call: `Pass on ${ticketLabel} until match player props post.`,
     lean: `Pass — no verified player lines to build ${n ? `a ${n}-leg` : "a multi-leg"} ticket yet; see Watch For before locking a bet.`,
@@ -763,7 +763,7 @@ export function buildWcFixturePlayerParlayStructured(
 
   return {
     sport: "worldcup",
-    callType: meta.callType,
+    callType: "parlay",
     playerMarketTier: tier,
     wcEventId: list.wcEventId,
     fixtureHome: list.fixtureHome,
@@ -791,7 +791,7 @@ export function buildWcPlayerMarketPrebuiltStructured(
   let contextNote = "Based on current betting markets and form in VERIFIED CONTEXT.";
 
   if (
-    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isWcFixturePlayerMarketIntent(wcIntent) &&
     wcEventId &&
     isMatchPlayerPropsFresh(matchPlayerProps)
   ) {
@@ -1115,7 +1115,7 @@ export function resolveWcPlayerMarketAnswer(
     !namedPlayerProps &&
     fixtureTeams.length < 2;
   const fixturePlayerProps =
-    wcIntent === WC_INTENT.PLAYER_PROP &&
+    isWcFixturePlayerMarketIntent(wcIntent) &&
     isFixturePlayerPropAsk &&
     (isWcFixturePlayerPropsQuestion(questionStr) ||
       detectParlayIntent(questionStr) ||
@@ -1136,6 +1136,8 @@ export function resolveWcPlayerMarketAnswer(
     (tier === WC_PLAYER_MARKET_TIER.THIN && knownNames.length === 0) ||
     (genericSlateProps && !freshMatchProps) ||
     (fixturePlayerProps && !freshMatchProps && !fixtureIntelStructured);
+  const propBoard = pickFixturePropBoardFromEvent(kvBlocks?.matchPlayerProps, 24);
+  const propRows = propBoard?.rows || [];
 
   const base = {
     tier,
@@ -1151,8 +1153,26 @@ export function resolveWcPlayerMarketAnswer(
     promptAppendix: null,
   };
 
+  // Safety net: bare PARLAY intent should never fall through to generic LLM.
+  if (wcIntent === WC_INTENT.PARLAY) {
+    const canBuildParlayLegs =
+      fixturePlayerProps && freshMatchProps && propRows.length >= 2 && detectParlayIntent(questionStr);
+    if (!canBuildParlayLegs) {
+      const structured = buildWcPlayerParlayPassStructured(
+        questionStr,
+        extractParlayLegCount(questionStr),
+      );
+      return {
+        ...base,
+        forcePass: true,
+        structured,
+        responseText: `${structured.lean}\n\n${structured.whyNow}`,
+      };
+    }
+  }
+
   if (fixturePlayerProps && freshMatchProps) {
-    if (detectParlayIntent(questionStr)) {
+    if (detectParlayIntent(questionStr) || wcIntent === WC_INTENT.PARLAY) {
       const parlayStructured = buildWcFixturePlayerParlayStructured(
         questionStr,
         tier,
@@ -1169,6 +1189,18 @@ export function resolveWcPlayerMarketAnswer(
           forcePass: true,
           structured: parlayStructured,
           responseText: `${parlayStructured.lean}\n\n${parlayStructured.whyNow}`,
+        };
+      }
+      if (wcIntent === WC_INTENT.PARLAY) {
+        const structured = buildWcPlayerParlayPassStructured(
+          questionStr,
+          extractParlayLegCount(questionStr),
+        );
+        return {
+          ...base,
+          forcePass: true,
+          structured,
+          responseText: `${structured.lean}\n\n${structured.whyNow}`,
         };
       }
     }
@@ -1243,8 +1275,9 @@ export function resolveWcPlayerMarketAnswer(
   }
 
   if (forcePass) {
-    const structured = detectParlayIntent(question)
-      ? buildWcPlayerParlayPassStructured(question, extractParlayLegCount(question))
+    const structured =
+      detectParlayIntent(questionStr) || wcIntent === WC_INTENT.PARLAY
+        ? buildWcPlayerParlayPassStructured(questionStr, extractParlayLegCount(questionStr))
       : repairWcPlayerPropPassCard(
           {
             sport: "worldcup",
