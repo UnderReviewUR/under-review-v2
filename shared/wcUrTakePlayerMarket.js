@@ -390,22 +390,27 @@ function isGenericPropListHeadline(call) {
 function pickBestPropBoardRowForMixedLean(propBoardRows, question = "") {
   const rows = Array.isArray(propBoardRows) ? propBoardRows : [];
   if (!rows.length) return null;
+  const perTeamAsk = /\bprops per side\b|\d+\s+props per side\b/i.test(String(question || ""));
   const teams = extractMentionedWcTeams(question).map((t) => String(t).toUpperCase());
-  const scored = rows.map((row) => {
+  let pool = rows;
+  if (perTeamAsk && teams.length === 1) {
+    const teamRows = rows.filter(
+      (r) => r?.nationAbbr && teams.includes(String(r.nationAbbr).toUpperCase()),
+    );
+    if (teamRows.length) pool = teamRows;
+  }
+  const scored = pool.map((row) => {
     const market = String(row?.market || "");
-    let score = MIXED_LEAN_PROP_MARKET_PRIORITY[market] ?? 10;
+    const marketPri = MIXED_LEAN_PROP_MARKET_PRIORITY[market] ?? 10;
     const odds =
       String(row?.odds || "").trim() ||
       String(row?.lean || "").match(/([+-]\d{2,})/)?.[1] ||
       "";
-    score += fixturePropBoardPlayabilityScore(odds);
-    if (teams.length && row?.nationAbbr && teams.includes(String(row.nationAbbr).toUpperCase())) {
-      score += 12;
-    }
-    return { row, score };
+    const play = fixturePropBoardPlayabilityScore(odds);
+    return { row, sort: marketPri * 1000 + play };
   });
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0]?.row || rows[0];
+  scored.sort((a, b) => b.sort - a.sort);
+  return scored[0]?.row || pool[0] || rows[0];
 }
 
 /**
