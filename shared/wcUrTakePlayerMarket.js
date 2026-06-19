@@ -352,8 +352,8 @@ export function synthesizePlayerPropPlayFromCitedOdds(summary, deep, question = 
   return `Lean: over ${threshold} at ${odds}.`;
 }
 
-const TOTALS_PLAY_RE =
-  /\b(?:total\s+)?((?:under|over)\s+\d+(?:\.\d+)?(?:\s+goals?)?(?:\s+at\s+[+-]\d+)?)/i;
+const TOTALS_CANDIDATE_RE =
+  /\b(?:total\s+)?(under|over)\s+(\d+(?:\.\d+)?)\s+goals?\s*(?:at\s+([+-]\d{2,}))?/gi;
 
 /**
  * @param {string} question
@@ -367,21 +367,131 @@ function questionAsksPlayerPropsAndTotals(question) {
 }
 
 /**
- * Pull a totals leg from whyNow / deep when the model buried it below a prop headline.
+ * Score and pick the strongest totals leg (prefer explicit "play" / sharper language + odds).
  * @param {string} blob
  */
-function extractTotalsPlayFromBlob(blob) {
+function extractStrongestTotalsLeanFromBlob(blob) {
   const text = String(blob || "").trim();
   if (!text) return "";
-  const m =
-    text.match(/\btotal\s+((?:under|over)\s+\d+(?:\.\d+)?\s+goals?\s+at\s+[+-]\d+)/i) ||
-    text.match(/\b((?:Under|Over)\s+\d+(?:\.\d+)?\s+goals?\s+at\s+[+-]\d+)\s+is the play/i) ||
-    text.match(TOTALS_PLAY_RE);
-  if (!m) return "";
-  let leg = String(m[1] || m[0] || "").trim();
-  leg = leg.replace(/^total\s+/i, "");
-  if (!/^under|^over/i.test(leg)) return "";
-  return leg.charAt(0).toUpperCase() + leg.slice(1);
+
+  /** @type {Array<{ side: string, line: string, odds: string, score: number, index: number }>} */
+  const candidates = [];
+  for (const m of text.matchAll(TOTALS_CANDIDATE_RE)) {
+    const side = String(m[1] || "").toLowerCase();
+    const line = String(m[2] || "").trim();
+    if (!side || !line) continue;
+    let odds = String(m[3] || "").trim();
+    const start = m.index ?? 0;
+    const context = text.slice(Math.max(0, start - 90), start + String(m[0]).length + 90);
+    if (!odds) {
+      odds = context.match(/at\s+([+-]\d{2,})/i)?.[1] || "";
+    }
+    let score = odds ? 2 : 0;
+    if (/\b(is the play|sharper|cleaner angle|the play)\b/i.test(context)) score += 4;
+    if (/\blean\b/i.test(context)) score += 2;
+    if (/\bpass\b/i.test(context) && !/\bis the play\b/i.test(context)) score -= 2;
+    candidates.push({ side, line, odds, score, index: start });
+  }
+
+  if (!candidates.length) return "";
+
+  const defensiveScript = /\bsit deep|low tempo|1-0|0-0|compact|must-control|defensive|clean sheet\b/i.test(
+    text,
+  );
+
+  candidates.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (defensiveScript) {
+      if (a.side === "under" && b.side === "over") return -1;
+      if (b.side === "under" && a.side === "over") return 1;
+    }
+    return b.index - a.index;
+  });
+
+  const best = candidates[0];
+  const sideLabel = best.side.charAt(0).toUpperCase() + best.side.slice(1);
+  return best.odds
+    ? `${sideLabel} ${best.line} goals ${best.odds}`
+    : `${sideLabel} ${best.line} goals`;
+}
+
+/** @deprecated use extractStrongestTotalsLeanFromBlob */
+function extractTotalsPlayFromBlob(blob) {
+  return extractStrongestTotalsLeanFromBlob(blob);
+}
+
+/**
+ * @param {{ label?: string, lean?: string, odds?: string, market?: string }} row
+ */
+function compactPropLegFromBoardRow(row) {
+  const lean = String(row?.lean || row?.label || "").trim();
+  if (!lean) return "";
+  let out = lean
+    .replace(/\s+shots on target\b/i, " SOT")
+    .replace(/\s+at\s+/i, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (row?.market === "player_sot_ou" && !/\bSOT\b/i.test(out)) {
+    out = out.replace(/\bshots?\b/i, "SOT");
+  }
+  return out;
+}
+
+/**
+ * @param {object} opts
+ */
+function compactPropLegFromSources(opts = {}) {
+  const call = String(opts.call || "").trim();
+  const propBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
+  if (!call && !propBoardRows.length) return "";
+
+  const sotM = call.match(
+    /\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|SOT)\s*(?:at\s+)?([+-]\d{2,})/i,
+  );
+  if (sotM) {
+    return `${sotM[1]} over ${sotM[2]} SOT ${sotM[3]}`;
+  }
+
+  const shotsM = call.match(
+    /\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\s+over\s+(\d+(?:\.\d+)?)\s+shots?\s*(?:at\s+)?([+-]\d{2,})/i,
+  );
+  if (shotsM) {
+    return `${shotsM[1]} over ${shotsM[2]} shots ${shotsM[3]}`;
+  }
+
+  const anytimeM = call.match(
+    /\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\s+(?:anytime\s+)?(?:goal\s*)?scorer\s*(?:at\s+)?([+-]\d{2,})/i,
+  );
+  if (anytimeM) {
+    return `${anytimeM[1]} anytime ${anytimeM[2]}`;
+  }
+
+  const playerHint = call.match(/\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\b/)?.[1];
+  if (playerHint && propBoardRows.length) {
+    const lastName = playerHint.split(/\s+/).pop()?.toLowerCase();
+    const row = propBoardRows.find((r) => {
+      const label = String(r?.label || r?.lean || "").toLowerCase();
+      return label.includes(String(lastName || "").toLowerCase());
+    });
+    if (row) {
+      const fromBoard = compactPropLegFromBoardRow(row);
+      if (fromBoard) return fromBoard;
+    }
+  }
+
+  const short = call.split(/\s+[—-]\s+|\s+is the |\s+is the sharpest|\s+is the cleanest/i)[0].trim();
+  if (short && CITED_BOOK_ODDS_RE.test(short) && short.length <= 72) {
+    return short
+      .replace(/\s+at\s+/i, " ")
+      .replace(/\bshots on target\b/i, "SOT")
+      .trim();
+  }
+
+  if (propBoardRows[0]) {
+    return compactPropLegFromBoardRow(propBoardRows[0]);
+  }
+
+  return "";
 }
 
 /**
@@ -410,14 +520,27 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
   const question = String(opts.question || "").trim();
   const propBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
   const blob = `${call}\n${whyNow}\n${line}\n${summary}\n${deep}`.trim();
+  const mixedAsk = questionAsksPlayerPropsAndTotals(question);
+  const hasPropRows = propBoardRows.length > 0;
+  const hasCitedOdds = CITED_BOOK_ODDS_RE.test(blob);
+  const totalsLeg = extractStrongestTotalsLeanFromBlob(`${whyNow}\n${deep}\n${summary}\n${line}`);
+
+  const buildConciseMixedLean = () => {
+    const propLeg = compactPropLegFromSources({ call, propBoardRows, summary, whyNow, question });
+    if (!propLeg) return "";
+    if (totalsLeg) return `${propLeg} + ${totalsLeg}`;
+    return propLeg;
+  };
+
+  if (mixedAsk && (hasPropRows || hasCitedOdds || totalsLeg)) {
+    const concise = buildConciseMixedLean();
+    if (concise) return concise;
+  }
 
   const genericPass =
     !lean || GENERIC_PASS_LEAN_RE.test(lean) || (NO_VERIFIED_LINE_RE.test(lean) && /\bpass\b/i.test(lean));
   if (!genericPass) return lean;
 
-  const hasPropRows = propBoardRows.length > 0;
-  const hasCitedOdds = CITED_BOOK_ODDS_RE.test(blob);
-  const totalsLeg = extractTotalsPlayFromBlob(`${whyNow}\n${deep}\n${summary}`);
   const hasStrongTotals = Boolean(totalsLeg);
 
   if (!hasPropRows && !hasCitedOdds && !hasStrongTotals) {
@@ -438,20 +561,21 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
 
   if (propLean && GENERIC_PASS_LEAN_RE.test(propLean)) propLean = "";
 
-  const propBody = propLean ? propLean.replace(/^lean:\s*/i, "").trim() : "";
+  const propLeg = compactPropLegFromSources({ call, propBoardRows, summary, whyNow, question }) ||
+    (propLean ? propLean.replace(/^lean:\s*/i, "").trim() : "");
 
-  if (propBody && totalsLeg && questionAsksPlayerPropsAndTotals(question)) {
-    return `${propBody} + ${totalsLeg}`;
+  if (propLeg && totalsLeg && mixedAsk) {
+    return `${propLeg} + ${totalsLeg}`;
   }
-  if (propBody) return propLean.replace(/^lean:\s*/i, "") === propBody ? propLean : propBody;
-  if (totalsLeg && (questionAsksPlayerPropsAndTotals(question) || isWcMatchTotalsQuestion(question))) {
+  if (propLeg) return propLeg;
+  if (totalsLeg && (mixedAsk || isWcMatchTotalsQuestion(question))) {
     return totalsLeg;
   }
   if (hasPropRows) {
     const legs = propBoardRows
       .slice(0, 3)
       .map((row, i) => {
-        const t = String(row?.lean || row?.label || "").trim();
+        const t = compactPropLegFromBoardRow(row);
         return t ? `${i + 1}. ${t.replace(/^\d+\.\s*/, "")}` : "";
       })
       .filter(Boolean);

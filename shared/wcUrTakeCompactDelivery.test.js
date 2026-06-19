@@ -395,4 +395,7 @@ test("buildWcCompactStructured — mixed props+totals replaces generic pass lean
   assert.doesNotMatch(s.lean, /no actionable line/i);
   assert.match(s.lean, /Pulišić|0\.5/i);
   assert.match(s.lean, /Under 2\.5/i);
+  assert.match(s.lean, /-110/);
+  assert.match(s.lean, /\+/);
+  assert.ok(s.lean.length < 80, "lean should stay punchy");
 });
