@@ -452,3 +452,74 @@ test("buildWcCompactStructured — mixed props+totals list headline uses board +
   assert.match(s.lean, /\+/);
   assert.match(s.lean, /-110|-220/);
 });
+
+test("buildWcCompactStructured — mixed props+totals prefers chalk SOT over longshot SOT", () => {
+  const s = buildWcCompactStructured({
+    question: "best player props and total goal bet for usa vs australia?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    playerMarketTier: "verified",
+    summary: "United States vs Australia — top player props",
+    deep: "",
+    structuredSeed: {
+      callType: "player_market_verified",
+      call: "United States vs Australia — top player props",
+      lean: "Aziz Behich over 1 SOT +400 + Under 2.5 goals -106",
+      whyNow: "Posted lines for United States vs Australia.",
+      fixtureHome: "AUS",
+      fixtureAway: "USA",
+      matchOdds: {
+        totalLine: "2.5",
+        totalUnder: { moneyline: "-106" },
+      },
+      propBoardRows: [
+        {
+          label: "Aziz Behich",
+          lean: "Aziz Behich over 1 shots on target +400",
+          market: "player_sot_ou",
+          odds: "+400",
+          nationAbbr: "AUS",
+        },
+        {
+          label: "Christian Pulišić",
+          lean: "Christian Pulišić over 0.5 shots on target -220",
+          market: "player_sot_ou",
+          odds: "-220",
+          nationAbbr: "USA",
+        },
+      ],
+    },
+  });
+  assert.match(s.lean, /Pulišić/i);
+  assert.doesNotMatch(s.lean, /Behich/i);
+  assert.match(s.lean, /Under 2\.5/i);
+});
+
+test("buildWcCompactStructured — mixed props+totals compacts unicode player call", () => {
+  const s = buildWcCompactStructured({
+    question: "best player props and total goal bet for usa vs australia?",
+    wcIntent: WC_INTENT.PLAYER_PROP,
+    playerMarketTier: "verified",
+    summary:
+      "Pulišić over 1 shot on target at -225 is fairly priced — USA's primary threat.",
+    deep: "Total under 2.5 goals at -106 is the play.",
+    structuredSeed: {
+      callType: "player_market_verified",
+      call: "Pulišić over 1 shot on target at -225 is fairly priced — USA's primary threat.",
+      lean: "Pulišić over 1 shot on target -225 is fairly priced + Under 2.5 goals",
+      fixtureHome: "AUS",
+      fixtureAway: "USA",
+      propBoardRows: [
+        {
+          label: "Christian Pulišić",
+          lean: "Christian Pulišić over 0.5 shots on target -220",
+          market: "player_sot_ou",
+          odds: "-220",
+          nationAbbr: "USA",
+        },
+      ],
+    },
+  });
+  assert.match(s.lean, /Pulišić over (?:0\.5|1) SOT -2\d{2}/i);
+  assert.doesNotMatch(s.lean, /fairly priced/i);
+  assert.match(s.lean, /Under 2\.5/i);
+});

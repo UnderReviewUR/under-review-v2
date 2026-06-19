@@ -24,7 +24,6 @@ import {
 } from "./wcUrTakePhilosophy.js";
 import { splitWcSentences, capWcDeepWords } from "./wcSentenceBoundaries.js";
 import { ensureWcCardFaceNumericWhy } from "./wcTakeRetentionQA.js";
-import { fixturePropBoardPlayabilityScore } from "./wcMatchPlayerProps.js";
 import {
   pickWcFixtureTotalsAlternateLean,
 } from "./wcFixtureMatchupPrebuilt.js";
@@ -363,6 +362,18 @@ const TOTALS_CANDIDATE_RE =
 const GENERIC_PROP_LIST_CALL_RE =
   /\btop player props\b|\bprops per side\b|\d+\s+props per side\b/i;
 
+const WC_PROP_PLAYER_NAME_RE =
+  /[\p{L}][\p{L}\p{M}'.\-]+(?:\s+[\p{L}][\p{L}\p{M}'.\-]+)?/u;
+
+const PROP_SOT_LEG_RE =
+  /([\p{L}][\p{L}\p{M}'.\-]+(?:\s+[\p{L}][\p{L}\p{M}'.\-]+)?)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|SOT)\s*(?:at\s+)?([+-]\d{2,})/giu;
+
+const PROP_SHOTS_LEG_RE =
+  /([\p{L}][\p{L}\p{M}'.\-]+(?:\s+[\p{L}][\p{L}\p{M}'.\-]+)?)\s+over\s+(\d+(?:\.\d+)?)\s+shots?\s*(?:at\s+)?([+-]\d{2,})/giu;
+
+const CALL_PROP_VERB_TAIL_RE =
+  /\s+(?:is the|is fairly priced|is fairly|is the sharpest|is the cleanest|is the best|is playable)\b.*$/i;
+
 /** @type {Record<string, number>} */
 const MIXED_LEAN_PROP_MARKET_PRIORITY = {
   player_sot_ou: 100,
@@ -375,6 +386,98 @@ const MIXED_LEAN_PROP_MARKET_PRIORITY = {
   first_goalscorer: 15,
   last_goalscorer: 15,
 };
+
+/**
+ * Prefer playable chalk on O/U props for mixed-card lean (not board longshot juice).
+ * @param {string} americanOdds
+ */
+function mixedLeanPropPriceScore(americanOdds) {
+  const raw = String(americanOdds || "").trim();
+  const n = Number.parseInt(raw.replace(/^\+/, ""), 10);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  if (raw.startsWith("+")) {
+    if (n >= 300) return 5;
+    if (n >= 200) return 15;
+    if (n >= 150) return 25;
+    return 35;
+  }
+  const abs = Math.abs(n);
+  if (abs >= 1000) return 0;
+  if (abs >= 500) return 10;
+  if (abs >= 300) return 20;
+  if (abs >= 220) return 55;
+  if (abs >= 150) return 65;
+  if (abs >= 120) return 70;
+  return 50;
+}
+
+/**
+ * @param {{ market?: string, odds?: string, lean?: string, nationAbbr?: string }} row
+ * @param {string} [question]
+ */
+function mixedLeanPropRowSortKey(row, question = "") {
+  const market = String(row?.market || "");
+  const marketPri = MIXED_LEAN_PROP_MARKET_PRIORITY[market] ?? 10;
+  const odds =
+    String(row?.odds || "").trim() ||
+    String(row?.lean || "").match(/([+-]\d{2,})/)?.[1] ||
+    "";
+  let teamBoost = 0;
+  const teams = extractMentionedWcTeams(question).map((t) => String(t).toUpperCase());
+  if (teams.length && row?.nationAbbr && String(row.nationAbbr).toUpperCase() === teams[0]) {
+    teamBoost = 8;
+  }
+  return marketPri * 1000 + mixedLeanPropPriceScore(odds) + teamBoost;
+}
+
+/**
+ * @param {string} name
+ * @param {string} threshold
+ * @param {string} odds
+ * @param {"sot" | "shots"} kind
+ */
+function formatCompactPropLegLine(name, threshold, odds, kind) {
+  const label = String(name || "").trim();
+  const th = String(threshold || "").trim();
+  const price = String(odds || "").trim();
+  if (!label || !th || !price) return "";
+  if (kind === "sot") return `${label} over ${th} SOT ${price}`;
+  return `${label} over ${th} shots ${price}`;
+}
+
+/**
+ * @param {string} text
+ */
+function extractCompactPropLegFromText(text) {
+  const blob = String(text || "").trim();
+  if (!blob) return "";
+
+  /** @type {Array<{ leg: string, score: number }>} */
+  const candidates = [];
+
+  for (const m of blob.matchAll(PROP_SOT_LEG_RE)) {
+    const leg = formatCompactPropLegLine(m[1], m[2], m[3], "sot");
+    if (leg) {
+      candidates.push({
+        leg,
+        score: 1000 + mixedLeanPropPriceScore(m[3]),
+      });
+    }
+  }
+  for (const m of blob.matchAll(PROP_SHOTS_LEG_RE)) {
+    const leg = formatCompactPropLegLine(m[1], m[2], m[3], "shots");
+    if (leg) {
+      candidates.push({
+        leg,
+        score: 800 + mixedLeanPropPriceScore(m[3]),
+      });
+    }
+  }
+
+  if (!candidates.length) return "";
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0].leg;
+}
 
 /**
  * @param {string} call
@@ -399,16 +502,10 @@ function pickBestPropBoardRowForMixedLean(propBoardRows, question = "") {
     );
     if (teamRows.length) pool = teamRows;
   }
-  const scored = pool.map((row) => {
-    const market = String(row?.market || "");
-    const marketPri = MIXED_LEAN_PROP_MARKET_PRIORITY[market] ?? 10;
-    const odds =
-      String(row?.odds || "").trim() ||
-      String(row?.lean || "").match(/([+-]\d{2,})/)?.[1] ||
-      "";
-    const play = fixturePropBoardPlayabilityScore(odds);
-    return { row, sort: marketPri * 1000 + play };
-  });
+  const scored = pool.map((row) => ({
+    row,
+    sort: mixedLeanPropRowSortKey(row, question),
+  }));
   scored.sort((a, b) => b.sort - a.sort);
   return scored[0]?.row || pool[0] || rows[0];
 }
@@ -533,31 +630,60 @@ function compactPropLegFromSources(opts = {}) {
   const question = String(opts.question || "").trim();
   const mixedAsk = Boolean(opts.mixedAsk);
   const propBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
+  const blob = `${call}\n${opts.whyNow || ""}\n${opts.summary || ""}`.trim();
   if (!call && !propBoardRows.length) return "";
 
-  const sotM = call.match(
-    /\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|SOT)\s*(?:at\s+)?([+-]\d{2,})/i,
+  const genericList = isGenericPropListHeadline(call);
+
+  if (mixedAsk && genericList && propBoardRows.length) {
+    const row = pickBestPropBoardRowForMixedLean(propBoardRows, question);
+    if (row) {
+      const fromBoard = compactPropLegFromBoardRow(row);
+      if (fromBoard) return fromBoard;
+    }
+  }
+
+  const fromBlob = extractCompactPropLegFromText(blob);
+  if (fromBlob && (!mixedAsk || !genericList)) return fromBlob;
+
+  const callTrimmed = call.replace(CALL_PROP_VERB_TAIL_RE, "").trim();
+  const fromCall = extractCompactPropLegFromText(callTrimmed);
+  if (fromCall) return fromCall;
+
+  const sotM = callTrimmed.match(
+    new RegExp(
+      String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\s+over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|SOT)\s*(?:at\s+)?([+-]\d{2,})`,
+      "iu",
+    ),
   );
   if (sotM) {
-    return `${sotM[1]} over ${sotM[2]} SOT ${sotM[3]}`;
+    return formatCompactPropLegLine(sotM[1], sotM[2], sotM[3], "sot");
   }
 
-  const shotsM = call.match(
-    /\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\s+over\s+(\d+(?:\.\d+)?)\s+shots?\s*(?:at\s+)?([+-]\d{2,})/i,
+  const shotsM = callTrimmed.match(
+    new RegExp(
+      String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\s+over\s+(\d+(?:\.\d+)?)\s+shots?\s*(?:at\s+)?([+-]\d{2,})`,
+      "iu",
+    ),
   );
   if (shotsM) {
-    return `${shotsM[1]} over ${shotsM[2]} shots ${shotsM[3]}`;
+    return formatCompactPropLegLine(shotsM[1], shotsM[2], shotsM[3], "shots");
   }
 
-  const anytimeM = call.match(
-    /\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\s+(?:anytime\s+)?(?:goal\s*)?scorer\s*(?:at\s+)?([+-]\d{2,})/i,
+  const anytimeM = callTrimmed.match(
+    new RegExp(
+      String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\s+(?:anytime\s+)?(?:goal\s*)?scorer\s*(?:at\s+)?([+-]\d{2,})`,
+      "iu",
+    ),
   );
-  if (anytimeM) {
+  if (anytimeM && !mixedAsk) {
     return `${anytimeM[1]} anytime ${anytimeM[2]}`;
   }
 
-  const playerHint = call.match(/\b([A-ZÀ-ÿ][\wÀ-ÿ.'-]+(?:\s+[A-ZÀ-ÿ][\wÀ-ÿ.'-]+)?)\b/)?.[1];
-  if (playerHint && propBoardRows.length) {
+  const playerHint = callTrimmed.match(
+    new RegExp(String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\b`, "u"),
+  )?.[1];
+  if (playerHint && propBoardRows.length && !mixedAsk) {
     const lastName = playerHint.split(/\s+/).pop()?.toLowerCase();
     const row = propBoardRows.find((r) => {
       const label = String(r?.label || r?.lean || "").toLowerCase();
@@ -569,17 +695,9 @@ function compactPropLegFromSources(opts = {}) {
     }
   }
 
-  const short = call.split(/\s+[—-]\s+|\s+is the |\s+is the sharpest|\s+is the cleanest/i)[0].trim();
-  if (short && CITED_BOOK_ODDS_RE.test(short) && short.length <= 72) {
-    return short
-      .replace(/\s+at\s+/i, " ")
-      .replace(/\bshots on target\b/i, "SOT")
-      .trim();
-  }
-
   if (propBoardRows.length) {
     const row =
-      isGenericPropListHeadline(call) || mixedAsk
+      genericList || mixedAsk
         ? pickBestPropBoardRowForMixedLean(propBoardRows, question)
         : propBoardRows[0];
     if (row) {
