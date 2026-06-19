@@ -67,6 +67,19 @@ test("parseWcMatchGoalsOverUnder rejects Over 90 minutes regulation copy", () =>
   );
 });
 
+test("parseWcMatchGoalsOverUnder rejects named player prop over lines", () => {
+  assert.equal(parseWcMatchGoalsOverUnder("Jimenez over 3 at +360 — playable"), null);
+  assert.equal(parseWcMatchGoalsOverUnder("1. Quinones over 3 at +370 — playable"), null);
+  assert.equal(
+    extractWcMatchupPlayHeadline("Jimenez over 3 at +360 (+1 more)"),
+    "",
+  );
+  assert.deepEqual(parseWcMatchGoalsOverUnder("Lean over 3 goals at +360"), {
+    side: "Over",
+    line: "3",
+  });
+});
+
 test("buildWcCompactStructured ignores Over 90 minutes when synthesizing matchup lean", () => {
   const structured = buildWcCompactStructured({
     wcIntent: WC_INTENT.MATCHUP,

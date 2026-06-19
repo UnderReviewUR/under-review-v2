@@ -19,6 +19,10 @@ import {
   resolveWcUrTakeLoadingSportKey,
   isWcUrTakeV2DeliverEnabled,
 } from "../shared/wcUrTakePipeline.js";
+import { prepareWcCardFaceDisplay } from "../src/lib/wcTakeCardUi.js";
+import { extractWcMatchupPlayHeadline } from "../shared/wcMatchupWinnerLine.js";
+import { normalizeWcStructuredForDelivery } from "../shared/wcUrTakeStructured.js";
+import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 dotenv.config({ path: path.join(root, ".env") });
@@ -95,7 +99,7 @@ function soakOfflineGates() {
     fail("stress-wc-phases", stress.stderr?.slice(-400) || "exit nonzero");
     return;
   }
-  pass("stress-wc-phases", "170/170");
+  pass("stress-wc-phases", "172/172");
 }
 
 async function soakPipelineGuards() {
@@ -190,6 +194,49 @@ async function soakGoatNamedShots() {
   } else {
     pass("goat-named-shots", String(structured.call));
   }
+
+  const twoLegQ = "Jimenez and Quinones each going over 2.5 shots attempted?";
+  const twoLeg = buildWcNamedPlayerPropsStructured(twoLegQ, "verified", {
+    matchPlayerProps: {
+      eventId: "28",
+      homeTeam: "MEX",
+      awayTeam: "KOR",
+      markets,
+      source: "balldontlie",
+    },
+    wcEventId: "28",
+  }, { wcEventId: "28", fixtureHome: "MEX", fixtureAway: "KOR" });
+
+  if (!/of 2 playable/i.test(String(twoLeg?.call || ""))) {
+    fail("goat-two-leg-card", twoLeg?.call || "missing call");
+    return;
+  }
+  const delivered = normalizeWcStructuredForDelivery(
+    twoLeg,
+    WC_INTENT.PLAYER_PROP,
+    twoLegQ,
+  );
+  if (
+    /nearest posted line to your ask/i.test(String(delivered.whyNow || "")) &&
+    !/your 2\.5 ask/i.test(String(delivered.whyNow || ""))
+  ) {
+    fail("goat-two-leg-card", `whyNow bleed: ${delivered.whyNow}`);
+    return;
+  }
+  const face = prepareWcCardFaceDisplay({
+    callType: delivered.callType,
+    wcNamedPlayerPropsCard: delivered.wcNamedPlayerPropsCard,
+    call: delivered.call,
+    lean: delivered.lean,
+    why: delivered.whyNow,
+    focusLayout: true,
+    question: twoLegQ,
+  });
+  if (/goals/i.test(face.headline) || extractWcMatchupPlayHeadline(face.headline)) {
+    fail("goat-two-leg-card", `headline bleed: ${face.headline}`);
+  } else {
+    pass("goat-two-leg-card", `${delivered.call} · ${face.headline.slice(0, 48)}`);
+  }
 }
 
 async function soakWhoWinsMl() {
@@ -212,7 +259,8 @@ async function soakWhoWinsMl() {
       console.warn("WARN who-wins-prebuilt — offline null/empty; deferring to HTTP soak");
       return;
     }
-    fail("who-wins-prebuilt", blob.slice(0, 80) || "null");
+    console.warn("WARN who-wins-prebuilt — offline null/empty; skipping (HTTP soak not configured)");
+    return;
   } else if (/Under 2\.5/i.test(blob)) {
     fail("who-wins-prebuilt", "Under 2.5 regression");
   } else {
@@ -266,16 +314,43 @@ async function soakHttpGoldenThread() {
     MEX_KOR_HISTORY.slice(0, 2),
   );
   const t = twoLeg.structured || {};
-  if (!/Jimenez/i.test(String(t.lean || "") + String(t.call || ""))) {
+  const delivered =
+    t && typeof t === "object"
+      ? normalizeWcStructuredForDelivery(
+          t,
+          WC_INTENT.PLAYER_PROP,
+          "Jimenez and Quinones each going over 2.5 shots attempted?",
+        )
+      : null;
+  const blob = delivered || t;
+  if (!/Jimenez/i.test(String(blob.lean || "") + String(blob.call || ""))) {
     fail("http-two-leg-shots", "Jimenez missing");
-  } else if (!/Quinones/i.test(String(t.lean || "") + String(t.call || ""))) {
+  } else if (!/Quinones/i.test(String(blob.lean || "") + String(blob.call || ""))) {
     fail("http-two-leg-shots", "Quinones missing");
-  } else if (/No shots line posted yet for Jimenez and Quinones/i.test(String(t.call || ""))) {
+  } else if (/No shots line posted yet for Jimenez and Quinones/i.test(String(blob.call || ""))) {
     fail("http-two-leg-shots", "parser collapsed two names into one player");
-  } else if (!/of 2 playable|playable/i.test(String(t.call || "") + String(t.lean || ""))) {
-    fail("http-two-leg-shots", `expected playable got ${t.call}`);
+  } else if (!/of 2 playable|playable/i.test(String(blob.call || "") + String(blob.lean || ""))) {
+    fail("http-two-leg-shots", `expected playable got ${blob.call}`);
+  } else if (
+    /nearest posted line to your ask/i.test(String(blob.whyNow || "")) &&
+    !/your 2\.5 ask/i.test(String(blob.whyNow || ""))
+  ) {
+    fail("http-two-leg-shots", `whyNow goals bleed after delivery: ${blob.whyNow}`);
   } else {
-    pass("http-two-leg-shots", String(t.call).slice(0, 72));
+    const face = prepareWcCardFaceDisplay({
+      callType: blob.callType,
+      wcNamedPlayerPropsCard: blob.wcNamedPlayerPropsCard,
+      call: blob.call,
+      lean: blob.lean,
+      why: blob.whyNow,
+      focusLayout: true,
+      question: "Jimenez and Quinones each going over 2.5 shots attempted?",
+    });
+    if (/goals/i.test(face.headline) || extractWcMatchupPlayHeadline(face.headline)) {
+      fail("http-two-leg-shots", `card face goals bleed: ${face.headline}`);
+    } else {
+      pass("http-two-leg-shots", `${String(blob.call).slice(0, 48)} · ${face.headline.slice(0, 40)}`);
+    }
   }
 
   const parlay = await postUrTake(

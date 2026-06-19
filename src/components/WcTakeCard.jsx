@@ -2,7 +2,11 @@ import { useState } from "react";
 import UrTakeShareButton from "./UrTakeShareButton.jsx";
 import { formatUrTakeSportTag } from "../lib/urTakeSportTag.js";
 import { formatUrTakeTimestampEt } from "../lib/urTakeTimestampEt.js";
-import { extractWcMatchupPlayHeadline } from "../../shared/wcMatchupWinnerLine.js";
+import {
+  extractWcMatchupPlayHeadline,
+  isWcPlayerPropOverUnderCue,
+} from "../../shared/wcMatchupWinnerLine.js";
+import { isWcNamedLegPropsStructuredCard } from "../../shared/wcNamedLegCardUi.js";
 import { formatWcCardSectionLines, wcTakeCardHasVisibleContent, pickWcBreakdownLabel, UR_TAKE_FULL_BREAKDOWN_LABEL, capWcCardFaceField, WC_COLLAPSED_THREAD_WHY_WORDS } from "../lib/wcTakeCardUi.js";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 import WcGroundingStrip from "./WcGroundingStrip.jsx";
@@ -15,7 +19,11 @@ function WcPlayHeadline({ text, focusLayout }) {
     /\d+\s+(?:goal-total|spread)\s+leans?\b/i.test(raw) ||
     /\d+\s+angles?\s+on\b/i.test(raw) ||
     /\d+\s+match predictions?\b/i.test(raw);
-  const playHeadline = isSlateSummary ? "" : extractWcMatchupPlayHeadline(raw);
+  const isNamedPlayerProp =
+    isWcNamedLegPropsStructuredCard({ call: raw, lean: raw }) ||
+    isWcPlayerPropOverUnderCue(raw);
+  const playHeadline =
+    isSlateSummary || isNamedPlayerProp ? "" : extractWcMatchupPlayHeadline(raw);
   const body = (playHeadline || raw.replace(/^pass on ml\s*[—-]\s*/i, "")).replace(/^lean:\s*/i, "").trim();
   const isPass = /^pass/i.test(body) || /^fade/i.test(body);
   if (focusLayout) {

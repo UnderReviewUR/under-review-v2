@@ -502,6 +502,26 @@ export function repairWcShotsPropStructured(structured, question = "") {
 }
 
 /**
+ * Undo single-leg numeric-why synthesis on multi-leg named player prop cards.
+ * @param {object} structured
+ */
+function repairWcNamedLegWhyNowBleed(structured) {
+  if (!structured?.wcNamedPlayerPropsCard) return structured;
+  const lean = String(structured.lean || "").trim();
+  const legCount = (lean.match(/^\s*\d+\.\s+/gm) || []).length;
+  if (legCount < 2) return structured;
+  const whyNow = String(structured.whyNow || "").trim();
+  if (!whyNow || /All \d+ names have posted lines/i.test(whyNow)) return structured;
+  if (!/nearest posted line to your ask/i.test(whyNow)) return structured;
+  const playable = (lean.match(/\bplayable\b/gi) || []).length;
+  const repairedWhy =
+    playable >= legCount
+      ? `All ${legCount} names have posted lines in MATCH PLAYER PROPS.`
+      : `${playable} of ${legCount} names have posted lines; pass the rest until books publish.`;
+  return { ...structured, whyNow: repairedWhy };
+}
+
+/**
  * Shots ladder repair, then pass-card repair when still applicable.
  * @param {object} structured
  * @param {string} question
@@ -516,7 +536,7 @@ export function finalizeWcPlayerPropStructured(structured, question = "") {
     out = repairWcPlayerPropPassCard(out, question);
   }
   if (structured.wcNamedPlayerPropsCard) {
-    return out;
+    return repairWcNamedLegWhyNowBleed(out);
   }
   return ensureWcCardFaceNumericWhy(out, question, { wcIntent: WC_INTENT.PLAYER_PROP });
 }

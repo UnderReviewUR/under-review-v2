@@ -1831,6 +1831,7 @@ function coerceStructuredForUrTakeCard(raw) {
       raw.namedLegCitation && typeof raw.namedLegCitation === "object"
         ? raw.namedLegCitation
         : null,
+    wcNamedPlayerPropsCard: Boolean(raw.wcNamedPlayerPropsCard),
     playerName: raw.playerName != null ? String(raw.playerName) : null,
     legId: raw.legId != null ? String(raw.legId) : null,
     namedLegNote: raw.namedLegNote != null ? String(raw.namedLegNote) : null,
@@ -2301,6 +2302,7 @@ function UrTakeAiBubble({
             groundingPinBanner={s.groundingPinBanner}
             groundingInventoryStrip={s.groundingInventoryStrip}
             namedLegCitation={s.namedLegCitation}
+            wcNamedPlayerPropsCard={s.wcNamedPlayerPropsCard}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

@@ -807,6 +807,7 @@ function isWcMatchTotalsStructured(structured) {
  */
 export function detectMissingWcCardFaceNumericWhy(structured, question = "", opts = {}) {
   if (!structured || typeof structured !== "object") return false;
+  if (structured.wcNamedPlayerPropsCard === true) return false;
   if (isWcNonBettingCardCallType(structured)) return false;
 
   const wcIntent = String(opts.wcIntent || "").toLowerCase();

@@ -68,3 +68,20 @@ test("normalizeWcStructuredForDelivery repairs missing numeric why", () => {
   );
   assert.match(String(out.whyNow), /Over 3 at -135/);
 });
+
+test("normalizeWcStructuredForDelivery preserves named-leg whyNow", () => {
+  const out = normalizeWcStructuredForDelivery(
+    {
+      callType: "player_market_odds",
+      wcNamedPlayerPropsCard: true,
+      call: "2 of 2 playable",
+      lean: "1. Jimenez over 3 at +360 — playable\n2. Quinones over 3 at +370 — playable",
+      whyNow: "All 2 names have posted lines in MATCH PLAYER PROPS.",
+      edge: "Best combo value: Jimenez · Quinones",
+    },
+    WC_INTENT.PLAYER_PROP,
+    "Jimenez and Quinones each going over 2.5 shots attempted?",
+  );
+  assert.match(String(out.whyNow), /All 2 names have posted lines/i);
+  assert.doesNotMatch(String(out.whyNow), /nearest posted line to your ask/i);
+});

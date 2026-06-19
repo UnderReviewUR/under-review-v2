@@ -595,6 +595,19 @@ test("normalizeWcStructuredForDelivery — player prop pass repair", () => {
   assert.equal(out.call, "No posted Son shots line — Pass.");
 });
 
+test("finalizeWcPlayerPropStructured repairs multi-leg whyNow goals bleed", () => {
+  const out = finalizeWcPlayerPropStructured(
+    {
+      wcNamedPlayerPropsCard: true,
+      call: "2 of 2 playable",
+      lean: "1. Jimenez over 3 at +360 — playable\n2. Quinones over 3 at +370 — playable",
+      whyNow: "Over 3 at +360 (~21.7% implied) — nearest posted line to your ask.",
+    },
+    "Jimenez and Quinones each going over 2.5 shots attempted?",
+  );
+  assert.match(String(out.whyNow), /All 2 names have posted lines/i);
+});
+
 test("extractWcNamedPlayerPropLegsFromQuestion — bare each going over extracts all three names", () => {
   const q = "Son, Jimenez, and Quinones each going over 2.5 shots attempted?";
   const legs = extractWcNamedPlayerPropLegsFromQuestion(q);

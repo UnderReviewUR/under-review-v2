@@ -47,9 +47,11 @@ import { shouldRunWcPlayerPropsFastPath } from "../api/ur-take/wcPlayerPropsFast
 import { shouldUseWcFixtureMatchupPrebuilt } from "../shared/wcFixtureMatchupPrebuilt.js";
 import { calculateParlayOdds, parseAmericanOddsValue } from "../src/lib/calculateParlayOdds.js";
 import {
+  extractWcMatchupPlayHeadline,
   isWcSaneGoalTotalLine,
   parseWcMatchGoalsOverUnder,
 } from "../shared/wcMatchupWinnerLine.js";
+import { normalizeWcStructuredForDelivery } from "../shared/wcUrTakeStructured.js";
 import { isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import { WC_MATCH_PLAYER_PROPS_SEED_BY_EVENT } from "../src/data/wc2026MatchPlayerPropsSeed.js";
 import {
@@ -448,6 +450,44 @@ stress("B", "UI: per-team ask labels props per side", () => {
   );
   assert.match(s.call, /props per side/i);
   assert.ok((s.lean.match(/^\s*\d+\./gm) || []).length >= 4);
+});
+
+stress("B", "named-leg delivery keeps multi-leg whyNow (no goals synthesis)", () => {
+  const seed = {
+    callType: "player_market_odds",
+    wcNamedPlayerPropsCard: true,
+    call: "2 of 2 playable",
+    lean: "1. Jimenez over 3 at +360 — playable\n2. Quinones over 3 at +370 — playable",
+    whyNow: "All 2 names have posted lines in MATCH PLAYER PROPS.",
+    edge: "Best combo value: Jimenez · Quinones",
+  };
+  const normalized = normalizeWcStructuredForDelivery(
+    seed,
+    WC_INTENT.PLAYER_PROP,
+    "Jimenez and Quinones each going over 2.5 shots attempted?",
+  );
+  assert.match(String(normalized.whyNow), /All 2 names/i);
+  assert.doesNotMatch(String(normalized.whyNow), /nearest posted line to your ask/i);
+});
+
+stress("B", "named-leg card face never rewrites player over 3 as match goals", () => {
+  const lean = [
+    "1. Jimenez over 3 at +360 — playable",
+    "2. Quinones over 3 at +370 — playable",
+  ].join("\n");
+  const face = prepareWcCardFaceDisplay({
+    callType: "player_market_odds",
+    wcNamedPlayerPropsCard: true,
+    call: "2 of 2 playable",
+    lean,
+    why: "All 2 names have posted lines in MATCH PLAYER PROPS.",
+    focusLayout: true,
+    question: "Jimenez and Quinones each going over 2.5 shots attempted?",
+  });
+  assert.match(face.headline, /Jimenez over 3 at \+360/i);
+  assert.doesNotMatch(face.headline, /goals/i);
+  assert.equal(extractWcMatchupPlayHeadline(face.headline), "");
+  assert.equal(parseWcMatchGoalsOverUnder(face.headline), null);
 });
 
 stress("B", "parsePropBoardFromStructured round-trip", () => {

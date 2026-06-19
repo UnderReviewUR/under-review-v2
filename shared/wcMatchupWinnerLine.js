@@ -187,6 +187,33 @@ export const WC_MATCHUP_PATHS_CALL_RE = /\badvancement paths\b|\bgroup-stage pat
 const WC_GOALS_OU_MIN = 0.5;
 const WC_GOALS_OU_MAX = 6.5;
 const WC_MINUTES_AFTER_OU_RE = /^\s*(?:minutes?|mins?\b|-minute\b)/i;
+const WC_PLAYER_PROP_AFTER_OU_RE =
+  /^\s*(?:at\s+[+-]\d|shots?\b|sot\b|attempts?\b|[—–-]\s*(?:playable|juice))/i;
+const WC_LEAN_OU_PREFIX_RE = /^(?:lean|pass|fade|book|posted)$/i;
+
+/**
+ * True when O/U text is a named player prop line, not a match goals total.
+ * @param {string} text
+ */
+export function isWcPlayerPropOverUnderCue(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return false;
+  if (/\d+\s+of\s+\d+\s+playable/i.test(raw)) return true;
+  if (/\bover\s+\d+(?:\.\d+)?\s+at\s+[+-]\d/i.test(raw)) return true;
+  if (/^\s*\d+\.\s+.+\bover\s+\d+/im.test(raw)) return true;
+  return false;
+}
+
+/**
+ * @param {string} raw
+ * @param {number} matchIndex
+ */
+function wcOverUnderPrecededByPlayerName(raw, matchIndex) {
+  const before = raw.slice(0, matchIndex).trimEnd();
+  const nameM = before.match(/(?:^|[\s,;(])([A-Z][a-z]+(?:[-'][A-Z][a-z]+)*)\s*$/);
+  if (!nameM) return false;
+  return !WC_LEAN_OU_PREFIX_RE.test(nameM[1]);
+}
 
 /**
  * True when n looks like a soccer goals O/U line (not "90 minutes" etc.).
@@ -208,11 +235,14 @@ export function parseWcMatchGoalsOverUnder(text) {
     /\b(lean\s+)?(under|over)\s+(\d+\.?\d*)\b/gi,
   ];
 
-  for (const re of patterns) {
+  for (let patternIdx = 0; patternIdx < patterns.length; patternIdx += 1) {
+    const re = patterns[patternIdx];
     for (const m of raw.matchAll(re)) {
       const idx = m.index + m[0].length;
       const after = raw.slice(idx, idx + 24);
       if (WC_MINUTES_AFTER_OU_RE.test(after)) continue;
+      if (WC_PLAYER_PROP_AFTER_OU_RE.test(after)) continue;
+      if (patternIdx === 1 && wcOverUnderPrecededByPlayerName(raw, m.index)) continue;
       const n = Number.parseFloat(m[3]);
       if (!isWcSaneGoalTotalLine(n)) continue;
       const side =
@@ -239,6 +269,7 @@ export function extractWcMatchupPlayHeadline(leanOrBlob) {
     .replace(/^lean:\s*/i, "")
     .trim();
   if (!raw) return "";
+  if (isWcPlayerPropOverUnderCue(raw)) return "";
 
   const ou = parseWcMatchGoalsOverUnder(raw);
   if (ou) return `Lean ${ou.side} ${ou.line} goals`;

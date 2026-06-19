@@ -84,6 +84,26 @@ test("prepareWcCardFaceDisplay — named-leg card skips prop-board list face", (
   assert.doesNotMatch(face.headline, /Gallardo/i);
 });
 
+test("prepareWcCardFaceDisplay — two-leg shots keeps playable call headline", () => {
+  const lean = [
+    "1. Jimenez over 3 at +360 — playable",
+    "2. Quinones over 3 at +370 — playable",
+  ].join("\n");
+  const face = prepareWcCardFaceDisplay({
+    callType: "player_market_odds",
+    wcNamedPlayerPropsCard: true,
+    call: "2 of 2 playable",
+    lean,
+    why: "All 2 names have posted lines in MATCH PLAYER PROPS.",
+    focusLayout: true,
+    question: "Jimenez and Quinones each going over 2.5 shots attempted?",
+  });
+  assert.match(face.headline, /Jimenez over 3 at \+360/i);
+  assert.match(face.headline, /\+1 more/i);
+  assert.match(face.sections.why, /All 2 names have posted lines/i);
+  assert.doesNotMatch(face.headline, /goals/i);
+});
+
 test("buildWcTakeStatGrid uses line slot instead of truncating headline", () => {
   const headline =
     "Bruno Fernandes recording 7 assists in a single World Cup tournament is structurally implausible — Portugal's group strength and likely knockout run don't support that volume.";

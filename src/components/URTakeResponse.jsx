@@ -115,6 +115,7 @@ export default function URTakeResponse({
   groundingPinBanner = null,
   groundingInventoryStrip = null,
   namedLegCitation = null,
+  wcNamedPlayerPropsCard = false,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -410,6 +411,7 @@ export default function URTakeResponse({
       tomorrowSlateAngles: Array.isArray(tomorrowSlateAngles) ? tomorrowSlateAngles : [],
       slateDay: slateDay || null,
       tomorrowFixtureCount,
+      wcNamedPlayerPropsCard,
     });
     const wcSections = {
       ...wcFace.sections,

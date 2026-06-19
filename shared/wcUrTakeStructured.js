@@ -55,7 +55,10 @@ export function repairWcMatchProbabilityLean(out, question = "") {
 function finishWcStructuredForDelivery(out, intent, question) {
   const keepExpanded = Boolean(out.breakdownDefaultExpanded);
   const repaired = repairWcGroupSlateStructuredLine(out);
-  const finalized = ensureWcCardFaceNumericWhy(repaired, question, { wcIntent: intent });
+  const finalized =
+    repaired?.wcNamedPlayerPropsCard === true
+      ? repaired
+      : ensureWcCardFaceNumericWhy(repaired, question, { wcIntent: intent });
   if (keepExpanded) finalized.breakdownDefaultExpanded = true;
   return finalized;
 }
