@@ -8,6 +8,7 @@ import {
 import { calculateOddsFreshness } from "./wcOddsFreshness.js";
 import { normalizeWcPlayerName } from "./wcPlayerRegistry.js";
 import { isWcBdlSource, isWcInPlayMatchStatus } from "./wcBdlPolicy.js";
+import { normalizeEspnAbbr } from "../api/_wcEspn.js";
 
 export { WC_MATCH_PLAYER_PROPS_MAX_AGE_MS };
 
@@ -201,6 +202,17 @@ export function hasMatchPlayerPropRows(eventPayload) {
 }
 
 /**
+ * Match a prop row nation tag to a FIFA team abbr (handles BDL HTI vs internal HAI, etc.).
+ * @param {string | null | undefined} rowNationAbbr
+ * @param {string | null | undefined} teamAbbr
+ */
+export function matchPlayerPropNationMatchesTeam(rowNationAbbr, teamAbbr) {
+  const want = normalizeEspnAbbr(teamAbbr);
+  const got = normalizeEspnAbbr(rowNationAbbr);
+  return Boolean(want && got && want === got);
+}
+
+/**
  * True when payload is a per-event record (readWcMatchPlayerPropsForEvent), not the KV index root.
  * @param {Record<string, unknown> | null | undefined} payload
  */
@@ -390,8 +402,12 @@ export function filterMatchPropRowsByFixtureTeams(rows, homeTeam, awayTeam) {
   if (!home && !away) return rows;
 
   return (rows || []).filter((r) => {
-    const abbr = String(r.nationAbbr || "").toUpperCase().slice(0, 3);
-    if (abbr && (abbr === home || abbr === away)) return true;
+    if (
+      matchPlayerPropNationMatchesTeam(r.nationAbbr, home) ||
+      matchPlayerPropNationMatchesTeam(r.nationAbbr, away)
+    ) {
+      return true;
+    }
     const name = normalizeWcPlayerName(String(r.name || ""));
     if (!name) return false;
     return true;

@@ -190,7 +190,7 @@ function buildWcPlayerPropsNotPostedStructured(question, pinned, wcEventId, opts
       fixtureHome: home,
       fixtureAway: away,
       call: priorLean
-        ? `No player props posted yet for ${homeName} vs ${awayName}.`
+        ? threadAwareLean
         : `Player prop lines aren't posted yet for ${homeName} vs ${awayName}.`,
       lean: threadAwareLean,
       whyNow: priorLean
@@ -526,16 +526,17 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       const namedLegs = namedPlayerPropsAsk
         ? extractWcNamedPlayerPropLegsFromQuestion(routingQ)
         : [];
+      const priorLeanForCold =
+        (wcTurnPlannerEnabled && wcTurnPlan?.priorLean) ||
+        extractWcPriorThreadLeanFromHistory(history) ||
+        extractWcPriorThreadLeanFromHistory(wcContext?.conversationHistory || []);
       structuredResponse = buildWcPlayerPropsNotPostedStructured(
         String(question || ""),
         pinned,
         resolvedEventId,
         {
           namedLegs,
-          priorLean:
-            wcTurnPlannerEnabled && wcTurnPlan?.priorLean
-              ? wcTurnPlan.priorLean
-              : extractWcPriorThreadLeanFromHistory(history),
+          priorLean: priorLeanForCold,
         },
       );
       passKind = "player_props_not_posted";

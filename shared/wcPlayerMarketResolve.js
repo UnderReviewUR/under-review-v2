@@ -13,6 +13,7 @@ import {
   hasMatchPlayerPropRows,
   isMatchPlayerPropsFresh,
   kvHasFreshMatchPlayerProps,
+  matchPlayerPropNationMatchesTeam,
   matchPlayerPropRowsFromEvent,
   pickFixturePropBoardFromEvent,
   rankFixturePropBoardRows,
@@ -657,12 +658,12 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const awayLabel = wcMatchupTeamDisplayName(awayAbbr);
 
   const homePool = rankFixturePropBoardRows(
-    rows.filter((r) => String(r.nationAbbr || "").toUpperCase() === homeAbbr),
+    rows.filter((r) => matchPlayerPropNationMatchesTeam(r.nationAbbr, homeAbbr)),
     perSide * 2,
     marketKey,
   );
   const awayPool = rankFixturePropBoardRows(
-    rows.filter((r) => String(r.nationAbbr || "").toUpperCase() === awayAbbr),
+    rows.filter((r) => matchPlayerPropNationMatchesTeam(r.nationAbbr, awayAbbr)),
     perSide * 2,
     marketKey,
   );

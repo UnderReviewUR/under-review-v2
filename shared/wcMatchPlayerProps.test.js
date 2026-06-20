@@ -8,6 +8,7 @@ import {
   isMatchPlayerPropsFresh,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropRowsFromEvent,
+  matchPlayerPropNationMatchesTeam,
   matchPlayerPropsForEvent,
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
@@ -136,4 +137,10 @@ test("isWcUrTakeBlockedSeedPropsPayload blocks seed-only payloads", () => {
     source: "balldontlie",
     booksUsed: ["balldontlie"],
   }));
+});
+
+test("matchPlayerPropNationMatchesTeam maps BDL HTI to internal HAI", () => {
+  assert.equal(matchPlayerPropNationMatchesTeam("HTI", "HAI"), true);
+  assert.equal(matchPlayerPropNationMatchesTeam("BRA", "BRA"), true);
+  assert.equal(matchPlayerPropNationMatchesTeam("HTI", "BRA"), false);
 });

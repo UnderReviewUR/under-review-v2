@@ -49,6 +49,7 @@ import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 import {
   formatMatchPlayerPropRowForPrompt,
   hasMatchPlayerPropRows,
+  isMatchPlayerPropsFresh,
   isWcUrTakeBlockedSeedPropsPayload,
   kvHasFreshMatchPlayerProps,
   matchPlayerPropsUsableForUrTake,
@@ -313,10 +314,14 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
           const shotsOk = !requireShotsRows || matchPropsPayloadHasShotsRows(payload);
           const m = matches.find((row) => String(row?.id) === String(wcEventId));
           const matchInPlay = Boolean(m && isWcLiveMatchStatus(m.status));
-          const matchDayForceFresh =
+          const kvAlreadyFresh =
+            cachedBeforeRefresh && isMatchPlayerPropsFresh(cachedBeforeRefresh, nowMs);
+          const matchDayOnSlate =
             Boolean(m) &&
             (isWcScheduledMatchStatus(m.status) || matchInPlay) &&
             wcMatchOnEtBroadcastSlateDay(m, wcTodayEtYmd(nowMs));
+          // Skip forced BDL refresh on match day when KV already has fresh rows.
+          const matchDayForceFresh = matchDayOnSlate && !kvAlreadyFresh;
           const needsLiveRefresh =
             isWcGoatPrimaryEnabled() &&
             (matchDayForceFresh ||
@@ -692,6 +697,55 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
         failed: false,
       },
     };
+  }
+
+  if (eventIdHint) {
+    try {
+      const kvPayload = await readWcMatchPlayerPropsForEvent(eventIdHint, nowMs);
+      if (
+        kvPayload &&
+        hasMatchPlayerPropRows(kvPayload) &&
+        matchPlayerPropsUsableForUrTake(kvPayload, {
+          nowMs,
+          matchStatus: resolveWcMatchStatusForPropsOpts(opts, {
+            wcEventId: eventIdHint,
+            matchPlayerProps: kvPayload,
+          }),
+        })
+      ) {
+        const fallback = {
+          players: last?.players ?? null,
+          goldenBoot: last?.goldenBoot ?? null,
+          injuries: last?.injuries ?? null,
+          matchPlayerProps: kvPayload,
+          wcEventId: eventIdHint,
+        };
+        writeMatchPropsMemoryCache(eventIdHint, fallback);
+        console.log(
+          JSON.stringify({
+            event: "wc_player_props_kv_loaded",
+            wcEventId: eventIdHint,
+            attempt: maxRetries + 1,
+            loadMs,
+            recoveredFromKvFallback: true,
+            error: lastError?.message || "no_usable_rows",
+          }),
+        );
+        return {
+          ...fallback,
+          loadMeta: {
+            attempts: maxRetries + 1,
+            coldStart: true,
+            fromCache: true,
+            loadMs,
+            failed: false,
+            recoveredFromKvFallback: true,
+          },
+        };
+      }
+    } catch {
+      // fall through to failed return
+    }
   }
 
   console.error(

@@ -23,9 +23,11 @@ const ABBR_TO_GROUP = new Map(
   WC_2026_TEAMS.map((t) => [String(t.abbreviation).toUpperCase(), String(t.group).toUpperCase()]),
 );
 
-/** ESPN occasionally diverges — map to internal FIFA abbreviations. */
+/** ESPN / BDL occasionally diverge — map to internal FIFA abbreviations. */
 export const ESPN_ABBR_OVERRIDES = {
   KORS: "KOR",
+  /** BDL FIFA player props use HTI; ESPN/internal roster uses HAI. */
+  HTI: "HAI",
 };
 
 /**

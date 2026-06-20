@@ -440,6 +440,7 @@ export function normalizeBdlPlayerPropsToMarkets(rows, playerLookup = {}) {
       }
     }
     if (!name) continue;
+    if (nationAbbr) nationAbbr = normalizeEspnAbbr(nationAbbr) || nationAbbr;
 
     const market = row.market || {};
     const marketType = String(market.type || "").toLowerCase();

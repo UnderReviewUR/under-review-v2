@@ -25,6 +25,7 @@ import { auditBdlPlayerPropsIngest } from "../shared/wcBdlIngestAudit.js";
 import { normalizeBdlGroupStandings } from "./_wcBdlGoatMode.js";
 import { buildBdlFuturesIndex } from "../shared/wcBdlFutures.js";
 import { hasWcBdlApiKey, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { normalizeEspnAbbr } from "./_wcEspn.js";
 import {
   WC_GROUPS_KV_KEY,
   WC_GROUPS_TTL_SECONDS,
@@ -450,7 +451,9 @@ export async function resolveBdlPlayerLookupForPropRows(rows, meta = {}) {
       if (!normalized) continue;
       lookup[String(normalized.id)] = {
         name: normalized.name,
-        nationAbbr: normalized.countryCode || null,
+        nationAbbr: normalized.countryCode
+          ? normalizeEspnAbbr(normalized.countryCode) || normalized.countryCode
+          : null,
       };
     }
   }
@@ -487,7 +490,9 @@ export async function resolveBdlPlayerLookupForPropRows(rows, meta = {}) {
       if (!normalized) continue;
       lookup[String(normalized.id)] = {
         name: normalized.name,
-        nationAbbr: normalized.countryCode || null,
+        nationAbbr: normalized.countryCode
+          ? normalizeEspnAbbr(normalized.countryCode) || normalized.countryCode
+          : null,
       };
     }
   }

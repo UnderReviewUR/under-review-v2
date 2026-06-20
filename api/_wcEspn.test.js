@@ -11,6 +11,7 @@ import {
 test("normalizeEspnAbbr maps overrides", () => {
   assert.equal(normalizeEspnAbbr("kors"), "KOR");
   assert.equal(normalizeEspnAbbr("CZE"), "CZE");
+  assert.equal(normalizeEspnAbbr("HTI"), "HAI");
 });
 
 test("normalizeEspnStandings produces group rows", () => {
