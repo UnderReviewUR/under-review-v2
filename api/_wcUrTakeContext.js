@@ -23,10 +23,8 @@ import {
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 import { isWcPlayerMarketIntent, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import {
-  formatWcPlayerMarketsPromptBlock,
   loadWcPlayerMarketKvBlocks,
 } from "./_wcPlayerUrTakeContext.js";
-import { resolveWcPlayerMarketTier, tierMetaFor } from "../shared/wcPlayerMarketResolve.js";
 import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 import {
   filterOutrightsForQuestion,
@@ -885,6 +883,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       question,
       opts.conversationHistory || [],
       { requiredEntities: mentionedTeams },
+      matches,
     );
     if (pinned.length >= 2) mentionedTeams = pinned;
   }
@@ -1230,47 +1229,10 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const wcEventIdTrimmed = effectiveEventId || String(opts.wcEventId || "").trim() || null;
   ctx.wcEventId = wcEventIdTrimmed;
 
+  // Player-market KV is loaded in handler supplement (longer timeout). Loading here
+  // raced the 8s context cap and left wcContext null → cold slate pass cards.
   if (isWcPlayerMarketIntent(wcIntent)) {
-    try {
-      const playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {
-        wcEventId: wcEventIdTrimmed,
-        wcIntent,
-        question,
-        matches,
-        conversationHistory: ctx.conversationHistory,
-        requiredEntities: mentionedTeams,
-      });
-      const playerEventId = playerMarketKv.wcEventId || wcEventIdTrimmed;
-      ctx.wcEventId = playerEventId;
-      const playerMarketTier = resolveWcPlayerMarketTier({
-        goldenBoot: playerMarketKv.goldenBoot,
-        players: playerMarketKv.players,
-        injuries: playerMarketKv.injuries,
-        matchPlayerProps: playerMarketKv.matchPlayerProps,
-        wcEventId: playerEventId,
-        wcContext: ctx,
-        wcIntent,
-      });
-      const tierMeta = tierMetaFor(playerMarketTier);
-      ctx.playerMarketKv = { ...playerMarketKv, wcEventId: playerEventId };
-      ctx.playerMarketTier = playerMarketTier;
-      ctx.playerMarketPromptBlock = formatWcPlayerMarketsPromptBlock({
-        tier: playerMarketTier,
-        tierLabel: tierMeta.label,
-        tierDisclaimer: tierMeta.disclaimer,
-        wcIntent,
-        goldenBoot: playerMarketKv.goldenBoot,
-        players: playerMarketKv.players,
-        injuries: playerMarketKv.injuries,
-        matchDetails,
-        matchPlayerProps: playerMarketKv.matchPlayerProps,
-        wcEventId: playerEventId,
-        tournamentSimResults,
-        question,
-      });
-    } catch (err) {
-      console.warn("[wc-context] player market KV load failed:", err?.message);
-    }
+    ctx.wcEventId = wcEventIdTrimmed;
   } else if (isWcLiveDominanceQuestion(question) && wcEventIdTrimmed) {
     try {
       ctx.playerMarketKv = await loadWcPlayerMarketKvBlocks(nowMs, {

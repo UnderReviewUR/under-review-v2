@@ -327,10 +327,12 @@ export function buildWcTopGoalscorersListStructured(
  * @param {object | null | undefined} wcContext
  */
 export function buildWcFixtureScorerIntelStructured(question, tier, kvBlocks, wcContext) {
+  const fixtureMatches = Array.isArray(wcContext?.allMatches) ? wcContext.allMatches : [];
   const teams = resolveWcPlayerPropFixtureTeams(
     String(question || ""),
     wcContext?.conversationHistory || [],
     wcContext,
+    fixtureMatches,
   );
   if (teams.length < 2) return null;
 
@@ -1253,12 +1255,16 @@ export function resolveWcPlayerMarketAnswer(
     isWcNamedPlayerPropQuestion(questionStr) &&
     !isWcFixturePlayerPropsQuestion(questionStr) &&
     !detectParlayIntent(questionStr);
+  const singleNationPropsAsk =
+    questionTeams.length === 1 &&
+    (isGenericWcPlayerPropQuestion(questionStr) || /\btonight\b/i.test(questionStr));
   const genericSlateProps =
     wcIntent === WC_INTENT.PLAYER_PROP &&
     isFixturePlayerPropAsk &&
     !isWcFixturePlayerPropsQuestion(questionStr) &&
     !detectParlayIntent(questionStr) &&
     !namedPlayerProps &&
+    !singleNationPropsAsk &&
     fixtureTeams.length < 2;
   const fixturePlayerProps =
     isWcFixturePlayerMarketIntent(wcIntent) &&

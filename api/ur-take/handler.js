@@ -120,6 +120,7 @@ import {
   reserveUrTakeGateQuota,
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
+import { getMatchesPayload } from "../world-cup.js";
 import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
 import { loadWcPlayerMarketKvBlocksWithRetry, formatWcPlayerMarketsPromptBlock } from "../_wcPlayerUrTakeContext.js";
 import { isWcGoatPrimaryEnabled } from "../../shared/wcBdlPolicy.js";
@@ -131,6 +132,7 @@ import { enforceWcGroundingCitationGate, extractCitedLegIdsFromWcPropsResponse }
 import { applyWcNamedLegOutputContract } from "../../shared/wcNamedLegOutputContract.js";
 import {
   buildWcPlayerMarketGroundingPromptBlock,
+  isWcPropsShapeRoutedAsk,
   shouldSkipWcPlayerPropsFastPathForShape,
 } from "../../shared/wcGroundingShapeRoute.js";
 import { routeWcPropsTurn, countWcMatchPlayerPropMarkets, isWcPropsRouteV2Enabled } from "../../shared/wcPropsRouteTurn.js";
@@ -2423,6 +2425,52 @@ function logUrTakeApiFallback(payload) {
   });
 }
 
+/**
+ * Player-prop passes need match inventory to pin fixtures (e.g. Haiti → BRA–HAI).
+ * Recover when context build timed out or returned without matches.
+ * @param {object | null | undefined} wcContext
+ * @param {{ requiredEntities?: string[], conversationHistory?: object[], wcEventId?: string | null }} [opts]
+ */
+async function ensureWcPlayerPropsUrTakeContext(wcContext, opts = {}) {
+  if (wcContext && Array.isArray(wcContext.allMatches) && wcContext.allMatches.length) {
+    if (opts.requiredEntities?.length && !wcContext.requiredEntities?.length) {
+      wcContext.requiredEntities = opts.requiredEntities;
+    }
+    if (opts.conversationHistory?.length) {
+      wcContext.conversationHistory = opts.conversationHistory;
+    }
+    return wcContext;
+  }
+  let matches = [];
+  try {
+    const payload = await getMatchesPayload({ preferGoat: true, forUrTake: true });
+    matches = payload?.matches || [];
+  } catch (err) {
+    console.warn(
+      "[ur-take] ensureWcPlayerPropsUrTakeContext matches fetch failed:",
+      err?.message || err,
+    );
+  }
+  if (wcContext && typeof wcContext === "object") {
+    if (matches.length) wcContext.allMatches = matches;
+    if (opts.requiredEntities?.length) wcContext.requiredEntities = opts.requiredEntities;
+    if (opts.conversationHistory?.length) {
+      wcContext.conversationHistory = opts.conversationHistory;
+    }
+    return wcContext;
+  }
+  return {
+    source: "worldcup_player_props_recover",
+    promptBlock: "",
+    phase: "GROUP_STAGE",
+    groups: {},
+    allMatches: matches,
+    requiredEntities: opts.requiredEntities || [],
+    conversationHistory: opts.conversationHistory || [],
+    wcEventId: opts.wcEventId || null,
+  };
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const requestStart = Date.now();
@@ -3408,6 +3456,13 @@ export default async function handler(req, res) {
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
+        if (isWcPlayerMarketIntent(wcIntent)) {
+          wcContext = await ensureWcPlayerPropsUrTakeContext(null, {
+            requiredEntities: wcRequiredEntities,
+            conversationHistory: normalizedUrTakeHistoryForGate,
+            wcEventId: wcEventIdTrimmed,
+          });
+        }
       }
     } else if (isWcPlayerMarketIntent(wcIntent)) {
       try {
@@ -3421,6 +3476,11 @@ export default async function handler(req, res) {
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext player-prop override failed:", err?.message || err);
+        wcContext = await ensureWcPlayerPropsUrTakeContext(wcContext, {
+          requiredEntities: wcRequiredEntities,
+          conversationHistory: normalizedUrTakeHistoryForGate,
+          wcEventId: wcEventIdTrimmed,
+        });
       }
     } else if (wcTomorrowSlatePrebuiltEarly) {
       wcContext = {
@@ -6170,14 +6230,34 @@ You are responding to a Pro subscriber. Apply the following:
         wcIntent === WC_INTENT.TOP_GOALSCORERS_LIST ||
         detectParlayIntent(routingQuestion))
     ) {
-      const shapeRoutedToClaude =
-        wcContext?.wcGroundingPacket &&
-        shouldSkipWcPlayerPropsFastPathForShape(wcContext.wcGroundingPacket.ask.shape);
+      if (isWcPlayerMarketIntent(wcIntent) || wcIntent === WC_INTENT.PLAYER_PROP) {
+        wcContext = await ensureWcPlayerPropsUrTakeContext(wcContext, {
+          requiredEntities: wcRequiredEntities,
+          conversationHistory: normalizedUrTakeHistoryForGate,
+          wcEventId: wcContext?.wcEventId || wcEventIdTrimmed,
+        });
+      }
+      const propsShapeRoutedAsk = isWcPropsShapeRoutedAsk({
+        sportHint,
+        wcIntent,
+        routingQuestion,
+        hasImage,
+        history: normalizedUrTakeHistoryForGate,
+      });
       const wcPlayerResolved = resolveWcPlayerMarketResponse(
         String(question || ""),
         wcIntent,
         wcContext,
       );
+      const coldGenericSlatePass =
+        wcPlayerResolved.forcePass &&
+        /\bPlayer props for today's slate\b/i.test(
+          String(wcPlayerResolved.structured?.call || ""),
+        );
+      const shapeRoutedToClaude =
+        (wcContext?.wcGroundingPacket &&
+          shouldSkipWcPlayerPropsFastPathForShape(wcContext.wcGroundingPacket.ask.shape)) ||
+        (propsShapeRoutedAsk && coldGenericSlatePass);
       if (
         !shapeRoutedToClaude &&
         (wcPlayerResolved.forcePass || wcPlayerResolved.structured)
