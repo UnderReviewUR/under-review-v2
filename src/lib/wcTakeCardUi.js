@@ -2,7 +2,7 @@
  * World Cup UR Take card — section mapping + stat grid (Card Contract Option 1).
  */
 
-import { capWcDeepWords, splitWcSentences } from "../../shared/wcSentenceBoundaries.js";
+import { capWcCharsAtWord, capWcDeepWords, splitWcSentences } from "../../shared/wcSentenceBoundaries.js";
 import { getWcTeamByAbbr } from "../data/wc2026Teams.js";
 import { dedupeWcBreakdownParagraphs } from "../../shared/wcBreakdownParse.js";
 import { sanitizeWcUserFacingProse } from "../../shared/wcUserFacingCopy.js";
@@ -181,9 +181,9 @@ export function buildWcParlayListFace(opts = {}) {
 }
 
 /** Collapsed thread teaser only — active card face shows full why. */
-export const WC_COLLAPSED_THREAD_WHY_WORDS = 16;
+export const WC_COLLAPSED_THREAD_WHY_WORDS = 22;
 
-const WC_FACE_HEADLINE_WORDS = 14;
+const WC_FACE_HEADLINE_WORDS = 24;
 const WC_FACE_BREAKDOWN_PREVIEW_WORDS = 220;
 const WC_FACE_PREMIUM_BREAKDOWN_PREVIEW_WORDS = 340;
 
@@ -204,8 +204,9 @@ export function wcBreakdownPreviewIsTruncated(full, preview) {
  * @param {{ maxWords?: number, maxSentences?: number }} [opts]
  */
 export function capWcCardFaceField(text, opts = {}) {
-  const maxWords = opts.maxWords ?? 32;
+  const maxWords = opts.maxWords ?? 36;
   const maxSentences = opts.maxSentences ?? 2;
+  const maxChars = opts.maxChars ?? 0;
   const t = String(text || "").trim();
   if (!t) return "";
 
@@ -219,6 +220,9 @@ export function capWcCardFaceField(text, opts = {}) {
       out = out.replace(/\s*\([^)]*$/, "").trim();
       if (out && !out.endsWith("…")) out = `${out}…`;
     }
+  }
+  if (maxChars > 0 && out.length > maxChars) {
+    out = capWcCharsAtWord(out, maxChars);
   }
   return out;
 }

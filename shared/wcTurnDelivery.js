@@ -25,6 +25,7 @@ import {
   isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
+import { capWcCharsAtWord } from "./wcSentenceBoundaries.js";
 import {
   buildWcPostedGenericPropsFollowUpPromptBlock,
   formatWcLiveMatchStatePhrase,
@@ -731,7 +732,7 @@ export function buildWcThreadContinuationFallback(priorLean, opts = {}) {
       : `Still aligned with the prior live lean${whileLive}.`;
   }
 
-  const snippet = raw.split(/[;·]/)[0].trim().slice(0, 88);
+  const snippet = capWcCharsAtWord(raw.split(/[;·]/)[0].trim(), 120);
   if (snippet) {
     return `Still aligned with the prior lean (${snippet})${whileLive} — no reason to cold-pass yet.`;
   }
@@ -792,7 +793,7 @@ export function applyWcThreadPriorLeanPassRewrite(structured, opts = {}) {
   return {
     ...structured,
     lean: rewritten,
-    call: !call || isGenericWcPassLean(call) ? rewritten.slice(0, 100) : call,
+    call: !call || isGenericWcPassLean(call) ? rewritten : call,
   };
 }
 
@@ -846,7 +847,7 @@ export function buildWcThreadAwareNoPropsFallback(priorLean, fixture = {}) {
       .replace(/; no new actionable line yet\.?$/i, "");
     return `No player props posted yet for ${fixtureLabel} — sticking with ${thesis}${whileLive}.${closing}`;
   }
-  const snippet = raw.split(/[;·]/)[0].trim().slice(0, 72);
+  const snippet = capWcCharsAtWord(raw.split(/[;·]/)[0].trim(), 96);
   return snippet
     ? `No player props posted yet for ${fixtureLabel} — sticking with prior lean (${snippet})${whileLive}.${closing}`
     : `No player props posted yet for ${fixtureLabel} — hold the prior match lean until lines post.${closing}`;

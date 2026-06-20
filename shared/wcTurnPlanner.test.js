@@ -627,6 +627,32 @@ test("applyWcThreadPriorLeanPassRewrite — rewrites cold generic PASS", () => {
   );
   assert.doesNotMatch(String(out.lean), /no actionable line yet/i);
   assert.match(String(out.lean), /Under 3\.5/i);
+  assert.equal(String(out.call), String(out.lean));
+  assert.doesNotMatch(String(out.call), / matter m$/);
+});
+
+test("applyWcThreadPriorLeanPassRewrite — call keeps full continuation not mid-word slice", () => {
+  const longPrior =
+    "Pass on ML — lean both Scotland and Morocco to advance in group stage because group dynamics matter more than live pricing";
+  const out = applyWcThreadPriorLeanPassRewrite(
+    {
+      lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      call: "Pass — no actionable line yet",
+    },
+    {
+      wcTurnPlan: {
+        lane: WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP,
+        priorLean: { lean: longPrior, whyNow: "Morocco leads 1-0 live" },
+        isConversationFollowUp: true,
+      },
+      question: "Does Morocco sitting deep flip this to Under?",
+      history: [{ role: "assistant", content: longPrior }],
+    },
+  );
+  assert.ok(String(out.call).length > 100);
+  assert.doesNotMatch(String(out.call), / matter m$/);
+  assert.match(String(out.call), /Still aligned with the prior lean|Under 3\.5 still looks solid/i);
+  assert.equal(String(out.call), String(out.lean));
 });
 
 test("buildWcThreadPassPolicyPromptBlock — injects for llm_thread with prior lean", () => {

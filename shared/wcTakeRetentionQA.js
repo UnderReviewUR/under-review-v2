@@ -4,7 +4,7 @@
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
-import { splitWcSentences } from "./wcSentenceBoundaries.js";
+import { capWcCharsAtWord, splitWcSentences } from "./wcSentenceBoundaries.js";
 
 /** @param {string} a @param {string} b @returns {number} 0–1 overlap score */
 export function wcSentenceSimilarity(a, b) {
@@ -860,7 +860,7 @@ export function synthesizeWcCardFaceNumericWhy(structured, question = "") {
       return `Posted ${totalGoals[1]} total — over ${totalGoals[2]}${pct}.`;
     }
     const whyNow = String(structured?.whyNow || "").trim();
-    if (whyNow && !/^sims:/i.test(whyNow)) return whyNow.slice(0, 140);
+    if (whyNow && !/^sims:/i.test(whyNow)) return capWcCharsAtWord(whyNow, 180);
     return "";
   }
 

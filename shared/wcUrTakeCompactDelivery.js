@@ -30,6 +30,7 @@ import {
   parseWcPredictionSlots,
 } from "./wcPredictionsRoundup.js";
 import {
+  capWcCharsAtWord,
   capWcDeepWords,
   capWcStructuredDeep,
   splitWcSentences,
@@ -655,7 +656,7 @@ function synthesizeRoundupCall(slots, summarySents) {
   }
   if (nation) {
     const thesis = winners.value.split(/—|–|-/).slice(1).join(" ").trim();
-    if (thesis) return `${nation}'s path is the thesis — ${thesis}`.slice(0, 140);
+    if (thesis) return capWcCharsAtWord(`${nation}'s path is the thesis — ${thesis}`, 160);
   }
   const first = summarySents[0]?.trim();
   return first && !FAIR_ONLY_SUMMARY_RE.test(first) ? first : "";

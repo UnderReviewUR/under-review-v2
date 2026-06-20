@@ -132,6 +132,22 @@ export function capWcDeepWords(text, maxWords = 600) {
 }
 
 /**
+ * Character cap at a word boundary — never mid-word; adds ellipsis when trimmed.
+ * @param {string} text
+ * @param {number} [maxChars]
+ */
+export function capWcCharsAtWord(text, maxChars = 140) {
+  const t = String(text || "").trim();
+  if (!t || t.length <= maxChars) return t;
+  const slice = t.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > Math.floor(maxChars * 0.45)) {
+    return `${slice.slice(0, lastSpace).trim()}…`;
+  }
+  return `${slice.trim()}…`;
+}
+
+/**
  * Word-cap deep copy without flattening paragraph breaks (slate / group boards).
  * @param {string} text
  * @param {number} [maxWords]
