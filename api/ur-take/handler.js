@@ -271,8 +271,10 @@ import {
   isWcFixtureScopedPlayerMarketQuestion,
   resolveWcPlayerMarketResponse,
   isWcNamedPlayerPropQuestion,
+  isGenericWcPlayerPropQuestion,
   extractWcNamedPlayerFromQuestion,
 } from "../../shared/wcUrTakePlayerMarket.js";
+import { resolveWcEventIdForPlayerNation } from "../../shared/wcPlayerPropFixture.js";
 import { buildWcPlayerMarketPrebuiltStructured, resolveWcPlayerMarketTier, tierMetaFor } from "../../shared/wcPlayerMarketResolve.js";
 import {
   buildWcGroupSlatePrebuiltStructured,
@@ -3575,21 +3577,33 @@ export default async function handler(req, res) {
         !hasImage &&
         !wcContext?.playerMarketKv?.matchPlayerProps &&
         (wcPropsRoute?.applyRoute ||
+          Boolean(wcPropsRoute?.preview?.pinnedEventId) ||
           (isWcPlayerMarketIntent(wcIntent) &&
             (wcRequiredEntities.length >= 2 ||
+              (wcRequiredEntities.length >= 1 &&
+                isGenericWcPlayerPropQuestion(routingQuestion)) ||
               isWcNamedPlayerPropQuestion(routingQuestion) ||
               (wcIntent === WC_INTENT.PLAYER_PROP &&
                 extractWcNamedPlayerFromQuestion(routingQuestion)))));
 
       if (shouldSupplementPlayerKv) {
         try {
+          const nationPinnedEventId =
+            wcRequiredEntities.length === 1 && Array.isArray(wcContext.allMatches)
+              ? resolveWcEventIdForPlayerNation(
+                  wcContext.allMatches,
+                  wcRequiredEntities[0],
+                )
+              : null;
           const playerEventId = String(
-            wcPropsRoute.wcEventId ||
+            wcPropsRoute?.wcEventId ||
+              wcPropsRoute?.preview?.pinnedEventId ||
+              nationPinnedEventId ||
               wcContext.wcEventId ||
               wcEventIdTrimmed ||
               "",
           ).trim();
-          const kvWcIntent = wcPropsRoute.applyRoute
+          const kvWcIntent = wcPropsRoute?.applyRoute
             ? WC_INTENT.PLAYER_PROP
             : wcIntent;
           const playerMarketKv = await loadWcPlayerMarketKvBlocksWithRetry(
@@ -3600,7 +3614,7 @@ export default async function handler(req, res) {
               question: routingQuestion,
               matches: wcContext.allMatches || [],
               conversationHistory: normalizedUrTakeHistoryForGate,
-              requiredEntities: wcPropsRoute.applyRoute
+              requiredEntities: wcPropsRoute?.applyRoute
                 ? [wcPropsRoute.fixtureHome, wcPropsRoute.fixtureAway].filter(Boolean)
                 : wcRequiredEntities,
             },

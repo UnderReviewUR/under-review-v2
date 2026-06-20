@@ -1241,7 +1241,8 @@ export function resolveWcPlayerMarketAnswer(
   const knownNames = extractKnownPlayerNamesFromKv(kvBlocks);
   const questionStr = String(question || "").trim();
   const history = Array.isArray(wcContext?.conversationHistory) ? wcContext.conversationHistory : [];
-  const fixtureTeams = resolveWcPlayerPropFixtureTeams(questionStr, history, wcContext);
+  const fixtureMatches = Array.isArray(wcContext?.allMatches) ? wcContext.allMatches : [];
+  const fixtureTeams = resolveWcPlayerPropFixtureTeams(questionStr, history, wcContext, fixtureMatches);
   const questionTeams = extractMentionedWcTeams(questionStr);
   const isFixturePlayerPropAsk =
     isGenericWcPlayerPropQuestion(questionStr) ||
@@ -1420,6 +1421,10 @@ export function resolveWcPlayerMarketAnswer(
   }
 
   if (forcePass) {
+    const fixturePassCall =
+      fixturePlayerProps && fixtureTeams.length >= 2
+        ? `Player prop lines aren't posted yet for ${wcMatchupTeamDisplayName(fixtureTeams[0])} vs ${wcMatchupTeamDisplayName(fixtureTeams[1])}.`
+        : buildWcPlayerPropPassHeadline(questionStr);
     const structured =
       detectParlayIntent(questionStr) || wcIntent === WC_INTENT.PARLAY
         ? buildWcPlayerParlayPassStructured(questionStr, extractParlayLegCount(questionStr))
@@ -1428,7 +1433,7 @@ export function resolveWcPlayerMarketAnswer(
             sport: "worldcup",
             callType: meta.callType,
             playerMarketTier: tier,
-            call: buildWcPlayerPropPassHeadline(questionStr),
+            call: fixturePassCall,
             lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
             whyNow: genericSlateProps
               ? "Player props for the remaining slate need confirmed XI and posted match lines in VERIFIED CONTEXT."
@@ -1440,6 +1445,9 @@ export function resolveWcPlayerMarketAnswer(
               : "No priced player edge until KV fills.",
             confidence: "Speculative",
             analysis: questionStr,
+            ...(fixtureTeams.length >= 2
+              ? { fixtureHome: fixtureTeams[0], fixtureAway: fixtureTeams[1] }
+              : {}),
           },
           questionStr,
         );

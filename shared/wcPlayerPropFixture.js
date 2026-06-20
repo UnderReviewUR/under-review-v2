@@ -5,6 +5,7 @@
 import { WC_FULL_SQUADS } from "../src/data/wc2026FullSquadsSeed.js";
 import {
   extractWcPlayerPropNameHint,
+  isGenericWcPlayerPropQuestion,
   isWcFixtureScopedPlayerMarketQuestion,
   isWcGoalkeeperPropsQuestion,
   isWcNamedPlayerPropQuestion,
@@ -421,7 +422,12 @@ export function resolveWcPlayerPropSlateFixtureTeams(question, matches = [], now
  * @param {{ requiredEntities?: string[], conversationHistory?: object[] }} [wcContext]
  * @returns {string[]}
  */
-export function resolveWcPlayerPropFixtureTeams(question, history = [], wcContext = null) {
+export function resolveWcPlayerPropFixtureTeams(
+  question,
+  history = [],
+  wcContext = null,
+  matches = [],
+) {
   const contextTeams = Array.isArray(wcContext?.requiredEntities)
     ? wcContext.requiredEntities.map((t) => String(t).toUpperCase()).filter(Boolean)
     : [];
@@ -454,6 +460,23 @@ export function resolveWcPlayerPropFixtureTeams(question, history = [], wcContex
     }
     const cont = resolveContinuationEntities(hist);
     if (cont.length >= 2) return cont.map((t) => String(t).toUpperCase());
+  }
+
+  const matchList = Array.isArray(matches) ? matches : [];
+  if (
+    fromQuestion.length === 1 &&
+    matchList.length &&
+    (/\bplayer props?\b/i.test(q) || isGenericWcPlayerPropQuestion(q))
+  ) {
+    const slateTeams = resolveWcPlayerPropSlateFixtureTeams(q, matchList);
+    if (slateTeams.length >= 2) return slateTeams;
+    const nationEventId = resolveWcEventIdForPlayerNation(matchList, fromQuestion[0]);
+    if (nationEventId) {
+      const m = matchList.find((row) => String(row?.id) === String(nationEventId));
+      if (m?.homeTeam && m?.awayTeam) {
+        return [String(m.homeTeam).toUpperCase(), String(m.awayTeam).toUpperCase()];
+      }
+    }
   }
 
   return fromQuestion;

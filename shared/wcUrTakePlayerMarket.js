@@ -16,6 +16,7 @@ import {
   extractMentionedWcTeamsInQuestionOrder,
 } from "./wcUrTakeKeywords.js";
 import { textMentionsWcTeam } from "./wcUrTakeEntityBinding.js";
+import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import {
   resolveWcPlayerMarketAnswer,
   resolveWcPlayerMarketTier,
@@ -1866,7 +1867,9 @@ export function repairWcPlayerPropPassCard(structured, question = "") {
   const sgpCombo = detectWcSgpComboIntent(question);
   const headline = sgpCombo
     ? buildWcSgpComboPassHeadline(question)
-    : buildWcPlayerPropPassHeadline(question);
+    : out.fixtureHome && out.fixtureAway
+      ? `Player prop lines aren't posted yet for ${wcMatchupTeamDisplayName(String(out.fixtureHome))} vs ${wcMatchupTeamDisplayName(String(out.fixtureAway))}.`
+      : buildWcPlayerPropPassHeadline(question);
 
   out.call = headline;
   if (sgpCombo) {

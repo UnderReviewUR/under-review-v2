@@ -36,8 +36,11 @@ import {
 import { resolveWcFixturePairFromHistory } from "../../shared/wcFixtureMatchupPrebuilt.js";
 import {
   resolveWcEventIdForFixtureTeams,
+  resolveWcEventIdForPlayerNation,
   resolveWcPlayerPropFixtureTeams,
+  resolveWcPlayerPropSlateFixtureTeams,
 } from "../../shared/wcPlayerPropFixture.js";
+import { extractMentionedWcTeams } from "../../shared/wcUrTakeKeywords.js";
 import { wcMatchupTeamDisplayName } from "../../shared/wcMatchupWinnerLine.js";
 import { detectParlayIntent, extractParlayLegCount } from "../../shared/detectParlayIntent.js";
 import { detectWcSgpComboIntent } from "../../shared/wcUrTakePhilosophy.js";
@@ -278,10 +281,12 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     return { handled: false };
   }
 
+  const matches = await resolveWcMatchesForPlayerProps(wcContext);
+
   const fixtureTeams = resolveWcPlayerPropFixtureTeams(routingQ, history, {
     requiredEntities: wcRequiredEntities,
     conversationHistory: history,
-  });
+  }, matches);
   const historyPair = resolveWcFixturePairFromHistory(history);
   const namedPlayerPropsAsk = isWcNamedPlayerPropQuestion(routingQ);
   if (
@@ -293,7 +298,6 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     return { handled: false };
   }
 
-  const matches = await resolveWcMatchesForPlayerProps(wcContext);
   let wcEventId =
     String(
       wcPropsRoute?.wcEventId ||
@@ -307,6 +311,18 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   }
   if (!wcEventId && historyPair?.home && historyPair?.away) {
     wcEventId = resolveWcEventIdForFixtureTeams(matches, historyPair.home, historyPair.away);
+  }
+  if (!wcEventId && matches.length) {
+    const mentioned = extractMentionedWcTeams(routingQ);
+    if (mentioned.length === 1) {
+      wcEventId = resolveWcEventIdForPlayerNation(matches, mentioned[0]);
+    }
+    if (!wcEventId && isGenericWcPlayerPropQuestion(routingQ)) {
+      const slateTeams = resolveWcPlayerPropSlateFixtureTeams(routingQ, matches);
+      if (slateTeams.length >= 2) {
+        wcEventId = resolveWcEventIdForFixtureTeams(matches, slateTeams[0], slateTeams[1]);
+      }
+    }
   }
 
   wcRelevanceLog.wcPropsLoadMatchProps = Boolean(wcPropsRoute?.loadMatchProps);

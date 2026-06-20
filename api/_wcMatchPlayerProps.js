@@ -27,6 +27,7 @@ import {
   matchPlayerPropsForEvent,
   mergeMatchPlayerPropMarketMaps,
   readFreshMatchPlayerPropsForEvent,
+  resolveMatchPlayerPropsEventForTeams,
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
 import { normalizeWcPlayerName } from "../shared/wcPlayerRegistry.js";
@@ -466,8 +467,25 @@ export async function readWcMatchPlayerPropsKv(nowMs = Date.now()) {
  * @param {Record<string, unknown> | null | undefined} [kvRoot]
  */
 export async function readWcMatchPlayerPropsForEvent(eventId, nowMs = Date.now(), kvRoot = undefined) {
+  const id = String(eventId || "").trim();
+  if (!id) return null;
   const kv = kvRoot !== undefined ? kvRoot : await readWcMatchPlayerPropsKv(nowMs);
-  return readFreshMatchPlayerPropsForEvent(kv, String(eventId), nowMs);
+  const direct = readFreshMatchPlayerPropsForEvent(kv, id, nowMs);
+  if (direct && hasMatchPlayerPropRows(direct)) return direct;
+
+  const meta = await readMatchMetaFromKv(id);
+  if (meta?.bdlMatchId != null) {
+    const byBdl = readFreshMatchPlayerPropsForEvent(kv, String(meta.bdlMatchId), nowMs);
+    if (byBdl && hasMatchPlayerPropRows(byBdl)) return byBdl;
+  }
+  if (meta?.homeTeam && meta?.awayTeam) {
+    const pinned = resolveMatchPlayerPropsEventForTeams(kv, meta.homeTeam, meta.awayTeam);
+    if (pinned?.payload && hasMatchPlayerPropRows(pinned.payload)) {
+      return /** @type {Record<string, unknown>} */ (pinned.payload);
+    }
+  }
+
+  return direct;
 }
 
 /**

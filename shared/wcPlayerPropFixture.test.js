@@ -8,6 +8,7 @@ import {
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
   resolveWcPlayerPropSlateFixtureTeams,
+  resolveWcPlayerPropFixtureTeams,
 } from "./wcPlayerPropFixture.js";
 import {
   attachMatchPlayerPropsFreshness,
@@ -243,4 +244,36 @@ test("isMatchPlayerPropsFresh — shots-only BDL payload counts as fresh", () =>
   const attached = attachMatchPlayerPropsFreshness(event);
   assert.equal(attached?.stale, false);
   assert.equal(isMatchPlayerPropsFresh(event), true);
+});
+
+const BRA_HAI_MATCHES = [
+  {
+    id: "760444",
+    homeTeam: "BRA",
+    awayTeam: "HAI",
+    status: "live",
+    date: "2026-06-19",
+    commenceTs: Date.now() - 3_600_000,
+  },
+  {
+    id: "760447",
+    homeTeam: "NED",
+    awayTeam: "SWE",
+    status: "NS",
+    date: "2026-06-20",
+    commenceTs: Date.now() + 86_400_000,
+  },
+];
+
+test("resolveWcPlayerPropFixtureTeams — haiti tonight pins BRA vs HAI", () => {
+  const q = "best player props for haiti tonight?";
+  const teams = resolveWcPlayerPropFixtureTeams(q, [], null, BRA_HAI_MATCHES);
+  assert.deepEqual(teams, ["BRA", "HAI"]);
+  assert.equal(resolveWcEventIdForPlayerNation(BRA_HAI_MATCHES, "HAI"), "760444");
+});
+
+test("resolveWcPlayerPropFixtureTeams — single nation props pins live fixture", () => {
+  const q = "best player props for Haiti?";
+  const teams = resolveWcPlayerPropFixtureTeams(q, [], null, BRA_HAI_MATCHES);
+  assert.deepEqual(teams, ["BRA", "HAI"]);
 });

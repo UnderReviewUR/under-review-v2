@@ -163,11 +163,14 @@ async function ensureWcBdlPlayersCatalogForUrTake(nowMs = Date.now()) {
  */
 async function resolveWcPlayerMarketMatches(matches, question) {
   if (Array.isArray(matches) && matches.length) return matches;
+  const q = String(question || "");
   const needsMatches =
-    isWcNamedPlayerPropQuestion(question) ||
-    isWcFixturePlayerPropsQuestion(question) ||
-    isWcFixtureScopedPlayerMarketQuestion(question) ||
-    detectParlayIntent(question);
+    isWcNamedPlayerPropQuestion(q) ||
+    isWcFixturePlayerPropsQuestion(q) ||
+    isWcFixtureScopedPlayerMarketQuestion(q) ||
+    isGenericWcPlayerPropQuestion(q) ||
+    /\bplayer props?\b/i.test(q) ||
+    detectParlayIntent(q);
   if (!needsMatches) return [];
   try {
     const payload = await getMatchesPayload({ preferGoat: true, forUrTake: true });
@@ -228,7 +231,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     (opts.wcIntent === WC_INTENT.PLAYER_PROP && isGenericWcPlayerPropQuestion(question));
 
   if (!wcEventId && shouldPinFixtureFromQuestion && matches.length) {
-    const teams = resolveWcPlayerPropFixtureTeams(question, history, teamContext);
+    const teams = resolveWcPlayerPropFixtureTeams(question, history, teamContext, matches);
     if (teams.length >= 2) {
       wcEventId = resolveWcEventIdForFixtureTeams(matches, teams[0], teams[1]);
     }
@@ -254,6 +257,31 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     }
   }
 
+  if (!wcEventId && matches.length) {
+    const mentioned = extractMentionedWcTeams(question);
+    if (
+      mentioned.length === 1 &&
+      (isGenericWcPlayerPropQuestion(question) || /\bplayer props?\b/i.test(question))
+    ) {
+      const nationPinned = resolveWcEventIdForPlayerNation(matches, mentioned[0]);
+      if (nationPinned) wcEventId = nationPinned;
+    }
+  }
+
+  if (wcEventId && matchPropsKvRoot && matches.length) {
+    const pinnedTeams = resolveWcPlayerPropFixtureTeams(question, history, teamContext, matches);
+    if (pinnedTeams.length >= 2) {
+      const kvPinned = resolveMatchPlayerPropsEventForTeams(
+        matchPropsKvRoot,
+        pinnedTeams[0],
+        pinnedTeams[1],
+      );
+      if (kvPinned?.eventId) {
+        wcEventId = kvPinned.eventId;
+      }
+    }
+  }
+
   const loadSlateMatchProps =
     !wcEventId &&
     matches.length > 0 &&
@@ -268,7 +296,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
           if (m?.homeTeam && m?.awayTeam) {
             return { homeTeam: String(m.homeTeam), awayTeam: String(m.awayTeam) };
           }
-          const pinned = resolveWcPlayerPropFixtureTeams(question, history, teamContext);
+          const pinned = resolveWcPlayerPropFixtureTeams(question, history, teamContext, matches);
           if (pinned.length >= 2) {
             return { homeTeam: pinned[0], awayTeam: pinned[1] };
           }
@@ -347,7 +375,32 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
             else if (cachedBeforeRefresh) payload = cachedBeforeRefresh;
           }
           if (!payload || !hasMatchPlayerPropRows(payload)) {
-            payload = await readWcMatchPlayerPropsForEvent(wcEventId, nowMs, matchPropsKvRoot);
+            const pinnedTeams = resolveWcPlayerPropFixtureTeams(
+              question,
+              history,
+              teamContext,
+              matches,
+            );
+            if (pinnedTeams.length >= 2 && matchPropsKvRoot) {
+              const kvPinned = resolveMatchPlayerPropsEventForTeams(
+                matchPropsKvRoot,
+                pinnedTeams[0],
+                pinnedTeams[1],
+              );
+              if (kvPinned?.eventId) {
+                const altPayload = readCachedMatchPlayerPropsForEvent(
+                  kvPinned.eventId,
+                  matchPropsKvRoot,
+                  nowMs,
+                );
+                if (hasMatchPlayerPropRows(altPayload)) {
+                  payload = altPayload;
+                }
+              }
+            }
+            if (!payload || !hasMatchPlayerPropRows(payload)) {
+              payload = await readWcMatchPlayerPropsForEvent(wcEventId, nowMs, matchPropsKvRoot);
+            }
           }
           return payload;
         })()
@@ -525,7 +578,7 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
   const teams = resolveWcPlayerPropFixtureTeams(question, history, {
     requiredEntities: opts.requiredEntities,
     conversationHistory: history,
-  });
+  }, Array.isArray(opts.matches) ? opts.matches : []);
   const eventId = String(kvBlocks?.wcEventId || opts.wcEventId || "").trim();
   if (
     !matchPlayerPropsUsableForUrTake(kvBlocks.matchPlayerProps, {
@@ -699,16 +752,17 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
     };
   }
 
-  if (eventIdHint) {
+  if (eventIdHint || last?.wcEventId) {
+    const fallbackEventId = String(eventIdHint || last?.wcEventId || "").trim();
     try {
-      const kvPayload = await readWcMatchPlayerPropsForEvent(eventIdHint, nowMs);
+      const kvPayload = await readWcMatchPlayerPropsForEvent(fallbackEventId, nowMs);
       if (
         kvPayload &&
         hasMatchPlayerPropRows(kvPayload) &&
         matchPlayerPropsUsableForUrTake(kvPayload, {
           nowMs,
           matchStatus: resolveWcMatchStatusForPropsOpts(opts, {
-            wcEventId: eventIdHint,
+            wcEventId: fallbackEventId,
             matchPlayerProps: kvPayload,
           }),
         })
@@ -718,13 +772,13 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
           goldenBoot: last?.goldenBoot ?? null,
           injuries: last?.injuries ?? null,
           matchPlayerProps: kvPayload,
-          wcEventId: eventIdHint,
+          wcEventId: fallbackEventId,
         };
-        writeMatchPropsMemoryCache(eventIdHint, fallback);
+        writeMatchPropsMemoryCache(fallbackEventId, fallback);
         console.log(
           JSON.stringify({
             event: "wc_player_props_kv_loaded",
-            wcEventId: eventIdHint,
+            wcEventId: fallbackEventId,
             attempt: maxRetries + 1,
             loadMs,
             recoveredFromKvFallback: true,
