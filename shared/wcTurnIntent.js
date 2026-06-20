@@ -281,6 +281,9 @@ export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
     if (isWcGenericPlayerPropsThreadFollowUp(question, history, prior)) {
       return WC_INTENT.MATCHUP;
     }
+    if (isWcMatchupAltMarketFollowUp(question) || isWcTotalsExplainFollowUp(question)) {
+      return WC_INTENT.MATCHUP;
+    }
     if (isWcPlayerPropFollowUpExplain(question, history)) {
       return WC_INTENT.PLAYER_PROP;
     }

@@ -110,6 +110,11 @@ export {
   wcPlannerDeliveryLane,
   buildWcThreadAwarePassFallback,
   buildWcThreadAwareNoPropsFallback,
+  buildWcThreadContinuationFallback,
+  buildWcThreadPassPolicyPromptBlock,
+  isGenericWcPassLean,
+  applyWcThreadPriorLeanPassRewrite,
+  wcTurnUsesThreadPassPolicy,
   buildWcGenericPropsFollowUpPromptBlock,
   extractWcPriorLiveScoreSnippet,
   applyWcLlmThreadPriorLeanToContext,
@@ -379,7 +384,15 @@ export function resolveWcTurnPlan(params = {}) {
 
   // ── Step 4a: Entity pricing / structural — always LLM, never live/matchup prebuilts ──
   // Misprice asks on a live fixture must not fall through to live_match_winner prebuilt.
-  if (intent === WC_INTENT.ENTITY_PRICING || intent === WC_INTENT.STRUCTURAL) {
+  // Thread totals/tactical follow-ups stay on matchup routing — not entity-pricing LLM.
+  const threadTotalsFollowUp =
+    isConversationFollowUp &&
+    priorLean &&
+    (isWcMatchupAltMarketFollowUp(question) || isWcTotalsExplainFollowUp(question));
+  if (
+    (intent === WC_INTENT.ENTITY_PRICING || intent === WC_INTENT.STRUCTURAL) &&
+    !threadTotalsFollowUp
+  ) {
     plan.lane = WC_TURN_LANE.LLM_FULL;
     plan.reason =
       intent === WC_INTENT.ENTITY_PRICING ? "entity_pricing_llm" : "structural_llm";

@@ -218,6 +218,7 @@ import {
   applyWcLlmThreadPriorLeanToContext,
   applyWcLlmThreadPriorLeanToGroundingPacket,
   buildWcPriorLeanPromptBlock,
+  wcTurnUsesThreadPassPolicy,
 } from "../../shared/wcTurnDelivery.js";
 import { deliverWcTurnByPlan } from "./wcTurnPlanDelivery.js";
 import {
@@ -5894,7 +5895,7 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
     });
     const wcPriorLeanBlock =
       wcContext?.wcPriorLeanBlock ||
-      (wcTurnPlan?.lane === WC_TURN_LANE.LLM_THREAD && wcTurnPlan?.priorLean
+      (wcTurnPlan && wcTurnUsesThreadPassPolicy(wcTurnPlan)
         ? buildWcPriorLeanPromptBlock(wcTurnPlan.priorLean)
         : "");
 

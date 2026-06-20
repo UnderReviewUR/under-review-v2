@@ -17,6 +17,9 @@ import {
   shouldActivateWcPropsFastPath,
   buildWcThreadAwarePassFallback,
   buildWcThreadAwareNoPropsFallback,
+  buildWcThreadContinuationFallback,
+  buildWcThreadPassPolicyPromptBlock,
+  applyWcThreadPriorLeanPassRewrite,
   buildWcGenericPropsFollowUpPromptBlock,
   applyWcLlmThreadPriorLeanToContext,
   applyWcLlmThreadPriorLeanToGroundingPacket,
@@ -572,12 +575,91 @@ test("assertWcTurnPlanFastPathConsistency — rejects fast lane without shouldUs
   );
 });
 
-test("buildWcThreadAwarePassFallback — references prior totals lean", () => {
+test("buildWcThreadAwarePassFallback — references prior totals lean with warm continuation", () => {
   const msg = buildWcThreadAwarePassFallback({
     lean: "2 live leans at 0-0: United States +110 + Under 2.5 goals",
   });
-  assert.match(msg, /building on the Under 2\.5 lean/i);
+  assert.match(msg, /Still like the Under 2\.5/i);
   assert.doesNotMatch(msg, /no actionable line yet; see Watch For/i);
+  assert.doesNotMatch(msg, /Pass for now/i);
+});
+
+test("buildWcThreadContinuationFallback — Morocco sitting deep under question", () => {
+  const msg = buildWcThreadContinuationFallback(
+    {
+      lean: "Lean Under 3.5 goals",
+      whyNow: "Morocco leads 1-0 live",
+      fixtureHome: "SCO",
+      fixtureAway: "MAR",
+    },
+    {
+      question: "Does Morocco sitting deep flip this to Under?",
+      match: {
+        homeTeam: "SCO",
+        awayTeam: "MAR",
+        homeScore: 0,
+        awayScore: 1,
+        status: "live",
+        minute: "67",
+      },
+    },
+  );
+  assert.match(msg, /Under 3\.5 still looks solid/i);
+  assert.match(msg, /Morocco leads 1-0/i);
+  assert.doesNotMatch(msg, /no actionable line yet/i);
+});
+
+test("applyWcThreadPriorLeanPassRewrite — rewrites cold generic PASS", () => {
+  const out = applyWcThreadPriorLeanPassRewrite(
+    {
+      lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      call: "Pass — no actionable line yet",
+    },
+    {
+      wcTurnPlan: {
+        lane: WC_TURN_LANE.LLM_THREAD,
+        priorLean: { lean: "Lean Under 3.5 goals", whyNow: "Morocco leads 1-0 live" },
+        isConversationFollowUp: true,
+      },
+      question: "any player props to consider?",
+      history: [{ role: "assistant", content: "Lean Under 3.5 goals" }],
+    },
+  );
+  assert.doesNotMatch(String(out.lean), /no actionable line yet/i);
+  assert.match(String(out.lean), /Under 3\.5/i);
+});
+
+test("buildWcThreadPassPolicyPromptBlock — injects for llm_thread with prior lean", () => {
+  const plan = resolveWcTurnPlan({
+    question: "Does Morocco sitting deep flip this to Under?",
+    history: [
+      { role: "user", content: "Best live angle on SCO vs MAR right now?" },
+      {
+        role: "assistant",
+        structured: {
+          callType: "matchup",
+          fixtureHome: "SCO",
+          fixtureAway: "MAR",
+          lean: "Lean Under 3.5 goals",
+          whyNow: "Morocco leads 1-0 live",
+        },
+      },
+    ],
+    matches: [{ id: "1001", homeTeam: "SCO", awayTeam: "MAR", status: "live", homeScore: 0, awayScore: 1, minute: "67" }],
+    isConversationFollowUp: true,
+    incomingWcEventId: "1001",
+    hasKvFixture: true,
+  });
+  assert.ok(
+    plan.lane === WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP || plan.lane === WC_TURN_LANE.LLM_THREAD,
+  );
+  const block = buildWcThreadPassPolicyPromptBlock(plan, {
+    question: "Does Morocco sitting deep flip this to Under?",
+    match: { homeTeam: "SCO", awayTeam: "MAR", homeScore: 0, awayScore: 1, minute: "67", status: "live" },
+  });
+  assert.match(block, /WC THREAD PASS POLICY/i);
+  assert.match(block, /Only say PASS if you truly have zero edge/i);
+  assert.match(block, /Target continuation lean/i);
 });
 
 test("resolveWcTurnPlan — rules question routes to rules_llm", () => {

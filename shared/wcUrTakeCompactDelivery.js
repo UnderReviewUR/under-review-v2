@@ -35,7 +35,7 @@ import {
   splitWcSentences,
 } from "./wcSentenceBoundaries.js";
 import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
-import { buildWcThreadAwarePassFallback } from "./wcTurnDelivery.js";
+import { buildWcThreadAwarePassFallback, applyWcThreadPriorLeanPassRewrite } from "./wcTurnDelivery.js";
 import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import {
   extractWcMatchupPlayHeadline,
@@ -319,10 +319,19 @@ function buildWcMatchupCompactStructured(opts = {}) {
         wcIntent: WC_INTENT.MATCHUP,
         pass,
         history: opts.history,
+        priorLean: opts.priorLean,
+        wcTurnPlan: opts.wcTurnPlan,
+        match: opts.match,
       });
   }
   if (WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
-    lean = synthesizeWcMatchupPlay(summary, deep, question, teams, true);
+    lean =
+      synthesizeWcMatchupPlay(summary, deep, question, teams, true) ||
+      buildWcThreadAwarePassFallback(
+        opts.priorLean ||
+          (Array.isArray(opts.history) ? extractLastAssistantStructured(opts.history) : null),
+        { question, match: opts.match },
+      );
   }
 
   const pass = isWcPassVerdict(summary, lean);
@@ -559,7 +568,10 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
   const priorLean =
     opts.priorLean ||
     (Array.isArray(opts.history) ? extractLastAssistantStructured(opts.history) : null);
-  return buildWcThreadAwarePassFallback(priorLean);
+  return buildWcThreadAwarePassFallback(priorLean, {
+    question: opts.question,
+    match: opts.match,
+  });
 }
 
 /**
@@ -877,6 +889,7 @@ function finalizeWcCompactExplainDelivery(built, opts = {}) {
   if (Array.isArray(opts.history) && opts.history.length > 0) {
     out = applyWcFollowUpExplainDelivery(out, String(opts.question || ""), opts.history);
   }
+  out = applyWcThreadPriorLeanPassRewrite(out, opts);
   return out;
 }
 

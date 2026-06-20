@@ -31,6 +31,22 @@ import {
 } from "./wcLivePropsBoardPrompt.js";
 import { hasMatchPlayerPropRows } from "./wcMatchPlayerProps.js";
 
+/** Lanes where prior lean must block cold generic PASS copy. */
+const WC_THREAD_PRIOR_LEAN_LANES = new Set([
+  WC_TURN_LANE.LLM_THREAD,
+  WC_TURN_LANE.LLM_FULL,
+  WC_TURN_LANE.LLM_LITE,
+  WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP,
+]);
+
+/**
+ * @param {import("./wcTurnConstants.js").WcTurnPlan | null | undefined} plan
+ */
+export function wcTurnUsesThreadPassPolicy(plan) {
+  if (!plan?.priorLean || !plan.isConversationFollowUp) return false;
+  return WC_THREAD_PRIOR_LEAN_LANES.has(plan.lane);
+}
+
 /** @typedef {import("./wcTurnConstants.js").WcTurnPlan} WcTurnPlan */
 
 /** @readonly */
@@ -396,6 +412,7 @@ export function buildWcPriorLeanPromptBlock(priorLean) {
   if (!Object.keys(payload).length) return "";
   return [
     "WC PRIOR TURN — STRUCTURED LEAN (binding thread continuity; extend this thesis — do not cold-start, contradict, or PASS without reconciling)",
+    "PASS POLICY: Only say PASS if you truly have zero edge and the prior lean no longer applies. Prefer holding/extending the prior lean with updated live reasoning. Never output cold generic \"Pass — no actionable line yet; see Watch For before locking a bet.\"",
     JSON.stringify(payload, null, 2),
   ].join("\n");
 }
@@ -560,19 +577,23 @@ function resolveLlmThreadPropsContext(wcContext, plan, packet = null) {
 
 export function applyWcLlmThreadPriorLeanToContext(wcContext, plan) {
   if (!wcContext || typeof wcContext !== "object") return wcContext;
-  if (plan?.lane !== WC_TURN_LANE.LLM_THREAD || !plan.priorLean) return wcContext;
+  if (!wcTurnUsesThreadPassPolicy(plan)) return wcContext;
   const priorBlock = buildWcPriorLeanPromptBlock(plan.priorLean);
   if (!priorBlock) return wcContext;
   const { match, propsPayload, question } = resolveLlmThreadPropsContext(wcContext, plan);
-  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(
-    plan,
-    {
-      homeName: plan.pinnedHome,
-      awayName: plan.pinnedAway,
-    },
-    { match, propsPayload, question },
-  );
-  const block = genericPropsBlock ? `${priorBlock}\n\n${genericPropsBlock}` : priorBlock;
+  const genericPropsBlock =
+    plan.reason === "generic_props_followup_after_prebuilt"
+      ? buildWcGenericPropsFollowUpPromptBlock(
+          plan,
+          {
+            homeName: plan.pinnedHome,
+            awayName: plan.pinnedAway,
+          },
+          { match, propsPayload, question },
+        )
+      : "";
+  const passPolicyBlock = buildWcThreadPassPolicyPromptBlock(plan, { question, match });
+  const block = [priorBlock, passPolicyBlock, genericPropsBlock].filter(Boolean).join("\n\n");
   wcContext.wcPriorLeanBlock = block;
   if (typeof wcContext.promptBlock === "string" && wcContext.promptBlock.trim()) {
     if (!wcContext.promptBlock.includes("WC PRIOR TURN — STRUCTURED LEAN")) {
@@ -591,7 +612,7 @@ export function applyWcLlmThreadPriorLeanToContext(wcContext, plan) {
  */
 export function applyWcLlmThreadPriorLeanToGroundingPacket(packet, plan) {
   if (!packet || typeof packet !== "object") return packet;
-  if (plan?.lane !== WC_TURN_LANE.LLM_THREAD || !plan.priorLean) return packet;
+  if (!wcTurnUsesThreadPassPolicy(plan)) return packet;
   packet.priorStructuredLean = plan.priorLean;
   if (!packet.views || typeof packet.views !== "object") packet.views = {};
   if (!packet.views.claude || typeof packet.views.claude !== "object") {
@@ -603,27 +624,32 @@ export function applyWcLlmThreadPriorLeanToGroundingPacket(packet, plan) {
     plan,
     packet,
   );
-  const genericPropsBlock = buildWcGenericPropsFollowUpPromptBlock(
-    plan,
-    {
-      homeName: plan.pinnedHome,
-      awayName: plan.pinnedAway,
-    },
-    {
-      match,
-      propsPayload: packet?.matchPlayerProps || propsPayload,
-      question,
-    },
-  );
+  const genericPropsBlock =
+    plan.reason === "generic_props_followup_after_prebuilt"
+      ? buildWcGenericPropsFollowUpPromptBlock(
+          plan,
+          {
+            homeName: plan.pinnedHome,
+            awayName: plan.pinnedAway,
+          },
+          {
+            match,
+            propsPayload: packet?.matchPlayerProps || propsPayload,
+            question,
+          },
+        )
+      : "";
   const reconcileLine =
     "Reconcile with priorStructuredLean when answering — do not ignore the prior card.";
+  const passLine =
+    "Only say PASS if you truly have zero edge. Prefer holding/extending the prior lean — never cold generic PASS copy.";
   const propsLine = genericPropsBlock
     ? genericPropsBlock.includes("LINES POSTED")
       ? "For vague props asks with posted lines: lead with live score/clock, name 2–3 specific legs with American odds and chalk/value/script reasoning."
       : "For vague props asks with no posted lines: hold the prior lean, cite live score, no props inventory board."
     : "";
   const instructions = String(packet.views.claude.instructions || "").trim();
-  const extra = [reconcileLine, propsLine].filter(Boolean).join("\n");
+  const extra = [reconcileLine, passLine, propsLine].filter(Boolean).join("\n");
   packet.views.claude.instructions = instructions ? `${instructions}\n${extra}` : extra;
   return packet;
 }
@@ -632,28 +658,155 @@ const GENERIC_WC_PASS_FALLBACK =
   "Pass — no actionable line yet; see Watch For before locking a bet.";
 
 /**
+ * Cold generic PASS copy that should never appear when a prior lean anchors the thread.
+ * @param {string} lean
+ */
+export function isGenericWcPassLean(lean) {
+  const s = String(lean || "").trim();
+  if (!s) return true;
+  return (
+    /^pass\s*[—-]\s*no actionable line yet/i.test(s) ||
+    /^pass\s*[—-]\s*no verified/i.test(s) ||
+    /^pass\s*[—-]\s*thesis only until/i.test(s) ||
+    /\bno actionable line yet\b.*\bwatch for\b/i.test(s) ||
+    s === GENERIC_WC_PASS_FALLBACK ||
+    s === GENERIC_WC_PASS_FALLBACK.replace(/—/g, "-")
+  );
+}
+
+/**
+ * Softer thread continuation when prior lean exists — avoids cold PASS.
+ * @param {Record<string, unknown> | null | undefined} priorLean
+ * @param {{ question?: string, match?: Record<string, unknown> | null, liveSnippet?: string }} [opts]
+ */
+export function buildWcThreadContinuationFallback(priorLean, opts = {}) {
+  if (!priorLean || typeof priorLean !== "object") return GENERIC_WC_PASS_FALLBACK;
+
+  const question = String(opts.question || "").trim();
+  const liveSnippet =
+    String(opts.liveSnippet || "").trim() ||
+    (opts.match
+      ? formatWcLiveMatchStatePhrase(
+          opts.match,
+          String(priorLean.fixtureHome || opts.match.homeTeam || ""),
+          String(priorLean.fixtureAway || opts.match.awayTeam || ""),
+        )
+      : "") ||
+    extractWcPriorLiveScoreSnippet(priorLean);
+  const whileLive = liveSnippet ? ` while ${liveSnippet}` : "";
+
+  const totalsPhrase = extractWcPriorTotalsLeanPhrase(priorLean);
+  if (totalsPhrase) {
+    const sideMatch = totalsPhrase.match(/\b(Under|Over)\b/i);
+    const lineMatch = totalsPhrase.match(/[\d.]+/);
+    const side = sideMatch ? sideMatch[1] : "Under";
+    const line = lineMatch ? lineMatch[0] : "";
+    const q = question.toLowerCase();
+    if (
+      /\b(sitting deep|low block|defensive|park the bus|flip.*under|flip this to under|supports the under|even more under)\b/i.test(
+        q,
+      )
+    ) {
+      return `The ${side} ${line} still looks solid${whileLive} — a low block keeps shot volume down and reinforces the under thesis.`;
+    }
+    if (/\b(open up|more goals|flip.*over|over instead|attacking|high line)\b/i.test(q)) {
+      return `Still leaning ${side} ${line}${whileLive}, but I'd downgrade if both teams open up in the second half.`;
+    }
+    return `Still like the ${side} ${line}${whileLive} — holding the prior lean with the live script.`;
+  }
+
+  const raw = String(priorLean.lean || priorLean.call || "")
+    .trim()
+    .replace(/^lean:\s*/i, "");
+  const ml = raw.match(/([^;·]+?\s+[-+]\d+\s+to win)/i);
+  if (ml) {
+    return `Still backing ${ml[1].trim()}${whileLive} — extending the prior lean unless the live script flips.`;
+  }
+
+  const liveLeans = raw.match(/\b2 live leans at\b/i);
+  if (liveLeans) {
+    const tail = raw.replace(/^2 live leans at[^:]*:\s*/i, "").trim();
+    return tail
+      ? `Still aligned with the live lean (${tail})${whileLive}.`
+      : `Still aligned with the prior live lean${whileLive}.`;
+  }
+
+  const snippet = raw.split(/[;·]/)[0].trim().slice(0, 88);
+  if (snippet) {
+    return `Still aligned with the prior lean (${snippet})${whileLive} — no reason to cold-pass yet.`;
+  }
+
+  return GENERIC_WC_PASS_FALLBACK;
+}
+
+/**
+ * Binding PASS policy for thread lanes — inject alongside prior lean block.
+ * @param {import("./wcTurnConstants.js").WcTurnPlan | null | undefined} plan
+ * @param {{ question?: string, match?: Record<string, unknown> | null }} [opts]
+ */
+export function buildWcThreadPassPolicyPromptBlock(plan, opts = {}) {
+  if (!wcTurnUsesThreadPassPolicy(plan)) return "";
+  const target = buildWcThreadContinuationFallback(plan.priorLean, {
+    question: opts.question,
+    match: opts.match,
+  });
+  if (isGenericWcPassLean(target)) return "";
+
+  return [
+    "WC THREAD PASS POLICY (binding)",
+    "Only say PASS if you truly have zero edge and the prior lean is invalidated.",
+    "Prefer holding/extending the prior lean with updated live reasoning — never the cold generic PASS.",
+    `Target continuation lean (use or closely match): "${target}"`,
+  ].join("\n");
+}
+
+/**
+ * Rewrite cold generic PASS on structured output when a prior lean exists.
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {object} [opts]
+ */
+export function applyWcThreadPriorLeanPassRewrite(structured, opts = {}) {
+  if (!structured || typeof structured !== "object") return structured;
+  const priorLean =
+    opts.priorLean ||
+    opts.wcTurnPlan?.priorLean ||
+    null;
+  if (!priorLean) return structured;
+
+  const lean = String(structured.lean || "").trim();
+  if (!isGenericWcPassLean(lean)) return structured;
+
+  const hasThreadContext =
+    Boolean(opts.history?.length) ||
+    Boolean(opts.isConversationFollowUp) ||
+    wcTurnUsesThreadPassPolicy(opts.wcTurnPlan || null);
+  if (!hasThreadContext) return structured;
+
+  const rewritten = buildWcThreadContinuationFallback(priorLean, {
+    question: opts.question,
+    match: opts.match,
+  });
+  if (isGenericWcPassLean(rewritten)) return structured;
+
+  const call = String(structured.call || "").trim();
+  return {
+    ...structured,
+    lean: rewritten,
+    call: !call || isGenericWcPassLean(call) ? rewritten.slice(0, 100) : call,
+  };
+}
+
+/**
  * Thread-aware PASS fallback when a structured prior lean exists on the thread.
  * @param {Record<string, unknown> | null | undefined} priorLean
+ * @param {{ question?: string, match?: Record<string, unknown> | null }} [opts]
  */
-export function buildWcThreadAwarePassFallback(priorLean) {
-  if (!priorLean || typeof priorLean !== "object") return GENERIC_WC_PASS_FALLBACK;
-  const raw = String(priorLean.lean || priorLean.call || "").trim();
-  if (!raw) return GENERIC_WC_PASS_FALLBACK;
-  const normalized = raw.replace(/^lean:\s*/i, "").trim();
-  const totals = normalized.match(/\b(Under|Over)\s+[\d.]+(?:\s+goals?)?/i);
-  if (totals) {
-    const side = totals[1];
-    const line = totals[0].match(/[\d.]+/)?.[0] || "";
-    return `Pass for now — building on the ${side} ${line} lean; no new actionable line yet.`;
+export function buildWcThreadAwarePassFallback(priorLean, opts = {}) {
+  if (priorLean && typeof priorLean === "object") {
+    const continuation = buildWcThreadContinuationFallback(priorLean, opts);
+    if (!isGenericWcPassLean(continuation)) return continuation;
   }
-  const ml = normalized.match(/([^;·]+?\s+[-+]\d+\s+to win)/i);
-  if (ml) {
-    return `Pass for now — building on ${ml[1].trim()}; no new actionable line yet.`;
-  }
-  const snippet = normalized.split(/[;·]/)[0].trim().slice(0, 72);
-  return snippet
-    ? `Pass for now — building on prior lean (${snippet}); no new actionable line yet.`
-    : GENERIC_WC_PASS_FALLBACK;
+  return GENERIC_WC_PASS_FALLBACK;
 }
 
 /**
