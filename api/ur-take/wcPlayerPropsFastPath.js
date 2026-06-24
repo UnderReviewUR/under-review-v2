@@ -100,7 +100,8 @@ export function shouldRunWcPlayerPropsFastPath(
     isConversationFollowUp &&
     isWcGenericPlayerPropsThreadFollowUp(q, history, priorLean)
   ) {
-    return false;
+    const pair = resolveWcFixturePairFromHistory(history);
+    return Boolean(pair?.home && pair?.away);
   }
   if (isWcPlayerPropFollowUpExplain(q, history)) return true;
   if (wcIntent === WC_INTENT.PARLAY) return true;
@@ -254,11 +255,10 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   );
 
   if (
-    genericPropsThreadFollowUp ||
-    (wcTurnPlannerEnabled &&
-      wcTurnPlan &&
-      (wcTurnPlan.lane === WC_TURN_LANE.LLM_THREAD ||
-        wcTurnPlan.reason === "generic_props_followup_after_prebuilt"))
+    wcTurnPlannerEnabled &&
+    wcTurnPlan &&
+    wcTurnPlan.lane === WC_TURN_LANE.LLM_THREAD &&
+    wcTurnPlan.reason === "generic_props_followup_after_prebuilt"
   ) {
     return { handled: false };
   }

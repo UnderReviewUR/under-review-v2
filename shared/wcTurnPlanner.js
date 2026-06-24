@@ -129,7 +129,7 @@ export {
 const FAST_PATH_LANES = WC_TURN_FAST_PATH_LANES;
 
 /**
- * Feature flag — default OFF. Enable with WC_TURN_PLANNER=1 or header x-wc-turn-planner: 1.
+ * Feature flag — default ON. Disable with WC_TURN_PLANNER=0 or header x-wc-turn-planner: 0.
  * @param {{ plannerHeader?: string }} [opts]
  */
 export function isWcTurnPlannerEnabled(opts = {}) {
@@ -139,7 +139,7 @@ export function isWcTurnPlannerEnabled(opts = {}) {
   const envFlag = String(process.env.WC_TURN_PLANNER ?? "").trim().toLowerCase();
   if (envFlag === "0" || envFlag === "false" || envFlag === "no") return false;
   if (envFlag === "1" || envFlag === "true" || envFlag === "yes") return true;
-  return false;
+  return true;
 }
 
 /**
@@ -447,14 +447,29 @@ export function resolveWcTurnPlan(params = {}) {
     return finalizeWcTurnPlan(plan);
   }
 
-  // ── Step 4d: Generic props follow-up after prebuilt lean — thread continuity ──
-  // "any player props?" on a live/matchup card thread should not cold-start props_fast
-  // when books have no lines; defer to LLM with priorLean injected.
+  // ── Step 4d: Generic props follow-up after prebuilt lean — fixture-pinned props first ──
+  // "any player props?" on a live/matchup card thread: load BDL props KV when fixture is
+  // pinned; only defer to LLM when we cannot pin a fixture from thread context.
   if (
     threadAnchoredFollowUp &&
     priorLean &&
     isWcGenericPlayerPropsThreadFollowUp(question, history, priorLean)
   ) {
+    if (pinnedEventId || (pinnedHome && pinnedAway)) {
+      plan.lane = WC_TURN_LANE.PROPS_FAST;
+      plan.reason = "generic_props_followup_after_prebuilt";
+      plan.intent = WC_INTENT.PLAYER_PROP;
+      plan.shouldUseFastPath = true;
+      plan.dataPackages = buildBaseDataPackages({
+        ...plan,
+        lane: plan.lane,
+        intent: plan.intent,
+        needsPropsKv: true,
+      });
+      plan.useLiteContext = false;
+      plan.confidence = resolveTurnConfidence(plan.lane, plan.intent, hasKvFixture);
+      return finalizeWcTurnPlan(plan);
+    }
     plan.lane = WC_TURN_LANE.LLM_THREAD;
     plan.reason = "generic_props_followup_after_prebuilt";
     plan.intent = WC_INTENT.MATCHUP;

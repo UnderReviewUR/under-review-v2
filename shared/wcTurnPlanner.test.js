@@ -70,9 +70,11 @@ test("isWcTurnPlannerEnabled — env and header overrides", () => {
   const prev = process.env.WC_TURN_PLANNER;
   delete process.env.WC_TURN_PLANNER;
   try {
-    assert.equal(isWcTurnPlannerEnabled({}), false);
+    assert.equal(isWcTurnPlannerEnabled({}), true);
     assert.equal(isWcTurnPlannerEnabled({ plannerHeader: "1" }), true);
     assert.equal(isWcTurnPlannerEnabled({ plannerHeader: "0" }), false);
+    process.env.WC_TURN_PLANNER = "0";
+    assert.equal(isWcTurnPlannerEnabled({}), false);
     process.env.WC_TURN_PLANNER = "1";
     assert.equal(isWcTurnPlannerEnabled({}), true);
   } finally {
@@ -294,7 +296,7 @@ test("resolveWcTurnPlan — player prop follow-up after matchup routes to player
   }
 });
 
-test("resolveWcTurnPlan — generic props ask after live prebuilt routes to llm_thread not props_fast", () => {
+test("resolveWcTurnPlan — generic props ask after live prebuilt routes to props_fast when fixture pinned", () => {
   const scoMarLivePrior = {
     role: "assistant",
     structured: {
@@ -337,21 +339,21 @@ test("resolveWcTurnPlan — generic props ask after live prebuilt routes to llm_
       isConversationFollowUp: true,
       hasKvFixture: true,
     });
-    assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD, question);
+    assert.equal(plan.lane, WC_TURN_LANE.PROPS_FAST, question);
     assert.equal(plan.reason, "generic_props_followup_after_prebuilt", question);
-    assert.equal(plan.intent, WC_INTENT.MATCHUP, question);
+    assert.equal(plan.intent, WC_INTENT.PLAYER_PROP, question);
     assert.equal(plan.useLiteContext, false, question);
-    assert.equal(plan.shouldUseFastPath, false, question);
-    assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), false, question);
+    assert.equal(plan.shouldUseFastPath, true, question);
+    assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), true, question);
     assert.equal(
       shouldActivateWcPrebuiltLane(true, plan, WC_TURN_LANE.PROPS_FAST, () => true),
-      false,
+      true,
       question,
     );
   }
 });
 
-test("resolveWcTurnPlan — generic props follow-up without structured history still routes llm_thread", async () => {
+test("resolveWcTurnPlan — generic props follow-up without structured history still routes props_fast when pinned", async () => {
   const scoMarMatches = [
     {
       id: "1001",
@@ -403,11 +405,11 @@ test("resolveWcTurnPlan — generic props follow-up without structured history s
     hasKvFixture: true,
     routeHeader: "1",
   });
-  assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD);
+  assert.equal(plan.lane, WC_TURN_LANE.PROPS_FAST);
   assert.equal(plan.reason, "generic_props_followup_after_prebuilt");
   assert.ok(plan.priorLean);
   assert.match(String(plan.priorLean?.lean || ""), /live lean|Under 3\.5/i);
-  assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), false);
+  assert.equal(shouldActivateWcPropsFastPath(true, plan, () => true), true);
 });
 
 test("extractWcPriorThreadLeanFromHistory — lean prose + user fixture question in history", () => {
@@ -432,11 +434,11 @@ test("extractWcPriorThreadLeanFromHistory — lean prose + user fixture question
     hasKvFixture: true,
     routeHeader: "1",
   });
-  assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD);
+  assert.equal(plan.lane, WC_TURN_LANE.PROPS_FAST);
   assert.equal(plan.reason, "generic_props_followup_after_prebuilt");
 });
 
-test("shouldRunWcPlayerPropsFastPath — blocks vague props follow-up after prebuilt lean", () => {
+test("shouldRunWcPlayerPropsFastPath — runs vague props follow-up when fixture pinned in thread", () => {
   const history = [
     { role: "user", content: "Best live angle on SCO vs MAR right now?" },
     { role: "assistant", content: "Lean Under 2.5 goals" },
@@ -448,6 +450,35 @@ test("shouldRunWcPlayerPropsFastPath — blocks vague props follow-up after preb
       history,
       true,
     ),
+    true,
+  );
+});
+
+test("resolveWcTurnPlan — generic props follow-up without pinned fixture routes to llm_thread", () => {
+  const history = [
+    { role: "user", content: "What is the best angle tonight?" },
+    {
+      role: "assistant",
+      content: "Lean Under 2.5 goals on the match",
+      structured: {
+        call: "Lean Under 2.5 goals",
+        callType: "matchup",
+        lean: "Lean Under 2.5 goals",
+      },
+    },
+  ];
+  const plan = resolveWcTurnPlan({
+    question: "any player props to consider?",
+    history,
+    isConversationFollowUp: true,
+    hasKvFixture: false,
+    routeHeader: "1",
+  });
+  assert.equal(plan.lane, WC_TURN_LANE.LLM_THREAD);
+  assert.equal(plan.reason, "generic_props_followup_after_prebuilt");
+  assert.equal(plan.shouldUseFastPath, false);
+  assert.equal(
+    shouldRunWcPlayerPropsFastPath(WC_INTENT.PLAYER_PROP, "any player props to consider?", history, true),
     false,
   );
 });

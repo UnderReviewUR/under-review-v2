@@ -3579,11 +3579,10 @@ export default async function handler(req, res) {
             priorLean: gfPrior,
             pinnedHome: String(gfPrior.fixtureHome || pair?.home || "").trim() || null,
             pinnedAway: String(gfPrior.fixtureAway || pair?.away || "").trim() || null,
+            isConversationFollowUp: true,
           });
-          wcIntent = WC_INTENT.MATCHUP;
-          wcRelevanceLog.wcIntent = wcIntent;
           wcRelevanceLog.wcGenericPropsThreadFollowUp = true;
-          wcRelevanceLog.wcTurnLane = WC_TURN_LANE.LLM_THREAD;
+          wcRelevanceLog.wcTurnLane = WC_TURN_LANE.PROPS_FAST;
           wcRelevanceLog.wcTurnPlanReason = "generic_props_followup_after_prebuilt";
         }
       }
@@ -6529,6 +6528,8 @@ You are responding to a Pro subscriber. Apply the following:
         isWcPlayerMarketIntent(wcIntent) ||
         wcIntent === WC_INTENT.PLAYER_PROP ||
         isWcFixtureScopedPlayerMarketQuestion(routingQuestion) ||
+        (isConversationFollowUp && isGenericWcPlayerPropQuestion(routingQuestion)) ||
+        wcRelevanceLog.wcGenericPropsThreadFollowUp ||
         (detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
       ) &&
       (wcFixtureMatchupPrebuiltEarly ||
