@@ -13,7 +13,8 @@ import {
 import { formatWcLiveGameStateLine } from "../shared/wcKickoffDisplay.js";
 import { isWcBdlSource } from "../shared/wcBdlPolicy.js";
 import { detectParlayIntent } from "../shared/detectParlayIntent.js";
-import { resolveWcPlayerPropDisplayLean, repairWcVerifiedPlayerMarketCardFace } from "../shared/wcUrTakePlayerMarket.js";
+import { repairWcVerifiedPlayerMarketCardFace, resolveWcPlayerPropDisplayLean } from "../shared/wcUrTakePlayerMarket.js";
+import { resolveWcPropBoardMarketKeysForQuestion } from "../shared/wcMatchPlayerProps.js";
 import {
   isWcNamedPlayerPropQuestion,
   isGenericWcPlayerPropQuestion,
@@ -568,6 +569,15 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
       structured.userQuestion ||
       "",
   ).trim();
+  const askedMarkets = resolveWcPropBoardMarketKeysForQuestion(question);
+  if (askedMarkets?.length && Array.isArray(merged.propBoardRows)) {
+    const filtered = merged.propBoardRows.filter((row) =>
+      askedMarkets.includes(String(row.market || "")),
+    );
+    if (filtered.length >= 2) {
+      merged.propBoardRows = filtered;
+    }
+  }
   if (question && !namedLegCard) {
     merged.lean = resolveWcPlayerPropDisplayLean({
       lean: merged.lean,

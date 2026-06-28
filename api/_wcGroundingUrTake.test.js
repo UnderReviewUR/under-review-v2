@@ -177,3 +177,61 @@ test("applyWcGroundingCardToStructured — fixture ambiguity caveat", () => {
   const structured = applyWcGroundingCardToStructured({ sport: "worldcup", callType: "player_market_odds" }, packet);
   assert.ok(structured.caveats.some((c) => /Did you mean Ghana vs Panama or Ghana vs/i.test(c)));
 });
+
+test("applyWcGroundingCardToStructured — first goalscorer ask keeps scorer board rows", () => {
+  const question = "Who is the best first goalscorer bet for Brazil vs Japan?";
+  const packet = buildWcGroundingPacketForUrTake({
+    requestId: "fgs-bra-jpn",
+    question,
+    routingQuestion: question,
+    history: [],
+    matches: [
+      {
+        id: "99",
+        homeTeam: "BRA",
+        awayTeam: "JPN",
+        status: "NS",
+        commenceTs: Date.now() + 3600000,
+      },
+    ],
+    fixtureTeams: ["BRA", "JPN"],
+    resolvedEventId: "99",
+    matchPlayerProps: {
+      eventId: "99",
+      homeTeam: "BRA",
+      awayTeam: "JPN",
+      source: "balldontlie",
+      lastUpdated: Date.now() - 30_000,
+      markets: {
+        first_goalscorer: [
+          { name: "Neymar", americanOdds: "+600", nationAbbr: "BRA" },
+          { name: "Ritsu Doan", americanOdds: "+1500", nationAbbr: "JPN" },
+          { name: "Casemiro", americanOdds: "+1600", nationAbbr: "BRA" },
+        ],
+        player_sot_ou: [
+          { name: "Neymar", americanOdds: "-210", line: "1", side: "over", nationAbbr: "BRA" },
+          { name: "Casemiro", americanOdds: "+210", line: "0.5", side: "over", nationAbbr: "BRA" },
+        ],
+      },
+    },
+    loadMeta: { attempts: 1, coldStart: false, fromCache: true, loadMs: 12, failed: false },
+  });
+
+  const structured = applyWcGroundingCardToStructured(
+    {
+      sport: "worldcup",
+      callType: "player_market_verified",
+      playerMarketTier: "verified",
+      call: "Neymar at +600 first goalscorer is the market chalk play",
+      lean: "Lean: Neymar +600 — first goalscorer lean.",
+      analysis: question,
+    },
+    packet,
+    { question },
+  );
+
+  const rows = Array.isArray(structured.propBoardRows) ? structured.propBoardRows : [];
+  assert.ok(rows.length >= 2);
+  assert.ok(rows.every((r) => String(r.market || "") === "first_goalscorer"));
+  assert.ok(!String(structured.lean || "").match(/SOT|shots on target/i));
+});

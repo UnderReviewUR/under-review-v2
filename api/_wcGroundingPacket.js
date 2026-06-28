@@ -6,6 +6,7 @@
 import { wcMatchupTeamDisplayName } from "../shared/wcMatchupWinnerLine.js";
 import {
   collapseMatchPlayerPropRowsForDisplay,
+  resolveWcPropBoardMarketKeysForQuestion,
   WC_MATCH_PLAYER_PROP_MARKET_KEYS,
 } from "../shared/wcMatchPlayerProps.js";
 import { sortPropBoardRowsForMixedLean } from "../shared/wcUrTakePlayerMarket.js";
@@ -430,7 +431,8 @@ function propBoardRowFromLeg(leg, marketKey) {
  * @param {import("../shared/wcGroundingPacket.types.js").WcMarketsSummary} marketsSummary
  */
 function buildCardPropBoardRows(marketsSummary, question = "") {
-  const priorityMarkets = [
+  const askedMarkets = resolveWcPropBoardMarketKeysForQuestion(question);
+  const priorityMarkets = askedMarkets || [
     "player_sot_ou",
     "player_shots_ou",
     "player_goal_or_assist",
@@ -445,14 +447,14 @@ function buildCardPropBoardRows(marketsSummary, question = "") {
     const legPool =
       entry.topByNation?.home?.length || entry.topByNation?.away?.length
         ? [...(entry.topByNation.home || []), ...(entry.topByNation.away || [])]
-        : entry.topLegs.slice(0, 6);
+        : entry.topLegs.slice(0, askedMarkets ? 4 : 6);
     for (const leg of legPool) {
       if (seenLegIds.has(leg.legId)) continue;
       seenLegIds.add(leg.legId);
       rows.push(propBoardRowFromLeg(leg, key));
     }
   }
-  return sortPropBoardRowsForMixedLean(rows, question).slice(0, 8);
+  return sortPropBoardRowsForMixedLean(rows, question).slice(0, askedMarkets ? 6 : 8);
 }
 
 /**

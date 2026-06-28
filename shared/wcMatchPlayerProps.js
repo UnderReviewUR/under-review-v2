@@ -543,6 +543,71 @@ export function pickFixturePropBoardFromEvent(eventPayload, limit = 24) {
 }
 
 /**
+ * Market keys to prefer when the user names a specific scorer/prop market.
+ * Returns null for generic prop asks (mixed SOT + scorer boards stay default).
+ * @param {string} [question]
+ * @returns {string[] | null}
+ */
+export function resolveWcPropBoardMarketKeysForQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  if (/\bfirst\s+goal\b|\bfirst\s+goalscorer\b|\bfirst\s+to\s+score\b/i.test(q)) {
+    return ["first_goalscorer", "anytime_scorer"];
+  }
+  if (/\blast\s+goal\b|\blast\s+goalscorer\b/i.test(q)) {
+    return ["last_goalscorer", "anytime_scorer"];
+  }
+  if (/\banytime\s+scorer\b/i.test(q)) {
+    return ["anytime_scorer", "first_goalscorer"];
+  }
+  if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) {
+    return ["player_goal_or_assist", "anytime_scorer"];
+  }
+  return null;
+}
+
+/**
+ * Same as resolveWcPropBoardMarketKeysForQuestion, but inherit from the prior assistant turn.
+ * @param {string} [question]
+ * @param {Array<{ role?: string, structured?: object, content?: string, text?: string }>} [history]
+ * @returns {string[] | null}
+ */
+export function resolveWcPropBoardMarketKeysForQuestionWithHistory(question, history = []) {
+  const fromQuestion = resolveWcPropBoardMarketKeysForQuestion(question);
+  if (fromQuestion) return fromQuestion;
+
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg?.role !== "assistant" && msg?.role !== "model") continue;
+    const structured =
+      msg?.structured && typeof msg.structured === "object" ? msg.structured : null;
+    const blob = [
+      structured?.analysis,
+      structured?.call,
+      structured?.lean,
+      structured?.whyNow,
+      msg?.content,
+      msg?.text,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const fromBlob = resolveWcPropBoardMarketKeysForQuestion(blob);
+    if (fromBlob) return fromBlob;
+    if (Array.isArray(structured?.propBoardRows) && structured.propBoardRows.length) {
+      const mk = String(structured.propBoardRows[0]?.market || "").trim();
+      if (mk === "first_goalscorer") {
+        return ["first_goalscorer", "anytime_scorer", "player_goal_or_assist"];
+      }
+      if (mk === "anytime_scorer") {
+        return ["anytime_scorer", "first_goalscorer", "player_goal_or_assist"];
+      }
+    }
+    break;
+  }
+  return null;
+}
+
+/**
  * Prefer the market the user asked for (first goalscorer vs anytime, etc.).
  * @param {Record<string, unknown> | null | undefined} eventPayload
  * @param {string} [question]
@@ -552,14 +617,7 @@ export function pickFixturePropBoardForQuestion(eventPayload, question = "", lim
   const q = String(question || "").trim();
   if (!eventPayload?.markets) return null;
 
-  const preferredKeys = [];
-  if (/\bfirst\s+goal\b|\bfirst\s+goalscorer\b|\bfirst\s+to\s+score\b/i.test(q)) {
-    preferredKeys.push("first_goalscorer", "anytime_scorer");
-  } else if (/\blast\s+goal\b|\blast\s+goalscorer\b/i.test(q)) {
-    preferredKeys.push("last_goalscorer", "anytime_scorer");
-  } else if (/\banytime\s+scorer\b/i.test(q)) {
-    preferredKeys.push("anytime_scorer", "first_goalscorer");
-  }
+  const preferredKeys = resolveWcPropBoardMarketKeysForQuestion(q) || [];
 
   for (const key of preferredKeys) {
     const entry = WC_FIXTURE_PROP_BOARD_MARKETS.find((e) => e.key === key) || {

@@ -12,6 +12,7 @@ import {
   matchPlayerPropsForEvent,
   pickFixturePropBoardForQuestion,
   resolveMatchPlayerPropsPayload,
+  resolveWcPropBoardMarketKeysForQuestionWithHistory,
 } from "./wcMatchPlayerProps.js";
 import { MOCK_WC_MATCH_PLAYER_PROPS_EVENT } from "../api/wcPlayerMarkets.fixture.js";
 
@@ -167,4 +168,17 @@ test("pickFixturePropBoardForQuestion prefers first goalscorer market", () => {
   );
   assert.equal(board?.key, "first_goalscorer");
   assert.ok(board?.rows?.some((r) => /Neymar/i.test(String(r.name))));
+});
+
+test("resolveWcPropBoardMarketKeysForQuestionWithHistory inherits first goalscorer thread", () => {
+  const keys = resolveWcPropBoardMarketKeysForQuestionWithHistory("4 player parlay for BRA vs JPN?", [
+    {
+      role: "assistant",
+      structured: {
+        call: "Neymar at +600 first goalscorer is the market chalk play",
+        analysis: "Who is the best first goalscorer bet for Brazil vs Japan?",
+      },
+    },
+  ]);
+  assert.ok(keys?.includes("first_goalscorer"));
 });

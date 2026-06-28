@@ -22,6 +22,7 @@ import {
   resolveWcPlayerMarketTier,
   tierMetaFor,
 } from "./wcPlayerMarketResolve.js";
+import { resolveWcPropBoardMarketKeysForQuestion } from "./wcMatchPlayerProps.js";
 import {
   buildWcSgpComboPassHeadline,
   detectWcSgpComboIntent,
@@ -459,6 +460,7 @@ export function isWcActionablePropLeanText(text) {
   return (
     /\bover\s+\d+(?:\.\d+)?\s+(?:SOT|shots?\b)/iu.test(t) ||
     /\banytime\s+(?:goal\s*)?scorer\b/i.test(t) ||
+    /\bfirst\s+goal(?:scorer)?\b/i.test(t) ||
     /\b(?:Under|Over)\s+\d+(?:\.\d+)?\s+goals\b/i.test(t)
   );
 }
@@ -713,6 +715,26 @@ function compactPropLegFromSources(opts = {}) {
     return `${anytimeM[1]} anytime ${anytimeM[2]}`;
   }
 
+  const firstGoalAtM = callTrimmed.match(
+    new RegExp(
+      String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\s+at\s+([+-]\d{2,})\s+first\s+goal(?:scorer)?`,
+      "iu",
+    ),
+  );
+  if (firstGoalAtM && !mixedAsk) {
+    return `${firstGoalAtM[1]} first goalscorer ${firstGoalAtM[2]}`;
+  }
+
+  const firstGoalM = callTrimmed.match(
+    new RegExp(
+      String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\s+first\s+goal(?:scorer)?\s*(?:at\s+)?([+-]\d{2,})`,
+      "iu",
+    ),
+  );
+  if (firstGoalM && !mixedAsk) {
+    return `${firstGoalM[1]} first goalscorer ${firstGoalM[2]}`;
+  }
+
   const playerHint = callTrimmed.match(
     new RegExp(String.raw`\b(${WC_PROP_PLAYER_NAME_RE.source})\b`, "u"),
   )?.[1];
@@ -766,10 +788,16 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
   const summary = String(opts.summary || "").trim();
   const deep = String(opts.deep || "").trim();
   const question = String(opts.question || "").trim();
-  const propBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
+  const askedMarkets = resolveWcPropBoardMarketKeysForQuestion(question);
+  const rawPropBoardRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
+  const propBoardRows =
+    askedMarkets?.length
+      ? rawPropBoardRows.filter((r) => askedMarkets.includes(String(r.market || "")))
+      : rawPropBoardRows;
+  const boardRows = propBoardRows.length ? propBoardRows : rawPropBoardRows;
   const blob = `${call}\n${whyNow}\n${line}\n${summary}\n${deep}`.trim();
   const mixedAsk = questionAsksPlayerPropsAndTotals(question);
-  const hasPropRows = propBoardRows.length > 0;
+  const hasPropRows = boardRows.length > 0;
   const hasCitedOdds = CITED_BOOK_ODDS_RE.test(blob);
   const totalsBlob = `${call}\n${whyNow}\n${deep}\n${summary}\n${line}`;
   const totalsFromBlob = extractStrongestTotalsLeanFromBlob(totalsBlob);
@@ -806,7 +834,7 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
   const buildConciseMixedLean = () => {
     const propLeg = compactPropLegFromSources({
       call,
-      propBoardRows,
+      propBoardRows: boardRows,
       summary,
       whyNow,
       question,
@@ -816,6 +844,16 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
     if (totalsLeg) return `${propLeg} + ${totalsLeg}`;
     return propLeg;
   };
+
+  if (
+    askedMarkets?.includes("first_goalscorer") &&
+    /[+-]\d{2,}/.test(blob) &&
+    /\bfirst\s+goal(?:scorer)?\b/i.test(blob) &&
+    lean &&
+    !GENERIC_PASS_LEAN_RE.test(lean)
+  ) {
+    return lean;
+  }
 
   if (mixedAsk && (hasPropRows || hasCitedOdds || totalsLeg || opts.fixtureHome || opts.fixtureAway)) {
     const concise = buildConciseMixedLean();
@@ -837,7 +875,7 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
     synthesizePlayerPropPlayFromCitedOdds(summary, `${deep}\n${whyNow}`, question);
 
   if ((!propLean || GENERIC_PASS_LEAN_RE.test(propLean)) && hasPropRows) {
-    const top = propBoardRows[0];
+    const top = boardRows[0];
     const legText = String(top?.lean || top?.label || "").trim();
     if (legText && !NO_VERIFIED_LINE_RE.test(legText)) {
       propLean = /^lean:/i.test(legText) ? legText : `Lean: ${legText}`;
@@ -848,7 +886,7 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
 
   const propLeg = compactPropLegFromSources({
       call,
-      propBoardRows,
+      propBoardRows: boardRows,
       summary,
       whyNow,
       question,
@@ -864,7 +902,7 @@ export function resolveWcPlayerPropDisplayLean(opts = {}) {
     return totalsLeg;
   }
   if (hasPropRows) {
-    const legs = propBoardRows
+    const legs = boardRows
       .slice(0, 3)
       .map((row, i) => {
         const t = compactPropLegFromBoardRow(row);

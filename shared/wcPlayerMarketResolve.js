@@ -19,6 +19,7 @@ import {
   pickFixturePropBoardForQuestion,
   rankFixturePropBoardRows,
   resolveMatchPlayerPropsPayload,
+  resolveWcPropBoardMarketKeysForQuestionWithHistory,
 } from "./wcMatchPlayerProps.js";
 import {
   extractMentionedWcTeams,
@@ -752,14 +753,33 @@ const FIXTURE_PARLAY_MARKET_KEYS = [
   "anytime_scorer",
 ];
 
+const FIXTURE_SCORER_PARLAY_MARKET_KEYS = [
+  "first_goalscorer",
+  "anytime_scorer",
+  "player_goal_or_assist",
+];
+
+/**
+ * @param {string} question
+ * @param {Array<{ role?: string, structured?: object, content?: string, text?: string }>} [history]
+ */
+function resolveFixtureParlayMarketKeys(question, history = []) {
+  const inherited = resolveWcPropBoardMarketKeysForQuestionWithHistory(question, history);
+  if (inherited?.some((k) => k === "first_goalscorer" || k === "anytime_scorer")) {
+    return [...new Set([...inherited, ...FIXTURE_SCORER_PARLAY_MARKET_KEYS])];
+  }
+  return FIXTURE_PARLAY_MARKET_KEYS;
+}
+
 /**
  * @param {Record<string, unknown>} eventPayload
+ * @param {string[]} [marketKeys]
  */
-function fixtureParlayCandidateRowsFromEvent(eventPayload) {
+function fixtureParlayCandidateRowsFromEvent(eventPayload, marketKeys = FIXTURE_PARLAY_MARKET_KEYS) {
   /** @type {Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string, line?: string }>} */
   const rows = [];
   const seen = new Set();
-  for (const marketKey of FIXTURE_PARLAY_MARKET_KEYS) {
+  for (const marketKey of marketKeys) {
     const raw = matchPlayerPropRowsFromEvent(eventPayload, marketKey, 24);
     const collapsed = collapseMatchPlayerPropRowsForDisplay(raw, marketKey);
     for (const row of collapsed.slice(0, 8)) {
@@ -861,8 +881,10 @@ export function buildWcFixturePlayerParlayStructured(
   });
   if (!resolved?.payload || !isMatchPlayerPropsFresh(resolved.payload)) return null;
 
+  const history = wcContext?.conversationHistory || [];
+  const parlayMarketKeys = resolveFixtureParlayMarketKeys(q, history);
   const n = legCount ?? extractParlayLegCount(q) ?? 4;
-  const candidates = fixtureParlayCandidateRowsFromEvent(resolved.payload);
+  const candidates = fixtureParlayCandidateRowsFromEvent(resolved.payload, parlayMarketKeys);
   if (candidates.length < Math.min(n, 2)) return null;
 
   const picked = pickBalancedFixtureParlayLegRows(candidates, q, n);
