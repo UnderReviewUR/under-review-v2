@@ -15,9 +15,11 @@ import { wcTeamsWithStrengthTags } from "../../../shared/wc2026Strength.js";
 import BookmakerOddsPanel from "../BookmakerOddsPanel.jsx";
 import WcMatchReadCard from "./WcMatchReadCard.jsx";
 import {
-  formatWcMatchGroupLetter,
   formatWcMatchVenueLine,
+  formatWcMatchStageLabel,
+  resolveWcMatchGroupLetter,
 } from "../../../shared/wcMatchFieldDisplay.js";
+import { isWcKnockoutFixtureMatch } from "../../../shared/wcKnockoutFixture.js";
 
 const STRENGTH_CLASS = {
   Favorite: "wc-strength--favorite",
@@ -71,9 +73,11 @@ function wcDetailHasVisibleTeamStats(detail) {
   return false;
 }
 
-function WcPreMatchIntel({ match, home, away, teams, xiStatus, mispriceContext, onAskUrTake }) {
-  const groupLetter = formatWcMatchGroupLetter(match?.group) || null;
-  const groupTeams = groupLetter ? wcTeamsWithStrengthTags(getWcTeamsByGroup(groupLetter)) : [];
+function WcPreMatchIntel({ match, home, away, teams, xiStatus, mispriceContext, tournamentPhase, allMatches, onAskUrTake }) {
+  const groupLetter = resolveWcMatchGroupLetter(match, teams) || null;
+  const showGroupTable =
+    groupLetter && !isWcKnockoutFixtureMatch(match, { tournamentPhase, allMatches });
+  const groupTeams = showGroupTable ? wcTeamsWithStrengthTags(getWcTeamsByGroup(groupLetter)) : [];
   const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
 
   return (
@@ -100,6 +104,8 @@ function WcPreMatchIntel({ match, home, away, teams, xiStatus, mispriceContext, 
         match={match}
         teams={teams}
         mispriceContext={mispriceContext}
+        tournamentPhase={tournamentPhase}
+        allMatches={allMatches}
         onGoDeeper={onAskUrTake}
         showGoDeeper={Boolean(onAskUrTake)}
       />
@@ -148,7 +154,15 @@ function WcPreMatchIntel({ match, home, away, teams, xiStatus, mispriceContext, 
   );
 }
 
-export default function WcMatchDetailDrawer({ match, teams, mispriceContext = null, onClose, onAskUrTake }) {
+export default function WcMatchDetailDrawer({
+  match,
+  teams,
+  mispriceContext = null,
+  tournamentPhase = "",
+  allMatches = [],
+  onClose,
+  onAskUrTake,
+}) {
   const [detail, setDetail] = useState(null);
   const [props, setProps] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -216,6 +230,8 @@ export default function WcMatchDetailDrawer({ match, teams, mispriceContext = nu
   const hasProps = Boolean(props?.ok !== false && (hasAnytime || hasFirst || hasAssists));
   const showPreMatchIntel = !hasStats;
 
+  const stageLabel = formatWcMatchStageLabel(match, teams, { tournamentPhase, allMatches });
+
   const sheet = (
     <div className="wc-detail-drawer-backdrop" role="presentation" onClick={onClose}>
       <div
@@ -233,7 +249,7 @@ export default function WcMatchDetailDrawer({ match, teams, mispriceContext = nu
         </h3>
         <p className="wc-detail-meta">
           {formatWcKickoffDisplay(match)}
-          {match.group ? ` · Group ${match.group}` : ""}
+          {stageLabel ? ` · ${stageLabel}` : ""}
         </p>
         <p className="wc-detail-xi">
           {wcXiStatusChipLabel(xiStatus)}
@@ -250,6 +266,8 @@ export default function WcMatchDetailDrawer({ match, teams, mispriceContext = nu
             teams={teams}
             xiStatus={xiStatus}
             mispriceContext={mispriceContext}
+            tournamentPhase={tournamentPhase}
+            allMatches={allMatches}
             onAskUrTake={!loading && !hasProps ? onAskUrTake : null}
           />
         ) : null}
@@ -261,6 +279,8 @@ export default function WcMatchDetailDrawer({ match, teams, mispriceContext = nu
               teams={teams}
               detail={detail}
               mispriceContext={mispriceContext}
+              tournamentPhase={tournamentPhase}
+              allMatches={allMatches}
               onGoDeeper={onAskUrTake}
               showGoDeeper={Boolean(onAskUrTake)}
             />

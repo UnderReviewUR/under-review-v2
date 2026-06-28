@@ -5,19 +5,50 @@
 
 import { rankSlateSportForBundle } from "./slateModulePriority.js";
 import { isWcSlateFeaturingWindow } from "./wc2026Constants.js";
+import { isWcKnockoutFixtureMatch } from "./wcKnockoutFixture.js";
+import { resolveWcTournamentPhase, isKnockoutPhase, getKnockoutRoundLabel } from "./wcPhaseUtils.js";
 
 const SLATE_KEYS = ["safeLean", "sharpAngle", "contrarian"];
 
-function summarizeWorldCupEvent(wc) {
-  if (!wc) return "2026 FIFA World Cup group stage";
+function summarizeWorldCupEvent(wc, knockout = false) {
+  if (!wc) return knockout ? "2026 FIFA World Cup knockout stage" : "2026 FIFA World Cup group stage";
   const upcoming = Array.isArray(wc.upcoming) ? wc.upcoming[0] : null;
   if (upcoming?.homeTeam && upcoming?.awayTeam) {
-    return `${upcoming.homeTeam} vs ${upcoming.awayTeam}${upcoming.group ? ` (Group ${upcoming.group})` : ""}`;
+    const ko = isWcKnockoutFixtureMatch(upcoming, {
+      tournamentPhase: resolveWcTournamentPhase(wc.matches || wc.allMatches),
+      allMatches: wc.matches || wc.allMatches,
+    });
+    const stage =
+      ko && upcoming.round
+        ? String(upcoming.round)
+        : ko
+          ? "Knockout"
+          : upcoming.group
+            ? `Group ${upcoming.group}`
+            : "";
+    return `${upcoming.homeTeam} vs ${upcoming.awayTeam}${stage ? ` (${stage})` : ""}`;
   }
-  return "2026 FIFA World Cup group stage";
+  return knockout ? "2026 FIFA World Cup knockout stage" : "2026 FIFA World Cup group stage";
 }
 
-function pickWcContrarianRow(wc) {
+function pickWcContrarianFallback(wc, knockout = false) {
+  if (knockout) {
+    const upcoming = Array.isArray(wc?.upcoming) ? wc.upcoming[0] : null;
+    if (upcoming?.homeTeam && upcoming?.awayTeam) {
+      return {
+        sport: "worldcup",
+        match: `${upcoming.homeTeam} vs ${upcoming.awayTeam}`,
+        angle: "Knockout upset value",
+        why: "Round-of-32 variance is highest — look where the moneyline overprices the favorite and ET/pens are live if level after 90.",
+      };
+    }
+    return {
+      sport: "worldcup",
+      match: "Knockout slate",
+      angle: "Fade heavy chalk in R32",
+      why: "Single-elimination variance peaks early — underdog ML or +spread often prices cleaner than group-stage advancement angles.",
+    };
+  }
   const value = Array.isArray(wc?.valueOutrights) ? wc.valueOutrights : [];
   const nor = value.find((t) => t.team === "NOR") || { team: "NOR", name: "Norway", odds: "+2500" };
   const par =
@@ -40,8 +71,21 @@ function pickWcContrarianRow(wc) {
  */
 function worldCupRowForSlot(slot, bundle) {
   const wc = bundle.worldcup;
-  const event = summarizeWorldCupEvent(wc);
+  const phase = resolveWcTournamentPhase(wc?.matches || wc?.allMatches);
+  const knockout = isKnockoutPhase(phase);
+  const event = summarizeWorldCupEvent(wc, knockout);
   if (slot === "safeLean") {
+    if (knockout) {
+      const upcoming = Array.isArray(wc?.upcoming) ? wc.upcoming[0] : null;
+      return {
+        sport: "worldcup",
+        game: event,
+        angle: upcoming ? "Favorite to advance in 90 or ET" : "Knockout favorite lean",
+        why: upcoming
+          ? `${upcoming.homeTeam} vs ${upcoming.awayTeam} — regulation ML is not a draw push; factor extra time and pens if level.`
+          : "Knockout favorites with reliable 90-minute control are the cleanest low-volatility entry on the slate.",
+      };
+    }
     return {
       sport: "worldcup",
       game: event,
@@ -50,6 +94,14 @@ function worldCupRowForSlot(slot, bundle) {
     };
   }
   if (slot === "sharpAngle") {
+    if (knockout) {
+      return {
+        sport: "worldcup",
+        event: event || `World Cup 2026 ${getKnockoutRoundLabel(phase)}`,
+        angle: "Regulation vs advancement pricing gap",
+        why: "Knockout 90-minute lines can misprice to-advance — draws go to extra time, so draw-heavy matchups need ET/pens framing.",
+      };
+    }
     return {
       sport: "worldcup",
       event: event || "World Cup 2026 groups",
@@ -57,7 +109,7 @@ function worldCupRowForSlot(slot, bundle) {
       why: "USA/Mexico/Canada path and travel density can misprice group totals and advancement — look where the schedule compresses rest edges.",
     };
   }
-  return pickWcContrarianRow(wc);
+  return pickWcContrarianFallback(wc, knockout);
 }
 
 /**

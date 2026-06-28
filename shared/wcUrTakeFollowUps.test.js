@@ -5,7 +5,10 @@ import {
   getWcContextFollowUpChips,
   mergeWcFollowUpChips,
   parseWcMatchupFromQuestion,
+  resolveWcFollowUpKnockoutScope,
+  filterWcKnockoutInvalidFollowUpChips,
 } from "./wcUrTakeFollowUps.js";
+import { getVerdictFollowUpChips } from "./wcUrTakeVerdict.js";
 
 test("getWcContextFollowUpChips — generic player props avoids What misprice chip", () => {
   const q = "What are the best player props for the remaining matches?";
@@ -151,5 +154,41 @@ test("getWcContextFollowUpChips skips both-advance for CIV vs ECU when Germany b
     },
     "Best bet on CIV vs ECU if I only know the moneyline?",
   );
+  assert.ok(!chips.some((c) => /both teams to advance/i.test(c)));
+});
+
+test("resolveWcFollowUpKnockoutScope detects round 32 in question", () => {
+  assert.equal(
+    resolveWcFollowUpKnockoutScope(
+      {},
+      "netherlands vs morocco round 32 match. over 2.5 total goals is at +127.",
+    ),
+    true,
+  );
+});
+
+test("getVerdictFollowUpChips FAIR_PRICE drops both-advance during knockout", () => {
+  const chips = getVerdictFollowUpChips("FAIR_PRICE", { knockout: true });
+  assert.ok(!chips.some((c) => /both teams to advance/i.test(c)));
+  assert.ok(chips.some((c) => /extra time/i.test(c)));
+});
+
+test("mergeWcFollowUpChips — NED vs MAR R32 O2.5 fair-price thread", () => {
+  const message = {
+    wcTournamentPhase: "ROUND_OF_32",
+    wcMatchTeams: { home: "NED", away: "MAR" },
+    structured: {
+      call: "Lean Over 2.5 goals",
+      lean: "Fair value, not an edge — knockout script favors controlled 1-0 or 2-0.",
+      callType: "matchup",
+    },
+    wcIntent: WC_INTENT.MATCHUP,
+  };
+  const chips = mergeWcFollowUpChips(
+    "FAIR_PRICE",
+    message,
+    "netherlands vs morocco round 32 match. over 2.5 total goals is at +127.",
+  );
+  assert.ok(chips.length > 0);
   assert.ok(!chips.some((c) => /both teams to advance/i.test(c)));
 });

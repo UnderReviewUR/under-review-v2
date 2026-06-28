@@ -29,6 +29,9 @@ export const WC_TOURNAMENT_END_ET = "2026-07-20";
 /** First kickoff calendar day (ET) — used for home/slate promo lead-in. */
 export const WC_KICKOFF_ET = "2026-06-11";
 
+/** Last ET calendar day of group stage (72 matches); knockout fixtures follow. */
+export const WC_GROUP_STAGE_END_ET = "2026-06-27";
+
 /** Show WC on home + slate from this ET date through tournament end (10 days pre-kickoff). */
 export const WC_HOME_PROMO_START_ET = "2026-06-01";
 

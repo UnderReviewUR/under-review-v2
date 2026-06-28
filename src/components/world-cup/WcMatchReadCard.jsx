@@ -85,11 +85,20 @@ export default function WcMatchReadCard({
   teams,
   detail = null,
   mispriceContext = null,
+  tournamentPhase = "",
+  allMatches = [],
   compact = false,
   onGoDeeper = null,
   showGoDeeper = true,
 }) {
-  const display = buildWcMatchReadDisplay({ match, teams, detail, mispriceContext });
+  const display = buildWcMatchReadDisplay({
+    match,
+    teams,
+    detail,
+    mispriceContext,
+    tournamentPhase,
+    allMatches,
+  });
   if (!display) return null;
 
   const xiChip =

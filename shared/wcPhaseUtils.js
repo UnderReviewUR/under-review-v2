@@ -3,6 +3,12 @@
  */
 
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import {
+  getEtYmdAt,
+  WC_GROUP_STAGE_END_ET,
+  WC_KICKOFF_ET,
+  WC_TOURNAMENT_END_ET,
+} from "./wc2026Constants.js";
 
 /** Full group stage = 12 groups × 6 matches */
 export const WC_GROUP_STAGE_MATCHES = 72;
@@ -141,7 +147,54 @@ function maxKnockoutRoundKey(rows) {
  * @param {WcTournamentPhase} phase
  */
 export function isKnockoutPhase(phase) {
+  if (!phase) return false;
   return !["PRE_GROUP", "GROUP_STAGE", "POST_TOURNAMENT"].includes(phase);
+}
+
+/**
+ * @param {WcTournamentPhase} phase
+ * @returns {number}
+ */
+function wcPhaseRank(phase) {
+  const order = {
+    PRE_GROUP: 0,
+    GROUP_STAGE: 1,
+    ROUND_OF_32: 2,
+    ROUND_OF_16: 3,
+    QUARTERFINALS: 4,
+    SEMIFINALS: 5,
+    FINAL: 6,
+    POST_TOURNAMENT: 7,
+  };
+  return order[phase] ?? 0;
+}
+
+/**
+ * ET calendar phase when match feed is sparse or missing knockout round metadata.
+ * @param {number} [nowMs]
+ * @returns {WcTournamentPhase}
+ */
+export function getWorldCupPhaseFromEtDate(nowMs = Date.now()) {
+  const ymd = getEtYmdAt(nowMs);
+  if (ymd < WC_KICKOFF_ET) return "PRE_GROUP";
+  if (ymd <= WC_GROUP_STAGE_END_ET) return "GROUP_STAGE";
+  if (ymd <= WC_TOURNAMENT_END_ET) return "ROUND_OF_32";
+  return "POST_TOURNAMENT";
+}
+
+/**
+ * Resolve tournament phase from match feed when available; otherwise ET date heuristic.
+ * When feed lags (e.g. <72 FT rows without round tags) but the calendar is past group
+ * stage, prefer the later of feed vs ET date so knockout UI does not stick on GROUP_STAGE.
+ * @param {Array<Record<string, unknown>> | null | undefined} matches
+ * @param {number} [nowMs]
+ * @returns {WcTournamentPhase}
+ */
+export function resolveWcTournamentPhase(matches, nowMs = Date.now()) {
+  const rows = Array.isArray(matches) ? matches : [];
+  const fromFeed = rows.length ? getWorldCupPhase(rows) : "PRE_GROUP";
+  const fromDate = getWorldCupPhaseFromEtDate(nowMs);
+  return wcPhaseRank(fromFeed) >= wcPhaseRank(fromDate) ? fromFeed : fromDate;
 }
 
 /**

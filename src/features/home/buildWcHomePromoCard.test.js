@@ -6,6 +6,13 @@ import {
   orderHomeQuestionsForWcPromo,
 } from "./buildWcHomePromoCard.js";
 
+test("buildWcHomePromoCard uses knockout copy after group stage", () => {
+  const card = buildWcHomePromoCard(Date.parse("2026-06-29T16:00:00Z"), []);
+  assert.ok(card);
+  assert.match(card.text, /knockout/i);
+  assert.match(card.prompt, /knockout/i);
+});
+
 test("buildWcHomePromoCard returns card during promo window", () => {
   const card = buildWcHomePromoCard(Date.parse("2026-06-02T16:00:00Z"));
   assert.ok(card);

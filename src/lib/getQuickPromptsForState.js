@@ -3,6 +3,8 @@
  * @typedef {"pre"|"live"|"final"|"mixed"|"unknown"|"futures"} BoardEventState
  */
 
+import { resolveWcTournamentPhase, isKnockoutPhase } from "../../shared/wcPhaseUtils.js";
+
 /**
  * @param {Array<{ state?: string }> | null | undefined} games
  * @returns {BoardEventState}
@@ -147,6 +149,16 @@ export function getQuickPromptsForState(sport, eventState) {
   }
 
   if (sport === "worldcup") {
+    const knockout = isKnockoutPhase(resolveWcTournamentPhase([], Date.now()));
+    if (knockout) {
+      return [
+        "Best knockout value bet?",
+        "Who advances in today's featured match?",
+        "Any upset value on the slate?",
+        "Who lifts the trophy?",
+        "Best bet if it goes to penalties?",
+      ];
+    }
     return [
       "Who wins Group A?",
       "Best group stage bet?",

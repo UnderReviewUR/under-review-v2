@@ -33,6 +33,8 @@ export default function WcPremiumFeaturedMatch({
   match,
   kicker,
   teams,
+  tournamentPhase = "",
+  allMatches = [],
   onOpen,
   xiTrustLine = null,
   extraLiveCount = 0,
@@ -51,7 +53,9 @@ export default function WcPremiumFeaturedMatch({
 
   return (
     <button type="button" className="wc-premium-featured" onClick={onOpen}>
-      <div className="wc-premium-featured__label">{formatWcFeaturedGroupLabel(match, kicker, teams)}</div>
+      <div className="wc-premium-featured__label">
+        {formatWcFeaturedGroupLabel(match, kicker, teams, { tournamentPhase, allMatches })}
+      </div>
       {extraLiveCount > 0 ? (
         <p className="wc-premium-featured__more-live">
           +{extraLiveCount} more live — see Live tab

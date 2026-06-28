@@ -1,10 +1,12 @@
 import { buildWcTournamentEdgeStrip } from "../../../shared/wcMatchReadModel.js";
+import { isKnockoutPhase } from "../../../shared/wcPhaseUtils.js";
 
 /**
- * TNNS-style "today's edges" — top sim-vs-market group advancement deltas.
+ * TNNS-style "today's edges" — top sim-vs-market group advancement deltas (group stage only).
  */
-export default function WcTournamentEdgeStrip({ mispriceContext, onAskEdge }) {
-  const rows = buildWcTournamentEdgeStrip(mispriceContext, 3);
+export default function WcTournamentEdgeStrip({ mispriceContext, tournamentPhase, onAskEdge }) {
+  if (isKnockoutPhase(tournamentPhase)) return null;
+  const rows = buildWcTournamentEdgeStrip(mispriceContext, 3, tournamentPhase);
   if (!rows.length) return null;
 
   return (

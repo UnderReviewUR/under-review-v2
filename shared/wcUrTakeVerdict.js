@@ -178,35 +178,60 @@ export function classifyWcVerdictForUi(message, userQuestion = "") {
   return "GENERAL";
 }
 
-/** @param {WcUrTakeVerdict} verdict */
-export function getVerdictFollowUpChips(verdict) {
+/** @param {WcUrTakeVerdict} verdict @param {{ knockout?: boolean }} [opts] */
+export function getVerdictFollowUpChips(verdict, opts = {}) {
+  const ko = Boolean(opts.knockout);
   switch (verdict) {
     case "HAS_EDGE":
       return ["Build a parlay around this.", "What kills this edge?", "What's the other side of this?"];
     case "FAIR_PRICE":
-      return [
-        "What's the best bet besides the moneyline?",
-        "Both teams to advance?",
-        "Who is mispriced instead?",
-      ];
+      return ko
+        ? [
+            "What's the best bet besides the moneyline?",
+            "Who advances if it goes to extra time?",
+            "Who is mispriced instead?",
+          ]
+        : [
+            "What's the best bet besides the moneyline?",
+            "Both teams to advance?",
+            "Who is mispriced instead?",
+          ];
     case "RULES_FACTUAL":
-      return [
-        "How does this affect betting?",
-        "What about group-stage ties?",
-        "Show me a knockout example.",
-      ];
+      return ko
+        ? [
+            "How does this affect betting?",
+            "What if it goes to penalties?",
+            "Show me a knockout example.",
+          ]
+        : [
+            "How does this affect betting?",
+            "What about group-stage ties?",
+            "Show me a knockout example.",
+          ];
     case "MATCHUP":
-      return [
-        "What's the best bet besides the moneyline?",
-        "Both teams to advance?",
-        "Over or under goals?",
-      ];
+      return ko
+        ? [
+            "What's the best bet besides the moneyline?",
+            "Over or under goals?",
+            "Who advances if it goes to penalties?",
+          ]
+        : [
+            "What's the best bet besides the moneyline?",
+            "Both teams to advance?",
+            "Over or under goals?",
+          ];
     case "PLAYER_MARKET_PASS":
-      return [
-        "Best player parlays for remaining matches?",
-        "Best group stage bet?",
-        "Who lifts the trophy?",
-      ];
+      return ko
+        ? [
+            "Best player parlays for remaining matches?",
+            "Best knockout value bet?",
+            "Who lifts the trophy?",
+          ]
+        : [
+            "Best player parlays for remaining matches?",
+            "Best group stage bet?",
+            "Who lifts the trophy?",
+          ];
     case "PLAYER_MARKET_POSTED":
       return [
         "4 player parlay for this matchup?",

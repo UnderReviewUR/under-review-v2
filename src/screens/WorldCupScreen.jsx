@@ -14,6 +14,8 @@ import {
 } from "../../shared/wcProductVoice.js";
 import { wcStrengthTagForRank } from "../../shared/wc2026Strength.js";
 import { getWcQuickPrompts } from "../../shared/wcQuickPrompts.js";
+import { resolveWcTournamentPhase } from "../../shared/wcPhaseUtils.js";
+import { isWcKnockoutFixtureMatch } from "../../shared/wcKnockoutFixture.js";
 import {
   formatWcKickoffDisplay,
   resolveWcMatchEtDate,
@@ -165,6 +167,8 @@ export default function WorldCupScreen({
     [matches],
   );
 
+  const tournamentPhase = useMemo(() => resolveWcTournamentPhase(matches), [matches]);
+
   const featuredMatch = useMemo(
     () =>
       pickWcFeaturedMatch({
@@ -200,7 +204,8 @@ export default function WorldCupScreen({
   const marketsChipLabel = outrightsMeta?.marketsChip || null;
 
   const handleAskMatch = (match, promptOverride) => {
-    const groupBit = match.group ? ` (Group ${match.group})` : "";
+    const ko = isWcKnockoutFixtureMatch(match, { tournamentPhase, allMatches: matches });
+    const groupBit = !ko && match.group ? ` (Group ${match.group})` : "";
     const prompt =
       promptOverride ||
       `Who wins ${match.homeTeam} vs ${match.awayTeam}${groupBit}?`;
@@ -224,9 +229,18 @@ export default function WorldCupScreen({
         liveCount: liveMatches.length,
         todayCount: todayMatches.length,
         xiConfirmed: Boolean(wcXiConfirmedNotice),
+        tournamentPhase,
       }),
-    [liveMatches.length, todayMatches.length, wcXiConfirmedNotice],
+    [liveMatches.length, todayMatches.length, wcXiConfirmedNotice, tournamentPhase],
   );
+
+  const matchCardProps = {
+    teams,
+    mispriceContext: matchReadContext,
+    tournamentPhase,
+    allMatches: matches,
+    onAskUrTake: handleAskMatch,
+  };
 
   const renderMatchesList = (list, { fetchWeather = false } = {}) => {
     if (!list.length) {
@@ -238,9 +252,7 @@ export default function WorldCupScreen({
           <WcMatchCard
             key={m.id || `${m.homeTeam}-${m.awayTeam}-${m.date}`}
             match={m}
-            teams={teams}
-            mispriceContext={matchReadContext}
-            onAskUrTake={handleAskMatch}
+            {...matchCardProps}
             onViewDetails={(match) => openMatchDrawer(match)}
             fetchWeather={fetchWeather}
             highlight={highlightEventId != null && String(m.id) === String(highlightEventId)}
@@ -318,6 +330,7 @@ export default function WorldCupScreen({
         <>
           <WcTournamentEdgeStrip
             mispriceContext={matchReadContext}
+            tournamentPhase={tournamentPhase}
             onAskEdge={(prompt) => submitWc(prompt)}
           />
           <div className="wc-sub-tabs">
@@ -547,6 +560,8 @@ export default function WorldCupScreen({
               match={featuredMatch.match}
               kicker={featuredMatch.kicker}
               teams={teams}
+              tournamentPhase={tournamentPhase}
+              allMatches={matches}
               extraLiveCount={featuredMatch.extraLiveCount || 0}
               onOpen={() => openMatchDrawer(featuredMatch.match)}
               xiTrustLine="Starting XIs only when confirmed — see status on every match."
@@ -590,6 +605,8 @@ export default function WorldCupScreen({
           match={detailMatch}
           teams={teams}
           mispriceContext={matchReadContext}
+          tournamentPhase={tournamentPhase}
+          allMatches={matches}
           onClose={() => setDetailMatch(null)}
           onAskUrTake={(m, promptOverride) => {
             setDetailMatch(null);

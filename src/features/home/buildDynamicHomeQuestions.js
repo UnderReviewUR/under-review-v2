@@ -14,6 +14,7 @@ import {
 } from "../../../shared/eventValidity.js";
 import { resolveNflDraftPromoBand } from "../../../shared/nflDraftCalendarBand.js";
 import { isWcHomePromoWindow } from "../../../shared/wc2026Constants.js";
+import { resolveWcTournamentPhase, isKnockoutPhase } from "../../../shared/wcPhaseUtils.js";
 import {
   buildNbaFinalsHomePrompt,
   isNbaFinalsWindowEt,
@@ -162,6 +163,7 @@ export function buildDynamicHomeQuestions({
   f1Data,
   hourEt: _hourEt = 12,
   promoNowMs = Date.now(),
+  wcMatches = [],
 }) {
   const prompts = [];
   const usedCardText = new Set();
@@ -209,24 +211,47 @@ export function buildDynamicHomeQuestions({
   };
 
   if (wcPromo) {
-    push({
-      id: "q-wc-promo",
-      color: "#00F5E9",
-      sportHint: "worldcup",
-      sortRank: 1,
-      text: "Best group stage value bet right now?",
-      prompt:
-        "Before the 2026 FIFA World Cup kicks off, what is the best group-stage value bet on the board — group winner, advancement, or a specific fixture — and which mispriced longshot (e.g. Norway, Paraguay) has the cleanest path?",
-    });
-    push({
-      id: "q-wc-group-misprice",
-      color: "#00F5E9",
-      sportHint: "worldcup",
-      sortRank: 3,
-      text: "Which World Cup group is most mispriced?",
-      prompt:
-        "Which 2026 World Cup group stage group is most mispriced on advancement or group-winner markets — and which second-place path is still a coin flip the books have wrong?",
-    });
+    const tournamentPhase = resolveWcTournamentPhase(wcMatches, promoNowMs);
+    const knockout = isKnockoutPhase(tournamentPhase);
+    if (knockout) {
+      push({
+        id: "q-wc-promo",
+        color: "#00F5E9",
+        sportHint: "worldcup",
+        sortRank: 1,
+        text: "Best knockout value bet right now?",
+        prompt:
+          "What's the best knockout-stage value bet on today's board — one pick, direct answer? Name the fixture, market, and why the line is wrong.",
+      });
+      push({
+        id: "q-wc-group-misprice",
+        color: "#00F5E9",
+        sportHint: "worldcup",
+        sortRank: 3,
+        text: "Which knockout matchup is most mispriced?",
+        prompt:
+          "Which knockout fixture on today's slate is most mispriced on the moneyline, spread, or total — and which side advances if it goes to extra time?",
+      });
+    } else {
+      push({
+        id: "q-wc-promo",
+        color: "#00F5E9",
+        sportHint: "worldcup",
+        sortRank: 1,
+        text: "Best group stage value bet right now?",
+        prompt:
+          "Before the 2026 FIFA World Cup kicks off, what is the best group-stage value bet on the board — group winner, advancement, or a specific fixture — and which mispriced longshot (e.g. Norway, Paraguay) has the cleanest path?",
+      });
+      push({
+        id: "q-wc-group-misprice",
+        color: "#00F5E9",
+        sportHint: "worldcup",
+        sortRank: 3,
+        text: "Which World Cup group is most mispriced?",
+        prompt:
+          "Which 2026 World Cup group stage group is most mispriced on advancement or group-winner markets — and which second-place path is still a coin flip the books have wrong?",
+      });
+    }
   }
 
   const validNbaGames = (nbaGames || []).filter((g) =>

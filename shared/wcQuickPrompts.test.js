@@ -7,6 +7,11 @@ test("getWcQuickPrompts — live phase", () => {
   assert.match(p[0], /live/i);
 });
 
+test("getWcQuickPrompts — knockout phase", () => {
+  const p = getWcQuickPrompts({ tournamentPhase: "ROUND_OF_32" });
+  assert.match(p[0], /knockout/i);
+});
+
 test("getWcQuickPrompts — default", () => {
   const p = getWcQuickPrompts({});
   assert.equal(p.length, 4);

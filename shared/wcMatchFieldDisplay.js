@@ -3,6 +3,11 @@
  * BDL rows may embed objects without .name — never render raw objects in JSX.
  */
 
+import {
+  getWcKnockoutRoundLabelForMatch,
+  isWcKnockoutFixtureMatch,
+} from "./wcKnockoutFixture.js";
+
 /**
  * @param {unknown} value
  */
@@ -88,6 +93,25 @@ export function resolveWcMatchGroupLetter(match, teams = []) {
     if (g) return g;
   }
   return "";
+}
+
+/**
+ * Group letter or knockout round label for match cards (uppercase).
+ * @param {{ group?: unknown, homeTeam?: string, awayTeam?: string, round?: string } | null | undefined} match
+ * @param {{ group?: string, abbreviation?: string }[]} [teams]
+ * @param {{ tournamentPhase?: string, allMatches?: Array<Record<string, unknown>> }} [opts]
+ */
+export function formatWcMatchStageLabel(match, teams = [], opts = {}) {
+  if (!match) return "";
+  const scope = {
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
+  };
+  if (isWcKnockoutFixtureMatch(match, scope)) {
+    return getWcKnockoutRoundLabelForMatch(match, scope).toUpperCase();
+  }
+  const g = resolveWcMatchGroupLetter(match, teams);
+  return g ? `GROUP ${g}` : "";
 }
 
 /**

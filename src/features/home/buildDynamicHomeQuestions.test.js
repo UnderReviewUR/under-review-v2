@@ -133,6 +133,27 @@ test("NBA Finals window caps to one home prompt", () => {
   assert.equal(nba.length, 1);
 });
 
+test("World Cup promo window adds knockout prompts after group stage", () => {
+  const prompts = buildDynamicHomeQuestions({
+    activeTournamentMatches: [],
+    tennisLiveMatches: [],
+    tennisUpcomingMatches: [],
+    nflSeasonMode: false,
+    nflDraftMeta: null,
+    userCity: "",
+    context: null,
+    golfData: null,
+    nbaGames: [],
+    mlbGames: [],
+    f1Data: null,
+    promoNowMs: Date.parse("2026-06-29T16:00:00.000Z"),
+    wcMatches: [],
+  });
+  const wc = prompts.find((p) => p.id === "q-wc-promo");
+  assert.ok(wc);
+  assert.match(wc.text, /knockout/i);
+});
+
 test("World Cup promo window adds group stage value prompt", () => {
   const prompts = buildDynamicHomeQuestions({
     activeTournamentMatches: [],

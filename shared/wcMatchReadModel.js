@@ -18,6 +18,8 @@ import {
   resolveMatchWinProbabilityBar,
 } from "./wcMatchMoneylineProbs.js";
 import { resolveWcXiStatus } from "./wcXiStatus.js";
+import { isWcKnockoutFixtureMatch } from "./wcKnockoutFixture.js";
+import { isKnockoutPhase } from "./wcPhaseUtils.js";
 
 /**
  * @param {{ teamA: { abbr: string, winPct: number }, teamB: { abbr: string, winPct: number }, draw: number }} bar
@@ -189,6 +191,8 @@ function formatLiveMomentum(payload) {
  *   teams?: Array<Record<string, unknown>>,
  *   detail?: Record<string, unknown> | null,
  *   mispriceContext?: { teamStats?: Record<string, unknown>, bdlFutures?: { byMarketType?: Record<string, unknown>, lastUpdated?: number } } | null,
+ *   tournamentPhase?: string,
+ *   allMatches?: Array<Record<string, unknown>>,
  * }} input
  */
 export function buildWcMatchReadDisplay(input) {
@@ -258,7 +262,13 @@ export function buildWcMatchReadDisplay(input) {
   }
 
   const modelLean = buildModelVsMarketLean(homeAbbr, awayAbbr, teams, match?.odds, match?.oddsStale);
-  const groupEdge = pickGroupEdgeForMatch(match.group, homeAbbr, awayAbbr, input?.mispriceContext);
+  const knockoutScope = {
+    tournamentPhase: input?.tournamentPhase,
+    allMatches: input?.allMatches,
+  };
+  const groupEdge = isWcKnockoutFixtureMatch(match, knockoutScope)
+    ? null
+    : pickGroupEdgeForMatch(match.group, homeAbbr, awayAbbr, input?.mispriceContext);
 
   let headline = modelLean?.headline || null;
   if (!headline && winBar) {
@@ -286,8 +296,10 @@ export function buildWcMatchReadDisplay(input) {
  * Tournament-wide top misprice rows for "Today's edges" strip (deterministic).
  * @param {{ teamStats?: Record<string, unknown>, bdlFutures?: { byMarketType?: Record<string, unknown>, lastUpdated?: number } } | null} mispriceContext
  * @param {number} [topN]
+ * @param {string} [tournamentPhase]
  */
-export function buildWcTournamentEdgeStrip(mispriceContext, topN = 3) {
+export function buildWcTournamentEdgeStrip(mispriceContext, topN = 3, tournamentPhase = "") {
+  if (isKnockoutPhase(tournamentPhase)) return [];
   if (!mispriceContext?.teamStats || !mispriceContext?.bdlFutures?.byMarketType) {
     return [];
   }

@@ -9,6 +9,8 @@ import {
   formatKnockoutPhasePromptRules,
   getTeamKnockoutStatus,
   filterOutrightsForQuestion,
+  getWorldCupPhaseFromEtDate,
+  resolveWcTournamentPhase,
 } from "./wcPhaseUtils.js";
 
 test("getWorldCupPhase returns PRE_GROUP with zero finished matches", () => {
@@ -128,4 +130,19 @@ test("filterOutrightsForQuestion keeps only mentioned teams", () => {
   const kv = { outrights: { NOR: "+2500", ESP: "+650", BRA: "+500" }, lastUpdated: Date.now() };
   const filtered = filterOutrightsForQuestion(kv, ["NOR"]);
   assert.deepEqual(filtered.outrights, { NOR: "+2500" });
+});
+
+test("getWorldCupPhaseFromEtDate — Jun 28 is knockout calendar", () => {
+  const ms = Date.parse("2026-06-28T20:00:00-04:00");
+  assert.equal(getWorldCupPhaseFromEtDate(ms), "ROUND_OF_32");
+  const sparseGroupFeed = Array.from({ length: 40 }, (_, i) => ({
+    id: i,
+    status: "ft",
+    round: "Group Stage",
+    group: "A",
+  }));
+  assert.equal(getWorldCupPhase(sparseGroupFeed), "GROUP_STAGE");
+  const resolved = resolveWcTournamentPhase(sparseGroupFeed, ms);
+  assert.equal(resolved, "ROUND_OF_32");
+  assert.equal(isKnockoutPhase(resolved), true);
 });

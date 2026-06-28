@@ -20,6 +20,8 @@ import {
   sanitizeWorldCupBoard,
 } from "../shared/todaySlateInputBundle.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { resolveWcTournamentPhase, isKnockoutPhase, getKnockoutRoundLabel } from "../shared/wcPhaseUtils.js";
+import { isWcKnockoutFixtureMatch } from "../shared/wcKnockoutFixture.js";
 import { isTodaySlateSportVisible } from "../shared/siteSportVisibility.js";
 import { ensureWorldCupInSlateOutput } from "../shared/wcSlateFeaturing.js";
 import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
@@ -207,14 +209,42 @@ function summarizeF1(f1) {
 
 function summarizeWorldCup(wc) {
   if (!wc) return null;
+  const knockout = isKnockoutPhase(resolveWcTournamentPhase(wc.matches || wc.allMatches));
   const upcoming = Array.isArray(wc.upcoming) ? wc.upcoming[0] : null;
   if (upcoming?.homeTeam && upcoming?.awayTeam) {
-    return `${upcoming.homeTeam} vs ${upcoming.awayTeam}${upcoming.group ? ` (Group ${upcoming.group})` : ""}`;
+    const ko = isWcKnockoutFixtureMatch(upcoming, {
+      tournamentPhase: resolveWcTournamentPhase(wc.matches || wc.allMatches),
+      allMatches: wc.matches || wc.allMatches,
+    });
+    const stage = ko
+      ? upcoming.round || "Knockout"
+      : upcoming.group
+        ? `Group ${upcoming.group}`
+        : "";
+    return `${upcoming.homeTeam} vs ${upcoming.awayTeam}${stage ? ` (${stage})` : ""}`;
   }
-  return "2026 FIFA World Cup group stage";
+  return knockout ? "2026 FIFA World Cup knockout stage" : "2026 FIFA World Cup group stage";
 }
 
 function pickWcContrarianFallback(wc) {
+  const knockout = isKnockoutPhase(resolveWcTournamentPhase(wc?.matches || wc?.allMatches));
+  if (knockout) {
+    const upcoming = Array.isArray(wc?.upcoming) ? wc.upcoming[0] : null;
+    if (upcoming?.homeTeam && upcoming?.awayTeam) {
+      return {
+        sport: "worldcup",
+        match: `${upcoming.homeTeam} vs ${upcoming.awayTeam}`,
+        angle: "Knockout upset value",
+        why: "Single-elimination variance — look where the favorite is overpriced and ET/pens are live if level after 90.",
+      };
+    }
+    return {
+      sport: "worldcup",
+      match: "Knockout slate",
+      angle: "Fade heavy R32 chalk",
+      why: "Early knockout rounds misprice underdogs — advancement needs ET/pens if regulation ends level.",
+    };
+  }
   const value = Array.isArray(wc?.valueOutrights) ? wc.valueOutrights : [];
   const nor = value.find((t) => t.team === "NOR") || { team: "NOR", name: "Norway", odds: "+2500" };
   const par =
@@ -235,18 +265,28 @@ function buildFallbackSlate(bundle, reason = "fallback") {
   const generatedAt = new Date().toISOString();
   const wcPromo = isWcHomePromoWindow();
   const wcBoard = bundle?.worldcup;
+  const wcKnockout = wcBoard
+    ? isKnockoutPhase(resolveWcTournamentPhase(wcBoard.matches || wcBoard.allMatches))
+    : false;
   const nbaGame = summarizeNba(bundle?.nba);
   const mlb = summarizeMlb(bundle?.mlb);
   const f1Race = summarizeF1(bundle?.f1);
   const wcEvent = summarizeWorldCup(wcBoard);
 
   const safeLean = wcPromo && wcBoard
-    ? {
-        sport: "worldcup",
-        game: wcEvent || "World Cup 2026",
-        angle: "Group favorite to control the table",
-        why: "Pre-tournament group favorites with host-path leverage still look like the cleanest low-volatility entry before kickoff.",
-      }
+    ? wcKnockout
+      ? {
+          sport: "worldcup",
+          game: wcEvent || "World Cup 2026 knockout",
+          angle: "Knockout favorite to advance",
+          why: "Regulation ML is not a draw push in knockout — factor extra time and pens when the matchup can stay tight after 90.",
+        }
+      : {
+          sport: "worldcup",
+          game: wcEvent || "World Cup 2026",
+          angle: "Group favorite to control the table",
+          why: "Pre-tournament group favorites with host-path leverage still look like the cleanest low-volatility entry before kickoff.",
+        }
     : mlb
     ? {
         sport: "mlb",
@@ -265,12 +305,19 @@ function buildFallbackSlate(bundle, reason = "fallback") {
       };
 
   const sharpAngle = wcPromo && wcBoard
-    ? {
-        sport: "worldcup",
-        event: wcEvent || "World Cup 2026 groups",
-        angle: "Host-path scheduling edge",
-        why: "USA/Mexico/Canada path and travel density can misprice group totals and advancement — look where the schedule compresses rest edges.",
-      }
+    ? wcKnockout
+      ? {
+          sport: "worldcup",
+          event: wcEvent || `World Cup 2026 ${getKnockoutRoundLabel(resolveWcTournamentPhase(wcBoard.matches || wcBoard.allMatches))}`,
+          angle: "Regulation vs to-advance gap",
+          why: "Knockout draw prices don't settle advancement — look where 90-minute lines misprice ET/pens paths.",
+        }
+      : {
+          sport: "worldcup",
+          event: wcEvent || "World Cup 2026 groups",
+          angle: "Host-path scheduling edge",
+          why: "USA/Mexico/Canada path and travel density can misprice group totals and advancement — look where the schedule compresses rest edges.",
+        }
     : bundle?.golf
     ? {
         sport: "golf",
@@ -451,6 +498,11 @@ export default async function handler(req, res) {
     };
 
     const slimBundle = slimBundleForSlatePrompt(bundle);
+    const wcKnockoutPrompt =
+      bundle?.worldcup &&
+      isKnockoutPhase(resolveWcTournamentPhase(bundle.worldcup.matches || bundle.worldcup.allMatches))
+        ? `\n- WORLD CUP KNOCKOUT (mandatory when worldcup is present and tournament is in knockout phase): Do NOT use group-stage framing (group winner, both teams advance, group table). Frame leans as single-elimination — who advances, regulation ML vs ET/pens, knockout totals/spreads. Name specific fixtures from worldcup.upcoming when available.\n`
+        : "";
 
     const userPrompt = `You are Under Review's cross-sport slate editor — write like a sharp bettor texting friends, not a press release.
 
@@ -479,7 +531,7 @@ RULES
 - If a sport has no usable slate in the payload, you may still reference it only if another field clearly supports it; otherwise favor sports with real rows.
 - "game" for golf can be the tournament short name; for tennis include player surnames vs; for F1 use next GP name from schedule if present.
 - F1 discipline: DATA may include f1.lastCompletedGrandPrix and f1.nextGrandPrix. If your angle compares the next venue to a prior Grand Prix, "last week," or recency / form carryover, you may name a specific previous GP only when f1.lastCompletedGrandPrix is non-null — use that object's meeting_name verbatim (same race). Do not name any other prior GP (for example do not assume Monaco) unless it appears as meeting_name inside f1.lastCompletedGrandPrix. If f1.lastCompletedGrandPrix is null, do not attribute market behavior to form from a named prior race; anchor the take in circuit traits, tyres, weather, or other fields present in the JSON instead.
-
+${wcKnockoutPrompt}
 OUTPUT
 Respond ONLY with raw JSON (no markdown, no code fences). The first character must be {.
 `;

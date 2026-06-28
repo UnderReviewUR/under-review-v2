@@ -3481,6 +3481,7 @@ ${themeCss}
       mlbGames: homePipeline?.mlbGamesForHome,
       f1Data,
       hourEt: hourEt ?? 12,
+      wcMatches,
     });
     const cap = isWcHomePromoWindow() ? 4 : 3;
     const capped = Array.isArray(list) ? list.slice(0, cap) : [];
@@ -3499,6 +3500,7 @@ ${themeCss}
     homePipeline?.mlbGamesForHome,
     f1Data,
     hourEt,
+    wcMatches,
     promptRefreshTick,
   ]);
 
@@ -3550,7 +3552,7 @@ ${themeCss}
     [golfData],
   );
 
-  const wcHomePromoCard = useMemo(() => buildWcHomePromoCard(), [promptRefreshTick]);
+  const wcHomePromoCard = useMemo(() => buildWcHomePromoCard(undefined, wcMatches), [promptRefreshTick, wcMatches]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {

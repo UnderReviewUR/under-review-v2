@@ -20,6 +20,7 @@ import {
 } from "./wcTakeAwareFollowUps.js";
 import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
 import { isWcKnockoutFixtureMatch } from "./wcKnockoutFixture.js";
+import { isKnockoutPhase } from "./wcPhaseUtils.js";
 import { wcGroupLetterForTeam } from "./wcGroupComposition.js";
 import {
   isWcCrossGroupMispriceQuestion,
@@ -27,6 +28,91 @@ import {
 } from "./wcTakeRetentionQA.js";
 
 const RUNNER_UP_CHIP = "Which group is the runner-up value?";
+
+const GROUP_STAGE_CHIP_RE =
+  /\b(both teams to advance|both advance\b|runner-up value|who wins group [a-l]|win their group|group stage bet|group-stage ties|which group is most mispriced|can .+ win their group)\b/i;
+
+/**
+ * Knockout scope for follow-up chips — phase, fixture row, or explicit question wording.
+ * @param {object | null | undefined} message
+ * @param {string} [userQuestion]
+ */
+export function resolveWcFollowUpKnockoutScope(message, userQuestion = "") {
+  const tournamentPhase =
+    message?.wcTournamentPhase ||
+    message?.tournamentPhase ||
+    message?.urTakeTelemetry?.wcTournamentPhase ||
+    "";
+  const scope = {
+    tournamentPhase,
+    allMatches: message?.allMatches,
+  };
+  const fixtureMatch = message?.wcMatch || message?.match;
+  const q = String(userQuestion || message?.userQuestion || message?.question || "");
+  const knockoutFromQuestion =
+    /\b(round of 32|round\s*32|r32|round of 16|round\s*16|r16|quarter-?finals?|semi-?finals?|knockout|elimination|single elimination)\b/i.test(
+      q,
+    );
+  return (
+    isKnockoutPhase(tournamentPhase) ||
+    isWcKnockoutFixtureMatch(fixtureMatch, scope) ||
+    knockoutFromQuestion
+  );
+}
+
+/**
+ * @param {string} chip
+ * @param {object | null | undefined} message
+ */
+function knockoutFollowUpChipReplacement(chip, message) {
+  const s = String(chip || "").trim();
+  const teams = message?.wcMatchTeams;
+  const home = teams?.home ? String(teams.home).trim() : "";
+  const away = teams?.away ? String(teams.away).trim() : "";
+  const matchup = home && away ? `${home} vs ${away}` : "";
+
+  if (/both teams to advance/i.test(s)) {
+    return matchup ? `Who advances: ${matchup}?` : "Who advances from this matchup?";
+  }
+  if (/group stage bet/i.test(s)) return "Best knockout value bet?";
+  if (/who wins group/i.test(s) || /win their group/i.test(s)) {
+    return matchup ? `Who advances: ${matchup}?` : "Who advances from this matchup?";
+  }
+  if (/runner-up value/i.test(s)) return "Any upset value on this slate?";
+  if (/group-stage ties/i.test(s)) return "What if it goes to extra time?";
+  if (/which group is most mispriced/i.test(s)) return "Which knockout matchup is most mispriced?";
+  if (/can .+ advance\?/i.test(s) && !/who advances/i.test(s)) {
+    return matchup ? `Who advances: ${matchup}?` : "Who advances from this matchup?";
+  }
+  return null;
+}
+
+/**
+ * Strip or rewrite group-stage chips during knockout threads.
+ * @param {string[]} chips
+ * @param {object | null | undefined} message
+ * @param {string} [userQuestion]
+ */
+export function filterWcKnockoutInvalidFollowUpChips(chips, message, userQuestion = "") {
+  if (!resolveWcFollowUpKnockoutScope(message, userQuestion)) {
+    return chips || [];
+  }
+  const out = [];
+  const seen = new Set();
+  for (const chip of chips || []) {
+    let s = String(chip || "").trim();
+    if (!s) continue;
+    if (GROUP_STAGE_CHIP_RE.test(s)) {
+      s = knockoutFollowUpChipReplacement(s, message) || "";
+      if (!s) continue;
+    }
+    const k = s.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+  }
+  return out;
+}
 
 /**
  * @param {object | null | undefined} message
@@ -66,7 +152,11 @@ export function resolveWcRunnerUpFollowUpChipText(message, parsedGroup) {
 export function gateWcFollowUpChipText(chip, message, parsedGroup) {
   const s = String(chip || "").trim();
   if (s.toLowerCase() === RUNNER_UP_CHIP.toLowerCase()) {
+    if (resolveWcFollowUpKnockoutScope(message)) return null;
     return resolveWcRunnerUpFollowUpChipText(message, parsedGroup);
+  }
+  if (resolveWcFollowUpKnockoutScope(message) && GROUP_STAGE_CHIP_RE.test(s)) {
+    return knockoutFollowUpChipReplacement(s, message);
   }
   return s;
 }
@@ -221,7 +311,13 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
       }).ok;
       if (bothAdvanceOk && !isWcKnockoutFixtureMatch(fixtureMatch, knockoutScope)) {
         chips.push("Both teams to advance?");
-      } else if (groupLetter && !isMoneylineBestBetQuestion) {
+      } else if (
+        groupLetter &&
+        !isMoneylineBestBetQuestion &&
+        !isKnockoutPhase(knockoutScope.tournamentPhase) &&
+        !isWcKnockoutFixtureMatch(fixtureMatch, knockoutScope) &&
+        !resolveWcFollowUpKnockoutScope(message, q)
+      ) {
         chips.push(`Who wins Group ${groupLetter}?`);
       }
       if (priorTotalsInCall) {
@@ -283,7 +379,8 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
         chips.push("Best anytime scorer value today?");
       }
     }
-    chips.push("Best group stage bet?");
+    const knockoutThread = resolveWcFollowUpKnockoutScope(message, q);
+    chips.push(knockoutThread ? "Best knockout value bet?" : "Best group stage bet?");
   } else if (wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(q)) {
     const blob = [
       message?.structured?.call,
@@ -312,24 +409,28 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
     }
   } else if (wcIntent === WC_INTENT.ENTITY_PRICING) {
     const team = (q.match(/\b(France|Brazil|Argentina|England|Germany|Spain|Portugal|Netherlands|Italy|USA|Mexico|Canada|Norway)\b/i) || [])[1];
-    if (team) {
+    const knockoutThread = resolveWcFollowUpKnockoutScope(message, q);
+    if (team && !knockoutThread) {
       chips.push(`Can ${team} win their group?`);
       chips.push(`${team} — advance or bust?`);
+    } else if (team) {
+      chips.push(`Can ${team} still win the tournament?`);
+      chips.push(`Who advances: ${team}'s next matchup?`);
     }
   }
 
   const seen = new Set();
-  return chips
-    .map((t) => String(t).trim())
-    .filter((t) => {
-      if (!t || t.length > 80) return false;
-      if (followUpChipDuplicatesQuestion(t, q)) return false;
-      const k = t.toLowerCase();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    })
-    .slice(0, 3);
+  const deduped = [];
+  for (const t of chips.map((x) => String(x).trim())) {
+    if (!t || t.length > 80) continue;
+    if (followUpChipDuplicatesQuestion(t, q)) continue;
+    const k = t.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    deduped.push(t);
+  }
+
+  return filterWcKnockoutInvalidFollowUpChips(deduped, message, q).slice(0, 3);
 }
 
 /**
@@ -383,8 +484,9 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "", histor
   const parsedGroup = (blob.match(/\bGroup\s+([A-L])\b/i) || [])[1] || null;
 
   if (verdict === "GROUP_SLATE" || wcIntent === WC_INTENT.STRUCTURAL || isWcGroupSlateQuestion(q)) {
+    const knockout = resolveWcFollowUpKnockoutScope(message, q);
     const context = getWcContextFollowUpChips(message, q);
-    const slate = getVerdictFollowUpChips("GROUP_SLATE");
+    const slate = getVerdictFollowUpChips("GROUP_SLATE", { knockout });
     const out = [];
     const seen = new Set();
     for (const t of [...context, ...slate]) {
@@ -397,16 +499,21 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "", histor
       out.push(s);
       if (out.length >= 3) break;
     }
-    return prependWcTakeAwareFollowUpChips(
-      filterStaleGenericFollowUpChips(out, message, history),
+    return filterWcKnockoutInvalidFollowUpChips(
+      prependWcTakeAwareFollowUpChips(
+        filterStaleGenericFollowUpChips(out, message, history),
+        message,
+        q,
+        history,
+      ),
       message,
       q,
-      history,
     );
   }
 
+  const knockout = resolveWcFollowUpKnockoutScope(message, userQuestion);
   const context = getWcContextFollowUpChips(message, userQuestion);
-  const generic = getVerdictFollowUpChips(verdict);
+  const generic = getVerdictFollowUpChips(verdict, { knockout });
   const out = [];
   const seen = new Set();
   for (const t of [...context, ...generic]) {
@@ -419,10 +526,14 @@ export function mergeWcFollowUpChips(verdict, message, userQuestion = "", histor
     out.push(s);
     if (out.length >= 3) break;
   }
-  return prependWcTakeAwareFollowUpChips(
-    filterStaleGenericFollowUpChips(out, message, history),
+  return filterWcKnockoutInvalidFollowUpChips(
+    prependWcTakeAwareFollowUpChips(
+      filterStaleGenericFollowUpChips(out, message, history),
+      message,
+      q,
+      history,
+    ),
     message,
     q,
-    history,
   );
 }

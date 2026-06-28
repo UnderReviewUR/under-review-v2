@@ -7,8 +7,8 @@ import { resolveWcXiStatus, wcXiStatusChipLabel } from "../../../shared/wcXiStat
 import WcLiveScore from "./WcLiveScore.jsx";
 import WcMatchReadCard from "./WcMatchReadCard.jsx";
 import {
-  formatWcMatchGroupLetter,
   formatWcMatchVenueLine,
+  formatWcMatchStageLabel,
 } from "../../../shared/wcMatchFieldDisplay.js";
 
 function isLive(status) {
@@ -19,6 +19,8 @@ export default function WcMatchCard({
   match,
   teams,
   mispriceContext = null,
+  tournamentPhase = "",
+  allMatches = [],
   onAskUrTake,
   onViewDetails,
   showOdds = true,
@@ -54,7 +56,7 @@ export default function WcMatchCard({
   }, [fetchWeather, match?.city, match?.stadium]);
 
   const kickoff = formatWcKickoffDisplay(match);
-  const groupLetter = formatWcMatchGroupLetter(match?.group);
+  const stageLabel = formatWcMatchStageLabel(match, teams, { tournamentPhase, allMatches });
   const venueLine = formatWcMatchVenueLine(match?.stadium, match?.city);
   const xiStatus = resolveWcXiStatus(match);
   const xiChip = !live && !finished ? wcXiStatusChipLabel(xiStatus) : "";
@@ -111,7 +113,7 @@ export default function WcMatchCard({
       <div className="wc-match-meta">
         {kickoff ? <span>{kickoff}</span> : null}
         {xiChip ? <span className="wc-match-xi-chip">{xiChip}</span> : null}
-        {groupLetter ? <span>Group {groupLetter}</span> : null}
+        {stageLabel ? <span>{stageLabel}</span> : null}
         {venueLine ? (
           <span>
             {weather?.icon ? `${weather.icon} ` : ""}
@@ -126,6 +128,8 @@ export default function WcMatchCard({
           match={match}
           teams={teams}
           mispriceContext={mispriceContext}
+          tournamentPhase={tournamentPhase}
+          allMatches={allMatches}
           onGoDeeper={onAskUrTake}
           showGoDeeper={Boolean(onAskUrTake)}
         />

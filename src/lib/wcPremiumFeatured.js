@@ -3,6 +3,7 @@ import {
   resolveWcMatchGroupLetter,
   formatWcMatchFieldText,
   formatWcMatchVenueLine,
+  formatWcMatchStageLabel,
 } from "../../shared/wcMatchFieldDisplay.js";
 import { getWcTeamByAbbr } from "../data/wc2026Teams.js";
 import { parseWcKickoffEtMs } from "../../shared/wcKickoffDisplay.js";
@@ -115,13 +116,13 @@ export function resolveWcFeaturedTeam(abbr, teams) {
 }
 
 /**
- * @param {{ group?: string, homeTeam?: string, awayTeam?: string } | null | undefined} match
+ * @param {{ group?: string, homeTeam?: string, awayTeam?: string, round?: string } | null | undefined} match
  * @param {string} [kicker]
  * @param {Array<{ abbreviation?: string, group?: string }>} [teams]
+ * @param {{ tournamentPhase?: string, allMatches?: Array<Record<string, unknown>> }} [opts]
  */
-export function formatWcFeaturedGroupLabel(match, kicker = "", teams = []) {
-  const g = resolveWcMatchGroupLetter(match, teams);
-  const base = g ? `GROUP ${g}` : "";
+export function formatWcFeaturedGroupLabel(match, kicker = "", teams = [], opts = {}) {
+  const base = formatWcMatchStageLabel(match, teams, opts);
   const k = String(kicker || "").trim();
   if (base && /live/i.test(k)) return `${base} · LIVE`;
   if (base && /next/i.test(k)) return base;

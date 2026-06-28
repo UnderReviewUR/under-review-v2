@@ -1,11 +1,15 @@
 import { isWcHomePromoWindow } from "../../../shared/wc2026Constants.js";
+import { resolveWcTournamentPhase, isKnockoutPhase } from "../../../shared/wcPhaseUtils.js";
 
 /**
  * Cyan home feature card during WC promo — visible even when sport prompts are crowded out.
  * @param {number} [nowMs]
+ * @param {Array<Record<string, unknown>> | null} [wcMatches]
  */
-export function buildWcHomePromoCard(nowMs = Date.now()) {
+export function buildWcHomePromoCard(nowMs = Date.now(), wcMatches = null) {
   if (!isWcHomePromoWindow(nowMs)) return null;
+
+  const knockout = isKnockoutPhase(resolveWcTournamentPhase(wcMatches, nowMs));
 
   return {
     id: "wc-home-promo",
@@ -21,8 +25,10 @@ export function buildWcHomePromoCard(nowMs = Date.now()) {
       "Live in-game odds on every match",
       "Public, sharp, and line movement data",
     ],
-    text: "Best group stage value bet?",
-    prompt: "What's the best group-stage value bet right now — one pick, direct answer?",
+    text: knockout ? "Best knockout value bet?" : "Best group stage value bet?",
+    prompt: knockout
+      ? "What's the best knockout value bet right now — one pick, direct answer?"
+      : "What's the best group-stage value bet right now — one pick, direct answer?",
     sportHint: "worldcup",
   };
 }
