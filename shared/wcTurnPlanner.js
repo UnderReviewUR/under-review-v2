@@ -51,6 +51,7 @@ import {
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import {
   isWcRunnerUpValueFollowUp,
+  isWcKnockoutSlateQuestion,
   isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
 import {
@@ -391,7 +392,8 @@ export function resolveWcTurnPlan(params = {}) {
     (isWcMatchupAltMarketFollowUp(question) || isWcTotalsExplainFollowUp(question));
   if (
     (intent === WC_INTENT.ENTITY_PRICING || intent === WC_INTENT.STRUCTURAL) &&
-    !threadTotalsFollowUp
+    !threadTotalsFollowUp &&
+    !isWcKnockoutSlateQuestion(question)
   ) {
     plan.lane = WC_TURN_LANE.LLM_FULL;
     plan.reason =

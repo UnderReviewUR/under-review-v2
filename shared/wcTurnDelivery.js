@@ -22,8 +22,10 @@ import {
 } from "./wcGroupComposition.js";
 import {
   extractWcRunnerUpFromHistory,
+  isWcKnockoutSlateQuestion,
   isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
+import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import { capWcCharsAtWord } from "./wcSentenceBoundaries.js";
 import {
@@ -291,7 +293,24 @@ export async function buildWcStructuredForPlan(plan, ctx = {}) {
 
   if (plan.lane === WC_TURN_LANE.GROUP_SLATE) {
     if (plan.reason === "tomorrow_slate_question" || isWcTomorrowOrSlateBetQuestion(question)) {
-      return null;
+      const matches = Array.isArray(ctx.matches)
+        ? ctx.matches
+        : Array.isArray(ctx.wcContext?.allMatches)
+          ? ctx.wcContext.allMatches
+          : [];
+      const structured =
+        early.wcTomorrowSlatePrebuiltEarly ||
+        early.tomorrowSlate ||
+        buildWcTomorrowSlatePrebuiltStructured({
+          question,
+          matches,
+          teamStats,
+          simLastUpdated,
+          nowMs,
+        });
+      return structured
+        ? { structured, passKind: WC_TURN_PASS_KIND.TOMORROW_SLATE }
+        : null;
     }
     if (plan.reason === "group_upset_scan") {
       const structured = buildWcGroupUpsetScanPrebuiltStructured({

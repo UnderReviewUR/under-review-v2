@@ -30,7 +30,14 @@ import {
   wcSentenceSimilarity,
   isWcRunnerUpValueFollowUp,
   parseWcRunnerUpTeamAbbr,
+  isWcKnockoutSlateQuestion,
+  isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
+import { shouldUseWcCrossGroupValuePrebuilt } from "./wcGroupComposition.js";
+import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
+import { resolveWcTurnPlan } from "./wcTurnPlanner.js";
+import { buildWcStructuredForPlan } from "./wcTurnDelivery.js";
+import { WC_TURN_LANE } from "./wcTurnConstants.js";
 
 test("wcSentenceSimilarity flags near-duplicate sentences", () => {
   const a = "Norway advances in 27.8% of sims — market overprices the path.";
@@ -458,4 +465,107 @@ test("ensureWcCardFaceNumericWhy — totals keeps live why not bogus sim path", 
     { wcIntent: "MATCHUP" },
   );
   assert.doesNotMatch(String(out?.whyNow || ""), /Sims: 7%/);
+});
+
+test("isWcKnockoutSlateQuestion — home misprice prompt", () => {
+  const q =
+    "Which knockout fixture on today's slate is most mispriced on the moneyline, spread, or total — and which side advances if it goes to extra time?";
+  assert.equal(isWcKnockoutSlateQuestion(q), true);
+  assert.equal(isWcTomorrowOrSlateBetQuestion(q), true);
+});
+
+test("isWcKnockoutSlateQuestion — WC tab direct value opener", () => {
+  const q = "What's the best knockout value bet right now — one pick, direct answer?";
+  assert.equal(isWcKnockoutSlateQuestion(q), true);
+  assert.equal(isWcTomorrowOrSlateBetQuestion(q), true);
+  assert.equal(shouldUseWcCrossGroupValuePrebuilt(q, "STRUCTURAL"), false);
+});
+
+test("resolveWcTurnPlan — knockout value routes to slate prebuilt not structural LLM", () => {
+  const q = "What's the best knockout value bet right now — one pick, direct answer?";
+  const plan = resolveWcTurnPlan({
+    question: q,
+    fullQuestion: q,
+    history: [],
+    isConversationFollowUp: false,
+    hasImage: false,
+    matches: [
+      { homeTeam: "BRA", awayTeam: "JPN", status: "NS", date: "2026-06-28", round: "Round of 32" },
+    ],
+    hasKvFixture: true,
+    mentionedTeams: [],
+    wcRunnerUpFollowUpQuestion: false,
+  });
+  assert.equal(plan.lane, WC_TURN_LANE.GROUP_SLATE);
+  assert.equal(plan.reason, "tomorrow_slate_question");
+  assert.equal(plan.shouldUseFastPath, true);
+});
+
+test("buildWcStructuredForPlan — knockout slate uses verified fixtures only", async () => {
+  const q = "What's the best knockout value bet right now — one pick, direct answer?";
+  const matches = [
+    {
+      homeTeam: "BRA",
+      awayTeam: "JPN",
+      status: "NS",
+      date: "2026-06-28",
+      time: "20:00",
+      round: "Round of 32",
+      odds: {
+        home: { moneyline: "-140" },
+        draw: { moneyline: "+260" },
+        away: { moneyline: "+380" },
+      },
+    },
+  ];
+  const plan = resolveWcTurnPlan({
+    question: q,
+    fullQuestion: q,
+    history: [],
+    isConversationFollowUp: false,
+    hasImage: false,
+    matches,
+    hasKvFixture: true,
+    mentionedTeams: [],
+    wcRunnerUpFollowUpQuestion: false,
+  });
+  const built = await buildWcStructuredForPlan(plan, {
+    question: q,
+    matches,
+    nowMs: Date.parse("2026-06-28T18:00:00-04:00"),
+    wcContext: { allMatches: matches },
+  });
+  assert.ok(built?.structured);
+  assert.match(String(built.structured.fixtureHome || ""), /BRA/i);
+  assert.match(String(built.structured.fixtureAway || ""), /JPN/i);
+  assert.doesNotMatch(String(built.structured.lean || ""), /Colombia.*Mexico/i);
+});
+
+test("buildWcTomorrowSlatePrebuiltStructured — knockout phase skips group opener fallback", () => {
+  const q =
+    "Which knockout fixture on today's slate is most mispriced on the moneyline, spread, or total?";
+  const nowMs = Date.parse("2026-06-28T18:00:00-04:00");
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: q,
+    nowMs,
+    matches: [
+      {
+        homeTeam: "NED",
+        awayTeam: "MAR",
+        status: "NS",
+        date: "2026-06-28",
+        time: "15:00",
+        round: "Round of 32",
+        odds: {
+          home: { moneyline: "-105" },
+          draw: { moneyline: "+250" },
+          away: { moneyline: "+290" },
+        },
+      },
+    ],
+  });
+  assert.ok(card);
+  assert.equal(card.callType, "knockout_slate");
+  assert.equal(card.fixtureHome, "NED");
+  assert.equal(card.fixtureAway, "MAR");
 });

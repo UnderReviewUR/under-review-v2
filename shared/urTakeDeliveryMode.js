@@ -4,7 +4,7 @@
  */
 
 import { detectParlayIntent } from "./detectParlayIntent.js";
-import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
+import { isWcTomorrowOrSlateBetQuestion, isWcKnockoutSlateQuestion } from "./wcTakeRetentionQA.js";
 import { isWcPlayerMarketIntent, isWcRulesQuestion, WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcMatchWinnerQuestion } from "./wcMatchupWinnerLine.js";
 
@@ -47,6 +47,7 @@ export function isUrTakeNewBettingAsk(opts = {}) {
   if (!question) return false;
   if (detectParlayIntent(question)) return true;
   if (isWcTomorrowOrSlateBetQuestion(question)) return true;
+  if (isWcKnockoutSlateQuestion(question)) return true;
   if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return true;
   if (
     !isFollowUp &&

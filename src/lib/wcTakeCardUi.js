@@ -39,7 +39,7 @@ export const UR_TAKE_FULL_BREAKDOWN_LABEL = "Full breakdown";
 export function pickWcBreakdownLabel(callType = "", opts = {}) {
   const ct = String(callType || "").toLowerCase();
   const slateAngles = Array.isArray(opts.slateAngles) ? opts.slateAngles : [];
-  if (ct === "tomorrow_slate" || slateAngles.length >= 2) {
+  if (ct === "tomorrow_slate" || ct === "knockout_slate" || slateAngles.length >= 2) {
     return UR_TAKE_FULL_BREAKDOWN_LABEL;
   }
   return UR_TAKE_BREAKDOWN_LABEL;
@@ -630,8 +630,8 @@ export function pickWcCardHeadline(opts = {}) {
     }
   }
 
-  if (ct === "group_slate" || ct === "tomorrow_slate" || ct === "advancement") {
-    if (ct === "tomorrow_slate") {
+  if (ct === "group_slate" || ct === "tomorrow_slate" || ct === "knockout_slate" || ct === "advancement") {
+    if (ct === "tomorrow_slate" || ct === "knockout_slate") {
       const slateSummary =
         (/\d+\s+(?:goal-total|spread)\s+leans?\b/i.test(leanRaw) && leanRaw) ||
         (/\d+\s+(?:goal-total|spread|angles?|match(?:es)?\s+predictions?)\b/i.test(call) && call) ||
@@ -645,7 +645,7 @@ export function pickWcCardHeadline(opts = {}) {
         });
       }
     }
-    if (ct === "tomorrow_slate" && call && /\bmatch predictions?\b/i.test(call)) {
+    if ((ct === "tomorrow_slate" || ct === "knockout_slate") && call && /\bmatch predictions?\b/i.test(call)) {
       return capWcCardFaceField(call, {
         maxWords: WC_FACE_HEADLINE_WORDS,
         maxSentences: 1,
@@ -775,7 +775,8 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const premiumBreakdownCall = ct === "group_slate" || ct === "advancement";
   const hasSlateAngles =
     Array.isArray(opts.tomorrowSlateAngles) && opts.tomorrowSlateAngles.length >= 2;
-  const selfContainedSlateBreakdown = ct === "tomorrow_slate" || hasSlateAngles;
+  const selfContainedSlateBreakdown =
+    ct === "tomorrow_slate" || ct === "knockout_slate" || hasSlateAngles;
   const fullWhy = sanitizeWcUserFacingProse(String(opts.why || "").trim());
   const fullWatch = sanitizeWcUserFacingProse(String(opts.watchFor || "").trim());
   const fullPlay = String(opts.thePlay || "").trim();

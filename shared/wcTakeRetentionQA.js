@@ -534,6 +534,7 @@ export function isWcCrossGroupMispriceQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
   if (isWcGroupPathMispriceQuestion(q)) return false;
+  if (isWcKnockoutSlateQuestion(q)) return false;
   if (isWcTomorrowOrSlateBetQuestion(q)) return true;
   return (
     /\b(most mispriced|mispriced).*(?:group|groups)\b/i.test(q) ||
@@ -592,6 +593,31 @@ export function isWcSlateOutcomePredictionQuestion(question) {
 }
 
 /**
+ * Knockout slate / board value asks — fixture-bound prebuilt, never group advancement.
+ * @param {string} question
+ */
+export function isWcKnockoutSlateQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (/\b(golden boot|golden glove|player prop|anytime scorer|tournament winner|outright winner)\b/i.test(q)) {
+    return false;
+  }
+  const knockoutCue =
+    /\b(knockout(?:[\s-]stage)?|round of 32|r32|round of 16|r16|quarterfinal|semifinal|elimination)\b/i;
+  const valueCue =
+    /\b(best|top|sharp|sneaky|good|value|mispriced|misprice|most mispriced|cleanest)\b/i;
+  const slateCue = /\b(today'?s?|slate|board|fixture|matchup|match(?:es)?|games?)\b/i;
+  const marketCue = /\b(moneyline|spread|total|over\/under|o\/u|handicap)\b/i;
+  const directCue = /\b(one pick|direct answer|right now)\b/i;
+
+  if (/\bbest knockout\b/i.test(q) && valueCue.test(q)) return true;
+  if (knockoutCue.test(q) && valueCue.test(q) && (slateCue.test(q) || directCue.test(q))) return true;
+  if (knockoutCue.test(q) && slateCue.test(q) && marketCue.test(q)) return true;
+  if (knockoutCue.test(q) && /\bmost mispriced\b/i.test(q)) return true;
+  return false;
+}
+
+/**
  * Multi-match slate spread / goal-total board ("best spreads for each match today").
  * @param {string} question
  */
@@ -636,6 +662,7 @@ export function resolveWcSlateMarketBoardMode(question) {
 export function isWcTomorrowOrSlateBetQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
+  if (isWcKnockoutSlateQuestion(q)) return true;
   if (isWcSlateMarketBoardQuestion(q)) return true;
   if (isWcSlateOutcomePredictionQuestion(q)) return true;
   if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|player parlays|parlay prop)\b/i.test(q)) return false;

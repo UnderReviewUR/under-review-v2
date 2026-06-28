@@ -2178,6 +2178,11 @@ export function buildWcSlateTotalsAngleCopy(opts = {}) {
       ? String(matchOdds.totalLine).trim()
       : String(totals.line || "2.5").trim();
 
+  const isKnockout = isWcKnockoutFixtureMatch(match, {
+    allMatches: Array.isArray(opts.allMatches) ? opts.allMatches : [],
+    tournamentPhase: opts.tournamentPhase,
+  });
+
   const postedLine = formatPostedTotalsLine(matchOdds, totalsKind);
   const mechanismWhy = buildWcFixturePrebuiltWhyNow({
     homeName,

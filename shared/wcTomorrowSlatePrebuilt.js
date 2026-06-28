@@ -28,10 +28,16 @@ import {
 } from "./wcFeaturedMatch.js";
 import {
   extractWcSlateDayFromQuestion,
+  isWcKnockoutSlateQuestion,
   isWcSlateOutcomePredictionQuestion,
   isWcTomorrowOrSlateBetQuestion,
   resolveWcSlateMarketBoardMode,
 } from "./wcTakeRetentionQA.js";
+import {
+  getWcKnockoutRoundLabelForMatch,
+  isWcKnockoutFixtureMatch,
+} from "./wcKnockoutFixture.js";
+import { isKnockoutPhase, resolveWcTournamentPhase } from "./wcPhaseUtils.js";
 
 function isScheduled(status) {
   return isWcScheduledMatchStatus(status);
@@ -126,21 +132,38 @@ function matchSortKey(match) {
 }
 
 /**
+ * @param {Array<Record<string, unknown>>} matches
+ * @param {string} etYmd
+ * @param {number} [nowMs]
+ */
+export function filterWcKnockoutMatchesForEtDate(matches, etYmd, nowMs = Date.now()) {
+  const scope = { allMatches: matches, tournamentPhase: resolveWcTournamentPhase(matches, nowMs) };
+  return filterWcMatchesForEtDate(matches, etYmd, { slateDay: "today" }).filter((m) =>
+    isWcKnockoutFixtureMatch(m, scope),
+  );
+}
+
+/**
  * @param {Array<Record<string, unknown>>} [matches]
  * @param {string} etYmd
  * @param {number} [nowMs]
  */
 export function resolveWcSlateMatchesForEtDate(matches = [], etYmd, nowMs = Date.now(), slateDay = "tomorrow") {
   const ymd = String(etYmd || "").trim();
+  const tournamentPhase = resolveWcTournamentPhase(matches, nowMs);
+  const knockoutPhase = isKnockoutPhase(tournamentPhase);
   let slate = filterWcMatchesForEtDate(matches, ymd, { slateDay });
-  if (!slate.length) {
+  if (knockoutPhase) {
+    slate = slate.filter((m) => isWcKnockoutFixtureMatch(m, { allMatches: matches, tournamentPhase }));
+  }
+  if (!slate.length && !knockoutPhase) {
     slate = GROUP_STAGE_OPENERS.filter((m) => m.date === ymd).map((m) => ({
       ...m,
       status: "NS",
     }));
   }
   slate.sort((a, b) => matchSortKey(a) - matchSortKey(b));
-  return { slateYmd: ymd, matches: slate };
+  return { slateYmd: ymd, matches: slate, tournamentPhase };
 }
 
 /**
@@ -258,14 +281,28 @@ function buildWcSlateWhyNowIntro(angles, opts = {}) {
 
 /**
  * @param {Record<string, unknown>} angle
+ * @param {{ tournamentPhase?: string, allMatches?: Array<Record<string, unknown>> }} [scope]
  */
-export function formatWcSlateMatchDeepBlock(angle) {
+export function formatWcSlateMatchDeepBlock(angle, scope = {}) {
   const label = String(angle?.label || "").trim();
   const group = String(angle?.group || "").trim().toUpperCase();
   const lean = String(angle?.lean || "").trim();
   const kickoff = String(angle?.kickoff || "").trim();
   const body = String(angle?.deep || angle?.whyNow || "").trim();
-  const header = group ? `${label} (Group ${group})` : label;
+  const roundLabel = angle?.knockoutRound
+    ? String(angle.knockoutRound)
+    : angle?.home && angle?.away
+      ? getWcKnockoutRoundLabelForMatch(
+          { homeTeam: angle.home, awayTeam: angle.away, round: angle.round },
+          scope,
+        )
+      : "";
+  const header =
+    roundLabel && roundLabel !== "Knockout"
+      ? `${label} (${roundLabel})`
+      : group
+        ? `${label} (Group ${group})`
+        : label;
 
   if (angle?.slateTotalsCompact) {
     const kickoffEt = String(angle.kickoffEt || "").trim();
@@ -306,10 +343,15 @@ export function buildWcSlateDeepBreakdown(angles, opts = {}) {
   const slateYmd = String(opts.slateYmd || "").trim();
   const count = Array.isArray(angles) ? angles.length : 0;
   const dayLabel = slateDayCopy(slateDay);
+  const knockoutIntro = opts.knockoutPhase ? "Knockout " : "";
   const intro = slateYmd
-    ? `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} World Cup slate (${slateYmd}) — ${count} ${count === 1 ? "match" : "matches"}`
-    : `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} World Cup slate — ${count} ${count === 1 ? "match" : "matches"}`;
-  return [intro, ...(angles || []).map((a) => formatWcSlateMatchDeepBlock(a))]
+    ? `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} ${knockoutIntro}World Cup slate (${slateYmd}) — ${count} ${count === 1 ? "match" : "matches"}`
+    : `${dayLabel.charAt(0).toUpperCase()}${dayLabel.slice(1)} ${knockoutIntro}World Cup slate — ${count} ${count === 1 ? "match" : "matches"}`;
+  const scope = {
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
+  };
+  return [intro, ...(angles || []).map((a) => formatWcSlateMatchDeepBlock(a, scope))]
     .filter(Boolean)
     .join("\n\n")
     .slice(0, 3600);
@@ -345,6 +387,73 @@ export function pickWcTomorrowFeaturedFixture(slate) {
   if (!withOdds.length) return rows[0];
   const nonChalk = withOdds.filter((r) => !Number.isFinite(r.homeMl) || r.homeMl > -200);
   return (nonChalk[0] || withOdds[0]).match;
+}
+
+/**
+ * @param {Record<string, unknown>} angle
+ */
+function scoreWcSlateAngleMisprice(angle) {
+  const blob = [angle?.line, angle?.whyNow, angle?.lean, angle?.deep, angle?.fixtureCard?.line]
+    .filter(Boolean)
+    .join(" ");
+  const deltaPt = blob.match(/\(([+-]?\d+\.?\d*)pt\)/i);
+  if (deltaPt) return Math.abs(parseFloat(deltaPt[1]));
+  const simMarket = blob.match(/(\d+\.?\d*)\s*%[^%]{0,80}?(\d+\.?\d*)\s*%/);
+  if (simMarket) return Math.abs(parseFloat(simMarket[1]) - parseFloat(simMarket[2]));
+  return 0;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} angles
+ * @param {Array<Record<string, unknown>>} [slate]
+ */
+export function pickWcKnockoutFeaturedMispriceFixture(angles, slate = []) {
+  const rows = Array.isArray(angles) ? angles : [];
+  if (!rows.length) return pickWcTomorrowFeaturedFixture(slate);
+  const ranked = [...rows].sort((a, b) => scoreWcSlateAngleMisprice(b) - scoreWcSlateAngleMisprice(a));
+  const top = ranked[0];
+  if (!top?.home || !top?.away) return pickWcTomorrowFeaturedFixture(slate);
+  return (
+    (slate || []).find(
+      (m) =>
+        String(m.homeTeam || "").toUpperCase() === top.home &&
+        String(m.awayTeam || "").toUpperCase() === top.away,
+    ) || { homeTeam: top.home, awayTeam: top.away, round: top.round }
+  );
+}
+
+/**
+ * @param {Record<string, unknown>} fx
+ * @param {string} question
+ */
+function buildWcKnockoutEtAdvancementLine(fx, question) {
+  if (!/\b(extra time|et\b|penalties|penalty shootout|aet\b)\b/i.test(String(question || ""))) {
+    return "";
+  }
+  const home = String(fx?.homeTeam || "").toUpperCase();
+  const away = String(fx?.awayTeam || "").toUpperCase();
+  const match = attachSeedOdds(fx);
+  const homeMl = readWcMatchMoneylineAmerican(match?.odds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(match?.odds?.away);
+  const winBar = resolveMatchWinProbabilityBar({
+    homeAbbr: home,
+    awayAbbr: away,
+    teams: WC_2026_TEAMS,
+    matchOdds: match?.odds,
+    oddsStale: Boolean(match?.oddsStale),
+  });
+  const homeSim = winBar?.teamA?.winPct;
+  const awaySim = winBar?.teamB?.winPct;
+  if (!Number.isFinite(homeSim) || !Number.isFinite(awaySim)) return "";
+  const pickAbbr = awaySim > homeSim ? away : home;
+  const pickName = wcMatchupTeamDisplayName(pickAbbr);
+  const pickSim = pickAbbr === home ? homeSim : awaySim;
+  const bookFav = pickMlFavoriteSide(homeMl, awayMl, home, away);
+  const bookNote =
+    bookFav.abbr !== pickAbbr
+      ? `book regulation lean is ${wcMatchupTeamDisplayName(bookFav.abbr)}`
+      : "sim aligns with the book favorite";
+  return `If level after 90, lean ${pickName} to advance through ET/pens — UR sim ${pickSim}% match win; ${bookNote}.`;
 }
 
 /**
@@ -674,7 +783,22 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
     }
   }
 
-  return angles;
+  const allMatches = Array.isArray(opts.matches) ? opts.matches : tomorrowSlate;
+  const tournamentPhase = resolveWcTournamentPhase(allMatches, nowMs);
+  const scope = { allMatches, tournamentPhase };
+  return angles.map((a) => {
+    const fx = (tomorrowSlate || []).find(
+      (m) =>
+        String(m.homeTeam || "").toUpperCase() === a.home &&
+        String(m.awayTeam || "").toUpperCase() === a.away,
+    );
+    if (!fx || !isWcKnockoutFixtureMatch(fx, scope)) return a;
+    return {
+      ...a,
+      round: fx.round,
+      knockoutRound: getWcKnockoutRoundLabelForMatch(fx, scope),
+    };
+  });
 }
 
 /**
@@ -702,24 +826,34 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const dayCopy = slateDayCopy(slateDay);
   const predictionMode = isWcSlateOutcomePredictionQuestion(question);
   const marketBoardMode = resolveWcSlateMarketBoardMode(question);
+  const knockoutQuestion = isWcKnockoutSlateQuestion(question);
   let matches = Array.isArray(opts.matches) ? opts.matches : [];
-  if (!matches.length) {
+  if (!matches.length && !knockoutQuestion) {
     matches = buildStaticPromoMatchesFallback(nowMs);
   }
+
+  const tournamentPhase = resolveWcTournamentPhase(matches, nowMs);
+  const knockoutPhase = isKnockoutPhase(tournamentPhase) || knockoutQuestion;
 
   const { slateYmd, matches: slateMatches } = resolveWcSlateMatches(matches, nowMs, slateDay);
   if (!slateMatches.length) return null;
 
   const finishedTodayCount = countWcVerifiedFinishedOnSlate(matches, slateYmd, nowMs);
 
-  const angles = buildWcTomorrowSlateMatchAngles(slateMatches, opts);
-  const featuredFx = pickWcTomorrowFeaturedFixture(slateMatches);
+  const angles = buildWcTomorrowSlateMatchAngles(slateMatches, { ...opts, matches, question, nowMs });
+  const featuredFx = knockoutPhase
+    ? pickWcKnockoutFeaturedMispriceFixture(angles, slateMatches)
+    : pickWcTomorrowFeaturedFixture(slateMatches);
   const featuredHome = String(featuredFx?.homeTeam || "").toUpperCase();
   const featuredAway = String(featuredFx?.awayTeam || "").toUpperCase();
   const featuredAngle =
     angles.find((a) => a.home === featuredHome && a.away === featuredAway) || angles[0];
   const featuredCard = featuredAngle?.fixtureCard || null;
   if (!featuredAngle) return null;
+
+  const etAdvanceLine = knockoutPhase
+    ? buildWcKnockoutEtAdvancementLine(featuredFx, question)
+    : "";
 
   const count = angles.length;
   const featuredLabel = featuredAngle.label;
@@ -731,6 +865,8 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
             120,
           )
         : `${featuredLabel}: ${featuredAngle.predictionPick || featuredAngle.lean}`.slice(0, 120))
+    : knockoutQuestion && count >= 1
+      ? `${featuredLabel}: ${featuredAngle.lean}`.slice(0, 120)
     : marketBoardMode === "spreads"
       ? `${count} spread leans on ${dayCopy} slate — lead ${featuredLabel}: ${featuredAngle.lean}`.slice(
           0,
@@ -756,34 +892,46 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
           120,
         );
 
-  const whyNow = buildWcSlateWhyNowIntro(angles, {
+  const whyNow = [
+    buildWcSlateWhyNowIntro(angles, {
+      slateDay,
+      slateYmd,
+      predictionMode,
+      count,
+      remainingCount: count,
+      finishedCount: finishedTodayCount,
+      dayCopy,
+    }),
+    etAdvanceLine,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 400);
+
+  const deep = buildWcSlateDeepBreakdown(angles, {
     slateDay,
     slateYmd,
-    predictionMode,
-    count,
-    remainingCount: count,
-    finishedCount: finishedTodayCount,
-    dayCopy,
+    knockoutPhase,
+    tournamentPhase,
+    allMatches: matches,
   });
-
-  const deep = buildWcSlateDeepBreakdown(angles, { slateDay, slateYmd });
 
   const base = featuredCard || {
     sport: "worldcup",
-    callType: "tomorrow_slate",
+    callType: knockoutPhase ? "knockout_slate" : "tomorrow_slate",
     lean,
     call: featuredAngle.call,
     line: featuredAngle.line || "",
     whyNow,
     deep,
-    edge: "",
+    edge: etAdvanceLine ? etAdvanceLine.slice(0, 200) : "",
     confidence: "Medium",
     caveats: [],
   };
 
   return {
     ...base,
-    callType: "tomorrow_slate",
+    callType: knockoutPhase ? "knockout_slate" : "tomorrow_slate",
     lean,
     call: (predictionMode
       ? count > 1

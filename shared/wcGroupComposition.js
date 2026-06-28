@@ -14,6 +14,7 @@ import {
 import {
   isWcCrossGroupMispriceQuestion,
   isWcGroupUpsetScanQuestion,
+  isWcKnockoutSlateQuestion,
   isWcRunnerUpValueFollowUp,
   isWcTomorrowOrSlateBetQuestion,
   extractWcRunnerUpFromHistory,
@@ -306,6 +307,7 @@ export function shouldUseWcCrossGroupValuePrebuilt(question, wcIntent) {
   const q = String(question || "").trim();
   if (!q) return false;
   const routingQ = extractLatestUserTurnForRouting(q);
+  if (isWcKnockoutSlateQuestion(routingQ)) return false;
   if (isWcRunnerUpValueFollowUp(routingQ) || isWcRunnerUpValueFollowUp(q)) return false;
   if (isWcGroupUpsetScanQuestion(routingQ)) return false;
   if (isWcTomorrowOrSlateBetQuestion(routingQ)) return false;
