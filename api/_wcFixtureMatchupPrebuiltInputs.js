@@ -169,6 +169,23 @@ function resolvePairFromLiveSlate(question, matches, wcEventId) {
 }
 
 /**
+ * Load refreshed WC match inventory (KV → promo fallback).
+ * @param {number} [nowMs]
+ */
+export async function loadWcMatchInventoryForUrTake(nowMs = Date.now()) {
+  let matchesKv = await readWcMatchesFromKv().catch(() => null);
+  if (matchesKv?.matches?.length) {
+    const liveRefresh = await refreshWcLiveScores(matchesKv, nowMs);
+    matchesKv = liveRefresh.kv;
+  }
+  let matches = Array.isArray(matchesKv?.matches) ? matchesKv.matches : [];
+  if (!matches.length) {
+    matches = buildStaticPromoMatchesFallback(nowMs);
+  }
+  return matches;
+}
+
+/**
  * @param {{
  *   question: string,
  *   mentionedTeams?: string[],
@@ -181,21 +198,10 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   const question = String(opts.question || "");
   const nowMs = Number(opts.nowMs) || Date.now();
 
-  const [matchesKvRaw, simRow] = await Promise.all([
-    readWcMatchesFromKv().catch(() => null),
+  const [matches, simRow] = await Promise.all([
+    loadWcMatchInventoryForUrTake(nowMs),
     readWcTournamentSimFromKv(undefined, nowMs).catch(() => null),
   ]);
-
-  let matchesKv = matchesKvRaw;
-  if (matchesKv?.matches?.length) {
-    const liveRefresh = await refreshWcLiveScores(matchesKv, nowMs);
-    matchesKv = liveRefresh.kv;
-  }
-
-  let matches = Array.isArray(matchesKv?.matches) ? matchesKv.matches : [];
-  if (!matches.length) {
-    matches = buildStaticPromoMatchesFallback(nowMs);
-  }
 
   let pair = resolveWcFixturePairFromQuestion(question, {
     mentionedTeams: opts.mentionedTeams,
@@ -285,6 +291,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   return {
     ...pair,
     match,
+    allMatches: matches,
     teamStats,
     simLastUpdated: simRow?.lastUpdated,
     hasKvFixture: Boolean(pinned || match?.odds),

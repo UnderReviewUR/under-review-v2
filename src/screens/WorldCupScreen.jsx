@@ -21,6 +21,7 @@ import {
   resolveWcMatchEtDate,
   wcTodayEtYmd,
 } from "../../shared/wcKickoffDisplay.js";
+import { resolveWcFeaturedEventPin } from "../../shared/wcUrTakeEventPin.js";
 import {
   isWcFinishedMatchStatus,
   isWcLiveMatchStatus,
@@ -223,6 +224,11 @@ export default function WorldCupScreen({
     onViewWcMatch?.(match);
   };
 
+  const quickPromptPin = useMemo(
+    () => resolveWcFeaturedEventPin(matches, liveMatches),
+    [matches, liveMatches],
+  );
+
   const wcQuickPrompts = useMemo(
     () =>
       getWcQuickPrompts({
@@ -331,7 +337,9 @@ export default function WorldCupScreen({
           <WcTournamentEdgeStrip
             mispriceContext={matchReadContext}
             tournamentPhase={tournamentPhase}
-            onAskEdge={(prompt) => submitWc(prompt)}
+            onAskEdge={(prompt) =>
+              submitWc(prompt, { eventId: quickPromptPin.eventId, inheritThread: false })
+            }
           />
           <div className="wc-sub-tabs">
             {[
@@ -587,7 +595,14 @@ export default function WorldCupScreen({
           {starterPrompts.length > 0 && wcMsgs.length === 0 ? (
             <section className="wc-ask-starters" aria-label="Suggested questions">
               {starterPrompts.map((q) => (
-                <button key={q} type="button" className="wc-ask-starter" onClick={() => submitWc(q)}>
+                <button
+                  key={q}
+                  type="button"
+                  className="wc-ask-starter"
+                  onClick={() =>
+                    submitWc(q, { eventId: quickPromptPin.eventId, inheritThread: false })
+                  }
+                >
                   {q}
                 </button>
               ))}

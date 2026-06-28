@@ -109,6 +109,7 @@ import {
   generateLiveFollowUpsWithHaiku,
   shouldAttachLiveFollowUps,
 } from "../_urTakeLiveFollowUps.js";
+import { buildWcLiveFollowUpHaikuContext } from "../../shared/wcLiveFollowUpContext.js";
 import {
   allowRateLimit,
   emailLimit,
@@ -147,8 +148,10 @@ import { readBdlLiveFuturesFromKv } from "../_wcBdlData.js";
 import { resolveWcCrossGroupPrebuiltInputs } from "../_wcCrossGroupPrebuiltInputs.js";
 import {
   buildWcFixtureMatchupPrebuiltFromInputs,
+  loadWcMatchInventoryForUrTake,
   resolveWcFixtureMatchupPrebuiltInputs,
 } from "../_wcFixtureMatchupPrebuiltInputs.js";
+import { buildWcPrebuiltUrTakeStubContext } from "../../shared/wcPrebuiltUrTakeContext.js";
 import { buildWcTomorrowSlatePrebuiltFromInputs } from "../_wcTomorrowSlatePrebuiltInputs.js";
 import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
 import {
@@ -2916,6 +2919,8 @@ export default async function handler(req, res) {
   let wcLiveMatchWinnerPrebuiltEarly = null;
   /** @type {Record<string, { advancePct?: number }> | null} */
   let wcFixturePrebuiltTeamStats = null;
+  /** @type {{ match?: object, matchDetail?: object, allMatches?: object[], eventId?: string | null } | null} */
+  let wcPrebuiltScope = null;
   /** @type {{ wcIntent: string | null, mentionedTeams: string[], requiredEntities: string[], knockoutRulesInjected: boolean, structuralEdgeInjected: boolean, playerPropDetected: boolean, wcEventId: string | null, qaEntityMatch: string | null, qaIntentMatch: string | null, qaPlayerMatch: string | null }} */
   const wcRelevanceLog = {
     wcIntent: null,
@@ -3296,6 +3301,12 @@ export default async function handler(req, res) {
         });
         if (inputs) {
           wcFixturePrebuiltTeamStats = inputs.teamStats || null;
+          wcPrebuiltScope = {
+            match: inputs.match,
+            matchDetail: inputs.matchDetail,
+            allMatches: inputs.allMatches,
+            eventId: inputs.eventId,
+          };
           const liveInPlayCandidate =
             wcLiveInPlayBetsCandidate &&
             shouldUseWcLiveInPlayBetsPrebuilt(routingQuestion, {
@@ -3498,39 +3509,37 @@ export default async function handler(req, res) {
         });
       }
     } else if (wcTomorrowSlatePrebuiltEarly) {
-      wcContext = {
-        source: "worldcup_tomorrow_slate_prebuilt",
-        promptBlock: "",
-        phase: "GROUP_STAGE",
-        tournamentSimResults: null,
-        matchDetails: [],
-        groups: {},
-      };
+      const inventory =
+        wcPrebuiltScope?.allMatches ||
+        (await loadWcMatchInventoryForUrTake().catch(() => []));
+      wcContext = buildWcPrebuiltUrTakeStubContext("worldcup_tomorrow_slate_prebuilt", {
+        matches: inventory,
+        wcEventId: wcEventIdTrimmed,
+      });
     } else if (
       wcFixtureMatchupPrebuiltEarly ||
       wcFixtureAltFollowUpPrebuiltEarly ||
       wcLiveBetTimingPrebuiltEarly ||
+      wcLiveInPlayBetsPrebuiltEarly ||
       wcLiveMatchWinnerPrebuiltEarly
     ) {
-      wcContext = {
-        source: "worldcup_fixture_matchup_prebuilt",
-        promptBlock: "",
-        phase: "GROUP_STAGE",
+      wcContext = buildWcPrebuiltUrTakeStubContext("worldcup_fixture_matchup_prebuilt", {
+        match: wcPrebuiltScope?.matchDetail || wcPrebuiltScope?.match,
+        matches: wcPrebuiltScope?.allMatches || [],
         tournamentSimResults: { teamStats: wcFixturePrebuiltTeamStats },
-        matchDetails: [],
-        groups: {},
-      };
+        wcEventId: wcPrebuiltScope?.eventId || wcEventIdTrimmed,
+      });
     } else {
-      wcContext = {
-        source: "worldcup_cross_group_prebuilt",
-        promptBlock: "",
-        phase: "PRE_GROUP",
-        tournamentSimResults: null,
-        groups: {},
+      const inventory =
+        wcPrebuiltScope?.allMatches ||
+        (await loadWcMatchInventoryForUrTake().catch(() => []));
+      wcContext = buildWcPrebuiltUrTakeStubContext("worldcup_cross_group_prebuilt", {
+        matches: inventory,
         groupMispriceTopGroups: wcCrossGroupPrebuiltEarly?.groupLetter
           ? [wcCrossGroupPrebuiltEarly.groupLetter]
           : ["K"],
-      };
+        wcEventId: wcEventIdTrimmed,
+      });
     }
     wcStrengthTags = getWcTeamStrengthTags(wcContext?.groups, wcRequiredEntities);
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
@@ -8146,7 +8155,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
     ) {
       try {
         const haikuT0 = Date.now();
-        const fus = await generateLiveFollowUpsWithHaiku(responseText, ANTHROPIC_API_KEY);
+        const liveFollowUpContext =
+          sportHint === "worldcup"
+            ? buildWcLiveFollowUpHaikuContext(
+                wcContext,
+                structuredResponse && typeof structuredResponse === "object"
+                  ? structuredResponse
+                  : null,
+              )
+            : null;
+        const fus = await generateLiveFollowUpsWithHaiku(
+          responseText,
+          ANTHROPIC_API_KEY,
+          liveFollowUpContext,
+        );
         haikuFollowUpsMs = Date.now() - haikuT0;
         if (Array.isArray(fus) && fus.length >= 2) {
           followUpsField = fus;

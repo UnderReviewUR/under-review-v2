@@ -130,6 +130,7 @@ import {
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import { urTakeLoadingLabelForSport, isUrTakeLoadingPlaceholder } from "../shared/wcNamedLegCardUi.js";
 import { resolveWcUrTakeLoadingSportKey } from "../shared/wcUrTakePipeline.js";
+import { mergeWcUrTakeEventPin } from "../shared/wcUrTakeEventPin.js";
 import {
   alignMergedGamesToVerifiedSlate,
   augmentNbaRosterGroundingWithUi,
@@ -4119,33 +4120,33 @@ ${themeCss}
       const t = (typeof forced === "string" ? forced : wcInput).trim();
       if (!t || isAsking) return;
       if (typeof forced !== "string") setWcInput("");
-      let wcMatchTeams = null;
-      const eid = opts.eventId != null ? String(opts.eventId).trim() : "";
-      if (eid && Array.isArray(wcMatches)) {
-        const m = wcMatches.find((row) => String(row?.id) === eid);
-        if (m?.homeTeam && m?.awayTeam) {
-          wcMatchTeams = { home: m.homeTeam, away: m.awayTeam };
-        }
-      }
+      const pin = mergeWcUrTakeEventPin({
+        explicitEventId: opts.eventId,
+        inheritThread: opts.inheritThread,
+        threadMsgs: wcMsgs,
+        matches: wcMatches,
+        liveMatches: wcLiveMatches,
+      });
       askUrTake({
         text: t,
         setMsgs: setWcMsgs,
         sportHint: "worldcup",
-        wcEventId: opts.eventId,
-        wcMatchTeams,
+        wcEventId: pin.eventId,
+        wcMatchTeams: pin.matchTeams,
       });
       scheduleChatScroll(wcScreenRef);
     },
-    [askUrTake, isAsking, wcInput, scheduleChatScroll, wcMatches],
+    [askUrTake, isAsking, wcInput, scheduleChatScroll, wcMatches, wcLiveMatches, wcMsgs],
   );
 
   const askWorldCup = useCallback(
-    (prompt, nav = null) => {
-      if (nav && typeof nav === "object") {
+    (prompt, opts = null) => {
+      const pinOpts = opts && typeof opts === "object" ? opts : {};
+      if (pinOpts.mainTab || pinOpts.matchSubTab || pinOpts.highlightEventId != null) {
         setWcScreenNav({
-          mainTab: nav.mainTab || "matches",
-          matchSubTab: nav.matchSubTab || "live",
-          highlightEventId: nav.highlightEventId || null,
+          mainTab: pinOpts.mainTab || "matches",
+          matchSubTab: pinOpts.matchSubTab || "live",
+          highlightEventId: pinOpts.highlightEventId || null,
         });
       }
       if (screen !== "worldcup" || tab !== "worldcup") {
@@ -4159,7 +4160,10 @@ ${themeCss}
       const text = String(prompt || "").trim();
       if (text) {
         requestAnimationFrame(() => {
-          submitWc(text);
+          submitWc(text, {
+            eventId: pinOpts.eventId ?? pinOpts.wcEventId ?? pinOpts.featuredEventId,
+            inheritThread: false,
+          });
           scheduleChatScroll(wcScreenRef);
         });
       }
@@ -4459,14 +4463,17 @@ ${themeCss}
       const t = String(text || "").trim();
       if (!t || isAsking) return;
       setWcInput("");
-      const threadWcEventId = [...wcMsgs]
-        .reverse()
-        .find((m) => m.role === "user" && m.wcEventId)?.wcEventId;
+      const pin = mergeWcUrTakeEventPin({
+        threadMsgs: wcMsgs,
+        matches: wcMatches,
+        liveMatches: wcLiveMatches,
+      });
       askUrTake({
         text: t,
         setMsgs: setWcMsgs,
         sportHint: "worldcup",
-        ...(threadWcEventId ? { wcEventId: String(threadWcEventId).trim() } : {}),
+        ...(pin.eventId ? { wcEventId: pin.eventId } : {}),
+        ...(pin.matchTeams ? { wcMatchTeams: pin.matchTeams } : {}),
         followUpTelemetry: {
           followUpText: t,
           sourceMsgId: meta?.sourceMsgId,
@@ -4483,7 +4490,7 @@ ${themeCss}
         wcInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askUrTake, isAsking, wcMsgs, scheduleChatScroll],
+    [askUrTake, isAsking, wcMsgs, wcMatches, wcLiveMatches, scheduleChatScroll],
   );
   const urTakeFollowUpMatchup = useCallback(
     (text, meta) => {
@@ -5179,7 +5186,7 @@ ${themeCss}
             onUpgradePromptClick={openUpgradeModal}
             wcScreenNav={wcScreenNav}
             onWcScreenNavConsumed={clearWcScreenNav}
-            onUrTakeRetry={(prompt) => submitWc(prompt)}
+            onUrTakeRetry={(prompt) => submitWc(prompt, { inheritThread: true })}
             onViewWcMatch={openWcMatchFromTake}
             onUrTakeFollowUpPick={urTakeFollowUpWc}
             urTakeTrackPlay={urTakeTrackPlay}

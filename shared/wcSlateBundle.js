@@ -6,6 +6,7 @@ import { readWcGroupsFromKv, readWcMatchesFromKv, readWcOutrightsFromKv } from "
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 import { wcTeamsWithStrengthTags } from "./wc2026Strength.js";
+import { resolveWcTournamentPhase } from "./wcPhaseUtils.js";
 
 /**
  * @param {number} [nowMs]
@@ -49,19 +50,27 @@ export async function loadWorldCupSlateBoard(nowMs = Date.now()) {
       homeTeam: m.homeTeam,
       awayTeam: m.awayTeam,
       group: m.group,
+      round: m.round || null,
       date: m.date,
       status: m.status,
+      homeScore: m.homeScore ?? null,
+      awayScore: m.awayScore ?? null,
+      odds: m.odds || null,
     }));
 
   const live = matches
     .filter((m) => ["live", "ht", "1h", "2h"].includes(String(m?.status || "").toLowerCase()))
     .slice(0, 4)
     .map((m) => ({
+      id: m.id,
       homeTeam: m.homeTeam,
       awayTeam: m.awayTeam,
       homeScore: m.homeScore,
       awayScore: m.awayScore,
       group: m.group,
+      round: m.round || null,
+      status: m.status,
+      odds: m.odds || null,
     }));
 
   /** Longshot-style outright value tags for fallback copy */
@@ -111,6 +120,7 @@ export async function loadWorldCupSlateBoard(nowMs = Date.now()) {
     tournament: "2026 FIFA World Cup",
     hosts: ["USA", "Mexico", "Canada"],
     kickoff: "2026-06-11",
+    tournamentPhase: resolveWcTournamentPhase(matches),
     groups: groupSummaries,
     upcoming,
     live,

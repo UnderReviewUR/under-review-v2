@@ -7,7 +7,13 @@ import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { UR_TAKE_HAIKU_MODEL } from "../_anthropicModels.js";
 import { sendUrTakeJson } from "./responseDelivery.js";
 import { extractLastAssistantStructured } from "../../shared/wcCardContractFollowUpScorer.js";
-import { buildWcTalkSquadGroundingBlock } from "../../shared/wcPlayerRegistry.js";
+import {
+  buildWcTalkContextSnippet,
+  buildWcTalkVerifiedContextBlock,
+  hasWcTalkGrounding,
+} from "../../shared/wcTalkGrounding.js";
+
+export { buildWcTalkContextSnippet };
 
 const TALK_SYSTEM = `You are Under Review — a sharp sports-betting friend in a group chat.
 The user is in a follow-up or rules thread. Reply in 2–4 short sentences, plain language, bro tone.
@@ -52,42 +58,6 @@ function summarizePriorTakeForTalk(history) {
 }
 
 /**
- * @param {Record<string, unknown> | null | undefined} wcContext
- * @param {unknown[]} [history]
- */
-export function buildWcTalkContextSnippet(wcContext, history = []) {
-  const prior = extractLastAssistantStructured(history);
-  const fixtures = [
-    ...(Array.isArray(wcContext?.fixtures) ? wcContext.fixtures : []),
-    ...(Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails : []),
-  ];
-  const fx = fixtures[0];
-  const home = String(
-    fx?.homeTeam || prior?.fixtureHome || wcContext?.requiredEntities?.[0] || "",
-  ).trim();
-  const away = String(
-    fx?.awayTeam || prior?.fixtureAway || wcContext?.requiredEntities?.[1] || "",
-  ).trim();
-  if (!home || !away) return "";
-  const odds = fx?.odds && typeof fx.odds === "object" ? fx.odds : null;
-  const homeMl = odds?.home?.moneyline || odds?.home;
-  const awayMl = odds?.away?.moneyline || odds?.away;
-  const drawMl = odds?.draw?.moneyline || odds?.draw;
-  const round = String(fx?.round || "").trim();
-  const lines = [`Fixture: ${home} vs ${away}`];
-  if (round) lines.push(`Round: ${round}`);
-  if (homeMl || awayMl) {
-    lines.push(
-      `ML: ${home} ${homeMl || "n/a"} · Draw ${drawMl || "n/a"} · ${away} ${awayMl || "n/a"}`,
-    );
-  }
-  if (wcContext?.phase) lines.push(`Tournament phase: ${wcContext.phase}`);
-  const squadBlock = buildWcTalkSquadGroundingBlock(wcContext, history);
-  if (squadBlock) lines.push(squadBlock);
-  return lines.join("\n");
-}
-
-/**
  * @param {object} opts
  * @returns {Promise<{ handled: boolean }>}
  */
@@ -110,14 +80,21 @@ export async function tryDeliverUrTakeTalk(opts) {
   const q = String(question || "").trim();
   if (!q || !anthropicApiKey) return { handled: false };
 
+  if (
+    sportHint === "worldcup" &&
+    !hasWcTalkGrounding(wcContext, history, wcIntent)
+  ) {
+    return { handled: false };
+  }
+
   const priorTake = summarizePriorTakeForTalk(history);
-  const wcSnippet =
+  const verifiedContext =
     sportHint === "worldcup"
-      ? buildWcTalkContextSnippet(wcContext, history)
+      ? buildWcTalkVerifiedContextBlock(wcContext, history, wcIntent)
       : "";
   const contextBlock = [
     priorTake ? `PRIOR TAKE (do not repeat verbatim — explain or clarify):\n${priorTake}` : "",
-    wcSnippet ? `VERIFIED FIXTURE (cite only these prices):\n${wcSnippet}` : "",
+    verifiedContext ? `VERIFIED CONTEXT (cite only facts below — never invent odds or players):\n${verifiedContext}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");

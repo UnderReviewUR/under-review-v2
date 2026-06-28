@@ -868,6 +868,20 @@ async function loadWorldCupMatchesPayload() {
  */
 const WC_CONTEXT_TIMEOUT_MS = 8000;
 
+/**
+ * Lite follow-ups still need sim/misprice blocks when the user asks betting structure questions.
+ * @param {string} question
+ * @param {string | null | undefined} wcIntent
+ */
+function wcLiteFollowUpNeedsBettingGrounding(question, wcIntent) {
+  const q = String(question || "");
+  const intent = String(wcIntent || "").trim().toUpperCase();
+  if (intent === WC_INTENT.ENTITY_PRICING) return true;
+  return /\b(mispric|advance|slate|knockout value|group misprice|runner-up|both teams to advance|golden boot|tournament winner|outright)\b/i.test(
+    q,
+  );
+}
+
 export async function buildWorldCupUrTakeContext(question = "", opts = {}) {
   const contextPromise = _buildWorldCupUrTakeContextInner(question, opts);
   const timeout = new Promise((_, reject) =>
@@ -1061,7 +1075,9 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   let tournamentSimBlock = null;
   let tournamentSimResults = null;
-  if (!liteFollowUp) {
+  const needsBettingGroundingOnLite =
+    liteFollowUp && wcLiteFollowUpNeedsBettingGrounding(question, wcIntent);
+  if (!liteFollowUp || needsBettingGroundingOnLite) {
     try {
       const simResolved = await resolveWcTournamentSimForPrompt({
         groups: groupsPayload?.groups || groups,
@@ -1086,11 +1102,11 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   let roundupPlayerKv = null;
   let playerBioPromptBlock = null;
   const needsPlayerBio =
-    !liteFollowUp &&
+    (!liteFollowUp || needsBettingGroundingOnLite) &&
     (shouldInjectAdjustedGoldenBoot(wcIntent, question) ||
       shouldInjectGoldenGloveBlocks(wcIntent, question) ||
       isWcPlayerMarketIntent(wcIntent));
-  if (!liteFollowUp && shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
+  if ((!liteFollowUp || needsBettingGroundingOnLite) && shouldInjectAdjustedGoldenBoot(wcIntent, question)) {
     try {
       const [goldenBootKv, playersKv] = await Promise.all([
         readWcGoldenBootFromKv(nowMs),
@@ -1120,7 +1136,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     }
   }
 
-  if (!liteFollowUp && shouldInjectGoldenGloveBlocks(wcIntent, question)) {
+  if ((!liteFollowUp || needsBettingGroundingOnLite) && shouldInjectGoldenGloveBlocks(wcIntent, question)) {
     try {
       const [goldenGloveKv, playersKv] = await Promise.all([
         readWcGoldenGloveFromKv(nowMs),
@@ -1171,7 +1187,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   let groupMispriceBlock = null;
   /** @type {string[] | null} */
   let groupMispriceTopGroups = null;
-  if (!liteFollowUp) {
+  if (!liteFollowUp || needsBettingGroundingOnLite) {
     try {
       if (tournamentSimResults?.teamStats) {
         groupMispriceBlock = formatGroupMispriceContextBlock({

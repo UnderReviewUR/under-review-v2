@@ -57,9 +57,25 @@ export function shouldAttachLiveFollowUps(ctx) {
 /**
  * User prompt sent to Haiku — keeps finalized assistant text (truncated for safety).
  * @param {string} responseText
+ * @param {{ fixtureLabel?: string, score?: string | null, phase?: string | null, round?: string | null, minute?: string | null } | null | undefined} [fixtureContext]
  */
-export function buildHaikuFollowUpUserPrompt(responseText) {
-  return `Response was: ${String(responseText || "").slice(0, 12000)}
+export function buildHaikuFollowUpUserPrompt(responseText, fixtureContext = null) {
+  const ctx = fixtureContext && typeof fixtureContext === "object" ? fixtureContext : null;
+  const fixtureLines = ctx?.fixtureLabel
+    ? [
+        "",
+        "Live fixture context (ground chips in this match — no group-stage framing):",
+        `  Match: ${ctx.fixtureLabel}`,
+        ctx.score ? `  Score: ${ctx.score}` : null,
+        ctx.phase ? `  Phase: ${ctx.phase}` : null,
+        ctx.round ? `  Round: ${ctx.round}` : null,
+        ctx.minute ? `  Clock: ${ctx.minute}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+
+  return `Response was: ${String(responseText || "").slice(0, 12000)}${fixtureLines}
 
 Generate 3 follow-up questions.`;
 }
@@ -68,16 +84,17 @@ Generate 3 follow-up questions.`;
  * Calls Haiku with a tight timeout; parses + QA; never throws.
  * @param {string} responseText
  * @param {string} [apiKey]
+ * @param {{ fixtureLabel?: string, score?: string | null, phase?: string | null, round?: string | null, minute?: string | null } | null | undefined} [fixtureContext]
  * @returns {Promise<string[]>}
  */
-export async function generateLiveFollowUpsWithHaiku(responseText, apiKey) {
+export async function generateLiveFollowUpsWithHaiku(responseText, apiKey, fixtureContext = null) {
   const fallbackOnly = () => qaLiveFollowUps(null).followUps;
 
   if (!apiKey || !String(responseText || "").trim()) {
     return fallbackOnly();
   }
 
-  const user = buildHaikuFollowUpUserPrompt(responseText);
+  const user = buildHaikuFollowUpUserPrompt(responseText, fixtureContext);
 
   let result;
   try {

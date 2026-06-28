@@ -1,5 +1,7 @@
 import { isWcHomePromoWindow } from "../../../shared/wc2026Constants.js";
 import { resolveWcTournamentPhase, isKnockoutPhase } from "../../../shared/wcPhaseUtils.js";
+import { resolveWcFeaturedEventPin } from "../../../shared/wcUrTakeEventPin.js";
+import { isWcLiveMatchStatus } from "../../../shared/wcFeaturedMatch.js";
 
 /**
  * Cyan home feature card during WC promo — visible even when sport prompts are crowded out.
@@ -10,6 +12,10 @@ export function buildWcHomePromoCard(nowMs = Date.now(), wcMatches = null) {
   if (!isWcHomePromoWindow(nowMs)) return null;
 
   const knockout = isKnockoutPhase(resolveWcTournamentPhase(wcMatches, nowMs));
+  const liveMatches = Array.isArray(wcMatches)
+    ? wcMatches.filter((m) => isWcLiveMatchStatus(m?.status))
+    : [];
+  const featuredPin = resolveWcFeaturedEventPin(wcMatches, liveMatches);
 
   return {
     id: "wc-home-promo",
@@ -20,6 +26,8 @@ export function buildWcHomePromoCard(nowMs = Date.now(), wcMatches = null) {
     trustLine: "Markets may be adjusted after Starting XIs are announced.",
     featureLine: "Live odds, line movement, and sharp splits on every match.",
     matchesCta: "See today's matches",
+    featuredEventId: featuredPin.eventId,
+    featuredMatchTeams: featuredPin.matchTeams,
     highlights: [
       "104 matches from June 11 – July 19",
       "Live in-game odds on every match",
@@ -81,6 +89,7 @@ export function buildWcXiConfirmedHomeStarter(notice) {
   const matchup = `${away} vs ${home}`;
   return {
     id: "q-wc-xi-confirmed",
+    eventId: String(notice.eventId),
     color: "#00F5E9",
     sportHint: "worldcup",
     sortRank: 0,

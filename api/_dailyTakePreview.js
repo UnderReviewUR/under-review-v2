@@ -6,6 +6,7 @@ import { buildNbaUrTakeBoard } from "./nba.js";
 import { getNbaFinalsSeriesState } from "../shared/nbaFinalsUtils.js";
 import { isDailyTakeSportVisible } from "../shared/siteSportVisibility.js";
 import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
+import { isKnockoutPhase, resolveWcTournamentPhase } from "../shared/wcPhaseUtils.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
 export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 5;
@@ -65,6 +66,16 @@ function scoreWcMatch(m) {
   return 10;
 }
 
+function formatWcDailyMatchOdds(match) {
+  const odds = match?.odds && typeof match.odds === "object" ? match.odds : null;
+  if (!odds) return null;
+  const home = odds.home?.moneyline ?? odds.home ?? null;
+  const away = odds.away?.moneyline ?? odds.away ?? null;
+  const draw = odds.draw?.moneyline ?? odds.draw ?? null;
+  if (!home && !away && !draw) return null;
+  return { home, draw, away };
+}
+
 function buildWcSlateContext(board, featuredLabel) {
   const candidates = [
     ...(Array.isArray(board?.live) ? board.live : []),
@@ -73,14 +84,38 @@ function buildWcSlateContext(board, featuredLabel) {
     .filter((m) => m?.homeTeam && m?.awayTeam)
     .slice(0, 12)
     .map((m) => ({
+      id: m.id || null,
       away: m.awayTeam,
       home: m.homeTeam,
       status: m.status || null,
       group: m.groupLetter || m.group || null,
+      round: m.round || null,
+      score:
+        m.homeScore != null && m.awayScore != null
+          ? `${m.homeScore}-${m.awayScore}`
+          : null,
+      ml: formatWcDailyMatchOdds(m),
     }));
+
+  const tournamentPhase =
+    board?.tournamentPhase ||
+    resolveWcTournamentPhase([
+      ...(Array.isArray(board?.live) ? board.live : []),
+      ...(Array.isArray(board?.upcoming) ? board.upcoming : []),
+    ]);
+
+  const featuredMatch =
+    candidates.find((row) => `${row.away} vs ${row.home}` === featuredLabel) ||
+    candidates[0] ||
+    null;
+
   return {
     sport: "worldcup",
     featured: featuredLabel,
+    featuredMatch,
+    tournamentPhase,
+    knockout: isKnockoutPhase(tournamentPhase),
+    outrightsSample: board?.outrightsSample || {},
     matches: candidates,
   };
 }
@@ -145,6 +180,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
           sportHint: "worldcup",
           question: `What's your sharpest lean on ${label} — who advances or covers, why, and which line or prop on the board looks mispriced?`,
           matchupLabel: label,
+          wcEventId: m.id != null ? String(m.id) : null,
           slateContext: buildWcSlateContext(board, label),
         };
       }
@@ -230,6 +266,7 @@ async function callUrTakePipeline(origin, target, fetchImpl) {
       question: target.question,
       sportHint: target.sportHint,
       structured: true,
+      ...(target.wcEventId ? { wcEventId: String(target.wcEventId) } : {}),
     }),
   });
 

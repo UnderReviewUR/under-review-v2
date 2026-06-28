@@ -239,7 +239,11 @@ export default function HomeScreen({
           onOpenHub={goWorldCup}
           onSeeMatches={goWorldCupMatchesToday}
           onAskPrompt={(prompt) => {
-            if (askWorldCup) askWorldCup(prompt);
+            const pin = {
+              eventId: wcHomePromoCard.featuredEventId,
+              highlightEventId: wcHomePromoCard.featuredEventId,
+            };
+            if (askWorldCup) askWorldCup(prompt, pin);
             else firePrompt(prompt, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id);
           }}
         />
@@ -258,7 +262,11 @@ export default function HomeScreen({
                 className="ur-home-starter-item"
                 onClick={() => {
                   if (q.id === "q-wc-xi-confirmed" && askWorldCup) {
-                    askWorldCup(q.prompt);
+                    askWorldCup(q.prompt, {
+                      eventId: q.eventId,
+                      highlightEventId: q.eventId,
+                      matchSubTab: "today",
+                    });
                     return;
                   }
                   firePrompt(q.prompt, q.sportHint || null, q.id);
