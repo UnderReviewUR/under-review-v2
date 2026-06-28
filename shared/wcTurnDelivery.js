@@ -708,7 +708,10 @@ export function buildWcThreadContinuationFallback(priorLean, opts = {}) {
         q,
       )
     ) {
-      return `The ${side} ${line} still looks solid${whileLive} — a low block keeps shot volume down and reinforces the under thesis.`;
+      if (side.toLowerCase() === "under") {
+        return `The Under ${line} still looks solid${whileLive} — a low block keeps shot volume down and reinforces the under thesis.`;
+      }
+      return `Still like the Over ${line}${whileLive} — a low block cuts chances but doesn't flip the lean without goals on the board.`;
     }
     if (/\b(open up|more goals|flip.*over|over instead|attacking|high line)\b/i.test(q)) {
       return `Still leaning ${side} ${line}${whileLive}, but I'd downgrade if both teams open up in the second half.`;

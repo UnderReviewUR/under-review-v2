@@ -35,6 +35,7 @@ import {
   isWcMatchupAltMarketFollowUp,
   isWcMatchupOtherSideFollowUp,
   isWcTotalsExplainFollowUp,
+  isWcTotalsHoldPriorLeanFollowUp,
 } from "./wcMatchBettingPrompt.js";
 import { shouldBlockMatchupAltPrebuiltAfterPlayerPivot } from "./wcFollowUpExplain.js";
 import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, isWcLiveBetsQuestion, isWcSecondHalfContext, parseLiveScoreFromQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
@@ -1333,7 +1334,7 @@ function pickWcFixturePrebuiltLean(row) {
   return "Pass on ML — lean both teams to advance — cleaner angle than the ML.";
 }
 
-function formatTotalsLeanHeadline(kind, line) {
+export function formatTotalsLeanHeadline(kind, line) {
   const side = String(kind || "").toLowerCase() === "over" ? "Over" : "Under";
   return `Lean ${side} ${formatGoalsLine(line)} goals`;
 }
@@ -1406,7 +1407,10 @@ function pickWcFixtureAltFollowUpLean(row) {
   const groupClause = row.group ? ` in Group ${row.group}` : "";
   const priorTotals = extractPriorTotalsLeanFromHistory(row.history);
 
-  if (isWcTotalsExplainFollowUp(q) && priorTotals?.line) {
+  if (
+    (isWcTotalsExplainFollowUp(q) || isWcTotalsHoldPriorLeanFollowUp(q)) &&
+    priorTotals?.line
+  ) {
     return formatTotalsLeanHeadline(priorTotals.kind, priorTotals.line);
   }
 
@@ -1536,7 +1540,9 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     history: opts.history,
   }).replace(/^lean:\s*/i, "");
   const lean = altFollowUp
-    ? isWcMatchupOtherSideFollowUp(routingQ) || isWcTotalsExplainFollowUp(routingQ)
+    ? isWcMatchupOtherSideFollowUp(routingQ) ||
+        isWcTotalsExplainFollowUp(routingQ) ||
+        isWcTotalsHoldPriorLeanFollowUp(routingQ)
       ? altLeanText
       : `Pass on ML — ${altLeanText}`
     : pickWcFixturePrebuiltLean({
@@ -1580,8 +1586,10 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     teamStats: opts.teamStats,
   });
 
+  const priorTotalsFromHistory = extractPriorTotalsLeanFromHistory(opts.history);
   const priorTotalsExplain =
-    isWcTotalsExplainFollowUp(routingQ) && extractPriorTotalsLeanFromHistory(opts.history);
+    (isWcTotalsExplainFollowUp(routingQ) || isWcTotalsHoldPriorLeanFollowUp(routingQ)) &&
+    priorTotalsFromHistory;
   const totalsKind = parseTotalsKindFromLean(lean) || priorTotalsExplain?.kind || "under";
 
   const whyNowRow = {

@@ -130,7 +130,7 @@ export const WC_INTENT_CATALOG = [
 ];
 
 const RULES_SIGNAL_RE =
-  /\b(extra time|penalties|penalty shootout|tiebreaker|tie-break|tie break|how does knockout|knockout rules|knockout format|away goals|advancement rules|what are the rules)\b/i;
+  /\b(extra time|penalties|penalty shootout|tiebreakers?|tiebreaker|tie-break|tie break|goal difference|goals scored|fair play|group stage tie|how does knockout|knockout rules|knockout format|away goals|advancement rules|what are the rules)\b/i;
 
 /** @param {string} question */
 export function isWcRulesQuestion(question) {

@@ -4,6 +4,7 @@
 
 import { extractAnthropicText } from "./prompt/anthropicText.js";
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
+import { UR_TAKE_HAIKU_MODEL } from "../_anthropicModels.js";
 import { sendUrTakeJson } from "./responseDelivery.js";
 import { extractLastAssistantStructured } from "../../shared/wcCardContractFollowUpScorer.js";
 
@@ -11,6 +12,7 @@ const TALK_SYSTEM = `You are Under Review — a sharp sports-betting friend in a
 The user is in a follow-up or rules thread. Reply in 2–4 short sentences, plain language, bro tone.
 No section headers. No "THE PLAY" block. No markdown lists unless listing 2–3 quick facts.
 If they are asking why on a prior lean, explain the mechanism (tempo, script, line value) without inventing new bets.
+If they ask whether a tactic or game state "flips" the lean, explain why it does or doesn't — never reverse a prior Over/Under unless the live score clearly changed the math.
 If they ask rules, be factual and concise.
 Never fabricate odds or player names not in the context below.`;
 
@@ -79,13 +81,14 @@ export async function tryDeliverUrTakeTalk(opts) {
 
   const result = await fetchAnthropicMessages({
     apiKey: anthropicApiKey,
-    model: anthropicModel,
+    model: UR_TAKE_HAIKU_MODEL,
     max_tokens: 320,
     temperature: 0.55,
     system: TALK_SYSTEM + contextBlock,
     messages,
     timeoutMs: 28000,
     maxRetries: 2,
+    cacheSystemPrompt: true,
   });
 
   if (!result.ok) {

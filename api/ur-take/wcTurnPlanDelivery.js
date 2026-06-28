@@ -154,6 +154,7 @@ export async function deliverWcTurnByPlan(plan, ctx) {
       wcIntent,
       String(question || ""),
       wcRequiredEntities,
+      normalizedUrTakeHistoryForGate,
     );
   }
   responseText = formatWcCompactDisplayText(structuredResponse, responseText);

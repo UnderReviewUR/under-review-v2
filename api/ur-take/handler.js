@@ -1444,6 +1444,7 @@ async function callAnthropic({
   messages,
   temperature = 0.45,
   max_tokens = 800,
+  cacheSystemPrompt = true,
 }) {
   const goldenEvalResult = resolveGoldenEvalAnthropicResponse();
   if (goldenEvalResult) return goldenEvalResult;
@@ -1458,6 +1459,7 @@ async function callAnthropic({
     messages,
     timeoutMs: 52000,
     maxRetries: 3,
+    cacheSystemPrompt,
   });
 }
 
@@ -6707,7 +6709,7 @@ You are responding to a Pro subscriber. Apply the following:
       }
     }
 
-    const maxQaAttempts = isConversationFollowUp ? 1 : 2;
+    const maxQaAttempts = isConversationFollowUp ? 0 : 1;
     for (let qaAttempt = 0; qaAttempt < maxQaAttempts; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;
@@ -6919,7 +6921,7 @@ You are responding to a Pro subscriber. Apply the following:
         qaAttempt === 0
           ? systemPromptWithProAppendix
           : `${systemPromptWithProAppendix}${QA_REGENERATION_SYSTEM_SUFFIX}${broToneRepairSuffix}${universalStructuralRepairSuffix}${nbaStructuralRepairSuffix}${nbaGroundingRepairSuffix}${wcQaRepairSuffix}${nbaPredictionsRoundupRepairSuffix}${nbaFinalsStructuredRepairSuffix}`;
-      if (effectiveStructuredModeRequested) {
+      if (effectiveStructuredModeRequested && !(outputJsonMode === "plain" && isConversationFollowUp)) {
         systemForAttempt += getStructuredURTakePrompt();
         if (isConversationFollowUp) {
           systemForAttempt += `
@@ -7082,6 +7084,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               wcIntent,
               String(question || ""),
               wcRequiredEntities,
+              normalizedUrTakeHistoryForGate,
             );
             if (isWcPlayerMarketIntent(wcIntent) && structuredResponse) {
               structuredResponse.playerMarketTier =
@@ -7802,7 +7805,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         wcContext,
         tier: wcContext?.playerMarketTier || wcRelevanceLog.playerMarketTier || null,
         kvBlocks: wcContext?.playerMarketKv,
-        retryAnthropic: lastWcAnthropicWire
+        retryAnthropic:
+          !isConversationFollowUp &&
+          String(process.env.UR_TAKE_CITATION_GATE_RETRY ?? "1").trim().toLowerCase() !==
+            "0" &&
+          lastWcAnthropicWire
           ? async (retryUserPrompt, priorStructured) => {
               const retryMessages = [
                 ...lastWcAnthropicWire.messages,
@@ -7840,6 +7847,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                   wcIntent,
                   String(question || ""),
                   wcRequiredEntities,
+                  normalizedUrTakeHistoryForGate,
                 );
               }
               if (!retryStructured) return null;
@@ -7883,6 +7891,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           wcIntent,
           String(question || ""),
           wcRequiredEntities,
+          normalizedUrTakeHistoryForGate,
         );
         structuredResponse = tryApplyWcPlayerPropsGroundingToStructured({
           structured: structuredResponse,
@@ -7929,6 +7938,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             wcIntent,
             String(question || ""),
             wcRequiredEntities,
+            normalizedUrTakeHistoryForGate,
           );
           responseText = formatWcCompactDisplayText(structuredResponse, structuredResponse.lean);
           responseDeep = null;

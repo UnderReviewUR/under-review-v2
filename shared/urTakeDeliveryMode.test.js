@@ -75,3 +75,63 @@ test("explain follow-up routes to talk when enabled", () => {
   if (prev) process.env.UR_TALK_MODE = prev;
   else delete process.env.UR_TALK_MODE;
 });
+
+test("casual wc follow-up routes to talk when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "worldcup",
+      wcIntent: "ENTITY_PRICING",
+      question: "hmm what if Mexico scores first?",
+      isConversationFollowUp: true,
+      history: [
+        { role: "user", content: "USA vs Mexico lean?" },
+        { role: "assistant", structured: { lean: "Lean: Pass." } },
+      ],
+    }),
+    "talk",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});
+
+test("nba thread follow-up routes to talk when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "nba",
+      wcIntent: null,
+      question: "why though? what's the actual edge",
+      isConversationFollowUp: true,
+      history: [
+        { role: "user", content: "Celtics vs Knicks spread?" },
+        { role: "assistant", content: "Lean: Under 228." },
+      ],
+    }),
+    "talk",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});
+
+test("parlay follow-up stays take when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "worldcup",
+      wcIntent: WC_INTENT.MATCHUP,
+      question: "build me a 3-leg parlay on that",
+      isConversationFollowUp: true,
+      history: [
+        { role: "user", content: "USA vs Mexico" },
+        { role: "assistant", structured: { lean: "Lean: USA ML." } },
+      ],
+    }),
+    "take",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});

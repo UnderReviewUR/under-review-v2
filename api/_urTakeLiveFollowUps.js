@@ -3,9 +3,10 @@
  */
 
 import { fetchAnthropicMessages } from "./_anthropicRetry.js";
+import { UR_TAKE_HAIKU_MODEL } from "./_anthropicModels.js";
 import { qaLiveFollowUps } from "./_urTakeOutputQA.js";
 
-const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const HAIKU_MODEL = UR_TAKE_HAIKU_MODEL;
 const HAIKU_TIMEOUT_MS = 2800;
 
 const FOLLOW_UP_SYSTEM = `You generate 3 short bettor follow-up questions. Max 7 words each. Real questions a bettor would ask mid-game. No punctuation overload. Return JSON array only: ["q1","q2","q3"]`;

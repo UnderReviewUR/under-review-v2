@@ -269,6 +269,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
       wcIntent,
       String(question || ""),
       wcRequiredEntities,
+      normalizedUrTakeHistoryForGate,
     );
   }
   responseText = formatWcCompactDisplayText(structuredResponse, responseText);

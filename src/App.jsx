@@ -118,6 +118,7 @@ import { trimToCompleteSentence } from "./lib/textUtils.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import {
   isHomeCardSportVisible,
+  isNavSportVisible,
   isNflUrTakeGated,
 } from "../shared/siteSportVisibility.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
@@ -805,7 +806,9 @@ ${themeCss}
     staticIntelFetchFailed,
   } = useTennisData();
   const { f1Data, f1Loading } = useF1Data();
-  const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData();
+  const { nbaData, nbaLoading, nbaGames, getSeriesLabel } = useNbaData({
+    enabled: isNavSportVisible("nba"),
+  });
   /** Latest verified NBA slate for UR Take — filled after `homePipeline` runs (see below). */
   const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();

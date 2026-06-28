@@ -3,10 +3,9 @@
  * Gated by UR_TALK_MODE=1 on the server.
  */
 
-import { isWcCardContractExplainFollowUp } from "./wcCardContractFollowUpScorer.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
-import { isWcPlayerMarketIntent, WC_INTENT } from "./wcUrTakeIntent.js";
+import { isWcPlayerMarketIntent, isWcRulesQuestion, WC_INTENT } from "./wcUrTakeIntent.js";
 
 /** @typedef {"take"|"talk"} UrTakeDeliveryMode */
 
@@ -15,6 +14,28 @@ export function isUrTalkModeEnabled() {
     .trim()
     .toLowerCase();
   return v === "1" || v === "true" || v === "yes" || v === "on";
+}
+
+/**
+ * Opening-turn or pivot asks that need a full Take card (not thread prose).
+ * @param {{ question?: string, wcIntent?: string | null, isConversationFollowUp?: boolean }} opts
+ */
+export function isUrTakeNewBettingAsk(opts = {}) {
+  const question = String(opts.question || "").trim();
+  const wcIntent = String(opts.wcIntent || "").trim().toUpperCase();
+  const isFollowUp = Boolean(opts.isConversationFollowUp);
+
+  if (!question) return false;
+  if (detectParlayIntent(question)) return true;
+  if (isWcTomorrowOrSlateBetQuestion(question)) return true;
+  if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return true;
+  if (
+    !isFollowUp &&
+    (wcIntent === WC_INTENT.MATCHUP || wcIntent === WC_INTENT.SCORE_PREDICTION)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -40,22 +61,15 @@ export function resolveUrTakeDeliveryMode(opts = {}) {
 
   if (!question || hasImage) return "take";
 
-  // Phase 1: World Cup only.
-  if (sport !== "worldcup") return "take";
-
-  // New betting asks always stay on the Take card pipeline.
-  if (detectParlayIntent(question)) return "take";
-  if (isWcTomorrowOrSlateBetQuestion(question)) return "take";
-  if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return "take";
-  if (!isFollowUp && (wcIntent === WC_INTENT.MATCHUP || wcIntent === WC_INTENT.SCORE_PREDICTION)) {
+  if (isUrTakeNewBettingAsk({ question, wcIntent, isConversationFollowUp: isFollowUp })) {
     return "take";
   }
 
-  if (wcIntent === WC_INTENT.RULES) return "talk";
+  if (wcIntent === WC_INTENT.RULES || isWcRulesQuestion(question)) return "talk";
 
-  if (isFollowUp && history.length > 0 && isWcCardContractExplainFollowUp(question)) {
-    return "talk";
-  }
+  if (isFollowUp && history.length > 0) return "talk";
+
+  if (sport === "worldcup") return "take";
 
   return "take";
 }

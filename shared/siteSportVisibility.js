@@ -13,7 +13,7 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
   nav: Object.freeze({
     home: true,
     worldcup: true,
-    nba: true,
+    nba: false,
     golf: true,
     nfl: true,
     f1: false,
@@ -23,7 +23,7 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
     pro: false,
   }),
   homeTicker: Object.freeze({
-    nba: true,
+    nba: false,
     worldcup: true,
     mlb: false,
     nfl: false,
@@ -43,11 +43,12 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
     tennis: false,
   }),
   todaySlate: Object.freeze({
+    nba: false,
     mlb: false,
     tennis: false,
   }),
   dailyTake: Object.freeze({
-    nba: true,
+    nba: false,
     worldcup: true,
     mlb: false,
     tennis: false,

@@ -1,5 +1,6 @@
 import { sanitizeDailyTakePreviewPayload } from "./_dailyTakeSanitize.js";
 import { condensedPreviewFromUrTakeResponse } from "./_dailyTakeCondensed.js";
+import { generateDailyTakeHaikuPreview } from "./_dailyTakeHaiku.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { buildNbaUrTakeBoard } from "./nba.js";
 import { getNbaFinalsSeriesState } from "../shared/nbaFinalsUtils.js";
@@ -7,8 +8,9 @@ import { isDailyTakeSportVisible } from "../shared/siteSportVisibility.js";
 import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
+export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 5;
 const STORAGE_PREFIX = "daily_take:v2:";
-const PREVIEW_TRIM_VERSION = 4;
+const PREVIEW_TRIM_VERSION = DAILY_TAKE_PREVIEW_TRIM_VERSION;
 
 export function getEtDateKey(d = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -63,10 +65,41 @@ function scoreWcMatch(m) {
   return 10;
 }
 
+function buildWcSlateContext(board, featuredLabel) {
+  const candidates = [
+    ...(Array.isArray(board?.live) ? board.live : []),
+    ...(Array.isArray(board?.upcoming) ? board.upcoming : []),
+  ]
+    .filter((m) => m?.homeTeam && m?.awayTeam)
+    .slice(0, 12)
+    .map((m) => ({
+      away: m.awayTeam,
+      home: m.homeTeam,
+      status: m.status || null,
+      group: m.groupLetter || m.group || null,
+    }));
+  return {
+    sport: "worldcup",
+    featured: featuredLabel,
+    matches: candidates,
+  };
+}
+
 function wcMatchupLabel(m) {
   const away = String(m?.awayTeam || "").trim() || "Away";
   const home = String(m?.homeTeam || "").trim() || "Home";
   return `${away} vs ${home}`;
+}
+
+function minimalSlateContext(sportHint, matchupLabel) {
+  return { sport: sportHint, featured: matchupLabel };
+}
+
+function useFullUrTakeDailyPipeline() {
+  const v = String(process.env.DAILY_TAKE_FULL_UR_TAKE ?? "")
+    .trim()
+    .toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
 }
 
 /**
@@ -90,6 +123,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
           sportHint: "nba",
           question: `What's your sharpest lean on ${away} @ ${home} tonight — who you like, why, and what line or prop jumps out from the board?`,
           matchupLabel: `${away} @ ${home}`,
+          slateContext: minimalSlateContext("nba", `${away} @ ${home}`),
         };
       }
     } catch (err) {
@@ -111,6 +145,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
           sportHint: "worldcup",
           question: `What's your sharpest lean on ${label} — who advances or covers, why, and which line or prop on the board looks mispriced?`,
           matchupLabel: label,
+          slateContext: buildWcSlateContext(board, label),
         };
       }
     } catch (err) {
@@ -137,6 +172,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
             sportHint: "mlb",
             question: `What's your sharpest lean on ${away} @ ${home} today — pitching, bullpen, and the play you'd actually make from the board?`,
             matchupLabel: `${away} @ ${home}`,
+            slateContext: minimalSlateContext("mlb", `${away} @ ${home}`),
           };
         }
       }
@@ -163,6 +199,7 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
             sportHint: "tennis",
             question: `Give me the sharpest betting edge for ${label} — market mispricing, form, and the structural angle from today's board.`,
             matchupLabel: label,
+            slateContext: minimalSlateContext("tennis", label),
           };
         }
       }
@@ -260,12 +297,15 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
     return payload;
   }
 
-  const json = await callUrTakePipeline(origin, target, fetchImpl);
+  const json = useFullUrTakeDailyPipeline()
+    ? await callUrTakePipeline(origin, target, fetchImpl)
+    : await generateDailyTakeHaikuPreview(target);
+
   if (!json) {
     const payload = {
       ok: false,
       dateKey,
-      error: "ur_take_failed",
+      error: useFullUrTakeDailyPipeline() ? "ur_take_failed" : "haiku_preview_failed",
       generatedAt: new Date().toISOString(),
     };
     await setDurableJson(key, payload, { ttlSeconds: DAY_TTL_SECONDS });
@@ -273,7 +313,14 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
   }
 
   const responseText = String(json.response ?? json.take ?? "").trim();
-  const condensed = condensedPreviewFromUrTakeResponse(responseText);
+  const condensed =
+    json.headline != null
+      ? {
+          headline: String(json.headline || ""),
+          bodyChunk: String(json.bodyChunk || ""),
+          closing: String(json.closing || ""),
+        }
+      : condensedPreviewFromUrTakeResponse(responseText);
 
   let seriesFingerprint = null;
   if (target.sportHint === "nba") {

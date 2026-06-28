@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { isNbaTimeMismatch } from "../lib/nbaTime.js";
 import { nbaBoardPollIntervalMs } from "../lib/nbaLiveContextLabel.js";
 
-export function useNbaData() {
+/**
+ * @param {{ enabled?: boolean }} [opts]
+ */
+export function useNbaData({ enabled = true } = {}) {
   const [nbaData, setNbaData] = useState(null);
   const [nbaLoading, setNbaLoading] = useState(false);
   const [nbaGames, setNbaGames] = useState([]);
@@ -41,6 +44,12 @@ export function useNbaData() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      setNbaData(null);
+      setNbaGames([]);
+      setNbaLoading(false);
+      return undefined;
+    }
     let active = true;
     let pollId = null;
     function schedulePoll(games) {
@@ -121,7 +130,7 @@ export function useNbaData() {
       active = false;
       if (pollId != null) window.clearInterval(pollId);
     };
-  }, []);
+  }, [enabled]);
 
   return { nbaData, nbaLoading, nbaGames, getSeriesLabel };
 }

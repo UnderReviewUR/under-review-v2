@@ -22,6 +22,7 @@ import {
   isWcMatchProbabilityQuestion,
   wcMatchProbabilityAnswerFieldsHaveSignal,
 } from "./wcMatchProbabilityQuestion.js";
+import { repairWcTotalsHoldPriorLeanFollowUp } from "./wcTotalsLeanHold.js";
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value)\b/i;
@@ -74,6 +75,7 @@ export function normalizeWcStructuredForDelivery(
   wcIntent,
   question = "",
   requiredEntities = [],
+  history = [],
 ) {
   if (!structured || typeof structured !== "object") return structured;
 
@@ -111,7 +113,11 @@ export function normalizeWcStructuredForDelivery(
       out.edge = out.edge || "Structural paths — no single knockout winner pick in group stage.";
     }
     repairWcMatchProbabilityLean(out, question);
-    return finishWcStructuredForDelivery(out, intent, question);
+    return finishWcStructuredForDelivery(
+      repairWcTotalsHoldPriorLeanFollowUp(out, question, history),
+      intent,
+      question,
+    );
   }
 
   if (intent === WC_INTENT.PARLAY || String(out.callType || "").toLowerCase() === "parlay") {

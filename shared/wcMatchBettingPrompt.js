@@ -66,6 +66,37 @@ export function isWcTotalsExplainFollowUp(question) {
 }
 
 /**
+ * Totals thread follow-ups that challenge the prior lean — hold Over/Under, explain nuance.
+ * Excludes explicit pivot asks ("other side", "over or under goals?").
+ * @param {string} question
+ */
+export function isWcTotalsHoldPriorLeanFollowUp(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (isWcMatchupOtherSideFollowUp(q)) return false;
+  if (/\bover or under goals\b/i.test(q)) return false;
+  if (isWcTotalsExplainFollowUp(q)) return true;
+  if (/\bflip(?:s|ped)?\s+(?:this\s+)?to\s+(?:under|over)\b/i.test(q)) return true;
+  if (
+    /\b(?:does|would|could|should|can|did)\b/i.test(q) &&
+    /\b(?:flip|switch|change|turn)\b/i.test(q) &&
+    /\b(?:under|over)\b/i.test(q)
+  ) {
+    return true;
+  }
+  if (/\b(?:sitting deep|low block|park(?:ing)? the bus|defensive).*\b(?:under|over)\b/i.test(q)) {
+    return true;
+  }
+  if (
+    /\b(?:under|over)\s+\d+\.?\d*/i.test(q) &&
+    /\b(?:sitting deep|low block|park the bus|defensive|flip)\b/i.test(q)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * @param {string} question
  */
 export function isWcMatchupAltMarketFollowUp(question) {

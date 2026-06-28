@@ -7,8 +7,9 @@ import {
   readStoredDailyTake,
 } from "./_dailyTakePreview.js";
 import { isDailyTakeSportVisible } from "../shared/siteSportVisibility.js";
+import { DAILY_TAKE_PREVIEW_TRIM_VERSION } from "./_dailyTakePreview.js";
 
-const PREVIEW_TRIM_VERSION = 4;
+const PREVIEW_TRIM_VERSION = DAILY_TAKE_PREVIEW_TRIM_VERSION;
 
 /**
  * @param {Record<string, unknown> | null | undefined} cached

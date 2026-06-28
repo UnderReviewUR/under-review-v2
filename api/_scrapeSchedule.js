@@ -43,6 +43,7 @@ import {
 } from "../shared/nbaFinalsPropsCadence.js";
 import { nbaGameIsLiveOrHalftimeForRefresh } from "../shared/nbaLiveBoardRefresh.js";
 import { NBA_OUTRIGHTS_SCRAPE_INTERVAL_MS } from "../shared/nba2026Constants.js";
+import { shouldCollectNbaScrapeTargets } from "../shared/nbaScrapePolicy.js";
 import { loadFinalizedWcMatchDetailIds, readWcMatchesFromKv } from "./_wcData.js";
 import {
   selectWcMatchDetailTargets,
@@ -105,6 +106,9 @@ function mergeNbaSlateGamesByPair(primary, extra) {
 }
 
 export async function collectNbaScrapeTargets(nowMs = Date.now()) {
+  if (!shouldCollectNbaScrapeTargets(nowMs)) {
+    return [];
+  }
   /** @type {ScrapeTarget[]} */
   const out = [];
   const todayET = getEtDateString(new Date(nowMs));

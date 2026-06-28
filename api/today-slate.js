@@ -20,6 +20,7 @@ import {
   sanitizeWorldCupBoard,
 } from "../shared/todaySlateInputBundle.js";
 import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
+import { isTodaySlateSportVisible } from "../shared/siteSportVisibility.js";
 import { ensureWorldCupInSlateOutput } from "../shared/wcSlateFeaturing.js";
 import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
 
@@ -412,8 +413,12 @@ export default async function handler(req, res) {
 
     const base = originFromReq(req);
 
+    const includeNbaSlate = isTodaySlateSportVisible("nba");
+
     const [nba, mlb, golf, tennis, f1, nfl, worldcupKv, worldcupHttp] = await Promise.all([
-      fetchBoardJson(base, "/api/nba?view=board"),
+      includeNbaSlate
+        ? fetchBoardJson(base, "/api/nba?view=board")
+        : Promise.resolve({ ok: false, data: null }),
       fetchBoardJson(base, "/api/mlb?view=board"),
       fetchBoardJson(base, "/api/golf?view=board"),
       fetchBoardJson(base, "/api/tennis?tour=atp"),

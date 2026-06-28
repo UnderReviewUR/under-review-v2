@@ -10,6 +10,35 @@ function isTransientAnthropicHttpStatus(status) {
   return status === 429 || status === 503 || status === 529;
 }
 
+function isPromptCacheEnabled() {
+  const v = String(process.env.UR_TAKE_PROMPT_CACHE ?? "1")
+    .trim()
+    .toLowerCase();
+  return v !== "0" && v !== "false" && v !== "off" && v !== "no";
+}
+
+/**
+ * @param {string} system
+ * @param {boolean} cacheSystemPrompt
+ */
+export function formatAnthropicSystemParam(system, cacheSystemPrompt = false) {
+  const text = String(system || "");
+  if (
+    !cacheSystemPrompt ||
+    !isPromptCacheEnabled() ||
+    text.length < 4096
+  ) {
+    return text;
+  }
+  return [
+    {
+      type: "text",
+      text,
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+}
+
 export async function fetchAnthropicMessages({
   apiKey,
   model,
@@ -19,6 +48,7 @@ export async function fetchAnthropicMessages({
   messages,
   timeoutMs = 52000,
   maxRetries = 4,
+  cacheSystemPrompt = false,
 }) {
   let lastResponse = null;
   let lastRequestId = null;
@@ -40,7 +70,7 @@ export async function fetchAnthropicMessages({
           model,
           max_tokens,
           temperature,
-          system,
+          system: formatAnthropicSystemParam(system, cacheSystemPrompt),
           messages,
         }),
       });
