@@ -5,6 +5,7 @@
 import { normalizeEspnAbbr } from "../api/_wcEspn.js";
 import { WC_PLAYER_SEED } from "../src/data/wc2026PlayerSeed.js";
 import { WC_FULL_SQUAD_SEED } from "../src/data/wc2026FullSquadsSeed.js";
+import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import {
   enrichRegistryWithPlayerBio,
   wcPlayerAgeYears,
@@ -379,4 +380,88 @@ export function topRegistryRedCards(registry, limit = 6) {
         (Number(b.yellowCardsTournament) || 0) - (Number(a.yellowCardsTournament) || 0),
     )
     .slice(0, limit);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} registry
+ * @param {string} nationAbbr
+ * @param {{ forwardsOnly?: boolean }} [opts]
+ */
+export function listRegistryPlayerNamesForNation(registry, nationAbbr, opts = {}) {
+  const abbr = normalizeEspnAbbr(nationAbbr);
+  const team = registry?.teams?.[abbr];
+  if (!team || !Array.isArray(team.players)) return [];
+  let rows = team.players;
+  if (opts.forwardsOnly) {
+    rows = rows.filter((p) => /^F/i.test(String(p?.position || "")));
+  }
+  return rows.map((p) => normalizeWcPlayerName(String(p?.name || ""))).filter(Boolean);
+}
+
+/**
+ * Compact FIFA squad + prop/injury grounding for Haiku talk threads.
+ * @param {Record<string, unknown> | null | undefined} wcContext
+ * @param {unknown[]} [history]
+ */
+export function buildWcTalkSquadGroundingBlock(wcContext, history = []) {
+  const prior = extractLastAssistantStructured(history);
+  const fixtures = [
+    ...(Array.isArray(wcContext?.fixtures) ? wcContext.fixtures : []),
+    ...(Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails : []),
+  ];
+  const fx = fixtures[0];
+  let home = String(fx?.homeTeam || prior?.fixtureHome || wcContext?.requiredEntities?.[0] || "")
+    .trim()
+    .toUpperCase();
+  let away = String(fx?.awayTeam || prior?.fixtureAway || wcContext?.requiredEntities?.[1] || "")
+    .trim()
+    .toUpperCase();
+  if (!home || !away) return "";
+
+  const registry = buildResolvedWcPlayerRegistry(
+    wcContext?.roundupPlayerKv?.players || wcContext?.players || null,
+  );
+  /** @type {string[]} */
+  const lines = [];
+
+  for (const abbr of [home, away]) {
+    const names = listRegistryPlayerNamesForNation(registry, abbr, { forwardsOnly: true });
+    if (names.length) {
+      lines.push(
+        `${abbr} called-up forwards (FIFA squad — cite only these, not players who missed the cut): ${names.join(", ")}`,
+      );
+    }
+  }
+
+  const priorRows = Array.isArray(prior?.propBoardRows) ? prior.propBoardRows : [];
+  const fgsRows = priorRows.filter(
+    (r) =>
+      String(r?.market || "") === "first_goalscorer" ||
+      /\bfirst goal(?:scorer)?\b/i.test(String(r?.lean || r?.label || "")),
+  );
+  if (fgsRows.length) {
+    lines.push(
+      `Posted first goalscorer lines: ${fgsRows
+        .slice(0, 6)
+        .map((r) => `${r.label || r.lean} ${r.odds || ""}`.trim())
+        .join(" · ")}`,
+    );
+  }
+
+  const injRows = Array.isArray(wcContext?.injuriesKv?.rows) ? wcContext.injuriesKv.rows : [];
+  const scopedInj = injRows.filter((row) => {
+    const team = String(row?.teamAbbr || row?.nationAbbr || row?.team || "").toUpperCase();
+    return team === home || team === away;
+  });
+  if (scopedInj.length) {
+    lines.push(
+      `Injury board (${home}/${away}): ${scopedInj
+        .slice(0, 6)
+        .map((row) => `${row.playerName || row.name || "Player"} (${row.teamAbbr || row.nationAbbr || ""}) — ${row.status || row.note || "listed"}`)
+        .join(" · ")}`,
+    );
+  }
+
+  if (!lines.length) return "";
+  return lines.join("\n");
 }

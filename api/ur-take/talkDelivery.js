@@ -7,6 +7,7 @@ import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { UR_TAKE_HAIKU_MODEL } from "../_anthropicModels.js";
 import { sendUrTakeJson } from "./responseDelivery.js";
 import { extractLastAssistantStructured } from "../../shared/wcCardContractFollowUpScorer.js";
+import { buildWcTalkSquadGroundingBlock } from "../../shared/wcPlayerRegistry.js";
 
 const TALK_SYSTEM = `You are Under Review — a sharp sports-betting friend in a group chat.
 The user is in a follow-up or rules thread. Reply in 2–4 short sentences, plain language, bro tone.
@@ -14,6 +15,7 @@ No section headers. No "THE PLAY" block. No markdown lists unless listing 2–3 
 If they are asking why on a prior lean, explain the mechanism (tempo, script, line value) without inventing new bets.
 If they ask whether a tactic or game state "flips" the lean, explain why it does or doesn't — never reverse a prior Over/Under unless the live score clearly changed the math.
 If they ask rules, be factual and concise.
+If they doubt a starter or ask for lineup pivots, name ONLY players from CALLED-UP SQUAD or POSTED PROP LINES in context — never cite players who missed the World Cup squad.
 Never fabricate odds or player names not in the context below.`;
 
 /**
@@ -51,22 +53,27 @@ function summarizePriorTakeForTalk(history) {
 
 /**
  * @param {Record<string, unknown> | null | undefined} wcContext
+ * @param {unknown[]} [history]
  */
-export function buildWcTalkContextSnippet(wcContext) {
+export function buildWcTalkContextSnippet(wcContext, history = []) {
+  const prior = extractLastAssistantStructured(history);
   const fixtures = [
     ...(Array.isArray(wcContext?.fixtures) ? wcContext.fixtures : []),
     ...(Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails : []),
   ];
   const fx = fixtures[0];
-  if (!fx) return "";
-  const home = String(fx.homeTeam || "").trim();
-  const away = String(fx.awayTeam || "").trim();
+  const home = String(
+    fx?.homeTeam || prior?.fixtureHome || wcContext?.requiredEntities?.[0] || "",
+  ).trim();
+  const away = String(
+    fx?.awayTeam || prior?.fixtureAway || wcContext?.requiredEntities?.[1] || "",
+  ).trim();
   if (!home || !away) return "";
-  const odds = fx.odds && typeof fx.odds === "object" ? fx.odds : null;
+  const odds = fx?.odds && typeof fx.odds === "object" ? fx.odds : null;
   const homeMl = odds?.home?.moneyline || odds?.home;
   const awayMl = odds?.away?.moneyline || odds?.away;
   const drawMl = odds?.draw?.moneyline || odds?.draw;
-  const round = String(fx.round || "").trim();
+  const round = String(fx?.round || "").trim();
   const lines = [`Fixture: ${home} vs ${away}`];
   if (round) lines.push(`Round: ${round}`);
   if (homeMl || awayMl) {
@@ -75,6 +82,8 @@ export function buildWcTalkContextSnippet(wcContext) {
     );
   }
   if (wcContext?.phase) lines.push(`Tournament phase: ${wcContext.phase}`);
+  const squadBlock = buildWcTalkSquadGroundingBlock(wcContext, history);
+  if (squadBlock) lines.push(squadBlock);
   return lines.join("\n");
 }
 
@@ -103,7 +112,9 @@ export async function tryDeliverUrTakeTalk(opts) {
 
   const priorTake = summarizePriorTakeForTalk(history);
   const wcSnippet =
-    sportHint === "worldcup" ? buildWcTalkContextSnippet(wcContext) : "";
+    sportHint === "worldcup"
+      ? buildWcTalkContextSnippet(wcContext, history)
+      : "";
   const contextBlock = [
     priorTake ? `PRIOR TAKE (do not repeat verbatim — explain or clarify):\n${priorTake}` : "",
     wcSnippet ? `VERIFIED FIXTURE (cite only these prices):\n${wcSnippet}` : "",
