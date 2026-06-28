@@ -37,6 +37,7 @@ import {
   getWcAdvancementMarketContextLabel,
 } from "../../shared/wcAdvancementMarket.js";
 import { shouldAutoExpandWcBreakdown } from "../../shared/wcFollowUpExplain.js";
+import { isKnockoutPhase } from "../../shared/wcPhaseUtils.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -116,6 +117,7 @@ export default function URTakeResponse({
   groundingInventoryStrip = null,
   namedLegCitation = null,
   wcNamedPlayerPropsCard = false,
+  wcTournamentPhase = null,
 }) {
   const primaryBodyRef = useRef(null);
   const [primaryOverflow, setPrimaryOverflow] = useState(false);
@@ -413,6 +415,9 @@ export default function URTakeResponse({
       slateDay: slateDay || null,
       tomorrowFixtureCount,
       wcNamedPlayerPropsCard,
+      isKnockout:
+        String(callType || "").toLowerCase() === "matchup" &&
+        isKnockoutPhase(String(wcTournamentPhase || "").trim()),
     });
     const wcSections = {
       ...wcFace.sections,

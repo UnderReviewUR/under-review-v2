@@ -20,6 +20,8 @@ import {
 import {
   WC_GOLDEN_BOOT_KV_KEY,
   WC_GOLDEN_BOOT_MAX_AGE_MS,
+  WC_INJURIES_KV_KEY,
+  WC_INJURIES_TTL_SECONDS,
   WC_PLAYERS_KV_KEY,
 } from "../shared/wc2026PlayerConstants.js";
 import {
@@ -29,6 +31,7 @@ import {
 } from "../shared/wc2026Constants.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
 import { warmWcBdlMatchPlayerPropsForMatches } from "./_wcBdlMatchPropsWarm.js";
+import { scrapeAndCacheWcBdlInjuries } from "./_wcInjuriesData.js";
 
 const PREFETCH_STEP_TIMEOUT_MS = 4000;
 
@@ -143,6 +146,23 @@ export async function prefetchWcGoatDataForUrTake(nowMs = Date.now(), opts = {})
       return { skipped: true, reason: "no_matches" };
     }
     return warmWcBdlMatchPlayerPropsForMatches(matches, nowMs, { maxMatches: 12 });
+  });
+
+  await runStep("bdl_injuries", async () => {
+    const injKv = await getDurableJson(WC_INJURIES_KV_KEY);
+    const injStale =
+      !injKv?.rows?.length ||
+      !isKvFresh(injKv?.lastUpdated, WC_INJURIES_TTL_SECONDS * 1000, nowMs) ||
+      !shouldPreferBdlRefreshOverKv(injKv);
+    if (!injStale) {
+      return { skipped: true, source: injKv?.source || null, rowCount: injKv?.rows?.length || 0 };
+    }
+    const r = await scrapeAndCacheWcBdlInjuries(nowMs);
+    return {
+      refreshed: Boolean(r?.ok),
+      rowCount: r?.rowCount ?? 0,
+      source: r?.source || "balldontlie",
+    };
   });
 
   await runStep("bdl_golden_boot_probe", async () => {

@@ -46,6 +46,7 @@ import {
 import {
   fetchOpenFootballWc2026Schedule,
   validateEspnScheduleAgainstOpenFootball,
+  enrichMatchesWithOpenFootballMetadata,
 } from "../shared/wcOpenFootballSchedule.js";
 import { isWcGoatPrimaryEnabled, isWcBdlSource } from "../shared/wcBdlPolicy.js";
 import { scrapeAndCacheWcBdlStandingsAndFixtures, looksLikeWcEspnEventId } from "./_wcBdlData.js";
@@ -349,8 +350,20 @@ export async function scrapeAndCacheWcStandingsAndFixtures() {
 
     const ofRes = await fetchOpenFootballWc2026Schedule();
     if (ofRes.ok) {
+      const enriched = enrichMatchesWithOpenFootballMetadata(matchesRes.matches, ofRes.matches);
+      matchesPayload.matches = enriched.matches;
+      if (enriched.enrichedRound > 0) {
+        matchesPayload.roundEnrichedCount = enriched.enrichedRound;
+        console.log(
+          JSON.stringify({
+            event: "wc_round_enriched",
+            enrichedRound: enriched.enrichedRound,
+            totalMatches: enriched.matches.length,
+          }),
+        );
+      }
       const validation = validateEspnScheduleAgainstOpenFootball(
-        matchesRes.matches,
+        matchesPayload.matches,
         ofRes.matches,
       );
       matchesPayload.scheduleValidation = {

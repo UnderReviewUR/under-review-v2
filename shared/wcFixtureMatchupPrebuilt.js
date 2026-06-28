@@ -37,7 +37,9 @@ import {
   isWcTotalsExplainFollowUp,
   isWcTotalsHoldPriorLeanFollowUp,
 } from "./wcMatchBettingPrompt.js";
-import { isWcKnockoutFixtureMatch, getWcKnockoutRoundLabelForMatch } from "./wcKnockoutFixture.js";
+import { isWcKnockoutFixtureMatch, getWcKnockoutRoundLabelForMatch, ensureWcKnockoutRegulationEdge } from "./wcKnockoutFixture.js";
+import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
+import { buildWcXiCaveatLine } from "./wcXiStatus.js";
 import { shouldBlockMatchupAltPrebuiltAfterPlayerPivot } from "./wcFollowUpExplain.js";
 import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, isWcLiveBetsQuestion, isWcSecondHalfContext, parseLiveScoreFromQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
@@ -1249,14 +1251,16 @@ export function shouldUseWcFixtureMatchupPrebuilt(question, wcIntent, opts = {})
  *   awayStats?: { advancePct?: number },
  * }} row
  */
-function wcBothAdvanceLean(groupClause, teamStats, home, away, group, match) {
-  if (isWcKnockoutFixtureMatch(match)) return "";
+function wcBothAdvanceLean(groupClause, teamStats, home, away, group, match, knockoutScope) {
+  if (isWcKnockoutFixtureMatch(match, knockoutScope)) return "";
   const assessment = assessWcBothTeamsAdvanceFixture({
     home,
     away,
     group,
     teamStats,
     match,
+    tournamentPhase: knockoutScope?.tournamentPhase,
+    allMatches: knockoutScope?.allMatches,
   });
   if (!assessment.ok) return "";
   return `Pass on ML — lean both teams to advance${groupClause}.`;
@@ -1264,7 +1268,11 @@ function wcBothAdvanceLean(groupClause, teamStats, home, away, group, match) {
 
 function pickWcFixturePrebuiltLean(row) {
   const { question, home, away, group, homeStats, awayStats, teamStats: fullTeamStats, matchOdds, match } = row;
-  const isKnockout = isWcKnockoutFixtureMatch(match);
+  const knockoutScope = {
+    tournamentPhase: row.tournamentPhase,
+    allMatches: row.allMatches,
+  };
+  const isKnockout = isWcKnockoutFixtureMatch(match, knockoutScope);
   const q = String(question || "");
   const groupClause = group ? ` in Group ${group}` : "";
   const teamStats = fullTeamStats || {
@@ -1301,7 +1309,7 @@ function pickWcFixturePrebuiltLean(row) {
     /\b(best bet|group context|moneyline.*group|both teams to advance|both advance)\b/i.test(q) &&
     !/\b(vs\.?|versus)\b/i.test(q)
   ) {
-    const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group, match);
+    const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group, match, knockoutScope);
     if (bothLean) return bothLean;
     if (resolvedHomeMl && resolvedAwayMl) {
       return pickWcFixtureTotalsAlternateLean(totalsRow).lean;
@@ -1327,7 +1335,7 @@ function pickWcFixturePrebuiltLean(row) {
   const homeAdv = Number(homeStats?.advancePct);
   const awayAdv = Number(awayStats?.advancePct);
   if (Number.isFinite(homeAdv) && Number.isFinite(awayAdv) && homeAdv > 45 && awayAdv > 45 && !isKnockout) {
-    const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group, match);
+    const bothLean = wcBothAdvanceLean(groupClause, teamStats, home, away, group, match, knockoutScope);
     if (bothLean) return bothLean;
   }
 
@@ -1446,7 +1454,11 @@ function pickWcFixtureAltFollowUpLean(row) {
   }
 
   if (/\bboth teams to advance\b/i.test(q)) {
-    if (isWcKnockoutFixtureMatch(row.match)) {
+    const knockoutScope = {
+      tournamentPhase: row.tournamentPhase,
+      allMatches: row.allMatches,
+    };
+    if (isWcKnockoutFixtureMatch(row.match, knockoutScope)) {
       if (priorTotals?.line) {
         return formatTotalsLeanHeadline(priorTotals.kind, priorTotals.line);
       }
@@ -1521,6 +1533,8 @@ function wcModelAttributionFooter(lastUpdatedMs, nowMs = Date.now()) {
  *   simLastUpdated?: number,
  *   nowMs?: number,
  *   history?: Array<unknown>,
+ *   tournamentPhase?: string,
+ *   allMatches?: Array<Record<string, unknown>>,
  * }} [opts]
  */
 export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
@@ -1530,7 +1544,11 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const question = String(opts.question || "").trim();
   const routingQ = extractLatestUserTurnForRouting(question);
   const altFollowUp = isWcMatchupAltMarketFollowUp(routingQ);
-  const isKnockout = isWcKnockoutFixtureMatch(opts.match);
+  const knockoutScope = {
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
+  };
+  const isKnockout = isWcKnockoutFixtureMatch(opts.match, knockoutScope);
   if (isWcFixturePrebuiltBlockedForLivePlay(question, opts.match)) return null;
   if (!home || !away) return null;
 
@@ -1552,7 +1570,16 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
 
   const fav = pickMlFavorite(homeMl, awayMl, home, away);
   const favName = wcMatchupTeamDisplayName(fav.abbr);
-  const mlCall = `${favName} ${fav.odds} to win`;
+  const advancementQ = isKnockout && isKnockoutAdvancementQuestion(routingQ);
+  const toAdvanceHomeMl = readWcMatchMoneylineAmerican(matchOdds?.toAdvanceHome);
+  const toAdvanceAwayMl = readWcMatchMoneylineAmerican(matchOdds?.toAdvanceAway);
+  const favToAdvanceMl = fav.abbr === home ? toAdvanceHomeMl : toAdvanceAwayMl;
+  const mlCall =
+    advancementQ && favToAdvanceMl
+      ? `${favName} ${favToAdvanceMl} to advance`
+      : advancementQ
+        ? `${favName} ${fav.odds} to advance (regulation ML)`
+        : `${favName} ${fav.odds} to win`;
 
   const altLeanText = pickWcFixtureAltFollowUpLean({
     question: routingQ,
@@ -1586,6 +1613,8 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
         status: opts.match?.status,
         isLive: isWcLiveMatchStatus(opts.match?.status),
         match: opts.match,
+        tournamentPhase: opts.tournamentPhase,
+        allMatches: opts.allMatches,
       });
   const playHeadline = extractWcMatchupPlayHeadline(lean) || "";
   const call = altFollowUp
@@ -1615,6 +1644,8 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
         group,
         teamStats: opts.teamStats,
         match: opts.match,
+        tournamentPhase: opts.tournamentPhase,
+        allMatches: opts.allMatches,
       });
 
   const priorTotalsFromHistory = extractPriorTotalsLeanFromHistory(opts.history);
@@ -1622,6 +1653,8 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     (isWcTotalsExplainFollowUp(routingQ) || isWcTotalsHoldPriorLeanFollowUp(routingQ)) &&
     priorTotalsFromHistory;
   const totalsKind = parseTotalsKindFromLean(lean) || priorTotalsExplain?.kind || "under";
+
+  const xiCaveat = buildWcXiCaveatLine(opts.match);
 
   const whyNowRow = {
     homeName,
@@ -1644,6 +1677,10 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     awayStats,
     isKnockout,
     round: opts.match?.round,
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
+    xiCaveat,
+    advancementQ,
   };
 
   const whyNow = (
@@ -1684,6 +1721,11 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     winBar,
     homeStats,
     awayStats,
+    isKnockout,
+    round: opts.match?.round,
+    status: opts.match?.status,
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
   }).trim();
 
   if (priorTotalsExplain) {
@@ -1697,6 +1739,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     homeName,
     awayName,
     lean,
+    isKnockout,
   }).slice(0, 200);
 
   return {
@@ -1777,7 +1820,10 @@ function buildWcFixtureUnderTotalsMechanismWhy(row, roles, variantOffset = 0) {
   const group = String(row.group || "").trim().toUpperCase();
   const knockout = Boolean(row.isKnockout);
   const knockoutBit = knockout
-    ? getWcKnockoutRoundLabelForMatch({ round: row.round })
+    ? getWcKnockoutRoundLabelForMatch(
+        { round: row.round, status: row.status },
+        { tournamentPhase: row.tournamentPhase, allMatches: row.allMatches },
+      )
     : group
       ? `Group ${group}`
       : "the group";
@@ -1908,10 +1954,20 @@ function buildWcTotalsExplainWhyNow(row) {
  *   awayScore?: number | null,
  *   status?: string | null,
  *   matchOdds?: Record<string, unknown>,
+ *   xiCaveat?: string,
+ *   advancementQ?: boolean,
  * }} row
  */
 function buildWcFixturePrebuiltWhyNow(row) {
+  const xiPrefix = row.xiCaveat ? `${row.xiCaveat} ` : "";
   const groupClause = row.group ? ` Group ${row.group}` : "";
+  const isKnockout = Boolean(row.isKnockout);
+  const knockoutLabel = isKnockout
+    ? getWcKnockoutRoundLabelForMatch(
+        { round: row.round, status: row.status },
+        { tournamentPhase: row.tournamentPhase, allMatches: row.allMatches },
+      )
+    : "";
   const hs = Number(row.homeScore);
   const as = Number(row.awayScore);
   const goalsLive =
@@ -1932,10 +1988,11 @@ function buildWcFixturePrebuiltWhyNow(row) {
           : "already through the number";
       return `${hs}-${as} live — ${roles.favName} is creating chances but ${clockNote}; tempo vs clock is the cap.`;
     }
-    return `Heavy favorite script${groupClause} — ${roles.favName} should control the ball; ${roles.dogName} sits deep but the posted total is high when the gap is this wide.`;
+    return `${xiPrefix}Heavy favorite script${isKnockout ? ` — ${knockoutLabel} elimination` : groupClause} — ${roles.favName} should control the ball; ${roles.dogName} sits deep but the posted total is high when the gap is this wide.`;
   }
   if (/under \d/i.test(row.lean || row.playHeadline || "")) {
-    return buildWcFixtureUnderTotalsMechanismWhy(row, roles, variantOffset);
+    const underWhy = buildWcFixtureUnderTotalsMechanismWhy(row, roles, variantOffset);
+    return xiPrefix ? `${xiPrefix}${underWhy}` : underWhy;
   }
   if (/both teams to advance/i.test(row.lean || "")) {
     const caveat = buildWcBothTeamsAdvanceCaveat(
@@ -1944,13 +2001,25 @@ function buildWcFixturePrebuiltWhyNow(row) {
       row.awayName,
       row.group,
     );
-    if (caveat) return caveat.slice(0, 400);
-    return `Group-stage math beats a 90-minute sweat — both ${row.homeName} and ${row.awayName} have live advance paths${groupClause ? ` from Group ${row.group}` : ""}.`;
+    if (caveat) return (xiPrefix + caveat).slice(0, 400);
+    return `${xiPrefix}Group-stage math beats a 90-minute sweat — both ${row.homeName} and ${row.awayName} have live advance paths${groupClause ? ` from Group ${row.group}` : ""}.`.slice(
+      0,
+      400,
+    );
   }
   if (row.homeMl && row.awayMl) {
-    return `${row.homeName} ${row.homeMl} vs ${row.awayName} ${row.awayMl}${row.drawMl ? ` (Draw ${row.drawMl})` : ""} — market leans ${row.homeName} but the price is tight.`;
+    const scope = isKnockout ? `${knockoutLabel} — win or go home` : "market leans";
+    const advanceNote =
+      isKnockout && row.advancementQ &&
+      !readWcMatchMoneylineAmerican(row.matchOdds?.toAdvanceHome) &&
+      !readWcMatchMoneylineAmerican(row.matchOdds?.toAdvanceAway)
+        ? " · regulation ML only (ET/pens if level)"
+        : "";
+    return `${xiPrefix}${row.homeName} ${row.homeMl} vs ${row.awayName} ${row.awayMl}${row.drawMl ? ` (Draw ${row.drawMl})` : ""} — ${scope}${advanceNote}${isKnockout ? "" : ` ${row.homeName} but the price is tight`}.`;
   }
-  return `Tight${groupClause} opener — expect a cautious script, not a blowout.`;
+  return isKnockout
+    ? `${xiPrefix}${knockoutLabel} — expect a cautious elimination script, not a blowout.`
+    : `${xiPrefix}Tight${groupClause} opener — expect a cautious script, not a blowout.`;
 }
 
 /**
@@ -1970,6 +2039,13 @@ function buildWcFixturePrebuiltWhyNow(row) {
  */
 function buildWcFixturePrebuiltDeep(row) {
   const parts = [];
+  const isKnockout = Boolean(row.isKnockout);
+  const knockoutLabel = isKnockout
+    ? getWcKnockoutRoundLabelForMatch(
+        { round: row.round, status: row.status },
+        { tournamentPhase: row.tournamentPhase, allMatches: row.allMatches },
+      )
+    : "";
   if (row.homeMl && row.awayMl) {
     parts.push(
       `MATCH ODDS: ${row.homeName} ${row.homeMl} · Draw ${row.drawMl || "n/a"} · ${row.awayName} ${row.awayMl}`,
@@ -1981,11 +2057,16 @@ function buildWcFixturePrebuiltDeep(row) {
     );
   }
   if (
+    !isKnockout &&
     Number.isFinite(row.homeStats?.advancePct) &&
     Number.isFinite(row.awayStats?.advancePct)
   ) {
     parts.push(
       `Group paths: ${row.homeName} advances ${Number(row.homeStats.advancePct).toFixed(1)}% · ${row.awayName} ${Number(row.awayStats.advancePct).toFixed(1)}% in UR sims.`,
+    );
+  } else if (isKnockout) {
+    parts.push(
+      `${knockoutLabel}: single elimination — only one team advances; 90-minute ML is regulation only.`,
     );
   }
   if (/over \d/i.test(row.lean)) {
@@ -2024,6 +2105,15 @@ function buildWcFixturePrebuiltDeep(row) {
  * @param {{ homeName: string, awayName: string, lean: string }} row
  */
 function buildWcFixturePrebuiltEdge(row) {
+  if (row.isKnockout) {
+    return ensureWcKnockoutRegulationEdge(
+      /over \d/i.test(row.lean)
+        ? `Watch the first 25 minutes — tempo decides whether live Over still tracks.`
+        : /under 2\.5/i.test(row.lean)
+          ? `Watch tempo — an early goal forces a chase that kills Under.`
+          : "",
+    );
+  }
   if (/over \d/i.test(row.lean)) {
     return `Watch the first 25 minutes — if ${row.homeName} leads and keeps attacking, live Over holds up better.`;
   }

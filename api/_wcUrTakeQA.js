@@ -79,7 +79,7 @@ import {
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
 } from "../shared/wcMatchBettingPrompt.js";
-import { detectWcKnockoutBothAdvanceBleed } from "../shared/wcKnockoutFixture.js";
+import { detectWcKnockoutBothAdvanceBleed, detectWcKnockoutGroupFramingBleed } from "../shared/wcKnockoutFixture.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -474,8 +474,24 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_matchup_alt_followup_ml_headline");
     }
 
-    if (detectWcKnockoutBothAdvanceBleed(routingQuestion, structured, matchDetails)) {
+    if (
+      detectWcKnockoutBothAdvanceBleed(routingQuestion, structured, matchDetails, {
+        tournamentPhase: opts.tournamentPhase,
+        allMatches: opts.allMatches,
+        pinnedMatch: opts.pinnedMatch,
+      })
+    ) {
       issueCodes.push("wc_knockout_both_advance_bleed");
+    }
+
+    if (
+      detectWcKnockoutGroupFramingBleed(routingQuestion, structured, matchDetails, {
+        tournamentPhase: opts.tournamentPhase,
+        allMatches: opts.allMatches,
+        pinnedMatch: opts.pinnedMatch,
+      })
+    ) {
+      issueCodes.push("wc_knockout_group_framing_bleed");
     }
   }
 
@@ -558,6 +574,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_matchup_missing_winner_line",
       "wc_matchup_alt_followup_ml_headline",
       "wc_knockout_both_advance_bleed",
+      "wc_knockout_group_framing_bleed",
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
@@ -624,6 +641,12 @@ WC KNOCKOUT MATCHUP QA (mandatory — prior answer used group-stage "both teams 
 - This is single elimination — only ONE team advances from this match.
 - Remove any "both teams to advance" / "both sides qualify" language from THE PLAY, Alt, and why.
 - Use winner ML, Over/Under, BTTS, DNB, or to-advance — never group-stage both-advance framing.`;
+
+export const WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX = `
+
+WC KNOCKOUT GROUP-FRAMING QA (mandatory — prior answer used group-stage Favorite/Contender/Group paths on a knockout fixture):
+- Single elimination — remove Favorite, Contender, Longshot tags and Group-letter advancement paths.
+- Frame as knockout elimination; note 90-minute ML is regulation-only if citing moneylines.`;
 
 export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
 

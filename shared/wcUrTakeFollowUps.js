@@ -204,14 +204,22 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
         wcGroupLetterForTeam(home) ||
         wcGroupLetterForTeam(away) ||
         "";
+      const knockoutScope = {
+        tournamentPhase:
+          message?.wcTournamentPhase ||
+          message?.tournamentPhase ||
+          message?.urTakeTelemetry?.wcTournamentPhase,
+      };
+      const fixtureMatch = message?.wcMatch || message?.match;
       const bothAdvanceOk = assessWcBothTeamsAdvanceFixture({
         home,
         away,
         group: groupLetter,
         teamStats: message?.teamStats || message?.structured?.teamStats,
-        match: message?.wcMatch || message?.match,
+        match: fixtureMatch,
+        tournamentPhase: knockoutScope.tournamentPhase,
       }).ok;
-      if (bothAdvanceOk && !isWcKnockoutFixtureMatch(message?.wcMatch || message?.match)) {
+      if (bothAdvanceOk && !isWcKnockoutFixtureMatch(fixtureMatch, knockoutScope)) {
         chips.push("Both teams to advance?");
       } else if (groupLetter && !isMoneylineBestBetQuestion) {
         chips.push(`Who wins Group ${groupLetter}?`);

@@ -50,6 +50,35 @@ function summarizePriorTakeForTalk(history) {
 }
 
 /**
+ * @param {Record<string, unknown> | null | undefined} wcContext
+ */
+export function buildWcTalkContextSnippet(wcContext) {
+  const fixtures = [
+    ...(Array.isArray(wcContext?.fixtures) ? wcContext.fixtures : []),
+    ...(Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails : []),
+  ];
+  const fx = fixtures[0];
+  if (!fx) return "";
+  const home = String(fx.homeTeam || "").trim();
+  const away = String(fx.awayTeam || "").trim();
+  if (!home || !away) return "";
+  const odds = fx.odds && typeof fx.odds === "object" ? fx.odds : null;
+  const homeMl = odds?.home?.moneyline || odds?.home;
+  const awayMl = odds?.away?.moneyline || odds?.away;
+  const drawMl = odds?.draw?.moneyline || odds?.draw;
+  const round = String(fx.round || "").trim();
+  const lines = [`Fixture: ${home} vs ${away}`];
+  if (round) lines.push(`Round: ${round}`);
+  if (homeMl || awayMl) {
+    lines.push(
+      `ML: ${home} ${homeMl || "n/a"} · Draw ${drawMl || "n/a"} · ${away} ${awayMl || "n/a"}`,
+    );
+  }
+  if (wcContext?.phase) lines.push(`Tournament phase: ${wcContext.phase}`);
+  return lines.join("\n");
+}
+
+/**
  * @param {object} opts
  * @returns {Promise<{ handled: boolean }>}
  */
@@ -61,6 +90,7 @@ export async function tryDeliverUrTakeTalk(opts) {
     history = [],
     sportHint,
     wcIntent,
+    wcContext,
     anthropicApiKey,
     anthropicModel,
     gateQuotaEmail,
@@ -72,9 +102,15 @@ export async function tryDeliverUrTakeTalk(opts) {
   if (!q || !anthropicApiKey) return { handled: false };
 
   const priorTake = summarizePriorTakeForTalk(history);
-  const contextBlock = priorTake
-    ? `\n\nPRIOR TAKE (do not repeat verbatim — explain or clarify):\n${priorTake}`
-    : "";
+  const wcSnippet =
+    sportHint === "worldcup" ? buildWcTalkContextSnippet(wcContext) : "";
+  const contextBlock = [
+    priorTake ? `PRIOR TAKE (do not repeat verbatim — explain or clarify):\n${priorTake}` : "",
+    wcSnippet ? `VERIFIED FIXTURE (cite only these prices):\n${wcSnippet}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  const systemSuffix = contextBlock ? `\n\n${contextBlock}` : "";
 
   const messages = buildTalkMessages(history);
   messages.push({ role: "user", content: q });
@@ -84,7 +120,7 @@ export async function tryDeliverUrTakeTalk(opts) {
     model: UR_TAKE_HAIKU_MODEL,
     max_tokens: 320,
     temperature: 0.55,
-    system: TALK_SYSTEM + contextBlock,
+    system: TALK_SYSTEM + systemSuffix,
     messages,
     timeoutMs: 28000,
     maxRetries: 2,

@@ -116,6 +116,22 @@ test("nba thread follow-up routes to talk when enabled", () => {
   else delete process.env.UR_TALK_MODE;
 });
 
+test("simple who-wins opener routes to talk when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "worldcup",
+      wcIntent: WC_INTENT.MATCHUP,
+      question: "Who wins BRA vs JPN?",
+      isConversationFollowUp: false,
+    }),
+    "talk",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});
+
 test("parlay follow-up stays take when enabled", () => {
   const prev = process.env.UR_TALK_MODE;
   process.env.UR_TALK_MODE = "1";

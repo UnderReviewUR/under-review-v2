@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildWcXiCaveatLine,
   formatWcDetailAsOfEt,
   resolveWcXiStatus,
   wcXiStatusChipLabel,
@@ -25,4 +26,13 @@ test("wcXiStatusChipLabel maps to user-facing copy", () => {
 test("formatWcDetailAsOfEt returns ET string for valid ms", () => {
   const s = formatWcDetailAsOfEt(1717264800000);
   assert.ok(s && s.endsWith("ET"));
+});
+
+test("buildWcXiCaveatLine — confirmed XI omits caveat", () => {
+  assert.equal(buildWcXiCaveatLine({ xiStatus: "confirmed" }), "");
+});
+
+test("buildWcXiCaveatLine — pending and unavailable copy", () => {
+  assert.match(buildWcXiCaveatLine({ xiStatus: "pending" }), /updating/i);
+  assert.match(buildWcXiCaveatLine({}), /Pre-kickoff/i);
 });

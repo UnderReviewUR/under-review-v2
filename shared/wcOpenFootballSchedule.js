@@ -158,13 +158,53 @@ export function isWcGroupStageMatch(match) {
   return KNOWN_ABBRS.has(String(match.homeTeam)) && KNOWN_ABBRS.has(String(match.awayTeam));
 }
 
-/**
- * Group-stage fixture identity — ignores date/home-away order (timezone swaps).
- * @param {Record<string, unknown>} match
- */
 function groupFixtureKey(match) {
   const pair = [String(match.homeTeam), String(match.awayTeam)].sort().join("|");
   return `${String(match.group || "").toUpperCase()}|${pair}`;
+}
+
+/**
+ * @param {Record<string, unknown>} match
+ */
+export function fixturePairKey(match) {
+  return [String(match?.homeTeam || "").toUpperCase(), String(match?.awayTeam || "").toUpperCase()]
+    .sort()
+    .join("|");
+}
+
+/**
+ * Copy `round` (and openfootball num) from schedule reference onto ESPN/BDL rows missing metadata.
+ * @param {Array<Record<string, unknown>>} espnMatches
+ * @param {Array<Record<string, unknown>>} openFootballMatches
+ */
+export function enrichMatchesWithOpenFootballMetadata(espnMatches, openFootballMatches) {
+  /** @type {Map<string, Record<string, unknown>>} */
+  const ofByPair = new Map();
+  /** @type {Map<string, Record<string, unknown>>} */
+  const ofByGroupPair = new Map();
+  for (const m of openFootballMatches || []) {
+    const pair = fixturePairKey(m);
+    if (pair && pair !== "|") ofByPair.set(pair, m);
+    if (m.group) ofByGroupPair.set(groupFixtureKey(m), m);
+  }
+
+  let enrichedRound = 0;
+  const matches = (espnMatches || []).map((m) => {
+    const next = { ...m };
+    if (String(next.round || "").trim()) return next;
+    const of = ofByGroupPair.get(groupFixtureKey(m)) || ofByPair.get(fixturePairKey(m));
+    if (!of) return next;
+    if (of.round) {
+      next.round = String(of.round).trim();
+      enrichedRound += 1;
+    }
+    if (of.openFootballNum != null && next.openFootballNum == null) {
+      next.openFootballNum = of.openFootballNum;
+    }
+    return next;
+  });
+
+  return { matches, enrichedRound };
 }
 
 /**

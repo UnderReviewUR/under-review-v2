@@ -147,6 +147,29 @@ function impliedProbFromAmerican(am) {
   return -v / (-v + 100);
 }
 
+/** BDL may nest knockout to-advance prices in markets[] (not always present). */
+export function pickBdlNestedToAdvanceOdds(markets) {
+  if (!Array.isArray(markets) || !markets.length) return null;
+
+  for (const market of markets) {
+    const name = String(market?.name || market?.key || "").toLowerCase();
+    if (!/\b(to advance|advance to|team to advance|winner advances)\b/i.test(name)) continue;
+    if (/group|tournament winner|outright/.test(name)) continue;
+
+    const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+    const home = outcomes.find((o) => o?.type === "home");
+    const away = outcomes.find((o) => o?.type === "away");
+    if (home?.american_odds == null && away?.american_odds == null) continue;
+
+    return {
+      home: home?.american_odds != null ? formatAm(home.american_odds) : null,
+      away: away?.american_odds != null ? formatAm(away.american_odds) : null,
+    };
+  }
+
+  return null;
+}
+
 /** BDL nests match O/U in markets[] when top-level total_value is null (common on DK/FD). */
 export function pickMainNestedMatchTotal(markets) {
   if (!Array.isArray(markets) || !markets.length) return null;
@@ -236,17 +259,26 @@ export function pickBdlMatchOddsForMatch(oddsRows, matchId) {
   if (!mlHit) return null;
 
   let totals = { totalLine: null, totalOver: null, totalUnder: null };
+  let toAdvance = null;
   for (const vendor of VENDOR_PRIORITY) {
     const hit = findBdlOddsRowForVendor(rows, vendor);
     if (!hit) continue;
     totals = extractBdlRowTotals(hit);
     if (totals.totalLine != null && totals.totalOver != null) break;
   }
+  for (const vendor of VENDOR_PRIORITY) {
+    const hit = findBdlOddsRowForVendor(rows, vendor);
+    if (!hit) continue;
+    toAdvance = pickBdlNestedToAdvanceOdds(hit.markets);
+    if (toAdvance) break;
+  }
 
   return {
     home: mlHit.home ? { moneyline: mlHit.home } : undefined,
     away: mlHit.away ? { moneyline: mlHit.away } : undefined,
     draw: mlHit.draw ? { moneyline: mlHit.draw } : undefined,
+    toAdvanceHome: toAdvance?.home ? { moneyline: toAdvance.home } : undefined,
+    toAdvanceAway: toAdvance?.away ? { moneyline: toAdvance.away } : undefined,
     provider: String(mlHit.hit.vendor || "BDL"),
     spreadHome:
       mlHit.hit.spread_home_odds != null ? formatAm(mlHit.hit.spread_home_odds) : null,

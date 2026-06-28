@@ -328,6 +328,25 @@ test("pickWcMatchupAltPlay skips duplicate of headline", () => {
   assert.equal(pickWcMatchupAltPlay("Lean Canada -120 to win", "Canada -120 to win"), "");
 });
 
+test("pickWcMatchupAltPlay blocks both-advance alt on knockout fixtures", () => {
+  assert.equal(
+    pickWcMatchupAltPlay(
+      "Pass on ML — lean both teams to advance in Group G.",
+      "Brazil -140 to win",
+      { isKnockout: true },
+    ),
+    "",
+  );
+  assert.equal(
+    pickWcMatchupAltPlay(
+      "Pass on ML — lean Under 2.5 goals — cleaner angle than the ML.",
+      "Brazil -140 to win",
+      { isKnockout: true },
+    ),
+    "Alt: Lean Under 2.5 goals",
+  );
+});
+
 test("pickWcCardHeadline matchup pass uses call not boilerplate lean", () => {
   const headline = pickWcCardHeadline({
     callType: "matchup",

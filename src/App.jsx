@@ -1769,6 +1769,11 @@ ${themeCss}
         ? nflBundle.uiPlayers
         : nflPlayersForUi;
 
+    const isWcFollowUpThread =
+      effectiveSportHint === "worldcup" &&
+      priorSnapshot.some((m) => m.role === "user" || m.role === "ai");
+    const wcStructuredRequest = effectiveSportHint !== "worldcup" || !isWcFollowUpThread;
+
     const body = {
       question: buildContextualQuestion(text, { priorMessages: priorSnapshot }),
       userEmail: userEmail || null,
@@ -1778,8 +1783,7 @@ ${themeCss}
       teamHint: detectNflTeamHint(text),
       matchupContext: matchup || null,
       image: null,
-      /** Always ask for structured JSON; API defaults ON (set STRUCTURED_UR_TAKE_MODE=0 on server to disable). */
-      structured: true,
+      structured: wcStructuredRequest,
     };
 
     if (effectiveSportHint === "tennis_wta_profile") {
@@ -1926,8 +1930,7 @@ ${themeCss}
         : UR_TAKE_PATH;
     const fetchHeaders = {
       "Content-Type": "application/json",
-      /** Redundant with body.structured — ensures API enables structured mode even if JSON body is narrowed en route. */
-      "X-UR-Take-Structured": "1",
+      ...(wcStructuredRequest ? { "X-UR-Take-Structured": "1" } : {}),
       ...(effectiveSportHint === "worldcup" ? { "X-WC-Props-Route-V2": "1" } : {}),
       ...authHeaders,
     };
@@ -2479,12 +2482,16 @@ ${themeCss}
         sport: sportTrackedForBubble,
         shownAt: Date.now(),
         ...(resolvedWcIntent ? { wcIntent: resolvedWcIntent } : {}),
+        ...(data.wcTournamentPhase
+          ? { wcTournamentPhase: String(data.wcTournamentPhase) }
+          : {}),
         ...(data.nbaRelevance?.nbaIntent
           ? { nbaIntent: String(data.nbaRelevance.nbaIntent) }
           : {}),
       },
       ...(data.userQuestion ? { userQuestion: String(data.userQuestion).trim() } : { userQuestion: text }),
       ...(resolvedWcIntent ? { wcIntent: resolvedWcIntent } : {}),
+      ...(data.wcTournamentPhase ? { wcTournamentPhase: String(data.wcTournamentPhase) } : {}),
       ...(data.fallback === true
         ? {
             urTakeFeedSnagDiag: {

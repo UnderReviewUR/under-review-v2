@@ -86,6 +86,12 @@ import {
   WC_KNOCKOUT_MATCH_BETTING_RULES,
   isWcKnockoutFixtureMatch,
 } from "../shared/wcKnockoutFixture.js";
+import { buildWcXiCaveatLine } from "../shared/wcXiStatus.js";
+import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
+import {
+  filterInjuriesBoardForPrompt,
+  formatInjuriesBoardForPrompt,
+} from "../shared/wcBdlInjuries.js";
 import {
   resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
@@ -397,6 +403,13 @@ function formatMatchIntelBlock(detail) {
   lines.push(formatLineupSide(detail.homeTeam, detail.lineups?.home, lineupOpts));
   lines.push(formatLineupSide(detail.awayTeam, detail.lineups?.away, lineupOpts));
 
+  const xiCaveat = buildWcXiCaveatLine({
+    xiStatus: detail.xiStatus,
+    lineupConfirmed: detail.lineupConfirmed,
+    lastUpdated: detail.lastUpdated,
+  });
+  if (xiCaveat) lines.push(`  XI caveat: ${xiCaveat}`);
+
   const th = detail.teamStats?.home;
   const ta = detail.teamStats?.away;
   if (hasTeamStatsForPrompt(th) || hasTeamStatsForPrompt(ta)) {
@@ -494,9 +507,9 @@ function formatInjuryBlock(matchDetails) {
       );
     }
   }
-  const lines = ["INJURY / AVAILABILITY — verified ESPN structured fields only:"];
+  const lines = ["INJURY / AVAILABILITY — fixture-scoped (match intel):"];
   if (rows.length) lines.push(...rows);
-  else lines.push("  No structured injury data in verified feed for this fixture.");
+  else lines.push("  No structured injury fields on cited fixture(s) — use TOURNAMENT INJURIES block when present.");
   lines.push(`  ${WC_INJURY_UNCERTAINTY_RULE}`);
   lines.push(`  ${WC_INJURY_NOT_XI_RULE}`);
   return lines.join("\n");
@@ -569,10 +582,13 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push(ctx.staticRulesBlock, "");
   }
 
+  const knockoutScope = { tournamentPhase: phase, allMatches: ctx.allMatches };
   const knockoutMatchBetting =
     isKnockoutPhase(phase) ||
-    (Array.isArray(ctx.fixtures) && ctx.fixtures.some((fx) => isWcKnockoutFixtureMatch(fx))) ||
-    (Array.isArray(ctx.matchDetails) && ctx.matchDetails.some((d) => isWcKnockoutFixtureMatch(d)));
+    (Array.isArray(ctx.fixtures) &&
+      ctx.fixtures.some((fx) => isWcKnockoutFixtureMatch(fx, knockoutScope))) ||
+    (Array.isArray(ctx.matchDetails) &&
+      ctx.matchDetails.some((d) => isWcKnockoutFixtureMatch(d, knockoutScope)));
   lines.push(
     knockoutMatchBetting ? WC_KNOCKOUT_MATCH_BETTING_RULES : WC_MATCH_BETTING_PROMPT_RULES,
     "",
@@ -602,7 +618,21 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   }
 
   const groupLetters = Object.keys(groupsForPrompt).sort();
-  if (groupLetters.length) {
+  const fixturesKnockoutOnly =
+    knockoutMatchBetting &&
+    ((Array.isArray(ctx.fixtures) && ctx.fixtures.length
+      ? ctx.fixtures.every((fx) => isWcKnockoutFixtureMatch(fx, knockoutScope))
+      : false) ||
+      (Array.isArray(ctx.matchDetails) && ctx.matchDetails.length
+        ? ctx.matchDetails.every((d) => isWcKnockoutFixtureMatch(d, knockoutScope))
+        : isKnockoutPhase(phase)));
+
+  if (fixturesKnockoutOnly) {
+    lines.push(
+      "KNOCKOUT FIXTURE SCOPE: Single-elimination — do not use group Favorite/Contender advancement paths for cited fixtures.",
+      "",
+    );
+  } else if (groupLetters.length) {
     lines.push(
       "STRENGTH TAGS (pre-tournament / baseline — never cite numeric power ratings or rating points):",
       "Favorite = group favorite · Contender = realistic knockout team · Longshot = upset/long-shot profile",
@@ -671,6 +701,11 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push("", formatInjuryBlock(ctx.matchDetails));
   } else {
     lines.push("", "INJURY / AVAILABILITY:", `  ${WC_INJURY_UNCERTAINTY_RULE}`);
+  }
+
+  if (ctx.injuriesKv) {
+    const scoped = filterInjuriesBoardForPrompt(ctx.injuriesKv, ctx.requiredEntities || []);
+    lines.push("", ...formatInjuriesBoardForPrompt(scoped));
   }
 
   if (Array.isArray(ctx.fixtureOddsBlocks) && ctx.fixtureOddsBlocks.length) {
@@ -1009,6 +1044,13 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     .map((fx) => buildMatchOddsFreshnessPromptBlock(fx, nowMs))
     .filter(Boolean);
 
+  let injuriesKv = null;
+  try {
+    injuriesKv = await readWcInjuriesFromKv();
+  } catch (injErr) {
+    console.warn("[wc-context] readWcInjuriesFromKv failed:", injErr?.message);
+  }
+
   const scopedOutrightsKv = filterOutrightsForQuestion(outrightsKv, mentionedTeams);
   const dataConfidence = deriveWcDataConfidence(matchDetails);
   const outrightsBlock = formatOutrightsForPrompt(scopedOutrightsKv);
@@ -1189,6 +1231,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     fixtures,
     matchDetails,
     fixtureOddsBlocks,
+    injuriesKv,
     dataConfidence,
     outrightsKv: outrightsKv?.outrights || null,
     outrightsBlock,

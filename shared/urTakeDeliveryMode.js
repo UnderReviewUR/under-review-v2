@@ -6,8 +6,27 @@
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 import { isWcPlayerMarketIntent, isWcRulesQuestion, WC_INTENT } from "./wcUrTakeIntent.js";
+import { isWcMatchWinnerQuestion } from "./wcMatchupWinnerLine.js";
 
 /** @typedef {"take"|"talk"} UrTakeDeliveryMode */
+
+/**
+ * Simple opener — Haiku talk instead of Sonnet structured card when prebuilt misses.
+ * @param {string} question
+ */
+export function isWcSimpleMatchupTalkOpener(question) {
+  const q = String(question || "").trim();
+  if (!q || !/\b(vs\.?|versus)\b/i.test(q)) return false;
+  if (detectParlayIntent(q)) return false;
+  if (
+    /\b(mispric|parlay|prop|goalscorer|both teams to advance|over or under|best bet|moneyline|totals?\s+on|group context)\b/i.test(
+      q,
+    )
+  ) {
+    return false;
+  }
+  return isWcMatchWinnerQuestion(q) || /\bwho wins\b/i.test(q) || /\bpick to win\b/i.test(q);
+}
 
 export function isUrTalkModeEnabled() {
   const v = String(process.env.UR_TALK_MODE ?? "")
@@ -60,6 +79,14 @@ export function resolveUrTakeDeliveryMode(opts = {}) {
   const hasImage = Boolean(opts.hasImage);
 
   if (!question || hasImage) return "take";
+
+  if (
+    sport === "worldcup" &&
+    !isFollowUp &&
+    isWcSimpleMatchupTalkOpener(question)
+  ) {
+    return "talk";
+  }
 
   if (isUrTakeNewBettingAsk({ question, wcIntent, isConversationFollowUp: isFollowUp })) {
     return "take";

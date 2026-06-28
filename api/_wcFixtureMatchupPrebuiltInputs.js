@@ -318,5 +318,7 @@ export async function buildWcFixtureMatchupPrebuiltFromInputs(opts = {}) {
     simLastUpdated: inputs.simLastUpdated,
     nowMs: inputs.nowMs,
     history: opts.history,
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
   });
 }

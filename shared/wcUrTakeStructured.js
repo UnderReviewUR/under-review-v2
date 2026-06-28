@@ -78,6 +78,7 @@ export function normalizeWcStructuredForDelivery(
   requiredEntities = [],
   history = [],
   pinnedMatch = null,
+  knockoutScope = null,
 ) {
   if (!structured || typeof structured !== "object") return structured;
 
@@ -115,10 +116,15 @@ export function normalizeWcStructuredForDelivery(
       out.edge = out.edge || "Structural paths — no single knockout winner pick in group stage.";
     }
     repairWcMatchProbabilityLean(out, question);
+    const scope =
+      knockoutScope && typeof knockoutScope === "object"
+        ? knockoutScope
+        : { tournamentPhase: null, allMatches: null };
     return finishWcStructuredForDelivery(
       repairWcKnockoutMatchupStructured(
         repairWcTotalsHoldPriorLeanFollowUp(out, question, history),
         pinnedMatch,
+        scope,
       ),
       intent,
       question,

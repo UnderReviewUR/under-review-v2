@@ -44,7 +44,11 @@ export function wcFixtureTeamsExcludingGroupFavorite(group, home, away) {
  * }} row
  */
 export function assessWcBothTeamsAdvanceFixture(row) {
-  if (row.isKnockout || isWcKnockoutFixtureMatch(row.match)) {
+  const knockoutScope = {
+    tournamentPhase: row.tournamentPhase,
+    allMatches: row.allMatches,
+  };
+  if (row.isKnockout || isWcKnockoutFixtureMatch(row.match, knockoutScope)) {
     return {
       ok: false,
       reason: "knockout_fixture",

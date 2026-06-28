@@ -43,6 +43,19 @@ export function wcXiStatusChipLabel(status) {
  * @param {number | string | null | undefined} lastUpdatedMs
  * @returns {string | null}
  */
+/**
+ * Prebuilt / prompt caveat when Starting XI is not locked.
+ * @param {{ xiStatus?: string, lineupConfirmed?: boolean, lastUpdated?: number | null } | null | undefined} match
+ */
+export function buildWcXiCaveatLine(match) {
+  const status = resolveWcXiStatus(match);
+  if (status === "confirmed") return "";
+  if (status === "pending") {
+    return "Lineups still updating — treat availability and rotation risk as provisional until Starting XI locks.";
+  }
+  return "Pre-kickoff — no confirmed Starting XI yet; lean is structural until lineups drop.";
+}
+
 export function formatWcDetailAsOfEt(lastUpdatedMs) {
   const n = Number(lastUpdatedMs);
   if (!Number.isFinite(n) || n <= 0) return null;

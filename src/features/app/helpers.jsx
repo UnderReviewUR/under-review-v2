@@ -2303,6 +2303,7 @@ function UrTakeAiBubble({
             groundingInventoryStrip={s.groundingInventoryStrip}
             namedLegCitation={s.namedLegCitation}
             wcNamedPlayerPropsCard={s.wcNamedPlayerPropsCard}
+            wcTournamentPhase={m.wcTournamentPhase}
             showWcCautionBanner={
               msgs.slice(0, msgIndex).filter((row) => row && row.role === "user").length <= 1
             }

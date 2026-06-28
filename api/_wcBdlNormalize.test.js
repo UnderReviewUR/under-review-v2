@@ -6,6 +6,7 @@ import {
   extractBdlRowTotals,
   normalizeBdlPlayerPropsToMarkets,
   pickBdlMatchOddsForMatch,
+  pickBdlNestedToAdvanceOdds,
   pickMainNestedMatchTotal,
 } from "./_wcBdlNormalize.js";
 
@@ -228,4 +229,41 @@ test("collapseBdlIngestRowsOnePerPlayer — binary goal_or_assist keeps shortest
   const out = collapseBdlIngestRowsOnePerPlayer(rows, "player_goal_or_assist");
   assert.equal(out.length, 1);
   assert.equal(out[0].americanOdds, "+180");
+});
+
+test("pickBdlNestedToAdvanceOdds — reads nested to-advance market when present", () => {
+  const odds = pickBdlNestedToAdvanceOdds([
+    {
+      name: "Team to Advance",
+      outcomes: [
+        { type: "home", american_odds: -130 },
+        { type: "away", american_odds: 110 },
+      ],
+    },
+  ]);
+  assert.deepEqual(odds, { home: "-130", away: "+110" });
+
+  const picked = pickBdlMatchOddsForMatch(
+    [
+      {
+        match_id: 99,
+        vendor: "draftkings",
+        moneyline_home_odds: -140,
+        moneyline_away_odds: 120,
+        moneyline_draw_odds: 260,
+        markets: [
+          {
+            name: "To Advance",
+            outcomes: [
+              { type: "home", american_odds: -125 },
+              { type: "away", american_odds: 105 },
+            ],
+          },
+        ],
+      },
+    ],
+    99,
+  );
+  assert.equal(picked?.toAdvanceHome?.moneyline, "-125");
+  assert.equal(picked?.toAdvanceAway?.moneyline, "+105");
 });

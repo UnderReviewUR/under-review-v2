@@ -1,5 +1,5 @@
 /**
- * World Cup 2026 — aggregated injuries board KV (ESPN match summaries).
+ * World Cup 2026 — aggregated injuries board KV (BDL GOAT + ESPN match summaries).
  */
 
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
@@ -12,6 +12,7 @@ import {
   createEmptyInjuriesBoard,
   mergeInjuriesFromMatchDetail,
 } from "../shared/wcInjuriesBoard.js";
+import { buildInjuriesBoardFromBdlRows } from "../shared/wcBdlInjuries.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
 import { loadAllWcMatchDetailsFromKv } from "./_wcPlayersData.js";
 import {
@@ -19,13 +20,18 @@ import {
   readWcPlayerMarketsOverrideKv,
 } from "./_wcPlayerMarketsOverride.js";
 import { buildWcInjuriesSeedBoard } from "../src/data/wc2026InjuriesSeed.js";
+import { bdlFifaFetchPaginated } from "./_wcBdlFifa.js";
+import { hasWcBdlApiKey, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
 /**
- * Incremental merge after match bundle.
+ * Incremental merge after match bundle (ESPN path only — BDL uses tournament board).
  * @param {Record<string, unknown> | null | undefined} matchDetail
  */
 export async function upsertWcInjuriesFromMatchDetail(matchDetail) {
   if (!matchDetail || typeof matchDetail !== "object") return { ok: false, error: "no_detail" };
+  if (isWcGoatPrimaryEnabled() && hasWcBdlApiKey()) {
+    return { ok: true, skipped: true, reason: "bdl_primary" };
+  }
 
   const nowMs = Date.now();
   const cached = (await getDurableJson(WC_INJURIES_KV_KEY)) || createEmptyInjuriesBoard(nowMs);
@@ -43,10 +49,68 @@ export async function upsertWcInjuriesFromMatchDetail(matchDetail) {
 }
 
 /**
- * Full scan cron.
+ * Fetch all tournament injuries from BDL FIFA GOAT.
+ * @param {number} [nowMs]
+ */
+export async function scrapeAndCacheWcBdlInjuries(nowMs = Date.now()) {
+  if (!hasWcBdlApiKey()) {
+    return { ok: false, error: "no_bdl_key", source: "balldontlie" };
+  }
+
+  const fetched = await bdlFifaFetchPaginated(
+    "/player_injuries",
+    { "seasons[]": 2026 },
+    { maxPages: 20, perPage: 100 },
+  );
+
+  if (!fetched.ok || !fetched.rows?.length) {
+    return {
+      ok: false,
+      error: fetched.error || "no_rows",
+      source: "balldontlie",
+      rowCount: 0,
+    };
+  }
+
+  let board = buildInjuriesBoardFromBdlRows(fetched.rows, nowMs);
+  const override = await readWcPlayerMarketsOverrideKv();
+  if (override?.injuryPatches?.length) {
+    board = applyInjuriesManualPatches(board, override);
+  }
+
+  await setDurableJson(WC_INJURIES_KV_KEY, board, { ttlSeconds: WC_INJURIES_TTL_SECONDS });
+
+  console.log(
+    JSON.stringify({
+      event: "wc_bdl_injuries_cached",
+      rowCount: board.rows.length,
+      starsOut: board.starsOut?.length ?? 0,
+      pages: fetched.pages,
+    }),
+  );
+
+  return {
+    ok: true,
+    board,
+    rowCount: board.rows.length,
+    starsOut: board.starsOut,
+    source: "balldontlie",
+  };
+}
+
+/**
+ * Full scan cron — prefer BDL when GOAT primary, else ESPN match details.
  */
 export async function scrapeAndCacheWcInjuries() {
   const nowMs = Date.now();
+
+  if (isWcGoatPrimaryEnabled() && hasWcBdlApiKey()) {
+    const bdl = await scrapeAndCacheWcBdlInjuries(nowMs);
+    if (bdl?.ok && bdl.rowCount > 0) {
+      return bdl;
+    }
+  }
+
   const { details } = await loadAllWcMatchDetailsFromKv();
   const board = buildInjuriesBoardFromMatchDetails(details, nowMs);
 
@@ -58,6 +122,7 @@ export async function scrapeAndCacheWcInjuries() {
       rowCount: board.rows.length,
       starsOut: board.starsOut?.length ?? 0,
       detailCount: details.length,
+      source: board.source,
     }),
   );
 
@@ -66,6 +131,7 @@ export async function scrapeAndCacheWcInjuries() {
     board,
     rowCount: board.rows.length,
     starsOut: board.starsOut,
+    source: board.source,
   };
 }
 

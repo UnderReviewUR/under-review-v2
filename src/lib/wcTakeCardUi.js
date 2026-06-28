@@ -388,11 +388,25 @@ export function pickWcMatchupWinnerHeadline(opts = {}) {
  * Alternate market when ML is fair — shown below matchup winner headline.
  * @param {string} lean
  * @param {string} headline
- * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string, breakdown?: string, question?: string }} [opts]
+ * @param {{ call?: string, why?: string, line?: string, thePlay?: string, lean?: string, breakdown?: string, question?: string, isKnockout?: boolean }} [opts]
  */
 export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
+  const isKnockout = Boolean(opts.isKnockout);
+  const blockedKnockoutAlt = (text) =>
+    /\b(both teams to advance|both advance|advance from group|group-stage|group winner|group escape)\b/i.test(
+      String(text || ""),
+    );
+
   const headlineStr = String(headline || "").trim();
   const play = extractWcMatchupPlayHeadline(lean);
+
+  if (isKnockout) {
+    const leanBlob = [lean, opts.call, opts.why, opts.line, opts.thePlay, opts.breakdown]
+      .map((s) => String(s || "").trim())
+      .filter(Boolean)
+      .join("\n");
+    if (blockedKnockoutAlt(leanBlob)) return "";
+  }
 
   if (/\bto win\b/i.test(headlineStr)) {
     if (!play) return "";
@@ -428,9 +442,13 @@ export function pickWcMatchupAltPlay(lean, headline, opts = {}) {
     : formatWcPlaySlot(lean);
   if (!fallback) return "";
   if (normLine(fallback) === normLine(headlineStr)) return "";
-  if (!/\b(under|over|btts|advance|both teams|draw no bet|handicap|alt)\b/i.test(fallback)) {
+  const altMarketRe = isKnockout
+    ? /\b(under|over|btts|draw no bet|handicap|alt)\b/i
+    : /\b(under|over|btts|advance|both teams|draw no bet|handicap|alt)\b/i;
+  if (!altMarketRe.test(fallback)) {
     return "";
   }
+  if (isKnockout && blockedKnockoutAlt(fallback)) return "";
   return fallback.startsWith("Alt:") ? fallback : `Alt: ${fallback}`;
 }
 
@@ -848,6 +866,7 @@ export function prepareWcCardFaceDisplay(opts = {}) {
       lean: opts.lean,
       breakdown: fullDeep,
       question: opts.question,
+      isKnockout: Boolean(opts.isKnockout),
     });
   } else if (!focusLayout) {
     thePlayFace = fullPlay;

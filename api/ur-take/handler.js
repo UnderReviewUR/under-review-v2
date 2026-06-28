@@ -199,6 +199,7 @@ import {
   WC_MATCH_MISSING_WINNER_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
   WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX,
+  WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { resolveWcPinnedMatchForDelivery } from "../../shared/wcKnockoutFixture.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
@@ -224,6 +225,10 @@ import {
   buildWcPriorLeanPromptBlock,
   wcTurnUsesThreadPassPolicy,
 } from "../../shared/wcTurnDelivery.js";
+import {
+  shouldUseWcFollowUpSlimPrompt,
+  WC_FOLLOW_UP_SLIM_USER_APPENDIX,
+} from "../../shared/wcFollowUpSlimPrompt.js";
 import { deliverWcTurnByPlan } from "./wcTurnPlanDelivery.js";
 import {
   classifyWcAdvancementMarket,
@@ -1628,6 +1633,9 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
         away: String(structured.fixtureAway).trim(),
       };
     }
+    if (h.wcTournamentPhase != null && String(h.wcTournamentPhase).trim()) {
+      row.wcTournamentPhase = String(h.wcTournamentPhase).trim();
+    }
     out.push(row);
   }
   const merged = [];
@@ -1642,6 +1650,7 @@ function normalizeIncomingChatHistory(raw, { maxMessages = 6 } = {}) {
       if (m.sport) last.sport = m.sport;
       if (m.wcMatchTeams) last.wcMatchTeams = m.wcMatchTeams;
       if (m.wcEventId) last.wcEventId = m.wcEventId;
+      if (m.wcTournamentPhase) last.wcTournamentPhase = m.wcTournamentPhase;
       continue;
     }
     merged.push({ ...m });
@@ -3352,6 +3361,8 @@ export default async function handler(req, res) {
                 simLastUpdated: inputs.simLastUpdated,
                 nowMs: inputs.nowMs,
                 history: normalizedUrTakeHistoryForGate,
+                tournamentPhase: wcContext?.phase,
+                allMatches: wcContext?.allMatches,
               });
           if (built) {
             if (wcLiveBetTimingCandidate) {
@@ -3779,6 +3790,7 @@ export default async function handler(req, res) {
       history: normalizedUrTakeHistoryForGate,
       sportHint,
       wcIntent,
+      wcContext: sportHint === "worldcup" ? wcContext : null,
       anthropicApiKey: ANTHROPIC_API_KEY,
       anthropicModel: ANTHROPIC_MODEL,
       gateQuotaEmail,
@@ -5970,6 +5982,10 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
       question: routingQuestion,
       wcIntent,
     });
+    const wcFollowUpSlim = shouldUseWcFollowUpSlimPrompt({
+      sportHint,
+      isConversationFollowUp,
+    });
     const wcPriorLeanBlock =
       wcContext?.wcPriorLeanBlock ||
       (wcTurnPlan && wcTurnUsesThreadPassPolicy(wcTurnPlan)
@@ -5987,7 +6003,7 @@ Confidence guidance:
 - Default confidence should be ${derivedConfidence}.
 
 Rules:
-${wcIntentRules}${isWcRulesIntent ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}${isWcPredictionsRoundupIntent ? `\n\n${WC_PREDICTIONS_ROUNDUP_PROMPT}` : ""}${wcScriptPriceBlock ? `\n\n${wcScriptPriceBlock}` : ""}${wcTeamOpenerBlock ? `\n\n${wcTeamOpenerBlock}` : ""}`;
+${wcIntentRules}${isWcRulesIntent || wcFollowUpSlim ? "" : `\n\n${WC_CARD_CONTRACT_VOICE_PROMPT}`}${isWcPredictionsRoundupIntent ? `\n\n${WC_PREDICTIONS_ROUNDUP_PROMPT}` : ""}${wcScriptPriceBlock ? `\n\n${wcScriptPriceBlock}` : ""}${wcTeamOpenerBlock ? `\n\n${wcTeamOpenerBlock}` : ""}${wcFollowUpSlim ? `\n\n${WC_FOLLOW_UP_SLIM_USER_APPENDIX}` : ""}`;
   } else if (matchupContext) {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
@@ -6229,6 +6245,13 @@ You are responding to a Pro subscriber. Apply the following:
             wcRelevanceLog?.wcEventId,
             wcRequiredEntities,
           )
+        : null;
+    const wcKnockoutScope =
+      sportHint === "worldcup"
+        ? {
+            tournamentPhase: wcContext?.phase,
+            allMatches: wcContext?.allMatches,
+          }
         : null;
 
     if (
@@ -6843,6 +6866,10 @@ You are responding to a Pro subscriber. Apply the following:
                 ? WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX
                 : ""
             }${
+              prevQaCriticalCodes.includes("wc_knockout_group_framing_bleed")
+                ? WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX
+                : ""
+            }${
               prevQaCriticalCodes.includes("wc_player_not_in_squad") ||
               prevQaCriticalCodes.includes("wc_player_role_mislabel")
                 ? WC_PLAYER_MARKET_QA_SUFFIX
@@ -6922,6 +6949,9 @@ You are responding to a Pro subscriber. Apply the following:
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
+          tournamentPhase: wcContext?.phase,
+          allMatches: wcContext?.allMatches,
+          pinnedMatch: pinnedWcMatch,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
           teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
@@ -7100,6 +7130,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               wcRequiredEntities,
               normalizedUrTakeHistoryForGate,
               pinnedWcMatch,
+              wcKnockoutScope,
             );
             if (isWcPlayerMarketIntent(wcIntent) && structuredResponse) {
               structuredResponse.playerMarketTier =
@@ -7454,6 +7485,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
+          tournamentPhase: wcContext?.phase,
+          allMatches: wcContext?.allMatches,
+          pinnedMatch: pinnedWcMatch,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
           teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
@@ -7646,6 +7680,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
+          tournamentPhase: wcContext?.phase,
+          allMatches: wcContext?.allMatches,
+          pinnedMatch: pinnedWcMatch,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
           teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
@@ -7696,6 +7733,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           roundupPlayerKv: wcContext?.roundupPlayerKv,
           playerMarketTier: wcRelevanceLog.playerMarketTier,
           matchDetails: wcContext?.matchDetails,
+          tournamentPhase: wcContext?.phase,
+          allMatches: wcContext?.allMatches,
+          pinnedMatch: pinnedWcMatch,
           outrightsAvailable: Boolean(wcContext?.outrightsKv),
           teamStats: wcContext?.tournamentSimResults?.teamStats || null,
         });
@@ -7864,6 +7904,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                   wcRequiredEntities,
                   normalizedUrTakeHistoryForGate,
                   pinnedWcMatch,
+                  wcKnockoutScope,
                 );
               }
               if (!retryStructured) return null;
@@ -7909,6 +7950,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           wcRequiredEntities,
           normalizedUrTakeHistoryForGate,
           pinnedWcMatch,
+          wcKnockoutScope,
         );
         structuredResponse = tryApplyWcPlayerPropsGroundingToStructured({
           structured: structuredResponse,
@@ -7957,6 +7999,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             wcRequiredEntities,
             normalizedUrTakeHistoryForGate,
             pinnedWcMatch,
+            wcKnockoutScope,
           );
           responseText = formatWcCompactDisplayText(structuredResponse, structuredResponse.lean);
           responseDeep = null;
@@ -8223,6 +8266,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       ...(followUpsField ? { followUps: followUpsField } : {}),
       ...(sportHint === "worldcup" && wcIntent
         ? { wcIntent, userQuestion: String(question || "").trim() }
+        : {}),
+      ...(sportHint === "worldcup" && wcContext?.phase
+        ? { wcTournamentPhase: wcContext.phase }
         : {}),
     };
 

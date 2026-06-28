@@ -4,6 +4,7 @@
 
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcInjuriesFromKv } from "./_wcInjuriesData.js";
+import { formatInjuriesBoardForPrompt } from "../shared/wcBdlInjuries.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
   readWcMatchPlayerPropsForEvent,
@@ -844,26 +845,6 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
       failed: true,
     },
   };
-}
-
-/**
- * @param {object | null | undefined} injuries
- */
-function formatInjuriesBoardForPrompt(injuries) {
-  if (!injuries?.rows?.length) {
-    return ["INJURIES (tournament):", "  No aggregated injury rows in KV — do not invent availability."];
-  }
-  const lines = ["INJURIES (tournament — binding):", `  Source: ${String(injuries.source || "espn")}`];
-  const high = (injuries.rows || []).filter((r) => r.impact === "high").slice(0, 8);
-  const rest = (injuries.rows || []).filter((r) => r.impact !== "high").slice(0, 6);
-  for (const r of [...high, ...rest]) {
-    const status = r.status ? ` — ${r.status}` : "";
-    lines.push(`  ${r.name}${r.teamAbbr ? ` (${r.teamAbbr})` : ""}${status}`);
-  }
-  if (injuries.starsOut?.length) {
-    lines.push(`  Stars flagged OUT/doubtful: ${injuries.starsOut.join(", ")}`);
-  }
-  return lines;
 }
 
 /**
