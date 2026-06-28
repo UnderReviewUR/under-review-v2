@@ -23,6 +23,7 @@ import {
   wcMatchProbabilityAnswerFieldsHaveSignal,
 } from "./wcMatchProbabilityQuestion.js";
 import { repairWcTotalsHoldPriorLeanFollowUp } from "./wcTotalsLeanHold.js";
+import { repairWcKnockoutMatchupStructured } from "./wcKnockoutFixture.js";
 
 const FAIR_PRICE_RE =
   /\b(not mispriced|fairly priced|fairly valued|fair price|no edge|no mispricing|correctly priced|generous given|not a value)\b/i;
@@ -76,6 +77,7 @@ export function normalizeWcStructuredForDelivery(
   question = "",
   requiredEntities = [],
   history = [],
+  pinnedMatch = null,
 ) {
   if (!structured || typeof structured !== "object") return structured;
 
@@ -114,7 +116,10 @@ export function normalizeWcStructuredForDelivery(
     }
     repairWcMatchProbabilityLean(out, question);
     return finishWcStructuredForDelivery(
-      repairWcTotalsHoldPriorLeanFollowUp(out, question, history),
+      repairWcKnockoutMatchupStructured(
+        repairWcTotalsHoldPriorLeanFollowUp(out, question, history),
+        pinnedMatch,
+      ),
       intent,
       question,
     );

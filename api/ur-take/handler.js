@@ -198,7 +198,9 @@ import {
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_MISSING_WINNER_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
+  WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
+import { resolveWcPinnedMatchForDelivery } from "../../shared/wcKnockoutFixture.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
 import {
   buildWcTurnScopeBlock,
@@ -6220,6 +6222,14 @@ You are responding to a Pro subscriber. Apply the following:
     let wcGroupValuePushBackPassUsed = false;
     /** World Cup relevance QA — declared outside QA loop for post-loop player-market repair. */
     let wcQaResult = null;
+    const pinnedWcMatch =
+      sportHint === "worldcup"
+        ? resolveWcPinnedMatchForDelivery(
+            wcContext,
+            wcRelevanceLog?.wcEventId,
+            wcRequiredEntities,
+          )
+        : null;
 
     if (
       sportHint === "worldcup" &&
@@ -6829,6 +6839,10 @@ You are responding to a Pro subscriber. Apply the following:
                 ? WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX
                 : ""
             }${
+              prevQaCriticalCodes.includes("wc_knockout_both_advance_bleed")
+                ? WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX
+                : ""
+            }${
               prevQaCriticalCodes.includes("wc_player_not_in_squad") ||
               prevQaCriticalCodes.includes("wc_player_role_mislabel")
                 ? WC_PLAYER_MARKET_QA_SUFFIX
@@ -7085,6 +7099,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               String(question || ""),
               wcRequiredEntities,
               normalizedUrTakeHistoryForGate,
+              pinnedWcMatch,
             );
             if (isWcPlayerMarketIntent(wcIntent) && structuredResponse) {
               structuredResponse.playerMarketTier =
@@ -7848,6 +7863,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                   String(question || ""),
                   wcRequiredEntities,
                   normalizedUrTakeHistoryForGate,
+                  pinnedWcMatch,
                 );
               }
               if (!retryStructured) return null;
@@ -7892,6 +7908,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           String(question || ""),
           wcRequiredEntities,
           normalizedUrTakeHistoryForGate,
+          pinnedWcMatch,
         );
         structuredResponse = tryApplyWcPlayerPropsGroundingToStructured({
           structured: structuredResponse,
@@ -7939,6 +7956,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             String(question || ""),
             wcRequiredEntities,
             normalizedUrTakeHistoryForGate,
+            pinnedWcMatch,
           );
           responseText = formatWcCompactDisplayText(structuredResponse, structuredResponse.lean);
           responseDeep = null;

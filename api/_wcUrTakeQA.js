@@ -79,6 +79,7 @@ import {
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
 } from "../shared/wcMatchBettingPrompt.js";
+import { detectWcKnockoutBothAdvanceBleed } from "../shared/wcKnockoutFixture.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -149,6 +150,7 @@ export function runWcUrTakeQA(opts = {}) {
     opts.playerMarketKv?.players?.teams ||
     opts.roundupPlayerKv?.players?.teams ||
     null;
+  const matchDetails = Array.isArray(opts.matchDetails) ? opts.matchDetails : [];
 
   const headline = extractWcResponseHeadline(responseText, structured);
   const body = extractWcResponseBody(responseText, structured);
@@ -471,6 +473,10 @@ export function runWcUrTakeQA(opts = {}) {
     if (detectWcMatchupAltFollowUpMlHeadline(routingQuestion, structured)) {
       issueCodes.push("wc_matchup_alt_followup_ml_headline");
     }
+
+    if (detectWcKnockoutBothAdvanceBleed(routingQuestion, structured, matchDetails)) {
+      issueCodes.push("wc_knockout_both_advance_bleed");
+    }
   }
 
   if (
@@ -492,7 +498,6 @@ export function runWcUrTakeQA(opts = {}) {
     }
   }
 
-  const matchDetails = Array.isArray(opts.matchDetails) ? opts.matchDetails : [];
   const grounding = runWcGroundingQA(body, matchDetails);
   if (!grounding.passed) {
     issueCodes.push(...grounding.issueCodes);
@@ -552,6 +557,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_matchup_pass_only_no_alt",
       "wc_matchup_missing_winner_line",
       "wc_matchup_alt_followup_ml_headline",
+      "wc_knockout_both_advance_bleed",
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
@@ -611,6 +617,13 @@ export {
   WC_PUSHBACK_VOICE_QA_SUFFIX,
 };
 export { WC_MATCH_PASS_ONLY_QA_SUFFIX, WC_MATCH_MISSING_WINNER_QA_SUFFIX, WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX };
+
+export const WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX = `
+
+WC KNOCKOUT MATCHUP QA (mandatory — prior answer used group-stage "both teams to advance" on a knockout fixture):
+- This is single elimination — only ONE team advances from this match.
+- Remove any "both teams to advance" / "both sides qualify" language from THE PLAY, Alt, and why.
+- Use winner ML, Over/Under, BTTS, DNB, or to-advance — never group-stage both-advance framing.`;
 
 export const WC_ROUNDUP_CROSS_MARKET_BLEED_QA_SUFFIX = `
 

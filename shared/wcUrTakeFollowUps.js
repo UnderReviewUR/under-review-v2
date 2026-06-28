@@ -19,6 +19,7 @@ import {
   resolveWcTakeAwareNextLine,
 } from "./wcTakeAwareFollowUps.js";
 import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
+import { isWcKnockoutFixtureMatch } from "./wcKnockoutFixture.js";
 import { wcGroupLetterForTeam } from "./wcGroupComposition.js";
 import {
   isWcCrossGroupMispriceQuestion,
@@ -208,8 +209,9 @@ export function getWcContextFollowUpChips(message, userQuestion = "") {
         away,
         group: groupLetter,
         teamStats: message?.teamStats || message?.structured?.teamStats,
+        match: message?.wcMatch || message?.match,
       }).ok;
-      if (bothAdvanceOk) {
+      if (bothAdvanceOk && !isWcKnockoutFixtureMatch(message?.wcMatch || message?.match)) {
         chips.push("Both teams to advance?");
       } else if (groupLetter && !isMoneylineBestBetQuestion) {
         chips.push(`Who wins Group ${groupLetter}?`);

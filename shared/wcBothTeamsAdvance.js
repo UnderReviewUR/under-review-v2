@@ -5,6 +5,7 @@
  */
 
 import { getWcGroupComposition } from "./wcGroupComposition.js";
+import { isWcKnockoutFixtureMatch } from "./wcKnockoutFixture.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 
 /**
@@ -43,6 +44,13 @@ export function wcFixtureTeamsExcludingGroupFavorite(group, home, away) {
  * }} row
  */
 export function assessWcBothTeamsAdvanceFixture(row) {
+  if (row.isKnockout || isWcKnockoutFixtureMatch(row.match)) {
+    return {
+      ok: false,
+      reason: "knockout_fixture",
+      requiresFavoriteOut: false,
+    };
+  }
   const home = String(row.home || "").trim().toUpperCase();
   const away = String(row.away || "").trim().toUpperCase();
   const group = String(row.group || "").trim().toUpperCase();

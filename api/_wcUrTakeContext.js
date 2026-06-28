@@ -83,6 +83,10 @@ import {
 } from "../shared/wcLiveMatchQuestion.js";
 import { WC_MATCH_BETTING_PROMPT_RULES } from "../shared/wcMatchBettingPrompt.js";
 import {
+  WC_KNOCKOUT_MATCH_BETTING_RULES,
+  isWcKnockoutFixtureMatch,
+} from "../shared/wcKnockoutFixture.js";
+import {
   resolveWcEventIdForFixtureTeams,
   resolveWcEventIdForPlayerNation,
   resolveWcPlayerNationFromQuestion,
@@ -565,7 +569,14 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     lines.push(ctx.staticRulesBlock, "");
   }
 
-  lines.push(WC_MATCH_BETTING_PROMPT_RULES, "");
+  const knockoutMatchBetting =
+    isKnockoutPhase(phase) ||
+    (Array.isArray(ctx.fixtures) && ctx.fixtures.some((fx) => isWcKnockoutFixtureMatch(fx))) ||
+    (Array.isArray(ctx.matchDetails) && ctx.matchDetails.some((d) => isWcKnockoutFixtureMatch(d)));
+  lines.push(
+    knockoutMatchBetting ? WC_KNOCKOUT_MATCH_BETTING_RULES : WC_MATCH_BETTING_PROMPT_RULES,
+    "",
+  );
 
   lines.push(
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
