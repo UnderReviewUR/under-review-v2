@@ -50,7 +50,11 @@ import {
   isWcPlayerPropFollowUpExplain,
   resolveWcFollowUpSubject,
 } from "../../shared/wcFollowUpExplain.js";
-import { matchPlayerPropRowsFromEvent, pickFixturePropBoardFromEvent } from "../../shared/wcMatchPlayerProps.js";
+import {
+  matchPlayerPropRowsFromEvent,
+  pickFixturePropBoardForQuestion,
+  resolveMatchPlayerPropsPayload,
+} from "../../shared/wcMatchPlayerProps.js";
 import {
   buildWcThreadParlayStructured,
   shouldBuildWcThreadParlay,
@@ -416,7 +420,19 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   });
 
   const gkPropsAsk = isWcGoalkeeperPropsQuestion(routingQ);
-  const propBoard = pickFixturePropBoardFromEvent(kvBlocks.matchPlayerProps, 24);
+  const propBoardTeams =
+    routePinnedTeams.length >= 2
+      ? routePinnedTeams
+      : fixtureTeams.length >= 2
+        ? fixtureTeams
+        : [pinned.home, pinned.away].filter(Boolean);
+  const resolvedPropPayload = resolveMatchPlayerPropsPayload(kvBlocks.matchPlayerProps, {
+    eventId: resolvedEventId || "",
+    teams: propBoardTeams,
+  });
+  const propBoard = resolvedPropPayload?.payload
+    ? pickFixturePropBoardForQuestion(resolvedPropPayload.payload, routingQ, 24)
+    : null;
   const propRows = propBoard?.rows || [];
   const isParlayAsk =
     wcIntent === WC_INTENT.PARLAY ||

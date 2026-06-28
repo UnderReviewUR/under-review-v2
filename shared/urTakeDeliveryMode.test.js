@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   isUrTalkModeEnabled,
   resolveUrTakeDeliveryMode,
+  isWcPlayerPropBettingQuestion,
 } from "./urTakeDeliveryMode.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
@@ -144,6 +145,28 @@ test("parlay follow-up stays take when enabled", () => {
       history: [
         { role: "user", content: "USA vs Mexico" },
         { role: "assistant", structured: { lean: "Lean: USA ML." } },
+      ],
+    }),
+    "take",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});
+
+test("first goalscorer follow-up stays take when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  const q = "Who is the best first goalscorer bet for Brazil vs Japan?";
+  assert.equal(isWcPlayerPropBettingQuestion(q, WC_INTENT.MATCHUP), true);
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "worldcup",
+      wcIntent: WC_INTENT.PLAYER_PROP,
+      question: q,
+      isConversationFollowUp: true,
+      history: [
+        { role: "user", content: "Brazil vs Japan — best bet?" },
+        { role: "assistant", structured: { lean: "Lean: Brazil ML.", fixtureHome: "BRA", fixtureAway: "JPN" } },
       ],
     }),
     "take",

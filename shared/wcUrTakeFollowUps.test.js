@@ -167,6 +167,37 @@ test("resolveWcFollowUpKnockoutScope detects round 32 in question", () => {
   );
 });
 
+test("resolveWcFollowUpKnockoutScope uses ET calendar for fixture thread without phase metadata", () => {
+  assert.equal(
+    resolveWcFollowUpKnockoutScope(
+      {
+        wcMatchTeams: { home: "BRA", away: "JPN" },
+        structured: { fixtureHome: "BRA", fixtureAway: "JPN" },
+      },
+      "",
+    ),
+    true,
+  );
+  assert.equal(resolveWcFollowUpKnockoutScope({}, ""), false);
+});
+
+test("mergeWcFollowUpChips PLAYER_MARKET_PASS drops group-stage chip during knockout", () => {
+  const chips = mergeWcFollowUpChips(
+    "PLAYER_MARKET_PASS",
+    {
+      wcMatchTeams: { home: "BRA", away: "JPN" },
+      structured: {
+        fixtureHome: "BRA",
+        fixtureAway: "JPN",
+        callType: "player_market_pass",
+      },
+    },
+    "Who is the best first goalscorer bet for Brazil vs Japan?",
+  );
+  assert.ok(!chips.some((c) => /group stage bet/i.test(c)));
+  assert.ok(!chips.some((c) => /both teams to advance/i.test(c)));
+});
+
 test("getVerdictFollowUpChips FAIR_PRICE drops both-advance during knockout", () => {
   const chips = getVerdictFollowUpChips("FAIR_PRICE", { knockout: true });
   assert.ok(!chips.some((c) => /both teams to advance/i.test(c)));

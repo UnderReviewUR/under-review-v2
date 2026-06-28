@@ -10,6 +10,7 @@ import {
   matchPlayerPropRowsFromEvent,
   matchPlayerPropNationMatchesTeam,
   matchPlayerPropsForEvent,
+  pickFixturePropBoardForQuestion,
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
 import { MOCK_WC_MATCH_PLAYER_PROPS_EVENT } from "../api/wcPlayerMarkets.fixture.js";
@@ -116,6 +117,8 @@ test("kvHasFreshMatchPlayerProps — fresh single-event payload", () => {
   const event = {
     ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
     lastUpdated: Date.now(),
+    source: "balldontlie",
+    booksUsed: ["balldontlie"],
   };
   assert.equal(
     kvHasFreshMatchPlayerProps(event, { teams: ["FRA", "BRA"] }),
@@ -143,4 +146,25 @@ test("matchPlayerPropNationMatchesTeam maps BDL HTI to internal HAI", () => {
   assert.equal(matchPlayerPropNationMatchesTeam("HTI", "HAI"), true);
   assert.equal(matchPlayerPropNationMatchesTeam("BRA", "BRA"), true);
   assert.equal(matchPlayerPropNationMatchesTeam("HTI", "BRA"), false);
+});
+
+test("pickFixturePropBoardForQuestion prefers first goalscorer market", () => {
+  const event = {
+    ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+    markets: {
+      ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT.markets,
+      first_goalscorer: [
+        { name: "Neymar", americanOdds: "+600", nationAbbr: "BRA" },
+        { name: "Ritsu Doan", americanOdds: "+1500", nationAbbr: "JPN" },
+        { name: "Casemiro", americanOdds: "+1600", nationAbbr: "BRA" },
+      ],
+    },
+  };
+  const board = pickFixturePropBoardForQuestion(
+    event,
+    "Who is the best first goalscorer bet for Brazil vs Japan?",
+    12,
+  );
+  assert.equal(board?.key, "first_goalscorer");
+  assert.ok(board?.rows?.some((r) => /Neymar/i.test(String(r.name))));
 });

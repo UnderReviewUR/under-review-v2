@@ -1230,6 +1230,10 @@ export function detectWcPlayerPropMarketLabel(question) {
   const q = String(question || "").trim();
   if (!q) return "player prop";
   if (isWcGoalkeeperPropsQuestion(q)) return "goalkeeper saves";
+  if (/\bfirst\s+goal\b|\bfirst\s+goalscorer\b|\bfirst\s+to\s+score\b/i.test(q)) {
+    return "first goalscorer";
+  }
+  if (/\blast\s+goal\b|\blast\s+goalscorer\b/i.test(q)) return "last goalscorer";
   if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) return "goal or assist";
   if (/\bshots?\s+on\s+target\b|\bsot\b/i.test(q)) return "shots on target";
   if (/\d+\.?\d*\s*shots?\b/i.test(q) || /\bshots?\s*(?:o\/u|over|under)\b/i.test(q)) {
@@ -1788,7 +1792,7 @@ export function prefersWcFixtureScorerIntelFallback(question) {
 }
 
 const WC_FIXTURE_PLAYER_MARKET_ASK_RE =
-  /\b(?:most likely to score|likely (?:goal)?scorers?|who(?:'s| is|'ll| will)?\s+(?:most likely to )?score|score from each team|scorer from each|each team.{0,48}(?:score|scorer)|lead.{0,28}(?:team.{0,20})?(?:in )?pass|pass leader|most passes|key passes)\b/i;
+  /\b(?:most likely to score|likely (?:goal)?scorers?|who(?:'s| is|'ll| will)?\s+(?:most likely to )?score|first\s+goal|first\s+goalscorer|first\s+to\s+score|score from each team|scorer from each|each team.{0,48}(?:score|scorer)|lead.{0,28}(?:team.{0,20})?(?:in )?pass|pass leader|most passes|key passes)\b/i;
 
 /**
  * Fixture-scoped player-market asks without saying "player props" (scorers, pass leaders, etc.).

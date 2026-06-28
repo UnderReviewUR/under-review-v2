@@ -16,6 +16,7 @@ import {
   matchPlayerPropNationMatchesTeam,
   matchPlayerPropRowsFromEvent,
   pickFixturePropBoardFromEvent,
+  pickFixturePropBoardForQuestion,
   rankFixturePropBoardRows,
   resolveMatchPlayerPropsPayload,
 } from "./wcMatchPlayerProps.js";
@@ -642,7 +643,7 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const eventId = resolved.eventId;
   const eventPayload = resolved.payload;
 
-  const propBoard = pickFixturePropBoardFromEvent(eventPayload, 24);
+  const propBoard = pickFixturePropBoardForQuestion(eventPayload, String(question || ""), 24);
   if (!propBoard) return null;
   const { key: marketKey, label: marketLabel, rows } = propBoard;
 

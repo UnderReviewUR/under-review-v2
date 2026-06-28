@@ -20,7 +20,12 @@ import {
 } from "./wcTakeAwareFollowUps.js";
 import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
 import { isWcKnockoutFixtureMatch } from "./wcKnockoutFixture.js";
-import { isKnockoutPhase } from "./wcPhaseUtils.js";
+import {
+  getWorldCupPhaseFromEtDate,
+  isKnockoutPhase,
+  isKnockoutRound,
+  resolveWcTournamentPhase,
+} from "./wcPhaseUtils.js";
 import { wcGroupLetterForTeam } from "./wcGroupComposition.js";
 import {
   isWcCrossGroupMispriceQuestion,
@@ -38,26 +43,69 @@ const GROUP_STAGE_CHIP_RE =
  * @param {string} [userQuestion]
  */
 export function resolveWcFollowUpKnockoutScope(message, userQuestion = "") {
-  const tournamentPhase =
+  const allMatches = Array.isArray(message?.allMatches) ? message.allMatches : [];
+  const feedPhase =
     message?.wcTournamentPhase ||
     message?.tournamentPhase ||
     message?.urTakeTelemetry?.wcTournamentPhase ||
     "";
-  const scope = {
-    tournamentPhase,
-    allMatches: message?.allMatches,
-  };
-  const fixtureMatch = message?.wcMatch || message?.match;
+
+  const structured = message?.structured;
+  const isGroupSlateCard =
+    structured?.callType === "group_slate" ||
+    (structured?.groupLetter != null &&
+      String(structured.groupLetter).trim() &&
+      !isKnockoutRound(structured?.round));
+
+  const fixtureMatch =
+    message?.wcMatch ||
+    message?.match ||
+    (message?.wcMatchTeams?.home && message?.wcMatchTeams?.away
+      ? {
+          homeTeam: message.wcMatchTeams.home,
+          awayTeam: message.wcMatchTeams.away,
+          round: structured?.round,
+        }
+      : null) ||
+    (structured?.fixtureHome && structured?.fixtureAway
+      ? {
+          homeTeam: structured.fixtureHome,
+          awayTeam: structured.fixtureAway,
+          round: structured.round,
+        }
+      : null);
+
   const q = String(userQuestion || message?.userQuestion || message?.question || "");
   const knockoutFromQuestion =
     /\b(round of 32|round\s*32|r32|round of 16|round\s*16|r16|quarter-?finals?|semi-?finals?|knockout|elimination|single elimination)\b/i.test(
       q,
     );
-  return (
-    isKnockoutPhase(tournamentPhase) ||
-    isWcKnockoutFixtureMatch(fixtureMatch, scope) ||
-    knockoutFromQuestion
+  const knockoutFromStructured =
+    structured?.callType === "knockout_slate" || isKnockoutRound(structured?.round);
+
+  if (isKnockoutPhase(feedPhase)) return true;
+  if (knockoutFromQuestion || knockoutFromStructured) return true;
+
+  const feedResolved = allMatches.length ? resolveWcTournamentPhase(allMatches) : feedPhase;
+  const scope = { tournamentPhase: feedResolved, allMatches };
+
+  if (isWcKnockoutFixtureMatch(fixtureMatch, scope)) return true;
+
+  const hasFixtureContext = Boolean(
+    (fixtureMatch?.homeTeam && fixtureMatch?.awayTeam) ||
+      (message?.wcMatchTeams?.home && message?.wcMatchTeams?.away),
   );
+  if (
+    hasFixtureContext &&
+    !isGroupSlateCard &&
+    isKnockoutPhase(getWorldCupPhaseFromEtDate())
+  ) {
+    return true;
+  }
+
+  if (allMatches.length && isKnockoutPhase(feedResolved)) return true;
+
+  return false;
 }
 
 /**

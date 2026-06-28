@@ -7,6 +7,11 @@ import { detectParlayIntent } from "./detectParlayIntent.js";
 import { isWcTomorrowOrSlateBetQuestion, isWcKnockoutSlateQuestion } from "./wcTakeRetentionQA.js";
 import { isWcPlayerMarketIntent, isWcRulesQuestion, WC_INTENT } from "./wcUrTakeIntent.js";
 import { isWcMatchWinnerQuestion } from "./wcMatchupWinnerLine.js";
+import {
+  isGenericWcPlayerPropQuestion,
+  isWcFixtureScopedPlayerMarketQuestion,
+  isWcNamedPlayerPropQuestion,
+} from "./wcUrTakePlayerMarket.js";
 
 /** @typedef {"take"|"talk"} UrTakeDeliveryMode */
 
@@ -36,6 +41,30 @@ export function isUrTalkModeEnabled() {
 }
 
 /**
+ * Player-prop turns need structured Take / props fast-path — not Haiku talk deflection.
+ * @param {string} question
+ * @param {string} [wcIntent]
+ */
+export function isWcPlayerPropBettingQuestion(question, wcIntent) {
+  const q = String(question || "").trim();
+  const intent = String(wcIntent || "").trim().toUpperCase();
+  if (!q) return false;
+  if (detectParlayIntent(q) && /\bplayer\b/i.test(q)) return true;
+  if (isWcPlayerMarketIntent(intent) || intent === WC_INTENT.PLAYER_PROP) return true;
+  if (isWcNamedPlayerPropQuestion(q)) return true;
+  if (isGenericWcPlayerPropQuestion(q)) return true;
+  if (isWcFixtureScopedPlayerMarketQuestion(q)) return true;
+  if (
+    /\b(first goal|first goalscorer|first to score|anytime scorer|goal scorer|player props?|goalscorer)\b/i.test(
+      q,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Opening-turn or pivot asks that need a full Take card (not thread prose).
  * @param {{ question?: string, wcIntent?: string | null, isConversationFollowUp?: boolean }} opts
  */
@@ -48,6 +77,7 @@ export function isUrTakeNewBettingAsk(opts = {}) {
   if (detectParlayIntent(question)) return true;
   if (isWcTomorrowOrSlateBetQuestion(question)) return true;
   if (isWcKnockoutSlateQuestion(question)) return true;
+  if (isWcPlayerPropBettingQuestion(question, wcIntent)) return true;
   if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return true;
   if (
     !isFollowUp &&
@@ -90,6 +120,10 @@ export function resolveUrTakeDeliveryMode(opts = {}) {
   }
 
   if (isUrTakeNewBettingAsk({ question, wcIntent, isConversationFollowUp: isFollowUp })) {
+    return "take";
+  }
+
+  if (sport === "worldcup" && isWcPlayerPropBettingQuestion(question, wcIntent)) {
     return "take";
   }
 

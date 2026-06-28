@@ -460,6 +460,7 @@ export function kvHasFreshMatchPlayerProps(kvRoot, opts = {}) {
 /** @type {Array<{ key: string, label: string }>} */
 export const WC_FIXTURE_PROP_BOARD_MARKETS = [
   { key: "anytime_scorer", label: "anytime scorer" },
+  { key: "first_goalscorer", label: "first goalscorer" },
   { key: "player_goal_or_assist", label: "goal or assist" },
   { key: "player_sot_ou", label: "shots on target" },
   { key: "player_shots_ou", label: "shots" },
@@ -539,4 +540,40 @@ export function pickFixturePropBoardFromEvent(eventPayload, limit = 24) {
     }
   }
   return null;
+}
+
+/**
+ * Prefer the market the user asked for (first goalscorer vs anytime, etc.).
+ * @param {Record<string, unknown> | null | undefined} eventPayload
+ * @param {string} [question]
+ * @param {number} [limit]
+ */
+export function pickFixturePropBoardForQuestion(eventPayload, question = "", limit = 24) {
+  const q = String(question || "").trim();
+  if (!eventPayload?.markets) return null;
+
+  const preferredKeys = [];
+  if (/\bfirst\s+goal\b|\bfirst\s+goalscorer\b|\bfirst\s+to\s+score\b/i.test(q)) {
+    preferredKeys.push("first_goalscorer", "anytime_scorer");
+  } else if (/\blast\s+goal\b|\blast\s+goalscorer\b/i.test(q)) {
+    preferredKeys.push("last_goalscorer", "anytime_scorer");
+  } else if (/\banytime\s+scorer\b/i.test(q)) {
+    preferredKeys.push("anytime_scorer", "first_goalscorer");
+  }
+
+  for (const key of preferredKeys) {
+    const entry = WC_FIXTURE_PROP_BOARD_MARKETS.find((e) => e.key === key) || {
+      key,
+      label: (WC_MATCH_PLAYER_PROP_PROMPT_LABELS[key] || key).toLowerCase(),
+    };
+    const rawRows = matchPlayerPropRowsFromEvent(eventPayload, entry.key, limit);
+    const collapsed = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
+    const rows = rankFixturePropBoardRows(collapsed, limit, entry.key);
+    const boardRows = rows.length >= 2 ? rows : collapsed.slice(0, limit);
+    if (boardRows.length >= 2) {
+      return { ...entry, rows: boardRows };
+    }
+  }
+
+  return pickFixturePropBoardFromEvent(eventPayload, limit);
 }
