@@ -3,15 +3,13 @@ import { buildWcTomorrowSlatePrebuiltFromInputs } from "../_wcTomorrowSlatePrebu
 import { runUnderReviewPostProcess } from "../_urTakeOutputQA.js";
 import { runWcUrTakeQA } from "../_wcUrTakeQA.js";
 import {
-  buildWcGroupSlatePrebuiltStructured,
-  buildWcRunnerUpFollowUpPrebuiltStructured,
   buildWcGroupValuePushBackPrebuiltStructured,
-  buildWcCrossGroupValuePrebuiltStructured,
-  buildWcGroupUpsetScanPrebuiltStructured,
-  shouldUseWcCrossGroupValuePrebuilt,
-  shouldUseWcGroupUpsetScanPrebuilt,
-  shouldUseWcGroupSlatePrebuilt,
+  buildWcRunnerUpFollowUpPrebuiltStructured,
 } from "../../shared/wcGroupComposition.js";
+import {
+  buildWcGroupSlateLaneStructured,
+  resolveWcGroupSlatePrebuiltRoute,
+} from "../../shared/wcGroupSlateRoute.js";
 import {
   buildWcCompactStructured,
   formatWcCompactDisplayText,
@@ -20,8 +18,6 @@ import {
 import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructured.js";
 import {
   extractWcRunnerUpFromHistory,
-  isWcKnockoutSlateQuestion,
-  isWcTomorrowOrSlateBetQuestion,
   shouldUseWcGroupValuePushBackPrebuilt,
 } from "../../shared/wcTakeRetentionQA.js";
 import {
@@ -125,59 +121,38 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
         passKind = "runner_up_follow_up";
       }
     }
-  } else if (
-    !isConversationFollowUp &&
-    (wcTomorrowSlatePrebuiltEarly || isWcTomorrowOrSlateBetQuestion(routingQuestion))
-  ) {
-    structuredResponse =
-      wcTomorrowSlatePrebuiltEarly ||
-      (await buildWcTomorrowSlatePrebuiltFromInputs({
+  } else if (!isConversationFollowUp) {
+    const route = resolveWcGroupSlatePrebuiltRoute({
+      question: routingQuestion,
+      intent: wcIntent,
+      isConversationFollowUp: false,
+      wcRunnerUpFollowUpQuestion,
+      fromWcTab: sportHint === "worldcup",
+    });
+    if (route.eligible) {
+      const built = await buildWcGroupSlateLaneStructured({
+        route,
         question: String(question || ""),
-        nowMs: Date.now(),
-      }).catch(() => null));
-    passKind = "tomorrow_slate";
-  } else if (
-    !isConversationFollowUp &&
-    (wcGroupUpsetScanPrebuiltEarly ||
-      shouldUseWcGroupUpsetScanPrebuilt(routingQuestion, wcIntent))
-  ) {
-    structuredResponse =
-      wcGroupUpsetScanPrebuiltEarly ||
-      buildWcGroupUpsetScanPrebuiltStructured({
+        intent: wcIntent,
+        matches: wcContext?.allMatches || [],
         teamStats: wcContext?.tournamentSimResults?.teamStats,
         bdlFutures: wcContext?.bdlFuturesPayload,
-        question: String(question || ""),
-        nowMs: Date.now(),
         simLastUpdated: wcContext?.tournamentSimResults?.lastUpdated ?? null,
+        earlyPrebuilts: {
+          wcTomorrowSlatePrebuiltEarly,
+          wcGroupUpsetScanPrebuiltEarly,
+          wcCrossGroupPrebuiltEarly,
+        },
+        loadTomorrowSlate: () =>
+          buildWcTomorrowSlatePrebuiltFromInputs({
+            question: String(question || ""),
+            nowMs: Date.now(),
+          }),
       });
-    passKind = "upset_scan";
-  } else if (
-    !isConversationFollowUp &&
-    (wcCrossGroupPrebuiltEarly ||
-      shouldUseWcCrossGroupValuePrebuilt(routingQuestion, wcIntent))
-  ) {
-    structuredResponse =
-      wcCrossGroupPrebuiltEarly ||
-      (isWcKnockoutSlateQuestion(routingQuestion) || isWcTomorrowOrSlateBetQuestion(routingQuestion)
-        ? null
-        : buildWcGroupSlatePrebuiltStructured({
-            groupLetter: "D",
-            pickAbbr: "PAR",
-            pickMarket: "to advance",
-          }));
-    passKind = "cross_group";
-  } else if (
-    !isConversationFollowUp &&
-    shouldUseWcGroupSlatePrebuilt(routingQuestion, wcIntent)
-  ) {
-    const prebuilt = buildWcGroupSlatePrebuiltStructured({
-      groupLetter: "D",
-      pickAbbr: "PAR",
-      pickMarket: "to advance",
-    });
-    if (prebuilt) {
-      structuredResponse = prebuilt;
-      passKind = "group_slate";
+      if (built) {
+        structuredResponse = built.structured;
+        passKind = built.passKind;
+      }
     }
   } else if (
     (wcFixtureMatchupPrebuiltEarly ||

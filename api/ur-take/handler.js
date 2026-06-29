@@ -301,8 +301,13 @@ import {
   resolveWcGroupLettersForPrompt,
   shouldUseWcCrossGroupValuePrebuilt,
   shouldUseWcGroupUpsetScanPrebuilt,
-  shouldUseWcGroupSlatePrebuilt,
 } from "../../shared/wcGroupComposition.js";
+import {
+  buildWcFlagshipGroupSlatePrebuilt,
+  logWcSlateRoutingTrace,
+  resolveWcGroupSlatePrebuiltRoute,
+  WC_GROUP_SLATE_VARIANT,
+} from "../../shared/wcGroupSlateRoute.js";
 import {
   buildWcCompactStructured,
   formatWcCompactDisplayText,
@@ -3008,6 +3013,7 @@ export default async function handler(req, res) {
         wcRunnerUpFollowUpQuestion,
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         routeHeader: String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim(),
+        fromWcTab: sportHint === "worldcup",
       });
       wcIntent = wcTurnPlanLiteHint.intent;
       wcRelevanceLog.wcIntent = wcIntent;
@@ -3015,6 +3021,19 @@ export default async function handler(req, res) {
       wcRelevanceLog.wcTurnLane = wcTurnPlanLiteHint.lane;
       wcRelevanceLog.wcTurnPlanReason = wcTurnPlanLiteHint.reason;
       wcRelevanceLog.wcTurnPlanUseLiteContext = wcTurnPlanLiteHint.useLiteContext;
+      logWcSlateRoutingTrace({
+        question: routingQuestion,
+        fromWcTab: sportHint === "worldcup",
+        route: resolveWcGroupSlatePrebuiltRoute({
+          question: routingQuestion,
+          intent: wcTurnPlanLiteHint.intent,
+          isConversationFollowUp,
+          wcRunnerUpFollowUpQuestion,
+          fromWcTab: sportHint === "worldcup",
+        }),
+        plannerLane: wcTurnPlanLiteHint.lane,
+        plannerReason: wcTurnPlanLiteHint.reason,
+      });
       try {
         wcRequiredEntities = resolveRequiredEntities(routingQuestion, incomingHistory, wcIntent);
       } catch (entityErr) {
@@ -3034,7 +3053,7 @@ export default async function handler(req, res) {
     const wcTomorrowSlateCandidate =
       !wcRunnerUpFollowUpQuestion &&
       !isConversationFollowUp &&
-      isWcTomorrowOrSlateBetQuestion(routingQuestion) &&
+      isWcTomorrowOrSlateBetQuestion(routingQuestion, { fromWcTab: sportHint === "worldcup" }) &&
       !isWcPlayerMarketIntent(wcIntent);
     if (wcTomorrowSlateCandidate) {
       try {
@@ -3142,26 +3161,11 @@ export default async function handler(req, res) {
           formRatingRange,
           formBumpApplied,
         });
-        if (!wcCrossGroupPrebuiltEarly && !isWcKnockoutSlateQuestion(routingQuestion)) {
-          wcCrossGroupPrebuiltEarly = buildWcGroupSlatePrebuiltStructured({
-            groupLetter: "D",
-            pickAbbr: "PAR",
-            pickMarket: "to advance",
-          });
-        }
       } catch (crossErr) {
         console.warn("[ur-take] cross-group prebuilt resolve failed:", crossErr?.message);
-        wcCrossGroupPrebuiltEarly =
-          buildWcCrossGroupValuePrebuiltStructured({
-            question: String(question || ""),
-          }) ||
-          (isWcKnockoutSlateQuestion(routingQuestion)
-            ? null
-            : buildWcGroupSlatePrebuiltStructured({
-                groupLetter: "D",
-                pickAbbr: "PAR",
-                pickMarket: "to advance",
-              }));
+        wcCrossGroupPrebuiltEarly = buildWcCrossGroupValuePrebuiltStructured({
+          question: String(question || ""),
+        });
       }
     }
     const wcFixtureMoneylineRepeatFollowUp =
@@ -3566,6 +3570,7 @@ export default async function handler(req, res) {
           mentionedTeams: wcRelevanceLog.mentionedTeams,
           wcRunnerUpFollowUpQuestion,
           routeHeader: String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim(),
+          fromWcTab: true,
         });
         wcContext.wcTurnPlan = wcTurnPlan;
         wcIntent = wcTurnPlan.intent;
@@ -3588,6 +3593,19 @@ export default async function handler(req, res) {
             priorLaneHint: wcTurnPlan.priorLaneHint,
           }),
         );
+        logWcSlateRoutingTrace({
+          question: routingQuestion,
+          fromWcTab: true,
+          route: resolveWcGroupSlatePrebuiltRoute({
+            question: routingQuestion,
+            intent: wcTurnPlan.intent,
+            isConversationFollowUp,
+            wcRunnerUpFollowUpQuestion,
+            fromWcTab: true,
+          }),
+          plannerLane: wcTurnPlan.lane,
+          plannerReason: wcTurnPlan.reason,
+        });
       } else {
         const gfPrior = extractWcPriorThreadLeanFromHistory(normalizedUrTakeHistoryForGate);
         if (
@@ -3862,6 +3880,7 @@ export default async function handler(req, res) {
       wcLiveInPlayBetsPrebuiltEarly,
       wcLiveMatchWinnerPrebuiltEarly,
       wcRunnerUpFollowUpQuestion,
+      fromWcTab: sportHint === "worldcup",
       earlyPrebuilts: {
         wcTomorrowSlatePrebuiltEarly,
         wcGroupUpsetScanPrebuiltEarly,
@@ -6538,13 +6557,18 @@ You are responding to a Pro subscriber. Apply the following:
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
-      !isWcKnockoutSlateQuestion(routingQuestion) &&
-      shouldUseWcGroupSlatePrebuilt(routingQuestion, wcIntent)
+      resolveWcGroupSlatePrebuiltRoute({
+        question: routingQuestion,
+        intent: wcIntent,
+        isConversationFollowUp: false,
+        wcRunnerUpFollowUpQuestion: false,
+        fromWcTab: true,
+      }).variant === WC_GROUP_SLATE_VARIANT.FLAGSHIP_GROUP
     ) {
-      const prebuilt = buildWcGroupSlatePrebuiltStructured({
-        groupLetter: "D",
-        pickAbbr: "PAR",
-        pickMarket: "to advance",
+      const prebuilt = buildWcFlagshipGroupSlatePrebuilt(routingQuestion, {
+        teamStats: wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: wcContext?.bdlFuturesPayload,
+        simLastUpdated: wcContext?.tournamentSimResults?.lastUpdated,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
@@ -6557,8 +6581,8 @@ You are responding to a Pro subscriber. Apply the following:
             event: "ur_take_wc_group_slate_pass",
             sport: "worldcup",
             wcIntent,
-            groupLetter: "D",
-            pickAbbr: "PAR",
+            groupLetter: prebuilt.groupLetter,
+            pickAbbr: prebuilt.pickAbbr,
           }),
         );
       }
@@ -7670,12 +7694,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       isWcGroupStructureQuestion(routingQuestion, wcIntent) &&
       (wcQaResult.issueCodes || []).includes("wc_group_math_mismatch")
     ) {
-      const letter =
-        extractGroupLetterFromQuestion(routingQuestion) || "D";
-      const prebuilt = buildWcGroupSlatePrebuiltStructured({
-        groupLetter: letter,
-        pickAbbr: "PAR",
-        pickMarket: "to advance",
+      const prebuilt = buildWcFlagshipGroupSlatePrebuilt(routingQuestion, {
+        teamStats: wcContext?.tournamentSimResults?.teamStats,
+        bdlFutures: wcContext?.bdlFuturesPayload,
+        simLastUpdated: wcContext?.tournamentSimResults?.lastUpdated,
       });
       if (prebuilt) {
         structuredResponse = prebuilt;
@@ -7704,7 +7726,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             event: "ur_take_wc_group_math_repair",
             sport: "worldcup",
             wcIntent,
-            groupLetter: letter,
+            groupLetter: prebuilt.groupLetter,
             passed: wcQaResult.passed,
           }),
         );

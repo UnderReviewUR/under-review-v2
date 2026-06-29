@@ -585,6 +585,36 @@ test("knockout value — group-only board returns pass card, never Paraguay adva
   assert.doesNotMatch(String(built.structured.lean || ""), /advance in Group/i);
 });
 
+test("resolveWcTurnPlan — today's totals slate routes to prebuilt not structural LLM", () => {
+  const q = "Any of today's matches go over 2.5 total goals?";
+  const matches = [
+    {
+      homeTeam: "NED",
+      awayTeam: "MAR",
+      status: "NS",
+      date: "2026-06-28",
+      time: "15:00",
+      round: "Round of 32",
+      odds: { totalLine: "2.5", totalOver: "-105", totalUnder: "-115" },
+    },
+  ];
+  const plan = resolveWcTurnPlan({
+    question: q,
+    fullQuestion: q,
+    history: [],
+    isConversationFollowUp: false,
+    hasImage: false,
+    matches,
+    hasKvFixture: true,
+    mentionedTeams: [],
+    wcRunnerUpFollowUpQuestion: false,
+  });
+  assert.equal(plan.lane, WC_TURN_LANE.GROUP_SLATE);
+  assert.equal(plan.reason, "tomorrow_slate_question");
+  assert.equal(plan.shouldUseFastPath, true);
+  assert.notEqual(plan.reason, "structural_llm");
+});
+
 test("buildWcTomorrowSlatePrebuiltStructured — knockout phase skips group opener fallback", () => {
   const q =
     "Which knockout fixture on today's slate is most mispriced on the moneyline, spread, or total?";

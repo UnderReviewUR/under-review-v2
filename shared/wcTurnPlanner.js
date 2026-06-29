@@ -9,7 +9,7 @@
  *   1. Normalize question + detect follow-up + extract prior structured lean
  *   2. Pin fixture (explicit event id → question teams → thread stack)
  *   3. Resolve intent (follow-up overrides → planner MATCHUP fixes → legacy classifier)
- *   4. Early exits: RULES, entity-pricing/structural LLM, group-slate prebuilts, runner-up follow-up
+ *   4. RULES, then group-slate prebuilts, then entity-pricing/structural LLM, runner-up follow-up
  *   5. Player props lane (V2 route + shape → fast vs Claude)
  *   6. Live prebuilt lanes (in-play bets → bet timing → live match winner)
  *   7. Matchup prebuilt lanes (alt follow-up → ML repeat → opening fixture)
@@ -52,14 +52,7 @@ import {
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import {
   isWcRunnerUpValueFollowUp,
-  isWcKnockoutSlateQuestion,
-  isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
-import {
-  shouldUseWcCrossGroupValuePrebuilt,
-  shouldUseWcGroupUpsetScanPrebuilt,
-  shouldUseWcGroupSlatePrebuilt,
-} from "./wcGroupComposition.js";
 import {
   shouldUseWcFixtureMatchupAltFollowUpPrebuilt,
   shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt,
@@ -69,6 +62,7 @@ import {
   shouldUseWcLiveMatchWinnerPrebuilt,
   resolveWcFixturePairFromHistory,
 } from "./wcFixtureMatchupPrebuilt.js";
+import { resolveWcGroupSlatePrebuiltRoute } from "./wcGroupSlateRoute.js";
 import { previewWcPropsRoute, needsWcPropsRouting } from "./wcPropsRoutePreview.js";
 import { isWcPropsRouteV2Enabled } from "./wcPropsRouteTurn.js";
 import {
@@ -256,8 +250,8 @@ export function resolveWcTurnPlan(params = {}) {
    * LANE PRIORITY (first match wins — high → low):
    *
    *  1. rules_llm              — knockout / tournament rules (LLM, no fast path)
-   *  2. entity_pricing exit    — misprice/structural → llm_full (never prebuilt)
-   *  3. group_slate            — tomorrow / upset scan / cross-group prebuilts
+   *  2. group_slate            — tomorrow / upset scan / cross-group / flagship prebuilts
+   *  3. entity_pricing exit    — misprice/structural → llm_full (never prebuilt)
    *  4. runner_up_followup     — pushback on runner-up value card
    *  4d. generic_props_after_prebuilt — vague props ask on prebuilt thread → llm_thread
    *  5. props_claude | props_fast — player props (Claude when shape-routed)
@@ -384,46 +378,17 @@ export function resolveWcTurnPlan(params = {}) {
     return finalizeWcTurnPlan(plan);
   }
 
-  // ── Step 4a: Entity pricing / structural — always LLM, never live/matchup prebuilts ──
-  // Misprice asks on a live fixture must not fall through to live_match_winner prebuilt.
-  // Thread totals/tactical follow-ups stay on matchup routing — not entity-pricing LLM.
-  const threadTotalsFollowUp =
-    isConversationFollowUp &&
-    priorLean &&
-    (isWcMatchupAltMarketFollowUp(question) ||
-      isWcTotalsExplainFollowUp(question) ||
-      isWcTotalsHoldPriorLeanFollowUp(question));
-  if (
-    (intent === WC_INTENT.ENTITY_PRICING || intent === WC_INTENT.STRUCTURAL) &&
-    !threadTotalsFollowUp &&
-    !isWcKnockoutSlateQuestion(question)
-  ) {
-    plan.lane = WC_TURN_LANE.LLM_FULL;
-    plan.reason =
-      intent === WC_INTENT.ENTITY_PRICING ? "entity_pricing_llm" : "structural_llm";
-    plan.shouldUseFastPath = false;
-    plan.useLiteContext = false;
-    plan.dataPackages = buildBaseDataPackages({ ...plan, lane: plan.lane, intent });
-    plan.confidence = resolveTurnConfidence(plan.lane, intent, hasKvFixture);
-    return finalizeWcTurnPlan(plan);
-  }
-
-  // ── Step 4b: Group slate prebuilts (opening turns) ───────────────────────
-  if (
-    !wcRunnerUpFollowUpQuestion &&
-    !isConversationFollowUp &&
-    !isWcPlayerMarketIntent(intent) &&
-    (isWcTomorrowOrSlateBetQuestion(question) ||
-      shouldUseWcGroupUpsetScanPrebuilt(question, intent) ||
-      shouldUseWcCrossGroupValuePrebuilt(question, intent) ||
-      shouldUseWcGroupSlatePrebuilt(question, intent))
-  ) {
+  // ── Step 4: Group slate prebuilts (opening turns) — before structural LLM ──
+  const groupSlateRoute = resolveWcGroupSlatePrebuiltRoute({
+    question,
+    intent,
+    isConversationFollowUp,
+    wcRunnerUpFollowUpQuestion,
+    fromWcTab: Boolean(params.fromWcTab),
+  });
+  if (groupSlateRoute.eligible) {
     plan.lane = WC_TURN_LANE.GROUP_SLATE;
-    plan.reason = isWcTomorrowOrSlateBetQuestion(question)
-      ? "tomorrow_slate_question"
-      : shouldUseWcGroupUpsetScanPrebuilt(question, intent)
-        ? "group_upset_scan"
-        : "group_slate_prebuilt";
+    plan.reason = groupSlateRoute.reason;
     plan.shouldUseFastPath = true;
     plan.dataPackages = buildBaseDataPackages({
       ...plan,
@@ -436,7 +401,30 @@ export function resolveWcTurnPlan(params = {}) {
     return finalizeWcTurnPlan(plan);
   }
 
-  // ── Step 4c: Runner-up pushback follow-up ────────────────────────────────
+  // ── Step 5: Entity pricing / structural — always LLM, never live/matchup prebuilts ──
+  // Misprice asks on a live fixture must not fall through to live_match_winner prebuilt.
+  // Thread totals/tactical follow-ups stay on matchup routing — not entity-pricing LLM.
+  const threadTotalsFollowUp =
+    isConversationFollowUp &&
+    priorLean &&
+    (isWcMatchupAltMarketFollowUp(question) ||
+      isWcTotalsExplainFollowUp(question) ||
+      isWcTotalsHoldPriorLeanFollowUp(question));
+  if (
+    (intent === WC_INTENT.ENTITY_PRICING || intent === WC_INTENT.STRUCTURAL) &&
+    !threadTotalsFollowUp
+  ) {
+    plan.lane = WC_TURN_LANE.LLM_FULL;
+    plan.reason =
+      intent === WC_INTENT.ENTITY_PRICING ? "entity_pricing_llm" : "structural_llm";
+    plan.shouldUseFastPath = false;
+    plan.useLiteContext = false;
+    plan.dataPackages = buildBaseDataPackages({ ...plan, lane: plan.lane, intent });
+    plan.confidence = resolveTurnConfidence(plan.lane, intent, hasKvFixture);
+    return finalizeWcTurnPlan(plan);
+  }
+
+  // ── Step 6: Runner-up pushback follow-up ────────────────────────────────
   if (wcRunnerUpFollowUpQuestion && isConversationFollowUp) {
     plan.lane = WC_TURN_LANE.RUNNER_UP_FOLLOWUP;
     plan.reason = "runner_up_value_follow_up";

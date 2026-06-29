@@ -548,6 +548,115 @@ export function isWcCrossGroupMispriceQuestion(question) {
  * @typedef {"today" | "tomorrow"} WcSlateDay
  */
 
+/** Questions that must never route to fixture slate prebuilts. */
+function isWcSlateRoutingExclusion(question) {
+  const q = String(question || "");
+  return /\b(golden boot|golden glove|player prop|anytime scorer|player parlay|parlay prop)\b/i.test(
+    q,
+  );
+}
+
+/**
+ * ET broadcast day cue — tonight rolls into today's slate.
+ * @param {string} question
+ */
+export function isWcSlateDayCue(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  return /\b(today'?s?|tomorrow'?s?|tonight|this evening)\b/i.test(q);
+}
+
+/**
+ * @param {string} question
+ */
+export function isWcSlateBoardCue(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  return /\b(slate|board|fixtures?|matches?|games?)\b/i.test(q);
+}
+
+/**
+ * Multi-fixture slate scope (not a single named matchup).
+ * @param {string} question
+ */
+export function isWcMultiMatchSlateCue(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  const hasDay = isWcSlateDayCue(q);
+  const hasWc = /\bworld cup\b/i.test(q);
+  return (
+    /\b(each|every|all|per|any)\b[\s\S]{0,48}\b(game|match|fixture)s?\b/i.test(q) ||
+    /\b(game|match|fixture)s?\b[\s\S]{0,40}\b(today|tomorrow|tonight)\b/i.test(q) ||
+    /\b(today|tomorrow|tonight)\b[\s\S]{0,40}\b(game|match|fixture)s?\b/i.test(q) ||
+    (hasDay && isWcSlateBoardCue(q)) ||
+    /\bon the board\b/i.test(q) ||
+    (hasWc && isWcSlateBoardCue(q))
+  );
+}
+
+/**
+ * Betting market language for slate boards (totals, spreads, ML, misprice).
+ * @param {string} question
+ */
+export function isWcSlateBetMarketCue(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  return (
+    /\b(spreads?|handicaps?|asian handicap|goal\s*totals?|totals?|over\/under|o\/u)\b/i.test(
+      q,
+    ) ||
+    /\b(?:the\s+)?over\b/i.test(q) ||
+    /\bunders?\b/i.test(q) ||
+    /\bmoneylines?\b/i.test(q) ||
+    /\bML\b/.test(q) ||
+    /\b(?:go|going|hit)\s+(?:the\s+)?over\b/i.test(q) ||
+    /\bover\s+\d+(?:\.\d+)?\b/i.test(q) ||
+    /\bunder\s+\d+(?:\.\d+)?\b/i.test(q) ||
+    /\b\d+\+?\s*goals?\b/i.test(q) ||
+    /\bsee\s+\d+\+?\s*goals?\b/i.test(q) ||
+    /\bover\s+play\b/i.test(q)
+  );
+}
+
+/**
+ * Daily fixture value on the verified board ("most mispriced game today").
+ * @param {string} question
+ */
+export function isWcDailyFixtureValueQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q || isWcSlateRoutingExclusion(q)) return false;
+  if (!isWcSlateDayCue(q)) return false;
+  if (/\b(group\s+[a-l]|to advance|advancement|group[\s-]*stage|group[\s-]*winner)\b/i.test(q)) {
+    return false;
+  }
+  const valueCue =
+    /\b(mispriced?|misprice|most mispriced|value|best bet|sharp|edge|cleanest)\b/i;
+  const directPick = /\b(one pick|direct answer)\b/i.test(q);
+  if (!valueCue.test(q) && !directPick) return false;
+  return (
+    /\b(fixture|game|match|matchup|board|slate)\b/i.test(q) ||
+    directPick ||
+    /\bmost mispriced\b/i.test(q)
+  );
+}
+
+/**
+ * WC tab implicit slate — day + bet intent without naming "matches" (sport context supplied by caller).
+ * @param {string} question
+ */
+export function isWcWcTabImplicitSlateQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q || isWcSlateRoutingExclusion(q)) return false;
+  if (!isWcSlateDayCue(q)) return false;
+  if (/\b(group\s+[a-l]|to advance|advancement|group[\s-]*winner|outright winner)\b/i.test(q)) {
+    return false;
+  }
+  return (
+    /\b(worth betting|worth a bet|who should i bet|what(?:'s| is) the play|what(?:'s| is) worth|give me (?:a |one )?(?:bet|pick|lean)|one pick)\b/i.test(
+      q,
+    ) ||
+    /\b(bet on|betting on|betting)\b/i.test(q)
+  );
+}
+
 /**
  * Which ET slate day the user asked for — defaults to today when unspecified.
  * @param {string} question
@@ -556,12 +665,12 @@ export function isWcCrossGroupMispriceQuestion(question) {
 export function extractWcSlateDayFromQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return "today";
-  const hasToday = /\btoday'?s?\b/i.test(q);
+  const hasToday = /\btoday'?s?\b/i.test(q) || /\btonight\b/i.test(q) || /\bthis evening\b/i.test(q);
   const hasTomorrow = /\btomorrow'?s?\b/i.test(q);
   if (hasToday && !hasTomorrow) return "today";
   if (hasTomorrow && !hasToday) return "tomorrow";
   if (hasToday && hasTomorrow) {
-    const todayIdx = q.search(/\btoday'?s?\b/i);
+    const todayIdx = q.search(/\b(today'?s?|tonight|this evening)\b/i);
     const tomorrowIdx = q.search(/\btomorrow'?s?\b/i);
     return todayIdx >= tomorrowIdx ? "today" : "tomorrow";
   }
@@ -593,10 +702,92 @@ export function isWcSlateOutcomePredictionQuestion(question) {
 }
 
 /**
- * Knockout slate / board value asks — fixture-bound prebuilt, never group advancement.
+ * WC slate routing kinds — {@link resolveWcSlateRoutingKind} returns the first match (high → low).
+ * @readonly
+ */
+export const WC_SLATE_ROUTING_KIND = {
+  DAILY_FIXTURE_VALUE: "daily_fixture_value",
+  KNOCKOUT_SLATE: "knockout_slate",
+  SLATE_MARKET_BOARD: "slate_market_board",
+  SLATE_OUTCOME_PREDICTION: "slate_outcome_prediction",
+  BROAD_SLATE_BET: "broad_slate_bet",
+  WC_TAB_IMPLICIT: "wc_tab_implicit",
+};
+
+/**
+ * Broad day-scoped bet asks without explicit market board language.
  * @param {string} question
  */
-export function isWcKnockoutSlateQuestion(question) {
+function isWcBroadDailySlateBetQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|player parlays|parlay prop)\b/i.test(q)) {
+    return false;
+  }
+  if (/\boutright\b/i.test(q) && !/\b(tomorrow|today'?s?|tonight|slate|matches|board)\b/i.test(q)) {
+    return false;
+  }
+  return (
+    /\b(sneaky|good bets?|best bets?|value bets?)\b[\s\S]{0,56}\b(tomorrow|matches tomorrow|world cup matches|today'?s?(?: matches| slate| games)?|tonight)\b/i.test(
+      q,
+    ) ||
+    /\b(tomorrow|today'?s?|tonight)\b[\s\S]{0,56}\b(good bets?|best bets?|world cup bets?|matches to bet)\b/i.test(
+      q,
+    ) ||
+    /\b(best|top|sneaky|good|value)\b[\s\S]{0,40}\bworld cup\b[\s\S]{0,40}\b(bets?|picks?|leans?)\b[\s\S]{0,24}\b(tomorrow|today|tonight)\b/i.test(
+      q,
+    ) ||
+    /\bworld cup\b[\s\S]{0,40}\b(bets?|picks?)\b[\s\S]{0,40}\b(tomorrow|today|tonight)\b/i.test(q)
+  );
+}
+
+/**
+ * Single source of truth for fixture-slate question classification.
+ *
+ * Precedence (first match wins):
+ *  1. daily_fixture_value — day + misprice/game on the board (multi-match cue NOT required)
+ *  2. knockout_slate — R32/R16/knockout lexicon + value/slate
+ *  3. slate_market_board — multi-match scope + market lexicon (totals/spreads/ML/over)
+ *  4. slate_outcome_prediction — predict each game today
+ *  5. broad_slate_bet — sneaky/best bets + day ("best WC bets today")
+ *  6. wc_tab_implicit — day + bet intent when caller sets fromWcTab (WC screen sport context)
+ *
+ * Single-fixture totals (e.g. "BRA-JPN over 2.5") intentionally returns null — MATCHUP lane.
+ *
+ * @param {string} question
+ * @param {{ fromWcTab?: boolean }} [opts]
+ * @returns {string | null} WC_SLATE_ROUTING_KIND value or null
+ */
+export function resolveWcSlateRoutingKind(question, opts = {}) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q || isWcSlateRoutingExclusion(q)) return null;
+
+  if (isWcDailyFixtureValueQuestion(q)) {
+    return WC_SLATE_ROUTING_KIND.DAILY_FIXTURE_VALUE;
+  }
+  if (isWcKnockoutSlateCoreQuestion(q)) {
+    return WC_SLATE_ROUTING_KIND.KNOCKOUT_SLATE;
+  }
+  if (isWcSlateMarketBoardQuestion(q)) {
+    return WC_SLATE_ROUTING_KIND.SLATE_MARKET_BOARD;
+  }
+  if (isWcSlateOutcomePredictionQuestion(q)) {
+    return WC_SLATE_ROUTING_KIND.SLATE_OUTCOME_PREDICTION;
+  }
+  if (isWcBroadDailySlateBetQuestion(q)) {
+    return WC_SLATE_ROUTING_KIND.BROAD_SLATE_BET;
+  }
+  if (opts.fromWcTab && isWcWcTabImplicitSlateQuestion(q)) {
+    return WC_SLATE_ROUTING_KIND.WC_TAB_IMPLICIT;
+  }
+  return null;
+}
+
+/**
+ * Knockout-round slate cues only — not daily fixture value (see orchestrator precedence).
+ * @param {string} question
+ */
+export function isWcKnockoutSlateCoreQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
   if (/\b(golden boot|golden glove|player prop|anytime scorer|tournament winner|outright winner)\b/i.test(q)) {
@@ -606,8 +797,9 @@ export function isWcKnockoutSlateQuestion(question) {
     /\b(knockout(?:[\s-]stage)?|round of 32|r32|round of 16|r16|quarterfinal|semifinal|elimination)\b/i;
   const valueCue =
     /\b(best|top|sharp|sneaky|good|value|mispriced|misprice|most mispriced|cleanest)\b/i;
-  const slateCue = /\b(today'?s?|slate|board|fixture|matchup|match(?:es)?|games?)\b/i;
-  const marketCue = /\b(moneyline|spread|total|over\/under|o\/u|handicap)\b/i;
+  const slateCue = /\b(today'?s?|tonight|slate|board|fixture|matchup|match(?:es)?|games?)\b/i;
+  const marketCue =
+    /\b(moneylines?|ML|spread|total|over\/under|o\/u|handicap|over|under)\b/i;
   const directCue = /\b(one pick|direct answer|right now)\b/i;
 
   if (/\bbest knockout\b/i.test(q) && valueCue.test(q)) return true;
@@ -618,26 +810,25 @@ export function isWcKnockoutSlateQuestion(question) {
 }
 
 /**
+ * Knockout slate / board value asks — fixture-bound prebuilt, never group advancement.
+ * @param {string} question
+ */
+export function isWcKnockoutSlateQuestion(question) {
+  return (
+    isWcDailyFixtureValueQuestion(question) || isWcKnockoutSlateCoreQuestion(question)
+  );
+}
+
+/**
  * Multi-match slate spread / goal-total board ("best spreads for each match today").
  * @param {string} question
  */
 export function isWcSlateMarketBoardQuestion(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
-  if (!q) return false;
-  if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|parlay prop)\b/i.test(q)) {
-    return false;
-  }
-  const hasDay = /\b(today'?s?|tomorrow'?s?)\b/i.test(q);
-  const hasWc = /\bworld cup\b/i.test(q);
-  const hasMultiMatch =
-    /\b(each|every|all|per)\b[\s\S]{0,48}\b(game|match|fixture)s?\b/i.test(q) ||
-    /\b(game|match|fixture)s?\b[\s\S]{0,40}\b(today|tomorrow)\b/i.test(q) ||
-    (hasDay && /\b(slate|fixtures?|matches?|games?)\b/i.test(q));
-  if (!hasMultiMatch) return false;
-  const marketAsk =
-    /\b(spreads?|handicaps?|asian handicap|goal\s*totals?|totals?|over\/under|o\/u)\b/i.test(q);
-  if (!marketAsk) return false;
-  return hasDay || hasWc;
+  if (!q || isWcSlateRoutingExclusion(q)) return false;
+  if (!isWcMultiMatchSlateCue(q)) return false;
+  if (!isWcSlateBetMarketCue(q)) return false;
+  return isWcSlateDayCue(q) || /\bworld cup\b/i.test(q);
 }
 
 /**
@@ -648,37 +839,29 @@ export function resolveWcSlateMarketBoardMode(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!isWcSlateMarketBoardQuestion(q)) return null;
   const wantsSpread = /\b(spreads?|handicaps?|asian handicap|handicap)\b/i.test(q);
-  const wantsTotals = /\b(goal\s*totals?|totals?|over\/under|o\/u)\b/i.test(q);
+  const wantsTotals =
+    /\b(goal\s*totals?|totals?|over\/under|o\/u)\b/i.test(q) ||
+    /\b(?:the\s+)?over\b/i.test(q) ||
+    /\bunders?\b/i.test(q) ||
+    /\bover\s+\d+(?:\.\d+)?\b/i.test(q) ||
+    /\bunder\s+\d+(?:\.\d+)?\b/i.test(q) ||
+    /\b\d+\+?\s*goals?\b/i.test(q);
+  const wantsMoneyline = /\bmoneylines?\b/i.test(q) || /\bML\b/.test(q);
+  if (wantsSpread && (wantsTotals || wantsMoneyline)) return "both";
   if (wantsSpread && wantsTotals) return "both";
   if (wantsSpread) return "spreads";
   if (wantsTotals) return "totals";
+  if (wantsMoneyline) return "spreads";
   return "totals";
 }
 
 /**
- * Broad slate picks ("sneaky bets tomorrow") — route to fast cross-group prebuilt, not full LLM.
+ * Broad slate picks ("sneaky bets tomorrow") — route to fixture slate prebuilt, not full LLM.
  * @param {string} question
+ * @param {{ fromWcTab?: boolean }} [opts]
  */
-export function isWcTomorrowOrSlateBetQuestion(question) {
-  const q = extractLatestUserTurnForRouting(String(question || "").trim());
-  if (!q) return false;
-  if (isWcKnockoutSlateQuestion(q)) return true;
-  if (isWcSlateMarketBoardQuestion(q)) return true;
-  if (isWcSlateOutcomePredictionQuestion(q)) return true;
-  if (/\b(golden boot|golden glove|player prop|anytime scorer|player parlay|player parlays|parlay prop)\b/i.test(q)) return false;
-  if (/\boutright\b/i.test(q) && !/\b(tomorrow|today'?s?|slate|matches)\b/i.test(q)) return false;
-  return (
-    /\b(sneaky|good bets?|best bets?|value bets?)\b[\s\S]{0,56}\b(tomorrow|matches tomorrow|world cup matches|today'?s?(?: matches| slate| games)?)\b/i.test(
-      q,
-    ) ||
-    /\b(tomorrow|today'?s?)\b[\s\S]{0,56}\b(good bets?|best bets?|world cup bets?|matches to bet)\b/i.test(
-      q,
-    ) ||
-    /\b(best|top|sneaky|good|value)\b[\s\S]{0,40}\bworld cup\b[\s\S]{0,40}\b(bets?|picks?|leans?)\b[\s\S]{0,24}\b(tomorrow|today)\b/i.test(
-      q,
-    ) ||
-    /\bworld cup\b[\s\S]{0,40}\b(bets?|picks?)\b[\s\S]{0,40}\b(tomorrow|today)\b/i.test(q)
-  );
+export function isWcTomorrowOrSlateBetQuestion(question, opts = {}) {
+  return resolveWcSlateRoutingKind(question, opts) != null;
 }
 
 /**

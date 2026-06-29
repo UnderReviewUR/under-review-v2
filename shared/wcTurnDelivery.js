@@ -14,18 +14,15 @@ import {
   isDuplicateWcStructuredCard,
 } from "./wcFixtureMatchupPrebuilt.js";
 import {
-  buildWcCrossGroupValuePrebuiltStructured,
-  buildWcGroupSlatePrebuiltStructured,
-  buildWcGroupUpsetScanPrebuiltStructured,
   buildWcRunnerUpFollowUpPrebuiltStructured,
-  shouldUseWcCrossGroupValuePrebuilt,
 } from "./wcGroupComposition.js";
 import {
+  buildWcGroupSlateLaneStructured,
+  resolveWcGroupSlateRouteForPlan,
+} from "./wcGroupSlateRoute.js";
+import {
   extractWcRunnerUpFromHistory,
-  isWcKnockoutSlateQuestion,
-  isWcTomorrowOrSlateBetQuestion,
 } from "./wcTakeRetentionQA.js";
-import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import { capWcCharsAtWord } from "./wcSentenceBoundaries.js";
 import {
@@ -292,60 +289,32 @@ export async function buildWcStructuredForPlan(plan, ctx = {}) {
   }
 
   if (plan.lane === WC_TURN_LANE.GROUP_SLATE) {
-    if (plan.reason === "tomorrow_slate_question" || isWcTomorrowOrSlateBetQuestion(question)) {
-      const matches = Array.isArray(ctx.matches)
-        ? ctx.matches
-        : Array.isArray(ctx.wcContext?.allMatches)
-          ? ctx.wcContext.allMatches
-          : [];
-      const structured =
-        early.wcTomorrowSlatePrebuiltEarly ||
-        early.tomorrowSlate ||
-        buildWcTomorrowSlatePrebuiltStructured({
-          question,
-          matches,
-          teamStats,
-          simLastUpdated,
-          nowMs,
-        });
-      return structured
-        ? { structured, passKind: WC_TURN_PASS_KIND.TOMORROW_SLATE }
-        : null;
-    }
-    if (plan.reason === "group_upset_scan") {
-      const structured = buildWcGroupUpsetScanPrebuiltStructured({
-        teamStats,
-        bdlFutures,
-        question,
-        nowMs,
-        simLastUpdated,
-      });
-      return structured
-        ? { structured, passKind: WC_TURN_PASS_KIND.UPSET_SCAN }
-        : null;
-    }
-    const structured =
-      buildWcCrossGroupValuePrebuiltStructured({
-        teamStats,
-        bdlFutures,
-        question,
-        nowMs,
-        simLastUpdated,
-      }) ||
-      (isWcKnockoutSlateQuestion(question) || isWcTomorrowOrSlateBetQuestion(question)
-        ? null
-        : buildWcGroupSlatePrebuiltStructured({
-            groupLetter: "D",
-            pickAbbr: "PAR",
-            pickMarket: "to advance",
-          }));
-    return structured
-      ? {
-          structured,
-          passKind: shouldUseWcCrossGroupValuePrebuilt(question, plan.intent)
-            ? WC_TURN_PASS_KIND.CROSS_GROUP
-            : WC_TURN_PASS_KIND.GROUP_SLATE,
-        }
+    const route = resolveWcGroupSlateRouteForPlan(plan, question, {
+      isConversationFollowUp: Boolean(ctx.isConversationFollowUp),
+      wcRunnerUpFollowUpQuestion: false,
+      fromWcTab: Boolean(ctx.fromWcTab),
+    });
+    const matches = Array.isArray(ctx.matches)
+      ? ctx.matches
+      : Array.isArray(ctx.wcContext?.allMatches)
+        ? ctx.wcContext.allMatches
+        : [];
+    const simMeta = ctx.wcContext?.tournamentSimResults || {};
+    const built = await buildWcGroupSlateLaneStructured({
+      route,
+      question,
+      intent: plan.intent,
+      matches,
+      teamStats,
+      bdlFutures,
+      simLastUpdated,
+      nowMs,
+      earlyPrebuilts: early,
+      upsetScanExtras: simMeta,
+      crossGroupExtras: simMeta,
+    });
+    return built
+      ? { structured: built.structured, passKind: built.passKind }
       : null;
   }
 
