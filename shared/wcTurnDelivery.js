@@ -332,11 +332,13 @@ export async function buildWcStructuredForPlan(plan, ctx = {}) {
         nowMs,
         simLastUpdated,
       }) ||
-      buildWcGroupSlatePrebuiltStructured({
-        groupLetter: "D",
-        pickAbbr: "PAR",
-        pickMarket: "to advance",
-      });
+      (isWcKnockoutSlateQuestion(question) || isWcTomorrowOrSlateBetQuestion(question)
+        ? null
+        : buildWcGroupSlatePrebuiltStructured({
+            groupLetter: "D",
+            pickAbbr: "PAR",
+            pickMarket: "to advance",
+          }));
     return structured
       ? {
           structured,

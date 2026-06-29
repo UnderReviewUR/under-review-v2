@@ -928,6 +928,7 @@ export function buildWcGroupValuePushBackPrebuiltStructured(opts = {}) {
  */
 export function shouldUseWcGroupSlatePrebuilt(question, wcIntent) {
   const q = String(question || "");
+  if (isWcKnockoutSlateQuestion(q)) return false;
   if (!isWcGroupSlateQuestion(q) && wcIntent !== WC_INTENT.STRUCTURAL) return false;
 
   const market = classifyWcAdvancementMarket(q);

@@ -10,7 +10,7 @@ import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.
 import { classifyWcFollowUpIntent } from "./wcFollowUpExplain.js";
 import { isWcLiveBetTimingQuestion, isWcLiveBetsQuestion } from "./wcLiveMatchQuestion.js";
 import { isWcPredictionsRoundupQuestion } from "./wcPredictionsRoundup.js";
-import { isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
+import { isWcKnockoutSlateQuestion, isWcTomorrowOrSlateBetQuestion } from "./wcTakeRetentionQA.js";
 import {
   extractWcPlayerParlayRankCount,
   isWcLiveMatchProbabilityQuestion,
@@ -349,6 +349,7 @@ export function isWcPlayerAwardMarketIntent(intent) {
  * @param {string} [wcIntent]
  */
 export function isWcGroupStructureQuestion(question, wcIntent) {
+  if (isWcKnockoutSlateQuestion(question)) return false;
   if (String(wcIntent || "") === WC_INTENT.STRUCTURAL) return true;
   return isWcGroupSlateQuestion(question);
 }

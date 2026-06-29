@@ -144,6 +144,78 @@ export function filterWcKnockoutMatchesForEtDate(matches, etYmd, nowMs = Date.no
 }
 
 /**
+ * Knockout slate board — requested ET day first, then nearest upcoming knockout fixtures.
+ * @param {Array<Record<string, unknown>>} [matches]
+ * @param {number} [nowMs]
+ * @param {"today" | "tomorrow"} [slateDay]
+ */
+export function resolveWcKnockoutSlateBoardMatches(matches = [], nowMs = Date.now(), slateDay = "today") {
+  const tournamentPhase = resolveWcTournamentPhase(matches, nowMs);
+  const scope = { allMatches: matches, tournamentPhase };
+  const todayYmd = wcTodayEtYmd(nowMs);
+  const targetYmd =
+    slateDay === "today" ? todayYmd : getTomorrowEtDateString(todayYmd);
+  const { matches: daySlate } = resolveWcSlateMatchesForEtDate(matches, targetYmd, nowMs, slateDay);
+  let slate = daySlate.filter((m) => isWcKnockoutFixtureMatch(m, scope));
+  if (slate.length) {
+    return { slateYmd: targetYmd, matches: slate, tournamentPhase, widened: false };
+  }
+
+  slate = (matches || [])
+    .filter((m) => isWcKnockoutFixtureMatch(m, scope))
+    .filter((m) => isTodaySlateEligibleStatus(m?.status))
+    .filter((m) => {
+      const ymd = resolveWcMatchSlateEtDate(m) || String(m?.date || "").slice(0, 10);
+      return ymd && ymd >= todayYmd;
+    })
+    .sort((a, b) => matchSortKey(a) - matchSortKey(b));
+
+  if (!slate.length) {
+    return { slateYmd: targetYmd, matches: [], tournamentPhase, widened: false };
+  }
+
+  const widenedYmd =
+    resolveWcMatchSlateEtDate(slate[0]) || String(slate[0]?.date || "").slice(0, 10) || targetYmd;
+  return { slateYmd: widenedYmd, matches: slate, tournamentPhase, widened: true };
+}
+
+/**
+ * Honest pass card when a knockout ask has no verified knockout fixtures on the board.
+ * @param {{ question?: string, nowMs?: number }} [opts]
+ */
+export function buildWcKnockoutSlateNoFixturesPrebuilt(opts = {}) {
+  const nowMs = Number(opts.nowMs) || Date.now();
+  const question = String(opts.question || "");
+  const slateDay = extractWcSlateDayFromQuestion(question);
+  const dayCopy = slateDayCopy(slateDay);
+  const slateYmd =
+    slateDay === "today" ? wcTodayEtYmd(nowMs) : getTomorrowEtDateString(wcTodayEtYmd(nowMs));
+  const lean = "Lean: Pass — no knockout fixtures on the verified board yet.".slice(0, 120);
+  const whyNow =
+    `No Round of 32+ fixtures are on ${dayCopy} verified slate (${slateYmd}) — group stage may still be running or lines are not posted.`.slice(
+      0,
+      400,
+    );
+  return {
+    sport: "worldcup",
+    callType: "knockout_slate",
+    lean,
+    call: "Knockout slate unavailable",
+    line: "",
+    whyNow,
+    deep: whyNow,
+    edge: "",
+    confidence: "Low",
+    caveats: [],
+    slateDay,
+    slateEtDate: slateYmd,
+    tomorrowEtDate: slateYmd,
+    tomorrowFixtureCount: 0,
+    tomorrowFixtures: [],
+  };
+}
+
+/**
  * @param {Array<Record<string, unknown>>} [matches]
  * @param {string} etYmd
  * @param {number} [nowMs]
@@ -833,10 +905,28 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   }
 
   const tournamentPhase = resolveWcTournamentPhase(matches, nowMs);
-  const knockoutPhase = isKnockoutPhase(tournamentPhase) || knockoutQuestion;
+  let knockoutPhase = isKnockoutPhase(tournamentPhase) || knockoutQuestion;
 
-  const { slateYmd, matches: slateMatches } = resolveWcSlateMatches(matches, nowMs, slateDay);
-  if (!slateMatches.length) return null;
+  let slateYmd;
+  let slateMatches;
+  let knockoutSlateWidened = false;
+  if (knockoutQuestion) {
+    const board = resolveWcKnockoutSlateBoardMatches(matches, nowMs, slateDay);
+    slateYmd = board.slateYmd;
+    slateMatches = board.matches;
+    knockoutSlateWidened = board.widened;
+    knockoutPhase = knockoutPhase || isKnockoutPhase(board.tournamentPhase) || slateMatches.length > 0;
+  } else {
+    const resolved = resolveWcSlateMatches(matches, nowMs, slateDay);
+    slateYmd = resolved.slateYmd;
+    slateMatches = resolved.matches;
+  }
+  if (!slateMatches.length) {
+    if (knockoutQuestion) {
+      return buildWcKnockoutSlateNoFixturesPrebuilt({ question, nowMs });
+    }
+    return null;
+  }
 
   const finishedTodayCount = countWcVerifiedFinishedOnSlate(matches, slateYmd, nowMs);
 
@@ -893,6 +983,9 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
         );
 
   const whyNow = [
+    knockoutSlateWidened
+      ? `No knockout fixtures on ${dayCopy} ET slate — nearest upcoming knockout round (${slateYmd}).`
+      : null,
     buildWcSlateWhyNowIntro(angles, {
       slateDay,
       slateYmd,

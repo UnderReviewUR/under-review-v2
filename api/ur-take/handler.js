@@ -153,7 +153,7 @@ import {
 } from "../_wcFixtureMatchupPrebuiltInputs.js";
 import { buildWcPrebuiltUrTakeStubContext } from "../../shared/wcPrebuiltUrTakeContext.js";
 import { buildWcTomorrowSlatePrebuiltFromInputs } from "../_wcTomorrowSlatePrebuiltInputs.js";
-import { isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
+import { isWcKnockoutSlateQuestion, isWcTomorrowOrSlateBetQuestion } from "../../shared/wcTakeRetentionQA.js";
 import {
   isWcLiveMatchProbabilityQuestion,
   isWcMatchProbabilityQuestion,
@@ -3142,7 +3142,7 @@ export default async function handler(req, res) {
           formRatingRange,
           formBumpApplied,
         });
-        if (!wcCrossGroupPrebuiltEarly) {
+        if (!wcCrossGroupPrebuiltEarly && !isWcKnockoutSlateQuestion(routingQuestion)) {
           wcCrossGroupPrebuiltEarly = buildWcGroupSlatePrebuiltStructured({
             groupLetter: "D",
             pickAbbr: "PAR",
@@ -3155,11 +3155,13 @@ export default async function handler(req, res) {
           buildWcCrossGroupValuePrebuiltStructured({
             question: String(question || ""),
           }) ||
-          buildWcGroupSlatePrebuiltStructured({
-            groupLetter: "D",
-            pickAbbr: "PAR",
-            pickMarket: "to advance",
-          });
+          (isWcKnockoutSlateQuestion(routingQuestion)
+            ? null
+            : buildWcGroupSlatePrebuiltStructured({
+                groupLetter: "D",
+                pickAbbr: "PAR",
+                pickMarket: "to advance",
+              }));
       }
     }
     const wcFixtureMoneylineRepeatFollowUp =
@@ -6536,6 +6538,7 @@ You are responding to a Pro subscriber. Apply the following:
       !isConversationFollowUp &&
       !wcPlayerMarketPassUsed &&
       !wcGroupSlatePassUsed &&
+      !isWcKnockoutSlateQuestion(routingQuestion) &&
       shouldUseWcGroupSlatePrebuilt(routingQuestion, wcIntent)
     ) {
       const prebuilt = buildWcGroupSlatePrebuiltStructured({
@@ -7663,6 +7666,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       !wcRunnerUpFollowUpQuestion &&
       wcQaResult &&
       !wcQaResult.passed &&
+      !isWcKnockoutSlateQuestion(routingQuestion) &&
       isWcGroupStructureQuestion(routingQuestion, wcIntent) &&
       (wcQaResult.issueCodes || []).includes("wc_group_math_mismatch")
     ) {
@@ -7712,6 +7716,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       !wcRunnerUpFollowUpQuestion &&
       wcQaResult &&
       !wcQaResult.passed &&
+      !isWcKnockoutSlateQuestion(routingQuestion) &&
       isWcGroupStructureQuestion(routingQuestion, wcIntent) &&
       (wcQaResult.issueCodes || []).includes("wc_group_roster_mismatch")
     ) {

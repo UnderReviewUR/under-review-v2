@@ -481,6 +481,12 @@ test("isWcKnockoutSlateQuestion — WC tab direct value opener", () => {
   assert.equal(shouldUseWcCrossGroupValuePrebuilt(q, "STRUCTURAL"), false);
 });
 
+test("isWcGroupStructureQuestion — knockout value is not group-structure repair", async () => {
+  const { isWcGroupStructureQuestion } = await import("./wcUrTakeIntent.js");
+  const q = "What's the best knockout value bet right now — one pick, direct answer?";
+  assert.equal(isWcGroupStructureQuestion(q, "STRUCTURAL"), false);
+});
+
 test("resolveWcTurnPlan — knockout value routes to slate prebuilt not structural LLM", () => {
   const q = "What's the best knockout value bet right now — one pick, direct answer?";
   const plan = resolveWcTurnPlan({
@@ -539,6 +545,44 @@ test("buildWcStructuredForPlan — knockout slate uses verified fixtures only", 
   assert.match(String(built.structured.fixtureHome || ""), /BRA/i);
   assert.match(String(built.structured.fixtureAway || ""), /JPN/i);
   assert.doesNotMatch(String(built.structured.lean || ""), /Colombia.*Mexico/i);
+});
+
+test("knockout value — group-only board returns pass card, never Paraguay advance", async () => {
+  const q = "What's the best knockout value bet right now — one pick, direct answer?";
+  const nowMs = Date.parse("2026-06-28T18:00:00-04:00");
+  const groupOnlyMatches = [
+    { homeTeam: "TUR", awayTeam: "PAR", group: "D", status: "NS", date: "2026-06-11" },
+    { homeTeam: "USA", awayTeam: "AUS", group: "D", status: "NS", date: "2026-06-12" },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: q,
+    matches: groupOnlyMatches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.equal(card.callType, "knockout_slate");
+  assert.doesNotMatch(String(card.lean || ""), /advance in Group/i);
+  assert.doesNotMatch(String(card.whyNow || ""), /Paraguay/i);
+
+  const plan = resolveWcTurnPlan({
+    question: q,
+    fullQuestion: q,
+    history: [],
+    isConversationFollowUp: false,
+    hasImage: false,
+    matches: groupOnlyMatches,
+    hasKvFixture: true,
+    mentionedTeams: [],
+    wcRunnerUpFollowUpQuestion: false,
+  });
+  const built = await buildWcStructuredForPlan(plan, {
+    question: q,
+    matches: groupOnlyMatches,
+    nowMs,
+    wcContext: { allMatches: groupOnlyMatches },
+  });
+  assert.ok(built?.structured);
+  assert.doesNotMatch(String(built.structured.lean || ""), /advance in Group/i);
 });
 
 test("buildWcTomorrowSlatePrebuiltStructured — knockout phase skips group opener fallback", () => {

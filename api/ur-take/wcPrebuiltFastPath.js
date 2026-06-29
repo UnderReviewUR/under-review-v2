@@ -20,6 +20,7 @@ import {
 import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructured.js";
 import {
   extractWcRunnerUpFromHistory,
+  isWcKnockoutSlateQuestion,
   isWcTomorrowOrSlateBetQuestion,
   shouldUseWcGroupValuePushBackPrebuilt,
 } from "../../shared/wcTakeRetentionQA.js";
@@ -157,11 +158,13 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
   ) {
     structuredResponse =
       wcCrossGroupPrebuiltEarly ||
-      buildWcGroupSlatePrebuiltStructured({
-        groupLetter: "D",
-        pickAbbr: "PAR",
-        pickMarket: "to advance",
-      });
+      (isWcKnockoutSlateQuestion(routingQuestion) || isWcTomorrowOrSlateBetQuestion(routingQuestion)
+        ? null
+        : buildWcGroupSlatePrebuiltStructured({
+            groupLetter: "D",
+            pickAbbr: "PAR",
+            pickMarket: "to advance",
+          }));
     passKind = "cross_group";
   } else if (
     !isConversationFollowUp &&
