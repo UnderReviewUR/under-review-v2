@@ -10,6 +10,7 @@ import {
 import {
   isWcMatchupOtherSideFollowUp,
   isWcTotalsExplainFollowUp,
+  isWcTotalsHoldPriorLeanFollowUp,
 } from "./wcMatchBettingPrompt.js";
 import { endsWithEllipsisTruncation } from "./wcSentenceBoundaries.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
@@ -74,6 +75,13 @@ export function resolveWcFollowUpSubject(history, question) {
       return { kind: "totals", priorStructured: prior, priorTotals };
     }
     return { kind: null, priorStructured: prior };
+  }
+
+  if (isWcTotalsHoldPriorLeanFollowUp(q)) {
+    const priorTotals = extractPriorTotalsLeanFromHistory(history);
+    if (priorTotals) {
+      return { kind: "totals", priorStructured: prior, priorTotals };
+    }
   }
 
   if (/\bover or under goals\b/i.test(ql)) {

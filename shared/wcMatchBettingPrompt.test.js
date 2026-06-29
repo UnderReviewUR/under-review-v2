@@ -6,6 +6,8 @@ import {
   detectWcMatchupAltFollowUpMlHeadline,
   isWcMatchupAltMarketFollowUp,
   isWcMatchupOtherSideFollowUp,
+  isWcTotalsHoldPriorLeanFollowUp,
+  isWcVagueMatchGoalsOverUnderAsk,
   WC_MATCH_BETTING_PROMPT_RULES,
 } from "./wcMatchBettingPrompt.js";
 
@@ -69,4 +71,12 @@ test("detectWcMatchupAltFollowUpMlHeadline flags repeated ML on alt follow-up", 
       { call: "Lean Under 2.5 goals", lean: "Lean Under 2.5 goals" },
     ),
   );
+});
+
+test("isWcVagueMatchGoalsOverUnderAsk — tempted to flip totals without line number", () => {
+  const q =
+    "tempted to go over considering brazils ability to score multiple and japan pressured to respond";
+  assert.ok(isWcVagueMatchGoalsOverUnderAsk(q));
+  assert.ok(isWcTotalsHoldPriorLeanFollowUp(q));
+  assert.ok(!isWcVagueMatchGoalsOverUnderAsk("Neymar over 1.5 shots on target"));
 });

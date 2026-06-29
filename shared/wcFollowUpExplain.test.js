@@ -160,3 +160,23 @@ test("slate drilldown follow-up detects go deeper on each", () => {
   assert.equal(rebuilt?.callType, "tomorrow_slate");
   assert.equal(rebuilt?.breakdownDefaultExpanded, true);
 });
+
+test("totals thread — tempted to go over routes to MATCHUP not player props", () => {
+  const q =
+    "tempted to go over considering brazils ability to score multiple and japan pressured to respond";
+  const history = [
+    {
+      role: "assistant",
+      structured: {
+        lean: "Lean Under 2.5 goals",
+        callType: "matchup",
+        fixtureHome: "BRA",
+        fixtureAway: "JPN",
+      },
+    },
+  ];
+  const subject = resolveWcFollowUpSubject(history, q);
+  assert.equal(subject.kind, "totals");
+  assert.equal(classifyWcFollowUpIntent(q, history), "MATCHUP");
+  assert.equal(classifyWcQuestionIntent(q, history), WC_INTENT.MATCHUP);
+});

@@ -29,6 +29,12 @@ test("isWcTotalsHoldPriorLeanFollowUp — sitting deep flip ask holds prior", ()
   assert.equal(isWcTotalsHoldPriorLeanFollowUp("why under 2.5 goals?"), true);
 });
 
+test("isWcTotalsHoldPriorLeanFollowUp — BRA vs JPN tempted-over follow-up", () => {
+  const q =
+    "tempted to go over considering brazils ability to score multiple and japan pressured to respond";
+  assert.equal(isWcTotalsHoldPriorLeanFollowUp(q), true);
+});
+
 test("repairWcTotalsHoldPriorLeanFollowUp — repairs flipped Under card to prior Over", () => {
   const flipped = {
     callType: "matchup",

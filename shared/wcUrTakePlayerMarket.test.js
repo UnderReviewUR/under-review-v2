@@ -78,6 +78,12 @@ test("extractWcNamedPlayerFromQuestion — host nations read is not a player nam
   );
 });
 
+test("extractWcNamedPlayerFromQuestion — totals temptation is not a player name", () => {
+  const q =
+    "tempted to go over considering brazils ability to score multiple and japan pressured to respond";
+  assert.equal(extractWcNamedPlayerFromQuestion(q), null);
+});
+
 test("isWcMatchTotalsQuestion — Spain over 3.5 routes to MATCHUP not player props", () => {
   const q = "Safe to bet Spain game has over 3.5 goals?";
   const history = [

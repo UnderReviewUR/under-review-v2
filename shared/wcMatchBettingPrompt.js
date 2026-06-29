@@ -4,6 +4,42 @@
 
 import { isWcMatchTotalsQuestion } from "./wcUrTakeIntent.js";
 
+/** Player-prop O/U with a stat line — not match goals. */
+function isWcPlayerPropStatOuAsk(question) {
+  const q = String(question || "");
+  return (
+    /\b(?:shots?|sot|assists?|cards?|tackles?|saves?)\b/i.test(q) &&
+    /\b(?:over|under)\s+\d+(?:\.\d+)?/i.test(q)
+  );
+}
+
+/**
+ * Match-goals over/under nuance without a totals line number ("tempted to go over…").
+ * @param {string} question
+ */
+export function isWcVagueMatchGoalsOverUnderAsk(question) {
+  const q = String(question || "").trim();
+  if (!q || isWcPlayerPropStatOuAsk(q)) return false;
+  if (
+    /\b(?:over|under)\s+\d+(?:\.\d+)?\s+(?:shots?|assists?|sot|cards?|tackles?|saves?)\b/i.test(q)
+  ) {
+    return false;
+  }
+  const hasOuCue =
+    /\bgo\s+(?:over|under)\b/i.test(q) ||
+    (/\b(?:over|under)\b/i.test(q) &&
+      /\b(?:tempted|leaning|thinking|consider(?:ing)?|flip|instead)\b/i.test(q));
+  if (!hasOuCue) return false;
+  if (
+    /\b(?:tempted|leaning|thinking|consider(?:ing)?|flip|instead|multiple|goals?|scoring|score\s+multiple|high\s+scoring|low\s+scoring|pressured\s+to\s+respond)\b/i.test(
+      q,
+    )
+  ) {
+    return true;
+  }
+  return /\bgo\s+(?:over|under)\b/i.test(q) && !/\b(?:shots?|assists?|sot|cards?|tackles?|saves?)\b/i.test(q);
+}
+
 export const WC_MATCH_BETTING_PROMPT_RULES = `MATCH BETTING — CASUAL BETTOR MODE (mandatory for "who wins", vs, matchup, opener questions):
 - HEADLINE / LEAN line one must answer the question: "[Team] [ML price] to win" (e.g. Canada -120 to win) before any alternate market.
 - Many users only know the moneyline. Sentence one must state who wins the match and why — name the favorite lean on the ML before any alternate market.
@@ -93,6 +129,7 @@ export function isWcTotalsHoldPriorLeanFollowUp(question) {
   ) {
     return true;
   }
+  if (isWcVagueMatchGoalsOverUnderAsk(q)) return true;
   return false;
 }
 

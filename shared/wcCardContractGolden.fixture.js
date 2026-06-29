@@ -276,6 +276,36 @@ export const WC_CARD_CONTRACT_GOLDEN_CASES = [
     notes: "Totals explain must reaffirm Under and use mechanism copy.",
   },
   {
+    id: "thread-matchup-tempted-over-bra-jpn",
+    question:
+      "tempted to go over considering brazils ability to score multiple and japan pressured to respond",
+    expectedIntent: "MATCHUP",
+    history: [
+      { role: "user", content: "Best bet on BRA vs JPN if I only know the moneyline?" },
+      {
+        role: "assistant",
+        structured: {
+          callType: "matchup",
+          fixtureHome: "BRA",
+          fixtureAway: "JPN",
+          lean: "Lean Under 2.5 goals",
+          whyNow: "Pre-kickoff — no confirmed Starting XI yet; lean is structural until lineups drop.",
+        },
+      },
+    ],
+    followUpExpect: {
+      explainKind: "totals",
+      priorTotalsSide: "under",
+      priorTotalsLine: 2.5,
+      requireDistinctWhy: true,
+      expectedCallType: "matchup",
+      forbidCallTypes: ["player_market_verified"],
+    },
+    routingExpect: { playerPropsFastPath: false },
+    notes:
+      "Prod repro: vague tempted-to-go-over must stay on totals thread — not player props board.",
+  },
+  {
     id: "thread-matchup-over-or-under",
     question: "Over or under goals?",
     expectedIntent: "MATCHUP",

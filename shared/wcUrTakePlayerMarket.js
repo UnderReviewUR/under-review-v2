@@ -11,6 +11,7 @@ import {
   isWcFixturePlayerMarketIntent,
   isWcPlayerAwardMarketIntent,
 } from "./wcUrTakeIntent.js";
+import { isWcVagueMatchGoalsOverUnderAsk } from "./wcMatchBettingPrompt.js";
 import {
   extractMentionedWcTeams,
   extractMentionedWcTeamsInQuestionOrder,
@@ -1341,6 +1342,12 @@ const WC_PLAYER_PROP_LEAD_WORDS = new Set([
   "boot",
   "world",
   "cup",
+  "tempted",
+  "considering",
+  "consider",
+  "leaning",
+  "thinking",
+  "ability",
 ]);
 
 const WC_AWARD_FALSE_POSITIVE_RE =
@@ -1377,6 +1384,7 @@ export function extractWcNamedPlayerFromQuestion(question) {
   if (!q) return null;
 
   if (isWcMatchTotalsQuestion(q)) return null;
+  if (isWcVagueMatchGoalsOverUnderAsk(q)) return null;
   if (/\b(your read on|read on the|outlook on)\b/i.test(q)) return null;
   if (/\bhost nations?\b/i.test(q) && !/\bwill\b/i.test(q)) return null;
 
@@ -1399,11 +1407,15 @@ export function extractWcNamedPlayerFromQuestion(question) {
   if (!lead || WC_PLAYER_PROP_LEAD_WORDS.has(lead)) return null;
 
   const m = normalized.match(
-    /^([A-Za-zÀ-ÿ][\wÀ-ÿ' -]*?)(?:\s+(?:\d|o\/u|(?:over|under)\s+\d+(?:\.\d+)?\s+(?:shots?|assists?)|to\s+(?:score|record|have|get))\b)/i,
+    /^((?:[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)(?:\s+(?!over\b|under\b)[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+){0,2})(?:\s+(?:\d|o\/u|(?:over|under)\s+\d+(?:\.\d+)?\s+(?:shots?|assists?)|to\s+(?:score|record|have|get))\b)/i,
   );
   const raw = String(m?.[1] || "").trim();
   if (!raw || raw.length < 2) return null;
   const name = raw.split(/\s+/).slice(0, 3).join(" ");
+  const nameWords = name.toLowerCase().split(/\s+/);
+  if (nameWords.some((word) => WC_PLAYER_PROP_LEAD_WORDS.has(word) || word === "over" || word === "under")) {
+    return null;
+  }
   const first = name.split(/\s+/)[0]?.toLowerCase();
   if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) return null;
   if (isWcNationOrAwardFalsePositive(name, q)) return null;

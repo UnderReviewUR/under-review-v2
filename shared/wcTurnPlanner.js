@@ -36,6 +36,7 @@ import {
   isWcMatchupAltMarketFollowUp,
   isWcMatchupOtherSideFollowUp,
   isWcTotalsExplainFollowUp,
+  isWcTotalsHoldPriorLeanFollowUp,
 } from "./wcMatchBettingPrompt.js";
 import {
   isWcPlayerPropFollowUpExplain,
@@ -389,7 +390,9 @@ export function resolveWcTurnPlan(params = {}) {
   const threadTotalsFollowUp =
     isConversationFollowUp &&
     priorLean &&
-    (isWcMatchupAltMarketFollowUp(question) || isWcTotalsExplainFollowUp(question));
+    (isWcMatchupAltMarketFollowUp(question) ||
+      isWcTotalsExplainFollowUp(question) ||
+      isWcTotalsHoldPriorLeanFollowUp(question));
   if (
     (intent === WC_INTENT.ENTITY_PRICING || intent === WC_INTENT.STRUCTURAL) &&
     !threadTotalsFollowUp &&
