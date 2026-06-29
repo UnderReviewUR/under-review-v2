@@ -29,6 +29,7 @@ import {
   isWcOddsLineMovementQuestion,
   WC_ODDS_LINE_MOVEMENT_PROMPT,
 } from "./wcOddsLineMovement.js";
+import { isWcBettingScreenshotAnalyzeQuestion } from "./wcUrTakePhilosophy.js";
 import { extractFirstAmericanOddsToken } from "./formatOddsAmerican.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"PARLAY"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
@@ -552,6 +553,13 @@ export function buildWcTurnScopeBlock(question, wcIntent, opts = {}) {
       : "";
     return `TURN SCOPE (binding):
 ${WC_ODDS_LINE_MOVEMENT_PROMPT}${citedLine}`;
+  }
+  if (isWcBettingScreenshotAnalyzeQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User attached a sportsbook screenshot with visible fixture markets — read prices from the image first (To Advance, 90-min ML, totals, BTTS, props tabs).
+- NEVER "Pass until verified lines post" or "Same-script legs — Pass" when American prices are visible on screen.
+- Recommend the cleanest single-market or small combo from what's posted; cite the numbers you see (-669, -285, O2.5 -138, etc.).
+- Separate 90-min ML from to-advance / ET paths when both appear.`;
   }
   if (
     isWcTopGoalscorersListQuestion(routingQuestion) ||

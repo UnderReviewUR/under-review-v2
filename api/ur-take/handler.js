@@ -1305,7 +1305,8 @@ worldcup
 ${relevantContext}
 
 Critical rules:
-- Prioritize what is explicitly visible in the screenshot text (score, minute, spread/price, stake).
+- Prioritize what is explicitly visible in the screenshot text (To Advance, 90-min Moneyline, Total Goals, BTTS, player prop tabs, score, minute, spread/price, stake).
+- When the image is a pregame market menu with posted American prices, analyze which line is best to play — never default to "Pass until verified lines post" or generic SGP pass copy.
 - For single-leg live spread or total asks, do NOT default to "Fade". Decide Lean or Pass using game-state risk.
 - If the user asks "should I bet this" and edge is unclear, use Pass (do not force an action).
 - ${WC_ODDS_LINE_MOVEMENT_PROMPT}

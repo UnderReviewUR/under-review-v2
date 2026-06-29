@@ -269,3 +269,16 @@ test("isWcPropsShapeRoutedAsk gates non-props WC intents", () => {
     false,
   );
 });
+
+test("isWcPropsShapeRoutedAsk — screenshot market analyze is not props shape", () => {
+  assert.equal(
+    isWcPropsShapeRoutedAsk({
+      sportHint: "worldcup",
+      wcIntent: WC_INTENT.GENERAL,
+      routingQuestion: "analyze the options on this screenshot. whats best to play?",
+      hasImage: true,
+      history: [],
+    }),
+    false,
+  );
+});

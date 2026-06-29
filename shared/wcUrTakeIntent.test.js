@@ -197,3 +197,12 @@ test("buildWcTurnScopeBlock — line movement cites user price", () => {
   assert.match(scope, /ODDS LINE MOVEMENT/i);
   assert.match(scope, /User cited price: -669/i);
 });
+
+test("buildWcTurnScopeBlock — screenshot analyze forbids cold pass", () => {
+  const scope = buildWcTurnScopeBlock(
+    "analyze the options on this screenshot. whats best to play?",
+    WC_INTENT.GENERAL,
+  );
+  assert.match(scope, /screenshot/i);
+  assert.match(scope, /NEVER.*Pass until verified/i);
+});

@@ -5,6 +5,7 @@ import {
   buildWcScriptPriceUserAppendix,
   buildWcTeamMarketOpenerPromptBlock,
   detectWcSgpComboIntent,
+  isWcBettingScreenshotAnalyzeQuestion,
   isWcTeamMarketOpenerQuestion,
   shouldRunNbaFirstSessionGuarantee,
 } from "./wcUrTakePhilosophy.js";
@@ -80,6 +81,15 @@ test("detectWcSgpComboIntent — both players to score without parlay keyword", 
     true,
   );
   assert.equal(detectWcSgpComboIntent("Both players to score in CIV vs ECU — Jackson and Valencia"), true);
+});
+
+test("detectWcSgpComboIntent — thread recap does not poison screenshot analyze turn", () => {
+  const full = `User: thoughts on BTTS +110 - Florian Wirtz TSOA -110 - Germany ML + Over 2.5 goals. +100
+
+Follow-up:
+analyze the options on this screenshot. whats best to play?`;
+  assert.equal(detectWcSgpComboIntent(full), false);
+  assert.equal(isWcBettingScreenshotAnalyzeQuestion(full), true);
 });
 
 test("classifyWcQuestionIntent — combo props route to PLAYER_PROP not MATCHUP", () => {

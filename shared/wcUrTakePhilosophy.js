@@ -4,6 +4,7 @@
  */
 
 import { detectParlayIntent } from "./detectParlayIntent.js";
+import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 import { extractMentionedWcTeams, questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
@@ -44,13 +45,31 @@ const WC_PROP_LEG_SIGNAL_RES = [
 ];
 
 /**
+ * Sportsbook screenshot / market-menu analyze — not an SGP combo ask.
+ * @param {string} question
+ */
+export function isWcBettingScreenshotAnalyzeQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "")).trim();
+  if (!q) return false;
+  return (
+    /\b(screenshot|see attached|attached|paste[sd]?)\b/i.test(q) ||
+    /\banalyze\b[\s\S]{0,48}\b(options|lines|markets|screenshot|odds|this)\b/i.test(q) ||
+    /\bwhat'?s best to (play|bet)\b/i.test(q) ||
+    /\bbest (?:thing|market|line|bet) to play\b/i.test(q) ||
+    /\bwhich (?:line|market|play) (?:is best|to take|should i)\b/i.test(q)
+  );
+}
+
+/**
  * Multi-leg WC ticket without requiring the word "parlay" / "sgp".
  * @param {string} question
  */
 export function detectWcSgpComboIntent(question) {
-  if (detectParlayIntent(question)) return true;
-  const q = String(question || "").trim();
+  if (isWcBettingScreenshotAnalyzeQuestion(question)) return false;
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
+
+  if (detectParlayIntent(q)) return true;
 
   if (
     /\bboth\b/i.test(q) &&

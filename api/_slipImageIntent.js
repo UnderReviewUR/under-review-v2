@@ -31,6 +31,9 @@ function hasBettingSlipKeywordSignals(q) {
   const s = normalizeSlipQuestionText(q);
   if (!s) return false;
   return (
+    /\b(see attached|attached|paste[sd]?)\b/i.test(s) ||
+    /\banalyze\b[\s\S]{0,48}\b(options|lines|markets|screenshot|odds)\b/i.test(s) ||
+    /\bwhat'?s best to (play|bet)\b/i.test(s) ||
     /\b(odds|spread|moneyline|ml|totals?|over|under|o\/u|\bou\b|parlay|same[\s.\-]*game|sgp|pick'?em|pick em|entries|boost|leg|legs|prop|props|stake|units?|payout|book|sportsbook|draftkings|fanduel|betmgm|caesars|underdog|prizepicks|prize\s*picks)\b/i.test(
       s,
     ) ||
@@ -81,7 +84,11 @@ function isVagueImageBettingQuestion(q) {
     /^analyze (this|it)\b/i.test(s) ||
     /^break (this|it) down\b/i.test(s) ||
     /^look ok\??$/i.test(s) ||
-    /^look good\??$/i.test(s)
+    /^look good\??$/i.test(s) ||
+    /\b(see attached|attached|paste[sd]?)\b/i.test(s) ||
+    /\banalyze\b[\s\S]{0,48}\b(options|lines|markets|screenshot|odds)\b/i.test(s) ||
+    /\bwhat'?s best to (play|bet)\b/i.test(s) ||
+    /\bbest (?:thing|market|line|bet) to play\b/i.test(s)
   );
 }
 

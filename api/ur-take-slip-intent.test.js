@@ -27,3 +27,11 @@ test("detectIntent — slip_review when copy looks like a slip (or keyword betti
   assert.equal(detectIntent("check my parlay", true), "slip_review");
   assert.equal(detectIntent("what do you think of these odds", true), "slip_review");
 });
+
+test("detectIntent — image + analyze screenshot markets routes slip_review", () => {
+  assert.equal(
+    detectIntent("analyze the options on this screenshot. whats best to play?", true),
+    "slip_review",
+  );
+  assert.equal(detectIntent("see attached", true), "slip_review");
+});

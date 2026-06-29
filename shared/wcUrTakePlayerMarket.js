@@ -27,6 +27,7 @@ import { resolveWcPropBoardMarketKeysForQuestion } from "./wcMatchPlayerProps.js
 import {
   buildWcSgpComboPassHeadline,
   detectWcSgpComboIntent,
+  isWcBettingScreenshotAnalyzeQuestion,
 } from "./wcUrTakePhilosophy.js";
 import { splitWcSentences, capWcDeepWords } from "./wcSentenceBoundaries.js";
 import { ensureWcCardFaceNumericWhy } from "./wcTakeRetentionQA.js";
@@ -1913,6 +1914,7 @@ export function isWcPlayerPropPassStructured(structured, question = "") {
  */
 export function repairWcPlayerPropPassCard(structured, question = "") {
   if (!structured || typeof structured !== "object") return structured;
+  if (isWcBettingScreenshotAnalyzeQuestion(question)) return structured;
   if (!isWcPlayerPropPassStructured(structured, question)) return structured;
 
   const out = { ...structured };

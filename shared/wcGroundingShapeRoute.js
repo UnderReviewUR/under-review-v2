@@ -11,6 +11,7 @@ import {
   extractWcNamedPlayerPropLegsFromQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import { isWcPlayerPropFollowUpExplain } from "./wcFollowUpExplain.js";
+import { isWcBettingScreenshotAnalyzeQuestion } from "./wcUrTakePhilosophy.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
 import {
   hasMatchPlayerPropRows,
@@ -39,9 +40,18 @@ export function isWcPropsShapeRoutedAsk(params) {
     hasImage = false,
     history = [],
   } = params;
-  if (sportHint !== "worldcup") return false;
-  if (hasImage) return true;
   const q = String(routingQuestion || "").trim();
+  if (sportHint !== "worldcup") return false;
+  if (hasImage) {
+    if (isWcBettingScreenshotAnalyzeQuestion(routingQuestion)) return false;
+    if (isWcPlayerMarketIntent(wcIntent)) return true;
+    if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
+    if (isWcNamedPlayerPropQuestion(q)) return true;
+    if (isGenericWcPlayerPropQuestion(q)) return true;
+    if (detectParlayIntent(q) && /\b(player|prop|scorer|shots|sot)\b/i.test(q)) return true;
+    if (isWcPlayerPropFollowUpExplain(q, history)) return true;
+    return false;
+  }
   if (isWcPlayerMarketIntent(wcIntent)) return true;
   if (wcIntent === WC_INTENT.PLAYER_PROP) return true;
   if (isWcNamedPlayerPropQuestion(q)) return true;
