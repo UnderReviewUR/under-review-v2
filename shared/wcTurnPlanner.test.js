@@ -185,6 +185,27 @@ test("resolveWcTurnIntent — other side follow-up maps to MATCHUP not CONTINUAT
   assert.equal(intent, WC_INTENT.MATCHUP);
 });
 
+test("resolveWcTurnIntent — line movement ask maps to MATCHUP not GENERAL", () => {
+  const q =
+    "It's Germany at -669. Does that go to like -575 if it's scoreless early on?";
+  assert.equal(resolveWcTurnIntent(q, [], false, null), WC_INTENT.MATCHUP);
+});
+
+test("resolveWcTurnUseLiteContext — disabled for odds line movement follow-up", () => {
+  const q = "Will Germany odds go up or down if it's 5 mins in and scoreless?";
+  assert.equal(
+    resolveWcTurnUseLiteContext({
+      lane: WC_TURN_LANE.LLM_LITE,
+      intent: WC_INTENT.GENERAL,
+      isFollowUp: true,
+      priorLean: null,
+      pinnedEventId: null,
+      question: q,
+    }),
+    false,
+  );
+});
+
 test("resolveWcTurnUseLiteContext — disabled when prior structured lean exists", () => {
   assert.equal(
     resolveWcTurnUseLiteContext({

@@ -188,3 +188,12 @@ test("buildWcTurnScopeBlock — tournament winner pivots away from prior fixture
   assert.match(scope, /NOT.*Game 1/i);
   assert.match(scope, /winPct/i);
 });
+
+test("buildWcTurnScopeBlock — line movement cites user price", () => {
+  const scope = buildWcTurnScopeBlock(
+    "It's Germany at -669. Does that go to like -575 if it's scoreless early on?",
+    WC_INTENT.MATCHUP,
+  );
+  assert.match(scope, /ODDS LINE MOVEMENT/i);
+  assert.match(scope, /User cited price: -669/i);
+});

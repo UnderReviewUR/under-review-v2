@@ -28,6 +28,7 @@ import {
   isWcActionablePropLeanText,
   questionAsksPlayerPropsAndTotals,
 } from "../../shared/wcUrTakePlayerMarket.js";
+import { isWcMoneylineBestBetQuestion } from "../../shared/wcFixtureMatchupPrebuilt.js";
 
 export const UR_TAKE_BREAKDOWN_LABEL = "More detail";
 export const UR_TAKE_SLATE_BREAKDOWN_LABEL = "View full board";
@@ -119,9 +120,13 @@ export function buildWcSlateListFace(opts = {}) {
 export function buildWcPropsListFace(opts = {}) {
   const explicitRows = Array.isArray(opts.propBoardRows) ? opts.propBoardRows : [];
   if (explicitRows.length >= 2) {
-    const intro =
-      String(opts.call || "").trim() ||
-      `${opts.fixtureHome || ""} vs ${opts.fixtureAway || ""} — top player props`.trim();
+    const callStr = String(opts.call || "").trim();
+    const passIntro = /^pass\b|^no verified/i.test(callStr);
+    const intro = passIntro
+      ? `${opts.fixtureHome || ""} vs ${opts.fixtureAway || ""} — posted player props`.replace(/^\s*vs\s+/i, "").trim() ||
+        "Posted player props"
+      : callStr ||
+        `${opts.fixtureHome || ""} vs ${opts.fixtureAway || ""} — top player props`.trim();
     const rows = explicitRows
       .map((row) => {
         const label = String(row?.label || row?.player || "").trim();
@@ -782,6 +787,12 @@ export function prepareWcCardFaceDisplay(opts = {}) {
   const fullPlay = String(opts.thePlay || "").trim();
   const fullDeep = String(opts.breakdown || "").trim();
   const lineSlot = String(opts.lineSlot || "").trim();
+  const leanStr = String(opts.lean || "").trim();
+
+  const questionStr = String(opts.question || "").trim();
+  const skipPropsListFace =
+    ct === "matchup" &&
+    (isWcMoneylineBestBetQuestion(questionStr) || /^lean (?:under|over)\s+\d/i.test(leanStr));
 
   let slateListFace =
     selfContainedSlateBreakdown
@@ -790,28 +801,33 @@ export function prepareWcCardFaceDisplay(opts = {}) {
           slateDay: opts.slateDay,
           fixtureCount: opts.tomorrowFixtureCount,
         })
-      : buildWcParlayListFace({
-          call: opts.call,
-          parlayLegs: opts.parlayLegs,
-          parlayCombinedOdds: opts.parlayCombinedOdds,
-        }) ||
-        (isWcNamedLegPropsStructuredCard({
-          call: opts.call,
-          lean: opts.lean,
-          wcNamedPlayerPropsCard: opts.wcNamedPlayerPropsCard,
-        })
-          ? null
-          : buildWcPropsListFace({
-              call: opts.call,
-              lean: opts.lean,
-              propBoardRows: opts.propBoardRows,
-              cardType: opts.cardType,
-              fixtureHome: opts.fixtureHome,
-              fixtureAway: opts.fixtureAway,
-            }));
+      : skipPropsListFace
+        ? buildWcParlayListFace({
+            call: opts.call,
+            parlayLegs: opts.parlayLegs,
+            parlayCombinedOdds: opts.parlayCombinedOdds,
+          })
+        : buildWcParlayListFace({
+            call: opts.call,
+            parlayLegs: opts.parlayLegs,
+            parlayCombinedOdds: opts.parlayCombinedOdds,
+          }) ||
+          (isWcNamedLegPropsStructuredCard({
+            call: opts.call,
+            lean: opts.lean,
+            wcNamedPlayerPropsCard: opts.wcNamedPlayerPropsCard,
+          })
+            ? null
+            : buildWcPropsListFace({
+                call: opts.call,
+                lean: opts.lean,
+                propBoardRows: opts.propBoardRows,
+                cardType: opts.cardType,
+                fixtureHome: opts.fixtureHome,
+                fixtureAway: opts.fixtureAway,
+              }));
 
   const tier = String(opts.playerMarketTier || "").toLowerCase();
-  const leanStr = String(opts.lean || "").trim();
   const verifiedActionable =
     tier === "verified" &&
     isWcActionablePropLeanText(leanStr) &&

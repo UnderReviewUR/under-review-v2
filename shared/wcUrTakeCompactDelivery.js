@@ -37,6 +37,11 @@ import {
 } from "./wcSentenceBoundaries.js";
 import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
 import { buildWcThreadAwarePassFallback, applyWcThreadPriorLeanPassRewrite } from "./wcTurnDelivery.js";
+import {
+  isWcOddsLineMovementQuestion,
+  repairWcOddsLineMovementGenericPass,
+  synthesizeWcOddsLineMovementLean,
+} from "./wcOddsLineMovement.js";
 import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import {
   extractWcMatchupPlayHeadline,
@@ -310,7 +315,9 @@ function buildWcMatchupCompactStructured(opts = {}) {
   ).trim();
   const line = String(seed?.line || synthesizeWcMatchupLine(summarySents, deep, teams)).trim();
   let lean = String(seed?.lean || "").trim();
-  if (!lean || WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
+  if (isWcOddsLineMovementQuestion(question)) {
+    lean = synthesizeWcOddsLineMovementLean(question) || lean;
+  } else if (!lean || WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
     const pass = isWcPassVerdict(summary, lean);
     lean =
       synthesizeWcMatchupPlay(summary, deep, question, teams, pass) ||
@@ -325,7 +332,7 @@ function buildWcMatchupCompactStructured(opts = {}) {
         match: opts.match,
       });
   }
-  if (WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
+  if (!isWcOddsLineMovementQuestion(question) && WC_MATCHUP_PASS_LEAN_RE.test(lean)) {
     lean =
       synthesizeWcMatchupPlay(summary, deep, question, teams, true) ||
       buildWcThreadAwarePassFallback(
@@ -891,6 +898,7 @@ function finalizeWcCompactExplainDelivery(built, opts = {}) {
     out = applyWcFollowUpExplainDelivery(out, String(opts.question || ""), opts.history);
   }
   out = applyWcThreadPriorLeanPassRewrite(out, opts);
+  out = repairWcOddsLineMovementGenericPass(out, String(opts.question || ""));
   return out;
 }
 

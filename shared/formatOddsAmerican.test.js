@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   americanOddsProfit,
   americanToDecimal,
+  extractFirstAmericanOddsToken,
   formatAmericanOddsStakeProfitPhrase,
   formatOddsAmerican,
   parseAmericanOddsValue,
@@ -14,6 +15,15 @@ test("parseAmericanOddsValue — positive, negative, invalid", () => {
   assert.equal(parseAmericanOddsValue(null), null);
   assert.equal(parseAmericanOddsValue("TBD"), null);
   assert.equal(parseAmericanOddsValue("evens"), null);
+});
+
+test("extractFirstAmericanOddsToken — at-price and bare negative", () => {
+  assert.equal(
+    extractFirstAmericanOddsToken("It's Germany at -669. Does that go to like -575?"),
+    "-669",
+  );
+  assert.equal(extractFirstAmericanOddsToken("Norway at +2500 — mispriced?"), "+2500");
+  assert.equal(extractFirstAmericanOddsToken("scoreless 0-0 at five mins"), null);
 });
 
 test("americanToDecimal", () => {

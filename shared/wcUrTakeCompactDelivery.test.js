@@ -585,3 +585,20 @@ test("buildWcCompactStructured — mixed props+totals compacts unicode player ca
   assert.doesNotMatch(s.lean, /fairly priced/i);
   assert.match(s.lean, /Under 2\.5/i);
 });
+
+test("buildWcCompactStructured — line movement replaces cold pass lean", () => {
+  const s = buildWcCompactStructured({
+    question:
+      "It's Germany at -669. Does that go to like -575 if it's scoreless early on?",
+    wcIntent: WC_INTENT.MATCHUP,
+    summary: "Pass — no actionable line yet; see Watch For before locking a bet.",
+    deep: "A scoreless opening is noise at this stage — too early for meaningful line shift.",
+    structuredSeed: {
+      callType: "matchup",
+      lean: "Pass — no actionable line yet; see Watch For before locking a bet.",
+      call: "Pass — no actionable line yet",
+    },
+  });
+  assert.doesNotMatch(String(s.lean), /no actionable line yet/i);
+  assert.match(String(s.lean), /-669|shorten/i);
+});

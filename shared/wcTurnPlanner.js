@@ -623,6 +623,7 @@ export function resolveWcTurnPlan(params = {}) {
     isFollowUp: isConversationFollowUp,
     priorLean,
     pinnedEventId,
+    question,
   });
 
   if (isConversationFollowUp && (priorLean || pinnedEventId)) {

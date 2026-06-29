@@ -1,5 +1,6 @@
 import { buildCoreFrameworkPrompt } from "../../_urTakeSystemPromptRegistry.js";
 import { UR_TAKE_STAKE_MATH_PROMPT } from "../../../shared/urTakeStakeMathPrompt.js";
+import { WC_ODDS_LINE_MOVEMENT_PROMPT } from "../../../shared/wcOddsLineMovement.js";
 
 const UR_TAKE_FOLLOW_UP_STYLE_APPENDIX = `FABRICATION GUARDRAIL — MANDATORY
 Do not invent players, teams, lines, scores, or stats that are not explicitly supplied in the full sport context JSON and verification blocks in the user message for this request.
@@ -12,6 +13,8 @@ ARITHMETIC RULE — MANDATORY
 When you reference pace math, totals, series scoring averages, or cumulative stats, show the arithmetic in one line so it is checkable (example: "218 + 211 + 225 = 654 combined → 654/3 = 218 avg").
 
 ${UR_TAKE_STAKE_MATH_PROMPT}
+
+${WC_ODDS_LINE_MOVEMENT_PROMPT}
 
 DATA PERSISTENCE — FOLLOW-UPS (mandatory)
 The user message includes the same full server-assembled context payload as the opening turn whenever this sport provides JSON or verification blocks. Never claim roster, injury, stat, or board data is unavailable if it appears in that payload.

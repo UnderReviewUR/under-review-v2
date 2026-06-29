@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   applyWcGroundingCardToStructured,
   buildWcGroundingPacketForUrTake,
+  shouldApplyWcPropsGrounding,
 } from "./_wcGroundingUrTake.js";
+import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import {
   buildWcGroundingStripModel,
   formatWcGroundingPinnedLine,
@@ -234,4 +236,73 @@ test("applyWcGroundingCardToStructured — first goalscorer ask keeps scorer boa
   assert.ok(rows.length >= 2);
   assert.ok(rows.every((r) => String(r.market || "") === "first_goalscorer"));
   assert.ok(!String(structured.lean || "").match(/SOT|shots on target/i));
+});
+
+test("applyWcGroundingCardToStructured — moneyline best bet keeps pin strip without prop board", () => {
+  const question = "Best bet on GER vs PAR if I only know the moneyline?";
+  const packet = buildWcGroundingPacketForUrTake({
+    requestId: "ger-par-ml-best",
+    question,
+    routingQuestion: question,
+    history: [],
+    matches: [
+      {
+        id: "1781476490935",
+        homeTeam: "GER",
+        awayTeam: "PAR",
+        status: "ns",
+        commenceTs: Date.now() + 3_600_000,
+        bdlMatchId: 1781476490935,
+      },
+    ],
+    fixtureTeams: ["GER", "PAR"],
+    resolvedEventId: "1781476490935",
+    matchPlayerProps: {
+      eventId: "1781476490935",
+      homeTeam: "GER",
+      awayTeam: "PAR",
+      source: "bdl",
+      lastUpdated: Date.now() - 75_000,
+      markets: {
+        player_shots_ou: makeMarketRows(8, "Shot"),
+        player_sot_ou: makeMarketRows(6, "SOT"),
+      },
+    },
+    loadMeta: { attempts: 1, coldStart: false, fromCache: true, loadMs: 12, failed: false },
+  });
+
+  const structured = applyWcGroundingCardToStructured(
+    {
+      sport: "worldcup",
+      callType: "matchup",
+      call: "Lean Under 3.5 goals",
+      lean: "Lean Under 3.5 goals",
+      whyNow: "Pre-kickoff — no confirmed Starting XI yet; lean is structural until lineups drop.",
+      fixtureHome: "GER",
+      fixtureAway: "PAR",
+      playerMarketTier: "verified",
+    },
+    packet,
+    { question, mergePropBoard: false },
+  );
+
+  assert.equal(structured.groundingVisible, true);
+  assert.match(structured.groundingPinBanner?.headline || "", /Germany|GER/i);
+  assert.equal(structured.call, "Lean Under 3.5 goals");
+  assert.equal(structured.lean, "Lean Under 3.5 goals");
+  assert.equal(structured.propBoardRows, undefined);
+});
+
+test("shouldApplyWcPropsGrounding — false for moneyline-only best bet on matchup card", () => {
+  const q = "Best bet on GER vs PAR if I only know the moneyline?";
+  assert.equal(
+    shouldApplyWcPropsGrounding(WC_INTENT.MATCHUP, {
+      sport: "worldcup",
+      callType: "matchup",
+      fixtureHome: "GER",
+      fixtureAway: "PAR",
+      playerMarketTier: "verified",
+    }, q),
+    false,
+  );
 });

@@ -30,6 +30,7 @@ import {
   isWcTotalsExplainFollowUp,
 } from "./wcMatchBettingPrompt.js";
 import { WC_TURN_LANE } from "./wcTurnConstants.js";
+import { isWcOddsLineMovementQuestion } from "./wcOddsLineMovement.js";
 
 /** Lanes where a structured prebuilt card anchors the thread. */
 const WC_PRIOR_PREBUILT_THREAD_LANES = new Set([
@@ -267,6 +268,9 @@ export function isWcConditionalMatchupFollowUp(question, priorLean) {
  * @param {Record<string, unknown> | null | undefined} priorLean
  */
 export function resolveWcTurnIntent(question, history, isFollowUp, priorLean) {
+  if (isWcOddsLineMovementQuestion(question)) {
+    return WC_INTENT.MATCHUP;
+  }
   const prior =
     priorLean && isWcPriorPrebuiltThreadLean(priorLean)
       ? priorLean
@@ -337,9 +341,11 @@ export function resolveWcTurnUseLiteContext(params) {
     isFollowUp,
     priorLean,
     pinnedEventId,
+    question = "",
   } = params;
 
   if (!isFollowUp) return false;
+  if (isWcOddsLineMovementQuestion(question)) return false;
   if (priorLean) return false;
   if (pinnedEventId) return false;
   if (isWcPlayerMarketIntent(intent)) return false;

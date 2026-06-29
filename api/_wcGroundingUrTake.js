@@ -33,6 +33,7 @@ function isWcParlayStructuredCard(structured) {
   return String(structured?.callType || "").toLowerCase() === "parlay";
 }
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
+import { isWcMoneylineBestBetQuestion } from "../shared/wcFixtureMatchupPrebuilt.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import { resolveWcFixturePairFromHistory } from "../shared/wcFixtureMatchupPrebuilt.js";
 import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
@@ -520,11 +521,13 @@ function formatFixtureAmbiguityCaveat(pinnedFixture) {
  * @param {import("../shared/wcGroundingPacket.types.js").WcGroundingPacket | null | undefined} packet
  * @param {object} [opts]
  * @param {string} [opts.question]
+ * @param {boolean} [opts.mergePropBoard] — when false, pin/inventory only (matchup totals cards)
  */
 export function applyWcGroundingCardToStructured(structured, packet, opts = {}) {
   if (!structured || typeof structured !== "object" || !packet?.views?.card) {
     return structured;
   }
+  const mergePropBoard = opts.mergePropBoard !== false;
   const card = packet.views.card;
   const blockerMessages = Array.isArray(packet.blockers?.messages)
     ? packet.blockers.messages.filter(Boolean)
@@ -546,7 +549,7 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
     wcNamedPlayerPropsCard: structured.wcNamedPlayerPropsCard,
   });
   const { propBoardRows: _boardRows, ...seedRest } = seed;
-  const seedMerge = namedLegCard ? seedRest : seed;
+  const seedMerge = namedLegCard || !mergePropBoard ? seedRest : seed;
 
   const merged = {
     ...structured,
@@ -561,6 +564,9 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
     matchOdds:
       structured.matchOdds || seed.matchOdds || packet.pinnedFixture?.matchOdds || undefined,
   };
+  if (!mergePropBoard) {
+    delete merged.propBoardRows;
+  }
 
   const question = String(
     opts.question ||
@@ -570,7 +576,7 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
       "",
   ).trim();
   const askedMarkets = resolveWcPropBoardMarketKeysForQuestion(question);
-  if (askedMarkets?.length && Array.isArray(merged.propBoardRows)) {
+  if (mergePropBoard && askedMarkets?.length && Array.isArray(merged.propBoardRows)) {
     const filtered = merged.propBoardRows.filter((row) =>
       askedMarkets.includes(String(row.market || "")),
     );
@@ -578,7 +584,7 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
       merged.propBoardRows = filtered;
     }
   }
-  if (question && !namedLegCard) {
+  if (mergePropBoard && question && !namedLegCard) {
     merged.lean = resolveWcPlayerPropDisplayLean({
       lean: merged.lean,
       call: merged.call,
@@ -601,20 +607,35 @@ export function applyWcGroundingCardToStructured(structured, packet, opts = {}) 
 }
 
 /**
- * @param {string} wcIntent
+ * Pin banner + inventory strip for pinned WC fixtures (matchup, totals, etc.).
  * @param {Record<string, unknown> | null | undefined} structured
  */
-export function shouldApplyWcPropsGrounding(wcIntent, structured) {
+export function shouldApplyWcFixtureGroundingStrip(structured) {
   if (!structured || typeof structured !== "object") return false;
+  if (String(structured.sport || "") !== "worldcup") return false;
+  return Boolean(structured.fixtureHome || structured.fixtureAway || structured.wcEventId);
+}
+
+/**
+ * @param {string} wcIntent
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {string} [question]
+ */
+export function shouldApplyWcPropsGrounding(wcIntent, structured, question = "") {
+  if (!structured || typeof structured !== "object") return false;
+  const q = String(question || structured.analysis || "").trim();
+  if (isWcMoneylineBestBetQuestion(q)) return false;
   if (!isWcPlayerMarketIntent(wcIntent) && wcIntent !== WC_INTENT.PLAYER_PROP) {
-    if (!(detectParlayIntent(String(structured.analysis || "")) && structured.sport === "worldcup")) {
+    if (!(detectParlayIntent(q) && structured.sport === "worldcup")) {
       return false;
     }
   }
   const ct = String(structured.callType || "").toLowerCase();
+  if (ct === "matchup" || ct === "advancement" || ct === "tomorrow_slate" || ct === "group_slate") {
+    if (!isGenericWcPlayerPropQuestion(q) && !isWcPlayerMarketIntent(wcIntent)) return false;
+  }
   if (ct.startsWith("player_market") || ct === "player_prop" || ct === "parlay") return true;
   if (structured.playerMarketTier) return true;
-  if (structured.sport === "worldcup" && (structured.fixtureHome || structured.wcEventId)) return true;
   return false;
 }
 
@@ -640,11 +661,21 @@ export function tryApplyWcPlayerPropsGroundingToStructured(params) {
     fixtureTeams: fixtureTeamsInput = [],
   } = params;
 
-  if (!shouldApplyWcPropsGrounding(wcIntent, structured)) return structured;
+  if (!shouldApplyWcPropsGrounding(wcIntent, structured, String(question || routingQuestion || "")) &&
+    !shouldApplyWcFixtureGroundingStrip(structured)) {
+    return structured;
+  }
+
+  const mergePropBoard = shouldApplyWcPropsGrounding(
+    wcIntent,
+    structured,
+    String(question || routingQuestion || ""),
+  );
 
   if (wcContext?.wcGroundingPacket) {
     return applyWcGroundingCardToStructured(structured, wcContext.wcGroundingPacket, {
       question: String(question || routingQuestion || ""),
+      mergePropBoard,
     });
   }
 
@@ -680,5 +711,6 @@ export function tryApplyWcPlayerPropsGroundingToStructured(params) {
 
   return applyWcGroundingCardToStructured(structured, packet, {
     question: String(question || routingQuestion || ""),
+    mergePropBoard,
   });
 }

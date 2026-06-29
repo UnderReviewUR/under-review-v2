@@ -25,6 +25,11 @@ import {
 } from "./wcUrTakePlayerMarket.js";
 import { WC_STAKE_MATH_FOLLOW_UP_APPENDIX } from "./urTakeStakeMathPrompt.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
+import {
+  isWcOddsLineMovementQuestion,
+  WC_ODDS_LINE_MOVEMENT_PROMPT,
+} from "./wcOddsLineMovement.js";
+import { extractFirstAmericanOddsToken } from "./formatOddsAmerican.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"PARLAY"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -540,6 +545,14 @@ export function buildWcTurnScopeBlock(question, wcIntent, opts = {}) {
       resolveWcLiveProbabilityMatchFromThread(opts.history) ||
       null,
   };
+  if (isWcOddsLineMovementQuestion(routingQuestion)) {
+    const cited = extractFirstAmericanOddsToken(routingQuestion);
+    const citedLine = cited
+      ? `\n- User cited price: ${cited} — anchor directional answer to this number.`
+      : "";
+    return `TURN SCOPE (binding):
+${WC_ODDS_LINE_MOVEMENT_PROMPT}${citedLine}`;
+  }
   if (
     isWcTopGoalscorersListQuestion(routingQuestion) ||
     intent === WC_INTENT.TOP_GOALSCORERS_LIST
@@ -673,4 +686,6 @@ export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same ch
 - For pricing questions: cite odds from VERIFIED CONTEXT when claiming mispriced; never use "mispriced" when odds are STALE or absent.
 - For matchup alt-market follow-ups ("besides the moneyline", "both teams to advance", "over or under goals"): headline must be the alternate market only — never repeat "[Team] [ML] to win" as sentence one.
 
-${WC_STAKE_MATH_FOLLOW_UP_APPENDIX}`;
+${WC_STAKE_MATH_FOLLOW_UP_APPENDIX}
+
+LINE MOVEMENT: Never cold-pass hypothetical "odds go up/down" or scoreless-at-5' asks — cite the user's price and explain shorten/lengthen direction.`;

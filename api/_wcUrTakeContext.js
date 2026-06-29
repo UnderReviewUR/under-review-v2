@@ -20,6 +20,7 @@ import {
   WC_INTENT,
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
+import { isWcOddsLineMovementQuestion } from "../shared/wcOddsLineMovement.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 import { isWcPlayerMarketIntent, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import {
@@ -877,7 +878,8 @@ function wcLiteFollowUpNeedsBettingGrounding(question, wcIntent) {
   const q = String(question || "");
   const intent = String(wcIntent || "").trim().toUpperCase();
   if (intent === WC_INTENT.ENTITY_PRICING) return true;
-  return /\b(mispric|advance|slate|knockout value|group misprice|runner-up|both teams to advance|golden boot|tournament winner|outright)\b/i.test(
+  if (isWcOddsLineMovementQuestion(q)) return true;
+  return /\b(mispric|advance|slate|knockout value|group misprice|runner-up|both teams to advance|golden boot|tournament winner|outright|odds?\s+go|line\s+move|scoreless|to\s+advance)\b/i.test(
     q,
   );
 }

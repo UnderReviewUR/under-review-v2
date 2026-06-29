@@ -41,6 +41,20 @@ export function formatAmericanOddsStakeProfitPhrase(stakeDollars, american) {
  * @param {string | number | null | undefined} raw
  * @returns {number | null}
  */
+/**
+ * First American odds token in user prose (e.g. "at -669", "+1500").
+ * Word-boundary `\b` before a minus sign is unreliable — prefer explicit "at" or a lookbehind.
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function extractFirstAmericanOddsToken(text) {
+  const q = String(text || "");
+  const atPrice = q.match(/\bat\s+([+-]\d{2,})\b/i);
+  if (atPrice) return atPrice[1];
+  const generic = q.match(/(?<![\d.])([+-]\d{2,})\b/);
+  return generic?.[1] || null;
+}
+
 export function parseAmericanOddsValue(raw) {
   if (raw == null || raw === "" || raw === "TBD") return null;
   if (typeof raw === "number") {
