@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  americanOddsProfit,
   americanToDecimal,
+  formatAmericanOddsStakeProfitPhrase,
   formatOddsAmerican,
   parseAmericanOddsValue,
 } from "./formatOddsAmerican.js";
@@ -26,4 +28,14 @@ test("formatOddsAmerican — dual display", () => {
   assert.equal(formatOddsAmerican(null), "—");
   assert.equal(formatOddsAmerican(""), "—");
   assert.equal(formatOddsAmerican("—"), "—");
+});
+
+test("americanOddsProfit — field at -3300 and longshot +3000", () => {
+  assert.equal(americanOddsProfit(20, -3300), 0.61);
+  assert.equal(americanOddsProfit(20, 3000), 600);
+});
+
+test("formatAmericanOddsStakeProfitPhrase — conversational cents and dollars", () => {
+  assert.equal(formatAmericanOddsStakeProfitPhrase(20, -3300), "about 61 cents");
+  assert.equal(formatAmericanOddsStakeProfitPhrase(20, 3000), "$600 profit");
 });

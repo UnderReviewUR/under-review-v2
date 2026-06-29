@@ -25,6 +25,7 @@ import {
   ROSTER_ENFORCEMENT_NBA,
 } from "./prompt/outputMode.js";
 import { buildUrTakeFollowUpStyleAppendix } from "./prompt/followUpCore.js";
+import { UR_TAKE_SLIP_STAKE_MATH_PROMPT } from "../../shared/urTakeStakeMathPrompt.js";
 import {
   coerceWcRulesModelText,
   finalizeWcRulesDelivery,
@@ -1351,6 +1352,7 @@ Critical rules:
 - Use "repetitive construction" or "same-stat fragility" instead of "correlation" unless the legs are truly linked.
 - If details are partially unreadable, say what you can confirm and stop there.
 - Be sharp, concise, and product-quality.
+- ${UR_TAKE_SLIP_STAKE_MATH_PROMPT}
 
 Confidence guidance:
 - Default confidence should be ${derivedConfidence}.

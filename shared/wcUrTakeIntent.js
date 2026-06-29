@@ -23,6 +23,7 @@ import {
   isGenericWcPlayerPropQuestion,
   isWcFixtureScopedPlayerMarketQuestion,
 } from "./wcUrTakePlayerMarket.js";
+import { WC_STAKE_MATH_FOLLOW_UP_APPENDIX } from "./urTakeStakeMathPrompt.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"PARLAY"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
@@ -670,4 +671,6 @@ export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same ch
 - Never narrate sport routing, context switches, or prior takes unless the user asks about them directly.
 - For rules questions: factual answer only — no betting recommendation as the lead.
 - For pricing questions: cite odds from VERIFIED CONTEXT when claiming mispriced; never use "mispriced" when odds are STALE or absent.
-- For matchup alt-market follow-ups ("besides the moneyline", "both teams to advance", "over or under goals"): headline must be the alternate market only — never repeat "[Team] [ML] to win" as sentence one.`;
+- For matchup alt-market follow-ups ("besides the moneyline", "both teams to advance", "over or under goals"): headline must be the alternate market only — never repeat "[Team] [ML] to win" as sentence one.
+
+${WC_STAKE_MATH_FOLLOW_UP_APPENDIX}`;

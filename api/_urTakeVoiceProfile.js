@@ -119,7 +119,8 @@ SLIP REVIEW VOICE (mandatory)
 - Acknowledge every leg the vision block lists — same count and order.
 - One short, opinionated take per leg — real lean, not boilerplate.
 - Sound like a sharp friend at the window; zero report headers.
-- If the slip is cooked, say why in plain language.`;
+- If the slip is cooked, say why in plain language.
+- Stake math (Tier A/C): heavy juice, Field, parlay payout, or cash-out — one $20 profit line when cutting that side.`;
 }
 
 /**

@@ -4,6 +4,40 @@
  */
 
 /**
+ * Profit in dollars from a winning bet (excludes returned stake).
+ * @param {number} stakeDollars
+ * @param {number} american
+ * @returns {number | null}
+ */
+export function americanOddsProfit(stakeDollars, american) {
+  const stake = Number(stakeDollars);
+  if (!Number.isFinite(stake) || stake <= 0) return null;
+  if (!Number.isFinite(american) || american === 0) return null;
+  if (american < 0) return Math.round((stake * (100 / Math.abs(american))) * 100) / 100;
+  return Math.round(stake * (american / 100) * 100) / 100;
+}
+
+/**
+ * Conversational profit phrase for follow-up copy ("about sixty cents", "$600 profit").
+ * @param {number} stakeDollars
+ * @param {number} american
+ * @returns {string | null}
+ */
+export function formatAmericanOddsStakeProfitPhrase(stakeDollars, american) {
+  const profit = americanOddsProfit(stakeDollars, american);
+  if (profit == null) return null;
+  if (profit >= 1) {
+    const rounded = profit >= 100 ? Math.round(profit) : profit;
+    return `$${rounded} profit`;
+  }
+  const cents = Math.round(profit * 100);
+  if (cents <= 0) return "pennies";
+  if (cents === 1) return "about a penny";
+  if (cents < 100) return `about ${cents} cents`;
+  return `$${profit.toFixed(2)} profit`;
+}
+
+/**
  * @param {string | number | null | undefined} raw
  * @returns {number | null}
  */

@@ -14,6 +14,7 @@ import {
 import { detectParlayIntent } from "../shared/detectParlayIntent.js";
 export { detectParlayIntent };
 import { buildUrTakeNoDeadEndPrompt } from "../shared/urTakeSportRouting.js";
+import { UR_TAKE_LIVE_CASHOUT_STAKE_MATH_PROMPT } from "../shared/urTakeStakeMathPrompt.js";
 import { WC_CARD_CONTRACT_VOICE_PROMPT } from "../shared/wcCardContractVoice.js";
 import {
   WC_SCRIPT_PRICE_CORE_PROMPT,
@@ -878,7 +879,9 @@ export function buildLiveBetAndSlipReviewConvictionPrompt() {
 - If the edge is intact, say so directly: "Let it ride — the thesis hasn't changed."
 - If the user asks about timing, give them a specific trigger to watch, not a generic hedge: "Watch the third quarter pace — if Spurs go up 25+ with both benches in by the fourth, you're fine."
 - Never recommend cashing a winning bet based on a risk that was already priced into the original take.
-- Confident and wrong is recoverable. Mealy-mouthed and right is useless.`;
+- Confident and wrong is recoverable. Mealy-mouthed and right is useless.
+
+${UR_TAKE_LIVE_CASHOUT_STAKE_MATH_PROMPT}`;
 }
 
 /** Live-mode output shape only (formatting, not data/routing logic). */
