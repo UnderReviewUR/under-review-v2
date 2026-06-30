@@ -2,7 +2,12 @@
  * Resolve match + sim inputs for WC fixture matchup prebuilt cards.
  */
 
-import { readWcMatchesFromKv, readWcMatchDetailFromKv, refreshWcLiveScores } from "./_wcData.js";
+import {
+  readWcMatchesFromKv,
+  readWcMatchDetailFromKv,
+  refreshWcLiveScores,
+  scrapeAndCacheWcMatchBundle,
+} from "./_wcData.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { selectFixturesForQuestion } from "./_wcUrTakeContext.js";
 import {
@@ -30,6 +35,8 @@ import {
 
 const LIVE_ODDS_MAX_AGE_MS = 90_000;
 const LIVE_ODDS_FETCH_TIMEOUT_MS = 8000;
+const LIVE_DETAIL_MAX_AGE_MS = 60_000;
+const LIVE_DETAIL_FETCH_TIMEOUT_MS = 2500;
 
 function isLiveOrScheduled(status) {
   const s = String(status || "").toLowerCase();
@@ -129,6 +136,40 @@ async function refreshWcLiveMatchOddsForPrebuilt(match, nowMs) {
   const odds = await fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs);
   if (!odds) return match;
   return { ...match, odds, oddsUpdatedAt: nowMs, oddsStale: false };
+}
+
+/**
+ * Load a LIVE match detail (score/stats), refreshing the BDL bundle when the cached row is
+ * missing, non-BDL, or stale past the live max-age — so mid-game score + chance-quality
+ * grounding stays current on the fast path.
+ * @param {string | number | null | undefined} eventId
+ * @param {{ homeTeam?: string, awayTeam?: string, date?: string, commenceTs?: number }} match
+ * @param {number} nowMs
+ */
+async function loadLiveMatchDetailForPrebuilt(eventId, match, nowMs) {
+  const id = String(eventId || "").trim();
+  if (!id) return null;
+  let detail = await readWcMatchDetailFromKv(id).catch(() => null);
+  const source = String(detail?.source || "").toLowerCase();
+  const ageMs = detail ? nowMs - Number(detail.lastUpdated || detail.fetchedAt || 0) : Infinity;
+  const stale = ageMs > LIVE_DETAIL_MAX_AGE_MS;
+  if (isWcGoatPrimaryEnabled() && (!detail || !source.startsWith("balldontlie") || stale)) {
+    await Promise.race([
+      scrapeAndCacheWcMatchBundle(id, {
+        homeTeam: match?.homeTeam,
+        awayTeam: match?.awayTeam,
+        date: match?.date,
+        commenceTs: match?.commenceTs,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("bdl_detail_timeout")), LIVE_DETAIL_FETCH_TIMEOUT_MS),
+      ),
+    ]).catch((err) => {
+      console.warn("[wc-prebuilt] live match detail refresh failed for", id, err?.message);
+    });
+    detail = await readWcMatchDetailFromKv(id).catch(() => detail);
+  }
+  return detail;
 }
 
 /**
@@ -291,7 +332,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
 
   if (eventId && isWcLiveListStatus(match?.status)) {
     const [detailRow, propsRow] = await Promise.all([
-      readWcMatchDetailFromKv(eventId).catch(() => null),
+      loadLiveMatchDetailForPrebuilt(eventId, match, nowMs).catch(() => null),
       loadLivePlayerPropsForPrebuilt(eventId, match, nowMs).catch(() => null),
     ]);
     matchDetail = detailRow;

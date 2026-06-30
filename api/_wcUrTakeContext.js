@@ -227,6 +227,8 @@ function isScheduled(status) {
 /** Live lines churn — refresh KV odds older than this before grounding a live fixture. */
 const WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS = 90_000;
 const WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS = 2500;
+/** Live score/stats move — refresh a cached match detail older than this for an in-play match. */
+const WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS = 60_000;
 
 /**
  * Attach fresh BDL match odds to a LIVE fixture so FIXTURE MATCH ODDS renders even when
@@ -1098,7 +1100,17 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
         try {
           let detail = await readWcMatchDetailFromKv(fx.id);
           const detailSource = String(detail?.source || "").toLowerCase();
-          if (isWcGoatPrimaryEnabled() && (!detail || !detailSource.startsWith("balldontlie"))) {
+          // For an in-play match the score/stats move, so a cached BDL detail can still be
+          // stale — force a refresh past the live max-age, not just when it's missing/non-BDL.
+          const detailAgeMs = detail
+            ? nowMs - Number(detail.lastUpdated || detail.fetchedAt || 0)
+            : Infinity;
+          const liveDetailStale =
+            isLiveStatus(fx?.status) && detailAgeMs > WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS;
+          if (
+            isWcGoatPrimaryEnabled() &&
+            (!detail || !detailSource.startsWith("balldontlie") || liveDetailStale)
+          ) {
             await Promise.race([
               scrapeAndCacheWcMatchBundle(fx.id, {
                 homeTeam: fx.homeTeam,

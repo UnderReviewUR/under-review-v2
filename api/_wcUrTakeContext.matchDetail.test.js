@@ -4,6 +4,7 @@ import {
   formatWorldCupUrTakePromptBlock,
   selectFixturesForQuestion,
 } from "./_wcUrTakeContext.js";
+import { buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 
 test("selectFixturesForQuestion pins wcEventId when present", () => {
   const matches = [
@@ -257,6 +258,71 @@ test("formatWorldCupUrTakePromptBlock renders 0-0 for a live match with null sco
   });
   // The model must never be told "Status: live" with no score for a live fixture.
   assert.match(block, /Status: live · Score 0-0/);
+});
+
+test("live in-play prompt carries score, goal-probability totals, and chance index together", () => {
+  const now = Date.parse("2026-07-04T19:00:00.000Z");
+  // Goal-probability market (Over/Under total goals) on a fresh live fixture.
+  const oddsBlock = buildMatchOddsFreshnessPromptBlock(
+    {
+      homeTeam: "NED",
+      awayTeam: "MAR",
+      status: "live",
+      odds: {
+        home: { moneyline: "+175" },
+        draw: { moneyline: "+210" },
+        away: { moneyline: "+360" },
+        totalLine: "2.5",
+        totalOver: "+140",
+        totalUnder: "-170",
+      },
+      oddsUpdatedAt: now - 60 * 1000,
+    },
+    now,
+  );
+  assert.ok(oddsBlock, "expected a fixture odds block for the live match");
+
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: {},
+    live: [],
+    results: [],
+    upcoming: [],
+    fixtureOddsBlocks: [oddsBlock],
+    matchDetails: [
+      {
+        eventId: "760599",
+        homeTeam: "NED",
+        awayTeam: "MAR",
+        status: "live",
+        // Feed reports null mid-game; renderer must still surface a definite score.
+        homeScore: null,
+        awayScore: null,
+        lineups: { home: { starters: [] }, away: { starters: [] } },
+        teamStats: {
+          home: { shots: 9, shotsOnTarget: 4, possessionPct: 61, corners: 4 },
+          away: { shots: 3, shotsOnTarget: 1, possessionPct: 39, corners: 1 },
+        },
+        players: {
+          home: [{ name: "Cody Gakpo", shots: 3, shotsOnTarget: 2, keyPasses: 2 }],
+          away: [],
+        },
+        goals: [],
+        injuries: [],
+      },
+    ],
+  });
+
+  // Knows the score mid-game.
+  assert.match(block, /Status: live · Score 0-0/);
+  // Can ground a goal-probability answer: live totals + chance index proxy.
+  assert.match(block, /FIXTURE MATCH ODDS/);
+  assert.match(block, /Over \+140/);
+  assert.match(block, /Under -170/);
+  assert.match(block, /LIVE CHANCE INDEX/);
+  assert.match(block, /not Opta xG/i);
 });
 
 test("formatWorldCupUrTakePromptBlock does not fabricate a score for a not-started match", () => {
