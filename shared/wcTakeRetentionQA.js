@@ -677,6 +677,25 @@ export function extractWcSlateDayFromQuestion(question) {
   return "today";
 }
 
+const WC_SLATE_SCORE_PHRASE_RE =
+  /\b(scorelines?|final scores?|predicted scores?|model scores?|score predictions?)\b/i;
+
+/** Score wording for slate bundles — excludes compounds like "score-wise". */
+function hasWcSlateScoreLexeme(question) {
+  const q = String(question || "");
+  if (WC_SLATE_SCORE_PHRASE_RE.test(q)) return true;
+  if (/\bscores\b/i.test(q)) return true;
+  return /\bscore\b(?!-\w)/i.test(q);
+}
+
+function hasWcConversationalScoreAsk(question) {
+  const q = String(question || "");
+  return (
+    hasWcSlateScoreLexeme(q) &&
+    /\b(gonna be|will be|think|expect|end at|predict|prediction|predictions|forecast)\b/i.test(q)
+  );
+}
+
 /**
  * "Predict each game today" / slate outcome bundles — route to fixture slate prebuilt.
  * @param {string} question
@@ -687,18 +706,39 @@ export function isWcSlateOutcomePredictionQuestion(question) {
   if (/\b(golden boot|golden glove|player prop|anytime scorer|tournament winner)\b/i.test(q)) {
     return false;
   }
-  const hasDay = /\b(today'?s?|tomorrow'?s?)\b/i.test(q);
+  const hasDay = /\b(today'?s?|tomorrow'?s?|tonight)\b/i.test(q);
   const hasWc = /\bworld cup\b/i.test(q);
-  const hasPredict = /\b(predict|prediction|predictions|outcome|outcomes|who wins|result|results|forecast|scoreline|scorelines)\b/i.test(
-    q,
-  );
+  const hasScoreSlateCue = WC_SLATE_SCORE_PHRASE_RE.test(q) || hasWcConversationalScoreAsk(q);
+  const hasPredict =
+    /\b(predict|prediction|predictions|outcome|outcomes|who wins|result|results|forecast|scoreline|scorelines)\b/i.test(
+      q,
+    ) || hasScoreSlateCue;
+  const dayWord = "(?:today|tomorrow|tonight)";
   const hasMultiMatch =
     /\b(each|every|all)\b[\s\S]{0,40}\b(game|match|fixture)s?\b/i.test(q) ||
-    /\b(game|match|fixture)s?\b[\s\S]{0,32}\b(today|tomorrow)\b/i.test(q) ||
-    /\b(today|tomorrow)\b[\s\S]{0,32}\b(game|match|fixture|slate)s?\b/i.test(q);
+    new RegExp(`\\b(game|match|fixture)s?\\b[\\s\\S]{0,32}\\b${dayWord}\\b`, "i").test(q) ||
+    new RegExp(`\\b${dayWord}\\b[\\s\\S]{0,32}\\b(game|match|fixture|slate)s?\\b`, "i").test(q);
   if (hasPredict && hasMultiMatch && (hasDay || hasWc)) return true;
   if (hasPredict && hasDay && /\b(slate|fixtures?|matches?|games?)\b/i.test(q)) return true;
+  if (/\bmodel scores?\b/i.test(q) && isWcMultiMatchSlateCue(q)) return true;
   return false;
+}
+
+/**
+ * Slate asks for scorelines (not just winner/results) — "predict the scores for each match today".
+ * @param {string} question
+ */
+export function isWcSlateScorelineQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (/\b(golden boot|golden glove|goalscorer|top\s*\d+\s*goal)/i.test(q)) return false;
+  const scoreCue = WC_SLATE_SCORE_PHRASE_RE.test(q) || hasWcConversationalScoreAsk(q);
+  if (!scoreCue) return false;
+  return (
+    isWcSlateOutcomePredictionQuestion(q) ||
+    (isWcMultiMatchSlateCue(q) &&
+      (/\b(predict|prediction|predictions|forecast|outcome)\b/i.test(q) || scoreCue))
+  );
 }
 
 /**

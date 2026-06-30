@@ -407,3 +407,53 @@ test("goal-total slate breakdown — distinct mechanism per match", () => {
   assert.doesNotMatch(contexts.join(" "), /rarely blows teams out in Game 1/i);
   assert.match(contexts[1] || "", /Norway|3\.5/i);
 });
+
+test("predict scores for each match today — scoreline mode with model output", () => {
+  const nowMs = Date.parse("2026-06-13T15:28:00Z");
+  const matches = [
+    { homeTeam: "USA", awayTeam: "PAR", group: "D", date: "2026-06-13", time: "15:00 ET", status: "NS", odds: { home: { moneyline: "-180" }, away: { moneyline: "+450" }, draw: { moneyline: "+280" } } },
+    { homeTeam: "QAT", awayTeam: "SUI", group: "B", date: "2026-06-13", time: "18:00 ET", status: "NS", odds: { home: { moneyline: "+220" }, away: { moneyline: "+110" }, draw: { moneyline: "+240" } } },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "predict the scores for each world cup match today",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.match(String(card.lean || ""), /scoreline|UR model|\d+-\d+/i);
+  assert.doesNotMatch(String(card.lean || ""), /no actionable line/i);
+  assert.match(String(card.deep || ""), /UR model score/i);
+});
+
+test("empty today slate widens to next upcoming board for score predictions", () => {
+  const nowMs = Date.parse("2026-06-30T14:12:00Z");
+  const matches = [
+    { homeTeam: "CIV", awayTeam: "NOR", group: "H", date: "2026-07-01", time: "15:00 ET", status: "NS", odds: { home: { moneyline: "+120" }, away: { moneyline: "+200" }, draw: { moneyline: "+220" } } },
+    { homeTeam: "POR", awayTeam: "URU", group: "H", date: "2026-07-01", time: "18:00 ET", status: "NS", odds: { home: { moneyline: "-110" }, away: { moneyline: "+280" }, draw: { moneyline: "+250" } } },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "predict the scores for each world cup match today?",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.match(String(card.whyNow || ""), /next verified board|No matches on today/i);
+  assert.doesNotMatch(String(card.lean || ""), /no actionable line/i);
+  assert.match(String(card.deep || ""), /UR model score/i);
+});
+
+test("score predictions for today's slate — scoreline mode", () => {
+  const nowMs = Date.parse("2026-06-13T14:41:00Z");
+  const matches = [
+    { homeTeam: "ENG", awayTeam: "GHA", group: "L", date: "2026-06-13", time: "15:00 ET", status: "NS", odds: { home: { moneyline: "-200" }, away: { moneyline: "+550" }, draw: { moneyline: "+280" } } },
+    { homeTeam: "FRA", awayTeam: "SEN", group: "I", date: "2026-06-13", time: "18:00 ET", status: "NS", odds: { home: { moneyline: "-180" }, away: { moneyline: "+450" }, draw: { moneyline: "+280" } } },
+  ];
+  const card = buildWcTomorrowSlatePrebuiltStructured({
+    question: "score predictions for today's slate",
+    matches,
+    nowMs,
+  });
+  assert.ok(card);
+  assert.match(String(card.deep || ""), /UR model score/i);
+  assert.doesNotMatch(String(card.lean || ""), /no actionable line/i);
+});

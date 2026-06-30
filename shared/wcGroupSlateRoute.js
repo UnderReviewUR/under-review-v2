@@ -19,10 +19,14 @@ import {
 import { isWcPlayerMarketIntent } from "./wcUrTakeIntent.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
+  isWcSlateOutcomePredictionQuestion,
   isWcTomorrowOrSlateBetQuestion,
   resolveWcSlateRoutingKind,
 } from "./wcTakeRetentionQA.js";
-import { buildWcTomorrowSlatePrebuiltStructured } from "./wcTomorrowSlatePrebuilt.js";
+import {
+  buildWcSlateNoFixturesPredictionPrebuilt,
+  buildWcTomorrowSlatePrebuiltStructured,
+} from "./wcTomorrowSlatePrebuilt.js";
 
 /** @readonly */
 export const WC_GROUP_SLATE_VARIANT = {
@@ -273,7 +277,14 @@ export async function buildWcGroupSlateLaneStructured(opts = {}) {
           simLastUpdated,
           nowMs,
         });
-      return structured ? { structured, passKind: "tomorrow_slate" } : null;
+      if (structured) return { structured, passKind: "tomorrow_slate" };
+      if (isWcSlateOutcomePredictionQuestion(question)) {
+        return {
+          structured: buildWcSlateNoFixturesPredictionPrebuilt({ question, nowMs }),
+          passKind: "tomorrow_slate_empty",
+        };
+      }
+      return null;
     }
     case WC_GROUP_SLATE_VARIANT.UPSET_SCAN: {
       const structured =

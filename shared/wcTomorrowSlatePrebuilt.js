@@ -28,11 +28,16 @@ import {
 } from "./wcFeaturedMatch.js";
 import {
   extractWcSlateDayFromQuestion,
-  isWcKnockoutSlateQuestion,
+  isWcKnockoutSlateCoreQuestion,
   isWcSlateOutcomePredictionQuestion,
+  isWcSlateScorelineQuestion,
   isWcTomorrowOrSlateBetQuestion,
   resolveWcSlateMarketBoardMode,
 } from "./wcTakeRetentionQA.js";
+import {
+  formatWcAltScorelinesLine,
+  topWcScorelinesForFixture,
+} from "./wcSlateScorelineModel.js";
 import {
   getWcKnockoutRoundLabelForMatch,
   isWcKnockoutFixtureMatch,
@@ -180,6 +185,41 @@ export function resolveWcKnockoutSlateBoardMatches(matches = [], nowMs = Date.no
 }
 
 /**
+ * Honest card when prediction ask has no fixtures on file at all.
+ * @param {{ question?: string, nowMs?: number, slateDay?: string, dayCopy?: string }} [opts]
+ */
+export function buildWcSlateNoFixturesPredictionPrebuilt(opts = {}) {
+  const nowMs = Number(opts.nowMs) || Date.now();
+  const question = String(opts.question || "");
+  const slateDay = opts.slateDay || extractWcSlateDayFromQuestion(question);
+  const dayCopy = opts.dayCopy || slateDayCopy(slateDay);
+  const slateYmd =
+    slateDay === "today" ? wcTodayEtYmd(nowMs) : getTomorrowEtDateString(wcTodayEtYmd(nowMs));
+  const scoreline = isWcSlateScorelineQuestion(question);
+  const lean = scoreline
+    ? `No verified fixtures on ${dayCopy} slate — check back when the board posts.`
+    : `No verified fixtures on ${dayCopy} slate yet.`;
+  const whyNow = `No World Cup matches are on the verified ${dayCopy} ET board (${slateYmd}). When fixtures post, ask again for UR model scorelines per game.`;
+  return {
+    sport: "worldcup",
+    callType: "tomorrow_slate",
+    lean: `Lean: ${lean}`.slice(0, 120),
+    call: scoreline ? "Score predictions — board pending" : "Slate predictions — board pending",
+    line: "",
+    whyNow,
+    deep: whyNow,
+    edge: "",
+    confidence: "Low",
+    caveats: ["No fixtures on verified board"],
+    slateDay,
+    slateEtDate: slateYmd,
+    tomorrowEtDate: slateYmd,
+    tomorrowFixtureCount: 0,
+    tomorrowFixtures: [],
+  };
+}
+
+/**
  * Honest pass card when a knockout ask has no verified knockout fixtures on the board.
  * @param {{ question?: string, nowMs?: number }} [opts]
  */
@@ -250,6 +290,24 @@ export function resolveWcSlateMatches(matches = [], nowMs = Date.now(), slateDay
       ? todayYmd
       : getTomorrowEtDateString(todayYmd);
   return resolveWcSlateMatchesForEtDate(matches, targetYmd, nowMs, slateDay);
+}
+
+/**
+ * Next upcoming fixtures when today's ET slate is empty (rest day / no board).
+ * @param {Array<Record<string, unknown>>} [matches]
+ * @param {number} [nowMs]
+ * @param {number} [maxCount]
+ */
+export function resolveWcNextUpcomingSlateMatches(matches = [], nowMs = Date.now(), maxCount = 6) {
+  const todayYmd = wcTodayEtYmd(nowMs);
+  return (matches || [])
+    .filter((m) => isTodaySlateEligibleStatus(m?.status))
+    .filter((m) => {
+      const ymd = resolveWcMatchSlateEtDate(m) || String(m?.date || "").slice(0, 10);
+      return ymd && ymd >= todayYmd;
+    })
+    .sort((a, b) => matchSortKey(a) - matchSortKey(b))
+    .slice(0, maxCount);
 }
 
 /**
@@ -399,6 +457,8 @@ export function formatWcSlateMatchDeepBlock(angle, scope = {}) {
   if (kickoff) blocks.push(`Kickoff: ${kickoff}`);
   if (angle?.bookLine) blocks.push(`Book: ${angle.bookLine}`);
   if (angle?.simLine) blocks.push(`UR sim: ${angle.simLine}`);
+  if (angle?.modelScoreline) blocks.push(`UR model score: ${angle.modelScoreline}`);
+  if (angle?.altScorelines) blocks.push(`Also consider: ${angle.altScorelines}`);
   if (angle?.predictionPick) blocks.push(`Pick: ${angle.predictionPick}`);
   if (lean && !angle?.predictionPick) blocks.push(`Lean: ${lean}`);
   if (body && !angle?.simLine) blocks.push(body);
@@ -570,6 +630,9 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
   const label = `${wcMatchupTeamDisplayName(home)} vs ${wcMatchupTeamDisplayName(away)}`;
   const kickoff = formatWcKickoffDisplay(fx, { alwaysShowCentral: true });
   const match = attachSeedOdds(fx);
+  const question = String(opts.question || "");
+  const scorelineMode =
+    Boolean(opts.scorelineMode) || isWcSlateScorelineQuestion(question);
 
   const seedOdds = getWcFixtureMlSeed(home, away);
   const matchOdds =
@@ -661,9 +724,32 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
       ? `Draw (${pickOdds} ML · UR sim ${pickSim}% 90-min)`
       : `${pickName} to win (${pickOdds} ML · UR sim ${pickSim}% win)`;
 
-  const lean = predictionPick;
+  let modelScoreline = null;
+  let altScorelines = null;
+  let lean = predictionPick;
+  if (scorelineMode) {
+    const model = topWcScorelinesForFixture(home, away);
+    if (model?.best) {
+      modelScoreline = `${model.best.scoreline} (${model.best.probPct}% UR Poisson/Elo)`;
+      altScorelines = formatWcAltScorelinesLine(model);
+      const winnerNote =
+        pickAbbr === "DRAW"
+          ? "draw"
+          : pickAbbr === home
+            ? wcMatchupTeamDisplayName(home)
+            : wcMatchupTeamDisplayName(away);
+      lean = `${model.best.scoreline} — ${winnerNote} side (${model.best.probPct}% model)`;
+      if (altScorelines) {
+        lean = `${lean}; alt ${altScorelines}`.slice(0, 140);
+      }
+    }
+  }
+
+  const leanFinal = scorelineMode && modelScoreline ? lean : predictionPick;
   const whyNow = `${bookLine}${simLine ? ` — UR sim win bar: ${simLine}.` : ""}`.slice(0, 400);
   const deep = [
+    scorelineMode && modelScoreline ? `UR model scoreline: ${modelScoreline}` : null,
+    scorelineMode && altScorelines ? `Alt scorelines: ${altScorelines}` : null,
     `Book: ${bookLine}`,
     simLine ? `UR sim: ${simLine}` : "",
     bookFav.abbr !== pickAbbr && pickAbbr !== "DRAW"
@@ -680,16 +766,26 @@ export function buildWcSlateMatchOutcomeAngle(fx, opts = {}) {
     group,
     label,
     kickoff,
-    lean,
-    call: `${pickName} to win`.slice(0, 100),
-    line: `${pickOdds} ML · UR sim ${pickSim ?? "n/a"}%`.slice(0, 200),
+    lean: leanFinal,
+    call:
+      scorelineMode && modelScoreline
+        ? `${String(modelScoreline).split(" ")[0]} model`
+        : `${pickName} to win`.slice(0, 100),
+    line:
+      scorelineMode && modelScoreline
+        ? modelScoreline.slice(0, 200)
+        : `${pickOdds} ML · UR sim ${pickSim ?? "n/a"}%`.slice(0, 200),
     whyNow,
     deep,
     fixtureCard: null,
     predictionMode: true,
-    predictionPick,
+    predictionPick:
+      scorelineMode && modelScoreline ? `${modelScoreline} · ${predictionPick}` : predictionPick,
     bookLine,
     simLine,
+    modelScoreline,
+    altScorelines,
+    scorelineMode,
   };
 }
 
@@ -707,6 +803,8 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
   const nowMs = Number(opts.nowMs) || Date.now();
   const predictionMode =
     Boolean(opts.predictionMode) || isWcSlateOutcomePredictionQuestion(question);
+  const scorelineMode =
+    Boolean(opts.scorelineMode) || isWcSlateScorelineQuestion(question);
   const marketBoardMode = resolveWcSlateMarketBoardMode(question);
   /** @type {Array<Record<string, unknown>>} */
   const angles = [];
@@ -715,7 +813,7 @@ export function buildWcTomorrowSlateMatchAngles(tomorrowSlate, opts = {}) {
 
   for (const fx of tomorrowSlate || []) {
     if (predictionMode) {
-      angles.push(buildWcSlateMatchOutcomeAngle(fx, opts));
+      angles.push(buildWcSlateMatchOutcomeAngle(fx, { ...opts, question, scorelineMode }));
       continue;
     }
 
@@ -897,8 +995,9 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const slateDay = extractWcSlateDayFromQuestion(question);
   const dayCopy = slateDayCopy(slateDay);
   const predictionMode = isWcSlateOutcomePredictionQuestion(question);
+  const scorelineMode = isWcSlateScorelineQuestion(question);
   const marketBoardMode = resolveWcSlateMarketBoardMode(question);
-  const knockoutQuestion = isWcKnockoutSlateQuestion(question);
+  const knockoutQuestion = isWcKnockoutSlateCoreQuestion(question);
   let matches = Array.isArray(opts.matches) ? opts.matches : [];
   if (!matches.length && !knockoutQuestion) {
     matches = buildStaticPromoMatchesFallback(nowMs);
@@ -910,6 +1009,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   let slateYmd;
   let slateMatches;
   let knockoutSlateWidened = false;
+  let emptySlateWidenedToNextBoard = false;
   if (knockoutQuestion) {
     const board = resolveWcKnockoutSlateBoardMatches(matches, nowMs, slateDay);
     slateYmd = board.slateYmd;
@@ -925,7 +1025,21 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
     if (knockoutQuestion) {
       return buildWcKnockoutSlateNoFixturesPrebuilt({ question, nowMs });
     }
-    return null;
+    if (predictionMode) {
+      const upcoming = resolveWcNextUpcomingSlateMatches(matches, nowMs, 6);
+      if (upcoming.length) {
+        slateMatches = upcoming;
+        slateYmd =
+          resolveWcMatchSlateEtDate(upcoming[0]) ||
+          String(upcoming[0]?.date || "").slice(0, 10) ||
+          slateYmd;
+        emptySlateWidenedToNextBoard = true;
+      } else {
+        return buildWcSlateNoFixturesPredictionPrebuilt({ question, nowMs, slateDay, dayCopy });
+      }
+    } else {
+      return null;
+    }
   }
 
   const finishedTodayCount = countWcVerifiedFinishedOnSlate(matches, slateYmd, nowMs);
@@ -949,12 +1063,22 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
   const featuredLabel = featuredAngle.label;
 
   const lean = predictionMode
-    ? (count > 1
+    ? scorelineMode
+      ? count > 1
+        ? `${count} UR model scorelines — ${emptySlateWidenedToNextBoard ? `next board ${slateYmd}` : `${dayCopy} slate (${slateYmd})`}.`.slice(
+            0,
+            120,
+          )
+        : `${featuredLabel}: ${featuredAngle.modelScoreline || featuredAngle.predictionPick || featuredAngle.lean}`.slice(
+            0,
+            120,
+          )
+      : count > 1
         ? `${count} match predictions on ${dayCopy} slate (${slateYmd}) — book + sim per game.`.slice(
             0,
             120,
           )
-        : `${featuredLabel}: ${featuredAngle.predictionPick || featuredAngle.lean}`.slice(0, 120))
+        : `${featuredLabel}: ${featuredAngle.predictionPick || featuredAngle.lean}`.slice(0, 120)
     : knockoutQuestion && count >= 1
       ? `${featuredLabel}: ${featuredAngle.lean}`.slice(0, 120)
     : marketBoardMode === "spreads"
@@ -983,6 +1107,9 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
         );
 
   const whyNow = [
+    emptySlateWidenedToNextBoard
+      ? `No matches on ${dayCopy} ET slate (${wcTodayEtYmd(nowMs)}) — showing next verified board (${slateYmd}).`
+      : null,
     knockoutSlateWidened
       ? `No knockout fixtures on ${dayCopy} ET slate — nearest upcoming knockout round (${slateYmd}).`
       : null,
