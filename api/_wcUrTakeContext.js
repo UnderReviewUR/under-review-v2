@@ -35,12 +35,14 @@ import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 import {
   filterOutrightsForQuestion,
   formatGroupClinchWarnings,
+  formatKnockoutBracketPrompt,
   formatKnockoutPhasePromptRules,
   formatKnockoutUrTakeAppendix,
   formatWorldCupPhaseRules,
-  getWorldCupPhase,
+  getKnockoutRoundLabel,
   isKnockoutPhase,
   isKnockoutRound,
+  resolveWcTournamentPhase,
   selectGroupsForPrompt,
 } from "../shared/wcPhaseUtils.js";
 import { formatVenueWarningsForPrompt } from "../shared/wcVenueMetadata.js";
@@ -81,6 +83,12 @@ import {
 import { readWcGoldenGloveFromKv } from "./_wcGoldenGloveOdds.js";
 import { buildWcPlayerBioPromptBlock } from "../shared/wcPlayerBio.js";
 import { buildResolvedWcPlayerRegistry } from "../shared/wcPlayerRegistry.js";
+import {
+  formatWcKeyPlayersPromptBlock,
+  formatWcSquadTruthGuardBlock,
+} from "../shared/wcKeyPlayers.js";
+import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
+import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
 import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
 import { prefetchWcGoatDataForUrTake } from "./_wcGoatUrTakePrefetch.js";
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
@@ -222,6 +230,59 @@ function isFinished(status) {
 function isScheduled(status) {
   const s = String(status || "").toLowerCase();
   return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
+}
+
+/**
+ * Conditional World Cup reference for image/screenshot questions whose sport can't be resolved
+ * from text (e.g. asked from the Home tab). The model applies it only if the screenshot is a
+ * World Cup match — it grounds the tournament stage, knockout rules, the bracket (so it can
+ * match the teams it reads), and the squad-truth guard, preventing the "qualifier" misframe and
+ * squad-membership denials without misrouting non-World-Cup screenshots.
+ * @param {Array<Record<string, unknown>> | null | undefined} matches
+ * @param {number} [nowMs]
+ * @returns {string}
+ */
+export function buildWcImageReferenceGroundingBlock(matches, nowMs = Date.now()) {
+  const rows = Array.isArray(matches) ? matches : [];
+  const phase = resolveWcTournamentPhase(rows, nowMs);
+  const parts = [
+    "WORLD CUP REFERENCE (apply ONLY if the screenshot shows a World Cup / soccer match; otherwise ignore this entire block):",
+    `  Current tournament stage: ${getKnockoutRoundLabel(phase)} (${phase}).`,
+    '  KNOCKOUT SIGNAL: a visible "To Advance" market or "Round of 32/16", "Quarterfinal", "Knockout" means a SINGLE-ELIMINATION knockout fixture — never describe it as a "qualifier" or group-stage game.',
+  ];
+  const koRules = formatKnockoutPhasePromptRules(phase);
+  if (koRules) parts.push(koRules);
+  const bracket = formatKnockoutBracketPrompt(rows);
+  if (bracket) parts.push(bracket);
+  parts.push(formatWcSquadTruthGuardBlock());
+  return parts.join("\n\n");
+}
+
+/**
+ * PRE-MATCH guard: when the cited fixture(s) have not kicked off and none are live/finished,
+ * forbid any live/in-progress framing so the model never invents a current scoreline ("0-0")
+ * or a "live script" on a match that hasn't started. Shared by the text and image paths.
+ * @param {Array<Record<string, unknown>> | null | undefined} fixtures
+ * @param {Array<Record<string, unknown>> | null | undefined} matchDetails
+ * @returns {string | null}
+ */
+export function buildWcFixtureStateGuardBlock(fixtures, matchDetails) {
+  const fx = Array.isArray(fixtures) ? fixtures : [];
+  const dt = Array.isArray(matchDetails) ? matchDetails : [];
+  const anyLive =
+    fx.some((f) => isLiveStatus(f?.status)) || dt.some((d) => isLiveStatus(d?.status));
+  const anyFinished =
+    fx.some((f) => isFinished(f?.status)) || dt.some((d) => isFinished(d?.status));
+  const preMatch = fx.filter((f) => isScheduled(f?.status));
+  if (anyLive || anyFinished || !preMatch.length) return null;
+  const names = preMatch
+    .map((f) => `${f.homeTeam} vs ${f.awayTeam}`)
+    .filter(Boolean)
+    .join(", ");
+  return [
+    "PRE-MATCH (not started — binding):",
+    `  ${names || "The cited fixture"} ${preMatch.length > 1 ? "have" : "has"} NOT kicked off. Do NOT reference a live score, a current scoreline (e.g. "0-0"), minutes played, an in-progress game state, or a "live script." All odds are pre-match prices; frame everything as pre-kickoff.`,
+  ].join("\n");
 }
 
 /** Live lines churn — refresh KV odds older than this before grounding a live fixture. */
@@ -702,14 +763,21 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
       groupLetters.length >= 12 ? "GROUPS (12 × 4 teams):" : "GROUPS (question-scoped):",
     );
 
+    // In knockout, never label teams by group-stage tier (Favorite/Contender/Longshot) —
+    // it framed completed group standing as if it decides a single-elimination tie.
+    const ko = isKnockoutPhase(phase);
     for (const letter of groupLetters) {
       const teams = groupsForPrompt[letter];
       if (!Array.isArray(teams) || !teams.length) continue;
       const teamBits = teams.map((t) => {
-        const rec = t.hasResults
+        if (ko) {
+          return t.hasResults
+            ? `${t.name} (final group: ${t.points} pts, ${t.won}W-${t.drawn}D-${t.lost}L)`
+            : `${t.name}`;
+        }
+        return t.hasResults
           ? `${t.name} (${t.strengthTag}, ${t.points} pts, ${t.won}W-${t.drawn}D-${t.lost}L)`
           : `${t.name} (${t.strengthTag})`;
-        return rec;
       });
       lines.push(`  Group ${letter}: ${teamBits.join(" · ")}`);
     }
@@ -768,6 +836,19 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   if (ctx.injuriesKv) {
     const scoped = filterInjuriesBoardForPrompt(ctx.injuriesKv, ctx.requiredEntities || []);
     lines.push("", ...formatInjuriesBoardForPrompt(scoped));
+  }
+
+  if (ctx.keyPlayersBlock) {
+    lines.push("", ctx.keyPlayersBlock);
+  }
+
+  if (ctx.squadTruthGuardBlock) {
+    lines.push("", ctx.squadTruthGuardBlock);
+  }
+
+  const stateGuardBlock = buildWcFixtureStateGuardBlock(ctx.fixtures, ctx.matchDetails);
+  if (stateGuardBlock) {
+    lines.push("", stateGuardBlock);
   }
 
   if (Array.isArray(ctx.fixtureOddsBlocks) && ctx.fixtureOddsBlocks.length) {
@@ -1034,7 +1115,10 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     const slateTeams = resolveWcPlayerPropSlateFixtureTeams(question, matches, nowMs);
     if (slateTeams.length >= 2) mentionedTeams = slateTeams;
   }
-  const phase = getWorldCupPhase(matches);
+  // Date-aware: never report a stage below the ET calendar floor, so a lagging match feed
+  // (group rows not all marked FT, untagged knockout rounds) can't make the model treat a
+  // knockout fixture as group-stage. max(feed-derived, calendar-derived).
+  const phase = resolveWcTournamentPhase(matches, nowMs);
 
   const conversationHistory = Array.isArray(opts.conversationHistory)
     ? opts.conversationHistory
@@ -1264,6 +1348,48 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     }
   }
 
+  // KEY PLAYERS — all-encompassing per-team star grounding for fixture-scoped questions so
+  // the model never under-names a squad (e.g. omitting the talisman). Merges squad registry,
+  // Golden Boot odds, this fixture's posted props, and the injury board. Keyed off the cited
+  // fixture's two teams (union with mentioned teams) so BOTH sides get grounding.
+  let keyPlayersBlock = null;
+  const primaryFx = Array.isArray(fixtures) && fixtures.length ? fixtures[0] : null;
+  const keyPlayerTeams = [
+    ...new Set(
+      [primaryFx?.homeTeam, primaryFx?.awayTeam, ...(mentionedTeams || [])]
+        .map((t) => String(t || "").trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ].slice(0, 4);
+  if (
+    (!liteFollowUp || needsBettingGroundingOnLite) &&
+    keyPlayerTeams.length &&
+    (primaryFx || mentionedTeams.length)
+  ) {
+    try {
+      const playersKv = roundupPlayerKv?.players || (await readWcPlayersFromKv());
+      const registry = buildResolvedWcPlayerRegistry(playersKv, nowMs);
+      const goldenBootKv = roundupPlayerKv?.goldenBoot || (await readWcGoldenBootFromKv(nowMs));
+      const goldenBootRows = goldenBootRowsFromKv(goldenBootKv, 50);
+      let eventProps = null;
+      const eventId = primaryFx?.id != null ? String(primaryFx.id) : effectiveEventId || null;
+      if (eventId) {
+        eventProps = await readWcMatchPlayerPropsForEvent(eventId, nowMs).catch(() => null);
+      }
+      keyPlayersBlock = formatWcKeyPlayersPromptBlock(keyPlayerTeams, {
+        registry,
+        goldenBootRows,
+        injuriesBoard: injuriesKv,
+        eventProps,
+        homeAbbr: primaryFx?.homeTeam,
+        awayAbbr: primaryFx?.awayTeam,
+        nowMs,
+      });
+    } catch (kpErr) {
+      console.warn("[wc-context] key players block failed:", kpErr?.message);
+    }
+  }
+
   const advancementMarketBlock = buildWcAdvancementMarketPromptBlock(question, mentionedTeams);
 
   let bdlFuturesBlock = null;
@@ -1351,6 +1477,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     fixtures,
     matchDetails,
     fixtureOddsBlocks,
+    keyPlayersBlock,
+    squadTruthGuardBlock: formatWcSquadTruthGuardBlock(),
     injuriesKv,
     dataConfidence,
     outrightsKv: outrightsKv?.outrights || null,

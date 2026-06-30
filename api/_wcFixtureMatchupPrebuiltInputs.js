@@ -366,11 +366,15 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
  *   wcEventId?: string | null,
  *   history?: Array<unknown>,
  *   nowMs?: number,
+ *   tournamentPhase?: string,
+ *   allMatches?: Array<Record<string, unknown>>,
  * }} opts
  */
 export async function buildWcFixtureMatchupPrebuiltFromInputs(opts = {}) {
   const inputs = await resolveWcFixtureMatchupPrebuiltInputs(opts);
   if (!inputs) return null;
+  // Always forward the resolved match feed so knockout detection works even when no explicit
+  // phase is threaded; prefer an explicit (date-aware) phase from the caller when provided.
   return buildWcFixtureMatchupPrebuiltStructured({
     home: inputs.home,
     away: inputs.away,
@@ -382,6 +386,6 @@ export async function buildWcFixtureMatchupPrebuiltFromInputs(opts = {}) {
     nowMs: inputs.nowMs,
     history: opts.history,
     tournamentPhase: opts.tournamentPhase,
-    allMatches: opts.allMatches,
+    allMatches: opts.allMatches || inputs.allMatches,
   });
 }

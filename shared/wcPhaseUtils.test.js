@@ -30,6 +30,21 @@ test("getWorldCupPhase detects knockout from round field", () => {
   assert.equal(getWorldCupPhase(matches), "ROUND_OF_16");
 });
 
+test("resolveWcTournamentPhase floors to knockout when calendar is past group stage but feed lags", () => {
+  // Feed shows only a handful of finished group matches with no knockout rounds tagged
+  // (a lagging/incomplete feed) — getWorldCupPhase alone would say GROUP_STAGE.
+  const laggingFeed = [
+    { status: "FT", round: "Group Stage" },
+    { status: "NS", round: "", homeTeam: "NOR", awayTeam: "CIV" },
+  ];
+  assert.equal(getWorldCupPhase(laggingFeed), "GROUP_STAGE");
+  // But on a date inside the knockout window, the resolver must not report group stage.
+  const knockoutDate = Date.parse("2026-06-30T18:00:00-04:00");
+  assert.equal(getWorldCupPhaseFromEtDate(knockoutDate), "ROUND_OF_32");
+  assert.equal(resolveWcTournamentPhase(laggingFeed, knockoutDate), "ROUND_OF_32");
+  assert.equal(isKnockoutPhase(resolveWcTournamentPhase(laggingFeed, knockoutDate)), true);
+});
+
 test("selectGroupsForPrompt scopes to mentioned teams in group stage", () => {
   const groups = {
     A: [{ name: "Mexico", strengthTag: "Favorite" }],

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildWcFixtureStateGuardBlock,
+  buildWcImageReferenceGroundingBlock,
   formatWorldCupUrTakePromptBlock,
   selectFixturesForQuestion,
 } from "./_wcUrTakeContext.js";
@@ -323,6 +325,132 @@ test("live in-play prompt carries score, goal-probability totals, and chance ind
   assert.match(block, /Under -170/);
   assert.match(block, /LIVE CHANCE INDEX/);
   assert.match(block, /not Opta xG/i);
+});
+
+test("knockout phase suppresses group Favorite/Contender/Longshot framing", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_32",
+    groupsForPrompt: {
+      I: [{ name: "Norway", strengthTag: "Contender", hasResults: false }],
+      E: [{ name: "Ivory Coast", strengthTag: "Longshot", hasResults: false }],
+    },
+    fixtures: [
+      { homeTeam: "NOR", awayTeam: "CIV", round: "Round of 32", status: "NS" },
+    ],
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [],
+  });
+  // The group strength-tag TABLE must not render (the KNOCKOUT FIXTURE SCOPE instruction
+  // line legitimately contains the word "Contender" when telling the model NOT to use it).
+  assert.doesNotMatch(block, /Group I:/);
+  assert.doesNotMatch(block, /Norway \(Contender/);
+  assert.doesNotMatch(block, /Ivory Coast \(Longshot/);
+  assert.match(block, /KNOCKOUT FIXTURE SCOPE/);
+});
+
+test("pre-match fixture injects the not-started guard (no live framing)", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_32",
+    groupsForPrompt: {},
+    fixtures: [{ homeTeam: "NOR", awayTeam: "CIV", round: "Round of 32", status: "NS" }],
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [],
+  });
+  assert.match(block, /PRE-MATCH \(not started/);
+  assert.match(block, /has NOT kicked off/);
+  assert.match(block, /NOR vs CIV/);
+});
+
+test("live fixture does NOT inject the pre-match guard", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_32",
+    groupsForPrompt: {},
+    fixtures: [{ homeTeam: "NOR", awayTeam: "CIV", round: "Round of 32", status: "live" }],
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [],
+  });
+  assert.doesNotMatch(block, /PRE-MATCH \(not started/);
+});
+
+test("buildWcFixtureStateGuardBlock: pre-match yields guard, live/finished yields null", () => {
+  const pre = buildWcFixtureStateGuardBlock(
+    [{ homeTeam: "NOR", awayTeam: "CIV", status: "NS" }],
+    [],
+  );
+  assert.match(String(pre), /PRE-MATCH \(not started/);
+  assert.match(String(pre), /NOR vs CIV/);
+  assert.equal(buildWcFixtureStateGuardBlock([{ status: "live" }], []), null);
+  assert.equal(buildWcFixtureStateGuardBlock([{ status: "FT" }], []), null);
+  assert.equal(buildWcFixtureStateGuardBlock([], []), null);
+});
+
+test("buildWcImageReferenceGroundingBlock grounds knockout + bracket + squad truth (Home-tab image)", () => {
+  const matches = [
+    ...Array.from({ length: 72 }, () => ({ status: "FT", round: "Group Stage" })),
+    { status: "NS", round: "Round of 32", homeTeam: "CIV", awayTeam: "NOR", date: "2026-06-30" },
+  ];
+  const block = buildWcImageReferenceGroundingBlock(
+    matches,
+    Date.parse("2026-06-30T18:00:00-04:00"),
+  );
+  assert.match(block, /apply ONLY if the screenshot shows a World Cup/i);
+  assert.match(block, /Round of 32/);
+  assert.match(block, /KNOCKOUT SIGNAL/);
+  assert.match(block, /never describe it as a "qualifier"/);
+  assert.match(block, /CIV vs NOR/);
+  assert.match(block, /WC SQUAD TRUTH/);
+  assert.match(block, /Haaland \(NOR\)/);
+});
+
+test("squadTruthGuardBlock is rendered when provided", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_32",
+    groupsForPrompt: {},
+    fixtures: [{ homeTeam: "NOR", awayTeam: "CIV", round: "Round of 32", status: "NS" }],
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [],
+    squadTruthGuardBlock: "WC SQUAD TRUTH (binding):\n  ... Erling Braut Haaland (NOR) ...",
+  });
+  assert.match(block, /WC SQUAD TRUTH/);
+  assert.match(block, /Haaland \(NOR\)/);
+});
+
+test("keyPlayersBlock is rendered when provided", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_32",
+    groupsForPrompt: {},
+    fixtures: [{ homeTeam: "NOR", awayTeam: "CIV", round: "Round of 32", status: "NS" }],
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [],
+    keyPlayersBlock: "KEY PLAYERS (per cited team):\n  NOR key players (ranked):\n    - Erling Braut Haaland (FW)",
+  });
+  assert.match(block, /KEY PLAYERS \(per cited team\)/);
+  assert.match(block, /Haaland/);
 });
 
 test("formatWorldCupUrTakePromptBlock does not fabricate a score for a not-started match", () => {
