@@ -218,6 +218,151 @@ export function pickMainNestedMatchTotal(markets) {
   };
 }
 
+function isMatchPeriodMarket(market) {
+  const period = String(market?.period || "").toLowerCase();
+  const scope = String(market?.scope || "").toLowerCase();
+  if (period && period !== "match") return false;
+  if (scope && scope !== "match" && scope !== "both_teams") return false;
+  return true;
+}
+
+/** BDL `both_teams_to_score` market → Yes/No prices (BTTS / GG). */
+export function pickBdlNestedBtts(markets) {
+  if (!Array.isArray(markets) || !markets.length) return null;
+  for (const market of markets) {
+    const type = String(market?.type || "").toLowerCase();
+    const name = String(market?.name || market?.key || "").toLowerCase();
+    const isBtts =
+      type === "both_teams_to_score" || /both teams to score|btts|both to score/.test(name);
+    if (!isBtts) continue;
+    if (!isMatchPeriodMarket(market)) continue;
+
+    const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+    const yes = outcomes.find(
+      (o) => String(o?.type).toLowerCase() === "yes" || /^yes$/i.test(String(o?.name || "").trim()),
+    );
+    const no = outcomes.find(
+      (o) => String(o?.type).toLowerCase() === "no" || /^no$/i.test(String(o?.name || "").trim()),
+    );
+    if (yes?.american_odds == null && no?.american_odds == null) continue;
+    return {
+      yes: yes?.american_odds != null ? formatAm(yes.american_odds) : null,
+      no: no?.american_odds != null ? formatAm(no.american_odds) : null,
+    };
+  }
+  return null;
+}
+
+/** BDL `draw_no_bet` market → home/away prices (stake refunded on a draw). */
+export function pickBdlNestedDrawNoBet(markets) {
+  if (!Array.isArray(markets) || !markets.length) return null;
+  for (const market of markets) {
+    const type = String(market?.type || "").toLowerCase();
+    const name = String(market?.name || market?.key || "").toLowerCase();
+    const isDnb = type === "draw_no_bet" || /draw no bet|\bdnb\b/.test(name);
+    if (!isDnb) continue;
+    if (!isMatchPeriodMarket(market)) continue;
+
+    const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+    const home = outcomes.find(
+      (o) => String(o?.type).toLowerCase() === "home" || String(o?.side).toLowerCase() === "home",
+    );
+    const away = outcomes.find(
+      (o) => String(o?.type).toLowerCase() === "away" || String(o?.side).toLowerCase() === "away",
+    );
+    if (home?.american_odds == null && away?.american_odds == null) continue;
+    return {
+      home: home?.american_odds != null ? formatAm(home.american_odds) : null,
+      away: away?.american_odds != null ? formatAm(away.american_odds) : null,
+    };
+  }
+  return null;
+}
+
+/** BDL `double_chance` market → 1X (home/draw), X2 (away/draw), 12 (home/away). */
+export function pickBdlNestedDoubleChance(markets) {
+  if (!Array.isArray(markets) || !markets.length) return null;
+  for (const market of markets) {
+    const type = String(market?.type || "").toLowerCase();
+    const name = String(market?.name || market?.key || "").toLowerCase();
+    const isDc = type === "double_chance" || /double chance/.test(name);
+    if (!isDc) continue;
+    if (!isMatchPeriodMarket(market)) continue;
+
+    const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+    let homeOrDraw = null;
+    let awayOrDraw = null;
+    let homeOrAway = null;
+    for (const o of outcomes) {
+      if (o?.american_odds == null) continue;
+      const oName = String(o?.name || "").toLowerCase();
+      const side = String(o?.side || "").toLowerCase();
+      const hasDraw = /draw|tie/.test(oName);
+      const price = formatAm(o.american_odds);
+      if (!price) continue;
+      if (hasDraw && side === "home") homeOrDraw = price;
+      else if (hasDraw && side === "away") awayOrDraw = price;
+      else if (!hasDraw) homeOrAway = price;
+      else if (hasDraw && !homeOrDraw) homeOrDraw = price;
+      else if (hasDraw) awayOrDraw = price;
+    }
+    if (!homeOrDraw && !awayOrDraw && !homeOrAway) continue;
+    return { homeOrDraw, awayOrDraw, homeOrAway };
+  }
+  return null;
+}
+
+/** BDL `spread` (handicap) market → main home/away handicap line + prices. */
+export function pickBdlNestedMatchSpread(markets) {
+  if (!Array.isArray(markets) || !markets.length) return null;
+  /** @type {Array<{ line: number, home: string | null, away: string | null }>} */
+  const candidates = [];
+  for (const market of markets) {
+    const type = String(market?.type || "").toLowerCase();
+    const name = String(market?.name || market?.key || "").toLowerCase();
+    const isSpread = type === "spread" || /spread|handicap/.test(name);
+    if (!isSpread) continue;
+    if (!isMatchPeriodMarket(market)) continue;
+    if (/team total|alt|1st half|first half|second half/.test(name)) continue;
+
+    const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+    const home = outcomes.find(
+      (o) => String(o?.type).toLowerCase() === "home" || String(o?.side).toLowerCase() === "home",
+    );
+    const away = outcomes.find(
+      (o) => String(o?.type).toLowerCase() === "away" || String(o?.side).toLowerCase() === "away",
+    );
+    if (home?.american_odds == null && away?.american_odds == null) continue;
+    const lineRaw =
+      home?.handicap ?? home?.line_value ?? market?.line_value ?? away?.handicap ?? away?.line_value;
+    const lineNum = Number.parseFloat(String(lineRaw));
+    candidates.push({
+      line: Number.isFinite(lineNum) ? lineNum : NaN,
+      home: home?.american_odds != null ? formatAm(home.american_odds) : null,
+      away: away?.american_odds != null ? formatAm(away.american_odds) : null,
+    });
+  }
+  if (!candidates.length) return null;
+  // Prefer the most balanced (main) line — smallest |home implied - away implied|.
+  candidates.sort((a, b) => {
+    const balA = Math.abs(
+      (impliedProbFromAmerican(Number(String(a.home).replace("+", ""))) ?? 0.5) -
+        (impliedProbFromAmerican(Number(String(a.away).replace("+", ""))) ?? 0.5),
+    );
+    const balB = Math.abs(
+      (impliedProbFromAmerican(Number(String(b.home).replace("+", ""))) ?? 0.5) -
+        (impliedProbFromAmerican(Number(String(b.away).replace("+", ""))) ?? 0.5),
+    );
+    return balA - balB;
+  });
+  const best = candidates[0];
+  return {
+    line: Number.isFinite(best.line) ? best.line : null,
+    home: best.home,
+    away: best.away,
+  };
+}
+
 /** @param {Record<string, unknown>} row */
 export function extractBdlRowTotals(row) {
   if (!row || typeof row !== "object") {
@@ -260,6 +405,10 @@ export function pickBdlMatchOddsForMatch(oddsRows, matchId) {
 
   let totals = { totalLine: null, totalOver: null, totalUnder: null };
   let toAdvance = null;
+  let btts = null;
+  let drawNoBet = null;
+  let doubleChance = null;
+  let nestedSpread = null;
   for (const vendor of VENDOR_PRIORITY) {
     const hit = findBdlOddsRowForVendor(rows, vendor);
     if (!hit) continue;
@@ -269,9 +418,19 @@ export function pickBdlMatchOddsForMatch(oddsRows, matchId) {
   for (const vendor of VENDOR_PRIORITY) {
     const hit = findBdlOddsRowForVendor(rows, vendor);
     if (!hit) continue;
-    toAdvance = pickBdlNestedToAdvanceOdds(hit.markets);
-    if (toAdvance) break;
+    toAdvance = toAdvance || pickBdlNestedToAdvanceOdds(hit.markets);
+    btts = btts || pickBdlNestedBtts(hit.markets);
+    drawNoBet = drawNoBet || pickBdlNestedDrawNoBet(hit.markets);
+    doubleChance = doubleChance || pickBdlNestedDoubleChance(hit.markets);
+    nestedSpread = nestedSpread || pickBdlNestedMatchSpread(hit.markets);
+    if (toAdvance && btts && drawNoBet && doubleChance && nestedSpread) break;
   }
+
+  const spreadHome =
+    mlHit.hit.spread_home_odds != null ? formatAm(mlHit.hit.spread_home_odds) : nestedSpread?.home || null;
+  const spreadHomeLine =
+    mlHit.hit.spread_home_value ?? (nestedSpread?.line != null ? nestedSpread.line : null);
+  const spreadAway = nestedSpread?.away || null;
 
   return {
     home: mlHit.home ? { moneyline: mlHit.home } : undefined,
@@ -280,12 +439,18 @@ export function pickBdlMatchOddsForMatch(oddsRows, matchId) {
     toAdvanceHome: toAdvance?.home ? { moneyline: toAdvance.home } : undefined,
     toAdvanceAway: toAdvance?.away ? { moneyline: toAdvance.away } : undefined,
     provider: String(mlHit.hit.vendor || "BDL"),
-    spreadHome:
-      mlHit.hit.spread_home_odds != null ? formatAm(mlHit.hit.spread_home_odds) : null,
-    spreadHomeLine: mlHit.hit.spread_home_value ?? null,
+    spreadHome,
+    spreadHomeLine,
+    spreadAway,
     totalOver: totals.totalOver,
     totalLine: totals.totalLine,
     totalUnder: totals.totalUnder,
+    btts: btts && (btts.yes || btts.no) ? btts : undefined,
+    drawNoBet: drawNoBet && (drawNoBet.home || drawNoBet.away) ? drawNoBet : undefined,
+    doubleChance:
+      doubleChance && (doubleChance.homeOrDraw || doubleChance.awayOrDraw || doubleChance.homeOrAway)
+        ? doubleChance
+        : undefined,
   };
 }
 

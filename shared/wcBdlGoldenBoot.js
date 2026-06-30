@@ -6,7 +6,10 @@
 import { parseAmericanOddsValue } from "./formatOddsAmerican.js";
 
 const GOLDEN_BOOT_MARKET_RE =
-  /golden.?boot|top.?scorer|top.?goal|goalscorer|most.?goal|player.*goal/i;
+  /golden.?boot|top.?scorer|goalscorer|most.?goal|player.*goal/i;
+
+/** Golden Glove / best goalkeeper / clean-sheet leader markets. */
+const GOLDEN_GLOVE_MARKET_RE = /golden.?glove|clean.?sheet|goal.?keeper|\bkeeper\b/i;
 
 /**
  * @param {string} marketType
@@ -14,7 +17,17 @@ const GOLDEN_BOOT_MARKET_RE =
 export function isBdlGoldenBootMarketType(marketType) {
   const mt = String(marketType || "").trim();
   if (!mt) return false;
-  return GOLDEN_BOOT_MARKET_RE.test(mt);
+  if (GOLDEN_GLOVE_MARKET_RE.test(mt)) return false;
+  return GOLDEN_BOOT_MARKET_RE.test(mt) || /top.?goal(?!.?keeper)/i.test(mt);
+}
+
+/**
+ * @param {string} marketType
+ */
+export function isBdlGoldenGloveMarketType(marketType) {
+  const mt = String(marketType || "").trim();
+  if (!mt) return false;
+  return GOLDEN_GLOVE_MARKET_RE.test(mt);
 }
 
 /**
@@ -49,13 +62,31 @@ function nationFromBdlSubject(subject) {
  * @param {Record<string, string>} [playerNationByName] — lowercased name → nation abbr
  */
 export function extractBdlGoldenBootRowsFromFutures(rawRows, playerNationByName = {}) {
+  return extractBdlPlayerFuturesRows(rawRows, isBdlGoldenBootMarketType, playerNationByName);
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} rawRows
+ * @param {Record<string, string>} [playerNationByName]
+ */
+export function extractBdlGoldenGloveRowsFromFutures(rawRows, playerNationByName = {}) {
+  return extractBdlPlayerFuturesRows(rawRows, isBdlGoldenGloveMarketType, playerNationByName);
+}
+
+/**
+ * Shared player-subject futures extractor (Golden Boot / Golden Glove share shape).
+ * @param {Array<Record<string, unknown>>} rawRows
+ * @param {(marketType: string) => boolean} marketMatcher
+ * @param {Record<string, string>} [playerNationByName]
+ */
+export function extractBdlPlayerFuturesRows(rawRows, marketMatcher, playerNationByName = {}) {
   /** @type {Map<string, { name: string, americanOdds: string, nationAbbr?: string, vendor: string, bookOdds: Record<string, string> }>} */
   const byPlayer = new Map();
 
   for (const row of rawRows || []) {
     if (!row || typeof row !== "object") continue;
     const marketType = String(row.market_type || "").trim();
-    if (!isBdlGoldenBootMarketType(marketType)) continue;
+    if (!marketMatcher(marketType)) continue;
 
     const subject = row.subject && typeof row.subject === "object" ? row.subject : {};
     const name = playerNameFromBdlSubject(subject);

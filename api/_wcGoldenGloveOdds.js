@@ -13,6 +13,7 @@ import { enrichGoldenBootRowsWithNation } from "../shared/wcGoldenBootNationReso
 import { sortGoldenBootRows } from "../shared/wcPlayerOddsFreshness.js";
 import { WC_GOLDEN_GLOVE_SEED_ROWS } from "../src/data/wc2026GoldenGloveSeed.js";
 import { attachGoldenGloveFreshness } from "../shared/wcGoldenGloveFreshness.js";
+import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
 /**
  * @param {Array<{ label?: string, odds?: string, team?: string }>} goalRows
@@ -50,6 +51,26 @@ async function writeGoldenGloveKv(payload) {
 export async function scrapeAndCacheWcGoldenGlove() {
   const nowMs = Date.now();
   const cached = await getDurableJson(WC_GOLDEN_GLOVE_KV_KEY);
+
+  // GOAT primary: BallDontLie futures first. Goal.com / seed are backup only.
+  if (isWcGoatPrimaryEnabled()) {
+    try {
+      const { scrapeAndCacheWcBdlGoldenGlove } = await import("./_wcBdlData.js");
+      const bdl = await scrapeAndCacheWcBdlGoldenGlove();
+      if (bdl?.ok && bdl?.rows?.length) {
+        return { ok: true, rows: bdl.rows, source: "balldontlie", servedStale: false, error: null };
+      }
+      console.log(
+        JSON.stringify({
+          event: "wc_golden_glove_bdl_exhausted",
+          error: bdl?.error || "bdl_no_rows",
+        }),
+      );
+    } catch (err) {
+      console.warn("[wc-golden-glove] BDL futures probe failed, falling back:", err?.message || err);
+    }
+  }
+
   const page = getGoalBettingPage("golden_glove");
 
   /** @type {Array<{ name: string, americanOdds: string, nationAbbr?: string, impliedRank?: number }>} */
