@@ -11,9 +11,10 @@ import {
 } from "./_wcMatchPlayerProps.js";
 import { bdlFifaFetch } from "./_wcBdlFifa.js";
 import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
+import { getMatchesPayload } from "./world-cup.js";
 import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.js";
 import { buildLiveMatchChanceQualityFromDetail } from "../shared/wcMatchChanceQuality.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { isWcBdlSource, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import {
   selectLiveFixtureForQuestion,
   isWcLiveBetsQuestion,
@@ -56,6 +57,7 @@ function isLiveQuestion(question) {
 function attachSeedOddsIfMissing(match, home, away) {
   const row = match && typeof match === "object" ? { ...match } : {};
   if (row.odds && typeof row.odds === "object") return row;
+  if (isWcGoatPrimaryEnabled()) return row.odds ? row : null;
   const seed = getWcFixtureMlSeed(home, away);
   if (!seed) return row.odds ? row : null;
   return { ...row, odds: seed, oddsUpdatedAt: Date.now() };
@@ -139,7 +141,14 @@ async function loadLivePlayerPropsForPrebuilt(eventId, match, nowMs) {
   if (!id) return null;
 
   let props = await readWcMatchPlayerPropsForEvent(id, nowMs).catch(() => null);
-  if (props && props.markets && typeof props.markets === "object") return props;
+  if (
+    props &&
+    props.markets &&
+    typeof props.markets === "object" &&
+    (!isWcGoatPrimaryEnabled() || isWcBdlSource(props.source))
+  ) {
+    return props;
+  }
 
   if (isWcGoatPrimaryEnabled()) {
     props = await ensureWcBdlMatchPlayerPropsForEvent(id, {
@@ -173,6 +182,12 @@ function resolvePairFromLiveSlate(question, matches, wcEventId) {
  * @param {number} [nowMs]
  */
 export async function loadWcMatchInventoryForUrTake(nowMs = Date.now()) {
+  if (isWcGoatPrimaryEnabled()) {
+    const payload = await getMatchesPayload({ preferGoat: true, forUrTake: true }).catch(() => null);
+    if (Array.isArray(payload?.matches) && payload.matches.length) {
+      return payload.matches;
+    }
+  }
   let matchesKv = await readWcMatchesFromKv().catch(() => null);
   if (matchesKv?.matches?.length) {
     const liveRefresh = await refreshWcLiveScores(matchesKv, nowMs);
@@ -264,7 +279,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
 
   if (isWcLiveListStatus(match.status)) {
     match = await refreshWcLiveMatchOddsForPrebuilt(match, nowMs);
-    if (!match.odds) {
+    if (!match.odds && !isWcGoatPrimaryEnabled()) {
       match = attachSeedOddsIfMissing(match, pair.home, pair.away);
     }
   }

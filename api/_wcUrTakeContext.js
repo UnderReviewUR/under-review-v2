@@ -6,7 +6,12 @@
 import { getTodayStr } from "./ur-take/prompt/today.js";
 import { wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
 import { getDurableJson } from "./_durableStore.js";
-import { readWcMatchDetailFromKv, readWcOutrightsFromKv, refreshWcLiveScores } from "./_wcData.js";
+import {
+  readWcMatchDetailFromKv,
+  readWcOutrightsFromKv,
+  refreshWcLiveScores,
+  scrapeAndCacheWcMatchBundle,
+} from "./_wcData.js";
 import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
 import { getEnv } from "./_env.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
@@ -61,6 +66,7 @@ import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { getGoatOutrightsPayload } from "./_wcBdlGoatMode.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import {
   buildAdjustedGoldenBootPromptBlock,
@@ -863,6 +869,16 @@ async function loadWorldCupMatchesPayload() {
   return getMatchesPayload({ preferGoat: false });
 }
 
+async function loadWorldCupOutrightsPayload(nowMs = Date.now()) {
+  if (isWcGoatPrimaryEnabled()) {
+    const goat = await getGoatOutrightsPayload();
+    if (goat?.ok && goat.outrights && Object.keys(goat.outrights).length) {
+      return goat;
+    }
+  }
+  return readWcOutrightsFromKv(nowMs);
+}
+
 /**
  * @param {string} [question]
  * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null, liteFollowUp?: boolean, conversationHistory?: object[] }} [opts]
@@ -898,14 +914,16 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const injectStaticRules =
     opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
+  const needsBettingGroundingOnLite =
+    liteFollowUp && wcLiteFollowUpNeedsBettingGrounding(question, wcIntent);
 
-  if (!liteFollowUp) {
+  if (!liteFollowUp || needsBettingGroundingOnLite) {
     if (isWcGoatPrimaryEnabled()) {
-      void prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 2500, runId: "urtake-context" }).catch(
-        (warmErr) => {
-          console.warn("[wc-context] GOAT prefetch failed:", warmErr?.message);
-        },
-      );
+      try {
+        await prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 3500, runId: "urtake-context" });
+      } catch (warmErr) {
+        console.warn("[wc-context] GOAT prefetch failed:", warmErr?.message);
+      }
     } else {
       void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
         console.warn("[wc-context] lazy warm failed:", warmErr?.message);
@@ -922,8 +940,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       console.warn("[wc-context] loadWorldCupMatchesPayload failed:", err?.message);
       return null;
     }),
-    readWcOutrightsFromKv(nowMs).catch((err) => {
-      console.warn("[wc-context] readWcOutrightsFromKv failed:", err?.message);
+    loadWorldCupOutrightsPayload(nowMs).catch((err) => {
+      console.warn("[wc-context] loadWorldCupOutrightsPayload failed:", err?.message);
       return null;
     }),
   ]);
@@ -1025,7 +1043,24 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     await Promise.all(
       fixtures.map(async (fx) => {
         try {
-          const detail = await readWcMatchDetailFromKv(fx.id);
+          let detail = await readWcMatchDetailFromKv(fx.id);
+          const detailSource = String(detail?.source || "").toLowerCase();
+          if (isWcGoatPrimaryEnabled() && (!detail || !detailSource.startsWith("balldontlie"))) {
+            await Promise.race([
+              scrapeAndCacheWcMatchBundle(fx.id, {
+                homeTeam: fx.homeTeam,
+                awayTeam: fx.awayTeam,
+                date: fx.date,
+                commenceTs: fx.commenceTs,
+              }),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("bdl_match_detail_timeout")), 2500),
+              ),
+            ]).catch((err) => {
+              console.warn("[wc-context] BDL match detail refresh failed for", fx.id, err?.message);
+            });
+            detail = await readWcMatchDetailFromKv(fx.id);
+          }
           if (!detail) return null;
           let enriched = detail;
           try {
@@ -1077,8 +1112,6 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   let tournamentSimBlock = null;
   let tournamentSimResults = null;
-  const needsBettingGroundingOnLite =
-    liteFollowUp && wcLiteFollowUpNeedsBettingGrounding(question, wcIntent);
   if (!liteFollowUp || needsBettingGroundingOnLite) {
     try {
       const simResolved = await resolveWcTournamentSimForPrompt({

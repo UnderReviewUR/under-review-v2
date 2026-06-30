@@ -231,12 +231,23 @@ export async function refreshWcLiveScores(kv, nowMs = Date.now()) {
     return { kv, refreshed: false, checked: false };
   }
 
-  if (isWcGoatPrimaryEnabled() && isWcBdlSource(kv?.source)) {
-    const bdl = await refreshWcLiveScoresFromBdl(kv, nowMs);
-    if (bdl.refreshed) return bdl;
-    const espn = await refreshWcLiveScoresFromEspn(bdl.kv, nowMs, { force: true });
-    if (espn.refreshed) return espn;
-    return bdl.checked ? bdl : espn;
+  if (isWcGoatPrimaryEnabled()) {
+    if (!isWcBdlSource(kv?.source)) {
+      const bdlFull = await scrapeAndCacheWcBdlStandingsAndFixtures().catch((err) => ({
+        ok: false,
+        error: err?.message || "bdl_refresh_failed",
+      }));
+      if (bdlFull?.ok) {
+        const refreshed = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
+        return { kv: refreshed || kv, refreshed: true, checked: true, source: "balldontlie" };
+      }
+    } else {
+      const bdl = await refreshWcLiveScoresFromBdl(kv, nowMs);
+      if (bdl.refreshed) return bdl;
+      const espn = await refreshWcLiveScoresFromEspn(bdl.kv, nowMs, { force: true });
+      if (espn.refreshed) return espn;
+      return bdl.checked ? bdl : espn;
+    }
   }
   return refreshWcLiveScoresFromEspn(kv, nowMs);
 }
@@ -320,7 +331,39 @@ export async function scrapeAndCacheWcStandingsAndFixtures() {
         source: "balldontlie",
       };
     }
-    console.warn("[wc-data] BDL primary failed, falling back to ESPN:", bdl.errors?.join("; "));
+    console.warn("[wc-data] BDL primary failed, checking cached BDL before ESPN fallback:", bdl.errors?.join("; "));
+    const [cachedGroups, cachedMatches] = await Promise.all([
+      readWcGroupsFromKv(Number.MAX_SAFE_INTEGER).catch(() => null),
+      readWcMatchesFromKv(Number.MAX_SAFE_INTEGER).catch(() => null),
+    ]);
+    if (
+      isWcBdlSource(cachedGroups?.source) &&
+      Object.keys(cachedGroups?.groups || {}).length >= 12 &&
+      isWcBdlSource(cachedMatches?.source) &&
+      Array.isArray(cachedMatches?.matches) &&
+      cachedMatches.matches.length >= 50
+    ) {
+      return {
+        ok: true,
+        groupsPayload: {
+          groups: cachedGroups.groups,
+          lastUpdated: cachedGroups.lastUpdated,
+          source: cachedGroups.source || "balldontlie",
+          fallback: true,
+          bdlRefreshError: bdl.errors?.join("; ") || "bdl_refresh_failed",
+        },
+        matchesPayload: {
+          matches: cachedMatches.matches,
+          lastUpdated: cachedMatches.lastUpdated,
+          source: cachedMatches.source || "balldontlie",
+          fallback: true,
+          bdlRefreshError: bdl.errors?.join("; ") || "bdl_refresh_failed",
+        },
+        source: "balldontlie",
+        staleWhileRevalidate: true,
+      };
+    }
+    console.warn("[wc-data] no cached BDL slate available, falling back to ESPN:", bdl.errors?.join("; "));
   }
 
   const nowMs = Date.now();
