@@ -71,6 +71,15 @@ export function detectWcSgpComboIntent(question) {
 
   if (detectParlayIntent(q)) return true;
 
+  // Market comparison / ranking (ML + totals + BTTS) — not an SGP ticket build.
+  if (
+    /\b(rank|ranking|order|which to use|which to avoid|compare|stack rank|best to worst)\b/i.test(q) &&
+    /\b(moneyline|\bml\b|over|under|btts|both teams to score|total goals)\b/i.test(q) &&
+    /[+-]\d{2,}/.test(q)
+  ) {
+    return false;
+  }
+
   if (
     /\bboth\b/i.test(q) &&
     /\b(players?\s+to\s+score|to\s+score|scorer)\b/i.test(q) &&

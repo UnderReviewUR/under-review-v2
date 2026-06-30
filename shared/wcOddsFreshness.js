@@ -133,8 +133,18 @@ export function formatMatchOddsForPrompt(odds, homeTeam = "HOME", awayTeam = "AW
   if (away != null && String(away).trim()) parts.push(`${awayTeam} ${String(away).trim()}`);
 
   if (odds.totalLine != null && String(odds.totalLine).trim() !== "") {
+    const line = String(odds.totalLine).trim();
     const over = odds.totalOver != null ? String(odds.totalOver).trim() : "";
-    parts.push(`Total ${String(odds.totalLine).trim()} goals${over ? ` (Over ${over})` : ""}`);
+    const under = odds.totalUnder != null ? String(odds.totalUnder).trim() : "";
+    if (over && under) {
+      parts.push(`Total ${line} goals (Over ${over} · Under ${under})`);
+    } else if (over) {
+      parts.push(`Total ${line} goals (Over ${over})`);
+    } else if (under) {
+      parts.push(`Total ${line} goals (Under ${under})`);
+    } else {
+      parts.push(`Total ${line} goals`);
+    }
   }
 
   return parts.length ? parts.join(" · ") : null;

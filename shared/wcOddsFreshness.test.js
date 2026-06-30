@@ -97,6 +97,23 @@ test("buildMatchOddsFreshnessPromptBlock formats 1X2 lines", () => {
   assert.match(block, /When citing match moneylines/);
 });
 
+test("formatMatchOddsForPrompt includes both Over and Under when posted", () => {
+  const line = formatMatchOddsForPrompt(
+    {
+      home: { moneyline: "+145" },
+      away: { moneyline: "+230" },
+      draw: { moneyline: "+210" },
+      totalLine: "2.5",
+      totalOver: "+118",
+      totalUnder: "-144",
+    },
+    "NED",
+    "MAR",
+  );
+  assert.match(line, /Over \+118/);
+  assert.match(line, /Under -144/);
+});
+
 test("formatMatchOddsForPrompt returns null when empty", () => {
   assert.equal(formatMatchOddsForPrompt(null), null);
   assert.equal(formatMatchOddsForPrompt({}), null);
