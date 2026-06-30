@@ -602,3 +602,24 @@ test("buildWcCompactStructured — line movement replaces cold pass lean", () =>
   assert.doesNotMatch(String(s.lean), /no actionable line yet/i);
   assert.match(String(s.lean), /-669|shorten/i);
 });
+
+test("buildWcCompactStructured — knockout_slate seed keeps slate scoreline lean (STRUCTURAL)", () => {
+  const s = buildWcCompactStructured({
+    question: "predict the scores for each world cup match today?",
+    wcIntent: WC_INTENT.STRUCTURAL,
+    summary: "",
+    deep: null,
+    structuredSeed: {
+      callType: "knockout_slate",
+      lean: "Lean: 3 UR model scorelines — today's slate (2026-06-30).",
+      call: "3 match predictions on today's slate",
+      whyNow: "Three fixtures on today's ET board.",
+      deep: "Match: Netherlands vs Morocco\nUR model score: 1-1 (12% UR Poisson/Elo)",
+      tomorrowFixtureCount: 3,
+      breakdownAvailable: true,
+    },
+  });
+  assert.match(String(s.lean), /UR model scorelines/i);
+  assert.doesNotMatch(String(s.lean), /no actionable line yet/i);
+  assert.match(String(s.deep || ""), /UR model score/i);
+});

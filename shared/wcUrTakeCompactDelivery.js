@@ -960,7 +960,11 @@ function buildWcCompactStructuredBody(opts = {}) {
     };
   }
 
-  if (seed?.callType === "tomorrow_slate" && seed?.lean && seed?.call) {
+  if (
+    (seed?.callType === "tomorrow_slate" || seed?.callType === "knockout_slate") &&
+    seed?.lean &&
+    seed?.call
+  ) {
     const seedDeep = String(seed.deep || "").trim();
     const mergedDeep = capWcStructuredDeep(deep || seedDeep, 3600);
     const hasBreakdown =
