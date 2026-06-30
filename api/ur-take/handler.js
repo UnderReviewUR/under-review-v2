@@ -124,9 +124,14 @@ import {
 } from "../_gateQuota.js";
 import { buildDerbyContext, isDerbyActive } from "../_derby2026.js";
 import { getMatchesPayload } from "../world-cup.js";
-import { buildWorldCupUrTakeContext } from "../_wcUrTakeContext.js";
+import {
+  buildWorldCupUrTakeContext,
+  buildWcFixtureStateGuardBlock,
+  buildWcImageReferenceGroundingBlock,
+} from "../_wcUrTakeContext.js";
 import { loadWcPlayerMarketKvBlocksWithRetry, formatWcPlayerMarketsPromptBlock } from "../_wcPlayerUrTakeContext.js";
 import { isWcGoatPrimaryEnabled } from "../../shared/wcBdlPolicy.js";
+import { isWcTournamentWindow } from "../../shared/wc2026Constants.js";
 import {
   prepareWcGroundingPacketForHandler,
   tryApplyWcPlayerPropsGroundingToStructured,
@@ -1281,6 +1286,20 @@ ${contextJsonForModel(golfContext)}`;
     relevantContext = `F1 context:
 ${contextJsonForModel(f1Context)}`;
   } else if (sportHint === "worldcup") {
+    // Image/screenshot questions name no teams in text, so they bypassed the full WC grounding.
+    // Inject the same blocks the text path builds (phase/knockout rules + bracket + key players
+    // + squad-truth guard + pre-match guard + fixture odds) so the model can't misframe a
+    // knockout as a "qualifier" or deny a player's squad membership from the picture alone.
+    const wcGroundingBlocks = [
+      wcContext?.knockoutPhaseRules,
+      wcContext?.knockoutAppendix,
+      wcContext?.keyPlayersBlock,
+      wcContext?.squadTruthGuardBlock,
+      buildWcFixtureStateGuardBlock(wcContext?.fixtures, wcContext?.matchDetails),
+      Array.isArray(wcContext?.fixtureOddsBlocks) && wcContext.fixtureOddsBlocks.length
+        ? `FIXTURE MATCH ODDS (verified):\n${wcContext.fixtureOddsBlocks.join("\n")}`
+        : null,
+    ].filter(Boolean);
     relevantContext = `World Cup context:
 ${contextJsonForModel({
   phase: wcContext?.phase || null,
@@ -1290,7 +1309,7 @@ ${contextJsonForModel({
   oddsSource: wcContext?.oddsSource || null,
   oddsLastUpdated: wcContext?.oddsLastUpdated || null,
   dataFreshness: wcContext?.dataFreshness || null,
-})}`;
+})}${wcGroundingBlocks.length ? `\n\n${wcGroundingBlocks.join("\n\n")}` : ""}`;
   }
 
   if (sportHint === "worldcup") {
@@ -1306,6 +1325,9 @@ ${relevantContext}
 
 Critical rules:
 - Prioritize what is explicitly visible in the screenshot text (To Advance, 90-min Moneyline, Total Goals, BTTS, player prop tabs, score, minute, spread/price, stake).
+- KNOCKOUT SIGNAL: a visible "To Advance" market (or "Round of 32/16", "Quarterfinal", "Knockout") means this is a SINGLE-ELIMINATION knockout fixture — NEVER describe it as a "qualifier", group-stage, or "qualifier script" game. Apply the KNOCKOUT STAGE RULES in context (regulation draw → extra time → penalties).
+- SQUAD TRUTH: never tell the user a named player is not on their nation's squad and never claim a star "isn't in this match" — defer to the WC SQUAD TRUTH and KEY PLAYERS blocks in context; treat a player as unavailable only if the injury board lists them OUT.
+- Match the teams you read in the image to the KNOCKOUT BRACKET / KEY PLAYERS in context and ground your read in that verified data, not assumptions.
 - When the image is a pregame market menu with posted American prices, analyze which line is best to play — never default to "Pass until verified lines post" or generic SGP pass copy.
 - For single-leg live spread or total asks, do NOT default to "Fade". Decide Lean or Pass using game-state risk.
 - If the user asks "should I bet this" and edge is unclear, use Pass (do not force an action).
@@ -4642,6 +4664,26 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
   /** Scoped for Anthropic token budget — NFL TYPE_A draft simulation uses a higher max_tokens ceiling. */
   let draftTeamSimulationInject = false;
 
+  // Home/other-tab image questions can't be sport-detected from text (the "World Cup 2026"
+  // header lives only in the picture), so they reach this handler as generic/image_review and
+  // skip the World Cup pipeline entirely. During the tournament window, build a conditional WC
+  // reference (knockout rules + bracket + squad truth) that is appended to the final prompt for
+  // ANY intent — the model applies it only if the screenshot is a World Cup match, so non-WC
+  // screenshots are unaffected. This makes a WC screenshot work from the Home tab too.
+  let wcImageReference = null;
+  if (
+    hasImage &&
+    (sportHint === "generic" || sportHint === "image_review") &&
+    isWcTournamentWindow()
+  ) {
+    try {
+      const wcMatchesForImage = await loadWcMatchInventoryForUrTake().catch(() => []);
+      wcImageReference = buildWcImageReferenceGroundingBlock(wcMatchesForImage, Date.now());
+    } catch (wcRefErr) {
+      console.warn("[ur-take] WC image reference build failed:", wcRefErr?.message || wcRefErr);
+    }
+  }
+
   if (intent === "slip_review") {
     userPrompt = buildSlipReviewPrompt({
       question,
@@ -6103,6 +6145,12 @@ Rules:
 ${continuationRule}`;
   }
 
+  // Attach the conditional WC reference for undetermined-sport image questions (e.g. a World Cup
+  // screenshot asked from the Home tab) regardless of the resolved intent path.
+  if (wcImageReference) {
+    userPrompt = `${userPrompt}\n\n${wcImageReference}`;
+  }
+
   const messages = buildMessagesForAnthropic({
     userPrompt,
     history: incomingHistory,
@@ -6719,6 +6767,7 @@ You are responding to a Pro subscriber. Apply the following:
             mentionedTeams: wcRelevanceLog.mentionedTeams,
             wcEventId: wcRelevanceLog.wcEventId,
             history: normalizedUrTakeHistoryForGate,
+            tournamentPhase: wcContext?.phase,
           }).catch(() => null);
         })());
       if (
