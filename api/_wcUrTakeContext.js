@@ -65,6 +65,8 @@ import {
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
+import { bdlFifaFetch } from "./_wcBdlFifa.js";
+import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { getGoatOutrightsPayload } from "./_wcBdlGoatMode.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
@@ -220,6 +222,50 @@ function isFinished(status) {
 function isScheduled(status) {
   const s = String(status || "").toLowerCase();
   return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
+}
+
+/** Live lines churn — refresh KV odds older than this before grounding a live fixture. */
+const WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS = 90_000;
+const WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS = 2500;
+
+/**
+ * Attach fresh BDL match odds to a LIVE fixture so FIXTURE MATCH ODDS renders even when
+ * the slate row's odds lag. Bounded timeout; freshness/stale warnings stay owned by
+ * buildMatchOddsFreshnessPromptBlock. Non-live fixtures pass through untouched.
+ * @param {Record<string, unknown>} fx
+ * @param {number} nowMs
+ */
+async function attachLiveOddsToFixture(fx, nowMs) {
+  if (!fx || !isLiveStatus(fx.status) || !isWcGoatPrimaryEnabled()) return fx;
+  const oddsUpdatedAt = Number(fx.oddsUpdatedAt || 0);
+  if (
+    fx.odds &&
+    typeof fx.odds === "object" &&
+    oddsUpdatedAt > 0 &&
+    nowMs - oddsUpdatedAt < WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS
+  ) {
+    return fx;
+  }
+  const bdlMatchId = fx.bdlMatchId ?? fx.id;
+  if (bdlMatchId == null) return fx;
+  try {
+    const res = await Promise.race([
+      bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("live_odds_timeout")), WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS),
+      ),
+    ]);
+    if (res?.ok) {
+      const odds = pickBdlMatchOddsForMatch(
+        Array.isArray(res.data?.data) ? res.data.data : [],
+        bdlMatchId,
+      );
+      if (odds) return { ...fx, odds, oddsUpdatedAt: nowMs, oddsStale: false };
+    }
+  } catch (err) {
+    console.warn("[wc-context] live odds attach failed for", fx?.id, err?.message);
+  }
+  return fx;
 }
 
 function buildStaticGroups() {
@@ -400,9 +446,16 @@ function formatMatchIntelBlock(detail) {
   const isBdl = detail.source === "balldontlie" || detail.truthLayer === "balldontlie_goat";
   const feedLabel = isBdl ? "BallDontLie GOAT" : "ESPN summary";
   const truthLayer = isBdl ? "balldontlie_goat" : "espn_summary";
+  // A live/HT/finished match always has a definite score — always surface it
+  // (coerce a null feed value to 0) so the model never asks the user for the score.
+  const scoredStatus = isLiveStatus(detail.status) || isFinished(detail.status);
+  const showScore = detail.homeScore != null || scoredStatus;
+  const scoreText = showScore
+    ? ` · Score ${detail.homeScore ?? 0}-${detail.awayScore ?? 0}`
+    : "";
   const lines = [
     `MATCH INTEL (event ${id}) — ${detail.homeTeam} vs ${detail.awayTeam}`,
-    `Status: ${detail.status}${detail.homeScore != null ? ` · Score ${detail.homeScore}-${detail.awayScore}` : ""}${detail.venue ? ` · ${detail.venue}` : ""}`,
+    `Status: ${detail.status}${scoreText}${detail.venue ? ` · ${detail.venue}` : ""}`,
     `  Verified feed: ${feedLabel} · truth_layer: ${truthLayer} · lineupConfirmed: ${lineupConfirmed ? "yes" : "no"} · as of ${asOf}`,
   ];
 
@@ -1090,6 +1143,10 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   const resultsForPrompt = selectResultsForPrompt(results, phase);
   const upcomingForPrompt = selectUpcomingForPrompt(upcoming, matches, phase);
+
+  if (fixtures.some((fx) => isLiveStatus(fx?.status))) {
+    fixtures = await Promise.all(fixtures.map((fx) => attachLiveOddsToFixture(fx, nowMs)));
+  }
 
   const fixtureOddsBlocks = fixtures
     .map((fx) => buildMatchOddsFreshnessPromptBlock(fx, nowMs))

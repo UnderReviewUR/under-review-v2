@@ -229,3 +229,60 @@ test("formatWorldCupUrTakePromptBlock live match includes live chance index", ()
   assert.match(block, /not Opta xG/i);
   assert.match(block, /Team chance index/);
 });
+
+test("formatWorldCupUrTakePromptBlock renders 0-0 for a live match with null score fields", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: {},
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [
+      {
+        eventId: "760599",
+        homeTeam: "NED",
+        awayTeam: "MAR",
+        status: "live",
+        homeScore: null,
+        awayScore: null,
+        lineups: { home: { starters: [] }, away: { starters: [] } },
+        teamStats: { home: {}, away: {} },
+        players: { home: [], away: [] },
+        goals: [],
+        injuries: [],
+      },
+    ],
+  });
+  // The model must never be told "Status: live" with no score for a live fixture.
+  assert.match(block, /Status: live · Score 0-0/);
+});
+
+test("formatWorldCupUrTakePromptBlock does not fabricate a score for a not-started match", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: {},
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [
+      {
+        eventId: "760600",
+        homeTeam: "MEX",
+        awayTeam: "RSA",
+        status: "NS",
+        homeScore: null,
+        awayScore: null,
+        lineups: { home: { starters: [] }, away: { starters: [] } },
+        teamStats: { home: {}, away: {} },
+        players: { home: [], away: [] },
+        goals: [],
+        injuries: [],
+      },
+    ],
+  });
+  assert.doesNotMatch(block, /Score 0-0/);
+});

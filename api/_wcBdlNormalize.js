@@ -45,6 +45,12 @@ function pickTeamAbbr(team) {
   );
 }
 
+/** A live/HT/finished match always has a definite score — treat a null feed value as 0. */
+function coerceWcLiveScore(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function normalizeBdlFifaStatus(raw) {
   const s = String(raw || "").trim().toLowerCase();
   if (!s) return "NS";
@@ -90,8 +96,8 @@ export function normalizeBdlFifaMatchRow(row, nowMs = Date.now()) {
     bdlMatchId,
     homeTeam,
     awayTeam,
-    homeScore: isScored && homeScore != null ? Number(homeScore) : null,
-    awayScore: isScored && awayScore != null ? Number(awayScore) : null,
+    homeScore: isScored ? coerceWcLiveScore(homeScore) : null,
+    awayScore: isScored ? coerceWcLiveScore(awayScore) : null,
     status,
     date: etDate,
     time:
@@ -804,8 +810,9 @@ export function normalizeBdlMatchDetailBundle(bundle) {
   const lineupConfirmed =
     lineups.home.starters.length >= 11 && lineups.away.starters.length >= 11;
 
-  const homeScore = match.home_score != null ? Number(match.home_score) : null;
-  const awayScore = match.away_score != null ? Number(match.away_score) : null;
+  const scored = status === "FT" || status === "live" || status === "HT";
+  const homeScore = scored ? coerceWcLiveScore(match.home_score) : null;
+  const awayScore = scored ? coerceWcLiveScore(match.away_score) : null;
 
   const bdlGoat = buildBdlGoatMatchIntel(bundle, { homeTeam, awayTeam });
 
@@ -818,8 +825,8 @@ export function normalizeBdlMatchDetailBundle(bundle) {
     fetchedAt: Date.now(),
     homeTeam,
     awayTeam,
-    homeScore: Number.isFinite(homeScore) ? homeScore : null,
-    awayScore: Number.isFinite(awayScore) ? awayScore : null,
+    homeScore,
+    awayScore,
     status,
     phase,
     date: dateRaw,

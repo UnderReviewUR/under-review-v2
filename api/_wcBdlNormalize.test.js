@@ -4,6 +4,7 @@ import {
   buildBdlPlayerIdLookup,
   collapseBdlIngestRowsOnePerPlayer,
   extractBdlRowTotals,
+  normalizeBdlFifaMatchRow,
   normalizeBdlPlayerPropsToMarkets,
   pickBdlMatchOddsForMatch,
   pickBdlNestedBtts,
@@ -389,4 +390,33 @@ test("pickBdlMatchOddsForMatch — surfaces BTTS, DNB, double chance from nested
   assert.equal(odds?.home?.moneyline, "+144");
   assert.deepEqual(odds?.btts, { yes: "-163", no: "+125" });
   assert.deepEqual(odds?.drawNoBet, { home: "-110", away: "+160" });
+});
+
+test("normalizeBdlFifaMatchRow — live match with null score feed coerces to 0-0", () => {
+  const row = normalizeBdlFifaMatchRow({
+    id: 760599,
+    home_team: { abbreviation: "NED" },
+    away_team: { abbreviation: "MAR" },
+    status: "1H",
+    home_score: null,
+    away_score: null,
+    datetime: "2026-07-04T18:00:00Z",
+  });
+  assert.equal(row.status, "live");
+  assert.equal(row.homeScore, 0);
+  assert.equal(row.awayScore, 0);
+});
+
+test("normalizeBdlFifaMatchRow — not-started match keeps null scores", () => {
+  const row = normalizeBdlFifaMatchRow({
+    id: 760600,
+    home_team: { abbreviation: "MEX" },
+    away_team: { abbreviation: "RSA" },
+    status: "scheduled",
+    home_score: null,
+    away_score: null,
+    datetime: "2026-07-05T18:00:00Z",
+  });
+  assert.equal(row.homeScore, null);
+  assert.equal(row.awayScore, null);
 });
