@@ -94,12 +94,69 @@ test("buildMatchOddsFreshnessPromptBlock formats 1X2 lines", () => {
   assert.match(block, /NOR \+250/);
   assert.match(block, /Draw \+220/);
   assert.match(block, /FRA -110/);
-  assert.match(block, /When citing match moneylines/);
+  assert.match(block, /When citing any match market/);
+});
+
+test("formatMatchOddsForPrompt includes both Over and Under when posted", () => {
+  const line = formatMatchOddsForPrompt(
+    {
+      home: { moneyline: "+145" },
+      away: { moneyline: "+230" },
+      draw: { moneyline: "+210" },
+      totalLine: "2.5",
+      totalOver: "+118",
+      totalUnder: "-144",
+    },
+    "NED",
+    "MAR",
+  );
+  assert.match(line, /Over \+118/);
+  assert.match(line, /Under -144/);
+});
+
+test("formatMatchOddsForPrompt surfaces BTTS, DNB, double chance, spread", () => {
+  const line = formatMatchOddsForPrompt(
+    {
+      home: { moneyline: "+144" },
+      away: { moneyline: "+245" },
+      draw: { moneyline: "+210" },
+      totalLine: "2.5",
+      totalOver: "+127",
+      totalUnder: "-163",
+      btts: { yes: "-163", no: "+125" },
+      drawNoBet: { home: "-110", away: "+160" },
+      doubleChance: { homeOrDraw: "-260", awayOrDraw: "+120", homeOrAway: "-700" },
+      spreadHome: "+160",
+      spreadAway: "-200",
+      spreadHomeLine: -1.5,
+    },
+    "NED",
+    "MAR",
+  );
+  assert.match(line, /Both teams to score \(Yes -163 · No \+125\)/);
+  assert.match(line, /Draw no bet \(NED -110 · MAR \+160\)/);
+  assert.match(line, /Double chance \(NED or Draw -260/);
+  assert.match(line, /Spread\/handicap NED -1\.5 \(\+160\) · MAR \+1\.5 \(-200\)/);
 });
 
 test("formatMatchOddsForPrompt returns null when empty", () => {
   assert.equal(formatMatchOddsForPrompt(null), null);
   assert.equal(formatMatchOddsForPrompt({}), null);
+});
+
+test("formatMatchOddsForPrompt surfaces to-advance prices", () => {
+  const line = formatMatchOddsForPrompt(
+    {
+      home: { moneyline: "+285" },
+      draw: { moneyline: "+245" },
+      away: { moneyline: "+113" },
+      toAdvanceHome: { moneyline: "+178" },
+      toAdvanceAway: { moneyline: "-186" },
+    },
+    "CIV",
+    "NOR",
+  );
+  assert.match(line, /To advance \(CIV \+178 · NOR -186\)/);
 });
 
 test("formatWcOutrightsStaleChipLabel returns user-facing markets chip", () => {

@@ -6,7 +6,12 @@
 import { getTodayStr } from "./ur-take/prompt/today.js";
 import { wcTodayEtYmd } from "../shared/wcKickoffDisplay.js";
 import { getDurableJson } from "./_durableStore.js";
-import { readWcMatchDetailFromKv, readWcOutrightsFromKv, refreshWcLiveScores } from "./_wcData.js";
+import {
+  readWcMatchDetailFromKv,
+  readWcOutrightsFromKv,
+  refreshWcLiveScores,
+  scrapeAndCacheWcMatchBundle,
+} from "./_wcData.js";
 import { getGroupsPayload, getMatchesPayload } from "./world-cup.js";
 import { getEnv } from "./_env.js";
 import { isKvFresh } from "../shared/selfHealingKv.js";
@@ -30,12 +35,14 @@ import { getWcBreakingLineWithOverride } from "./_wcPlayerMarketsOverride.js";
 import {
   filterOutrightsForQuestion,
   formatGroupClinchWarnings,
+  formatKnockoutBracketPrompt,
   formatKnockoutPhasePromptRules,
   formatKnockoutUrTakeAppendix,
   formatWorldCupPhaseRules,
-  getWorldCupPhase,
+  getKnockoutRoundLabel,
   isKnockoutPhase,
   isKnockoutRound,
+  resolveWcTournamentPhase,
   selectGroupsForPrompt,
 } from "../shared/wcPhaseUtils.js";
 import { formatVenueWarningsForPrompt } from "../shared/wcVenueMetadata.js";
@@ -60,7 +67,10 @@ import {
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
+import { bdlFifaFetch } from "./_wcBdlFifa.js";
+import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { getGoatOutrightsPayload } from "./_wcBdlGoatMode.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import {
   buildAdjustedGoldenBootPromptBlock,
@@ -73,13 +83,21 @@ import {
 import { readWcGoldenGloveFromKv } from "./_wcGoldenGloveOdds.js";
 import { buildWcPlayerBioPromptBlock } from "../shared/wcPlayerBio.js";
 import { buildResolvedWcPlayerRegistry } from "../shared/wcPlayerRegistry.js";
+import {
+  formatWcKeyPlayersPromptBlock,
+  formatWcSquadTruthGuardBlock,
+} from "../shared/wcKeyPlayers.js";
+import { goldenBootRowsFromKv } from "../shared/wcPlayerOddsFreshness.js";
+import { readWcMatchPlayerPropsForEvent } from "./_wcMatchPlayerProps.js";
 import { maybeWarmWcUrTakeKv } from "./_wcUrTakeLazyWarm.js";
 import { prefetchWcGoatDataForUrTake } from "./_wcGoatUrTakePrefetch.js";
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
+  isWcLiveBetsQuestion,
   isWcLiveDominanceQuestion,
   selectLiveFixtureForQuestion,
+  WC_LIVE_ANGLE_ASK_RE,
   WC_LIVE_MATCH_PROMPT_RULES,
 } from "../shared/wcLiveMatchQuestion.js";
 import { WC_MATCH_BETTING_PROMPT_RULES } from "../shared/wcMatchBettingPrompt.js";
@@ -214,6 +232,188 @@ function isFinished(status) {
 function isScheduled(status) {
   const s = String(status || "").toLowerCase();
   return s === "ns" || s === "scheduled" || s === "not started" || s === "upcoming";
+}
+
+/**
+ * Compact guardrail slice for WC turns that reach the model WITHOUT a full prompt block
+ * (e.g. prebuilt stub contexts whose fast-path delivery fell through). Composes the binding
+ * state guards from whatever fixtures the stub carries so the model can never ask for a live
+ * score, invent a pre-match scoreline, use group framing in knockout, or deny squad membership.
+ * @param {Record<string, unknown> | null | undefined} wcContext
+ * @returns {string}
+ */
+export function buildWcStubGuardSliceBlock(wcContext) {
+  const fixtures = Array.isArray(wcContext?.fixtures) ? wcContext.fixtures : [];
+  const matchDetails = Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails : [];
+  const live = Array.isArray(wcContext?.live) ? wcContext.live : [];
+  const parts = [];
+  const phase = wcContext?.phase;
+  const koRules = phase ? formatKnockoutPhasePromptRules(phase) : null;
+  if (koRules) parts.push(koRules);
+  const liveGuard = buildWcLiveStateGuardBlock(fixtures, matchDetails, live);
+  if (liveGuard) parts.push(liveGuard);
+  const preMatchGuard = buildWcFixtureStateGuardBlock(fixtures, matchDetails);
+  if (preMatchGuard) parts.push(preMatchGuard);
+  try {
+    parts.push(formatWcSquadTruthGuardBlock());
+  } catch {
+    /* squad registry unavailable — skip */
+  }
+  return parts.join("\n\n");
+}
+
+/**
+ * Conditional World Cup reference for image/screenshot questions whose sport can't be resolved
+ * from text (e.g. asked from the Home tab). The model applies it only if the screenshot is a
+ * World Cup match — it grounds the tournament stage, knockout rules, the bracket (so it can
+ * match the teams it reads), and the squad-truth guard, preventing the "qualifier" misframe and
+ * squad-membership denials without misrouting non-World-Cup screenshots.
+ * @param {Array<Record<string, unknown>> | null | undefined} matches
+ * @param {number} [nowMs]
+ * @returns {string}
+ */
+export function buildWcImageReferenceGroundingBlock(matches, nowMs = Date.now()) {
+  const rows = Array.isArray(matches) ? matches : [];
+  const phase = resolveWcTournamentPhase(rows, nowMs);
+  const parts = [
+    "WORLD CUP REFERENCE (apply ONLY if the screenshot shows a World Cup / soccer match; otherwise ignore this entire block):",
+    `  Current tournament stage: ${getKnockoutRoundLabel(phase)} (${phase}).`,
+    '  KNOCKOUT SIGNAL: a visible "To Advance" market or "Round of 32/16", "Quarterfinal", "Knockout" means a SINGLE-ELIMINATION knockout fixture — never describe it as a "qualifier" or group-stage game.',
+  ];
+  const koRules = formatKnockoutPhasePromptRules(phase);
+  if (koRules) parts.push(koRules);
+  const bracket = formatKnockoutBracketPrompt(rows);
+  if (bracket) parts.push(bracket);
+  parts.push(formatWcSquadTruthGuardBlock());
+  return parts.join("\n\n");
+}
+
+/** Any question asking for a live/in-play angle, bets, or dominance read. */
+function isWcLiveIntentQuestion(question) {
+  const q = String(question || "");
+  return (
+    isWcLiveDominanceQuestion(q) ||
+    isWcLiveBetsQuestion(q) ||
+    WC_LIVE_ANGLE_ASK_RE.test(q)
+  );
+}
+
+/**
+ * LIVE STATE guard: when a cited/slate fixture is in progress, surface the verified score +
+ * status up front and forbid the model from asking the user for the current state. This kills
+ * the "Need the live score and time..." failure where the card already shows the score.
+ * @param {Array<Record<string, unknown>> | null | undefined} fixtures
+ * @param {Array<Record<string, unknown>> | null | undefined} matchDetails
+ * @param {Array<Record<string, unknown>> | null | undefined} live
+ * @returns {string | null}
+ */
+export function buildWcLiveStateGuardBlock(fixtures, matchDetails, live) {
+  const candidates = [
+    ...(Array.isArray(matchDetails) ? matchDetails : []),
+    ...(Array.isArray(fixtures) ? fixtures : []),
+    ...(Array.isArray(live) ? live : []),
+  ];
+  const rows = candidates.filter((m) => m && isLiveStatus(m.status));
+  if (!rows.length) return null;
+  const seen = new Set();
+  const lines = [
+    "LIVE STATE (binding — this IS the current verified state; do NOT ask the user for it):",
+  ];
+  for (const m of rows) {
+    const home = m.homeTeam || m.home || "";
+    const away = m.awayTeam || m.away || "";
+    if (!home || !away) continue;
+    const key = `${home}-${away}`.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const hs = Number(m.homeScore ?? 0);
+    const as = Number(m.awayScore ?? 0);
+    const status = String(m.status || "live").toUpperCase();
+    const minuteRaw = m.minute || m.clock || m.displayClock || m.statusDetail;
+    const minuteText = minuteRaw ? ` · ${String(minuteRaw)}` : "";
+    lines.push(`  ${home} ${hs}-${as} ${away} — ${status}${minuteText}`);
+  }
+  if (lines.length === 1) return null;
+  lines.push(
+    "  Give the live angle NOW using this score/time. NEVER reply by asking for the current score, minute, or state of play — it is provided here.",
+  );
+  return lines.join("\n");
+}
+
+/**
+ * PRE-MATCH guard: when the cited fixture(s) have not kicked off and none are live/finished,
+ * forbid any live/in-progress framing so the model never invents a current scoreline ("0-0")
+ * or a "live script" on a match that hasn't started. Shared by the text and image paths.
+ * @param {Array<Record<string, unknown>> | null | undefined} fixtures
+ * @param {Array<Record<string, unknown>> | null | undefined} matchDetails
+ * @returns {string | null}
+ */
+export function buildWcFixtureStateGuardBlock(fixtures, matchDetails) {
+  const fx = Array.isArray(fixtures) ? fixtures : [];
+  const dt = Array.isArray(matchDetails) ? matchDetails : [];
+  const anyLive =
+    fx.some((f) => isLiveStatus(f?.status)) || dt.some((d) => isLiveStatus(d?.status));
+  const anyFinished =
+    fx.some((f) => isFinished(f?.status)) || dt.some((d) => isFinished(d?.status));
+  const preMatch = fx.filter((f) => isScheduled(f?.status));
+  if (anyLive || anyFinished || !preMatch.length) return null;
+  const names = preMatch
+    .map((f) => `${f.homeTeam} vs ${f.awayTeam}`)
+    .filter(Boolean)
+    .join(", ");
+  return [
+    "PRE-MATCH (not started — binding):",
+    `  ${names || "The cited fixture"} ${preMatch.length > 1 ? "have" : "has"} NOT kicked off. Do NOT reference a live score, a current scoreline (e.g. "0-0"), minutes played, an in-progress game state, or a "live script." All odds are pre-match prices; frame everything as pre-kickoff.`,
+  ].join("\n");
+}
+
+/** Live lines churn — refresh KV odds older than this before grounding a live fixture. */
+const WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS = 90_000;
+const WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS = 2500;
+/** Live score/stats move — refresh a cached match detail older than this for an in-play match. */
+const WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS = 60_000;
+/** Imminent pre-match window (lineups drop ~T-75) + refresh age for dropped Starting XI. */
+const WC_CONTEXT_PREMATCH_LINEUP_WINDOW_MS = 90 * 60 * 1000;
+const WC_CONTEXT_PREMATCH_DETAIL_MAX_AGE_MS = 5 * 60 * 1000;
+
+/**
+ * Attach fresh BDL match odds to a LIVE fixture so FIXTURE MATCH ODDS renders even when
+ * the slate row's odds lag. Bounded timeout; freshness/stale warnings stay owned by
+ * buildMatchOddsFreshnessPromptBlock. Non-live fixtures pass through untouched.
+ * @param {Record<string, unknown>} fx
+ * @param {number} nowMs
+ */
+async function attachLiveOddsToFixture(fx, nowMs) {
+  if (!fx || !isLiveStatus(fx.status) || !isWcGoatPrimaryEnabled()) return fx;
+  const oddsUpdatedAt = Number(fx.oddsUpdatedAt || 0);
+  if (
+    fx.odds &&
+    typeof fx.odds === "object" &&
+    oddsUpdatedAt > 0 &&
+    nowMs - oddsUpdatedAt < WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS
+  ) {
+    return fx;
+  }
+  const bdlMatchId = fx.bdlMatchId ?? fx.id;
+  if (bdlMatchId == null) return fx;
+  try {
+    const res = await Promise.race([
+      bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("live_odds_timeout")), WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS),
+      ),
+    ]);
+    if (res?.ok) {
+      const odds = pickBdlMatchOddsForMatch(
+        Array.isArray(res.data?.data) ? res.data.data : [],
+        bdlMatchId,
+      );
+      if (odds) return { ...fx, odds, oddsUpdatedAt: nowMs, oddsStale: false };
+    }
+  } catch (err) {
+    console.warn("[wc-context] live odds attach failed for", fx?.id, err?.message);
+  }
+  return fx;
 }
 
 function buildStaticGroups() {
@@ -394,9 +594,16 @@ function formatMatchIntelBlock(detail) {
   const isBdl = detail.source === "balldontlie" || detail.truthLayer === "balldontlie_goat";
   const feedLabel = isBdl ? "BallDontLie GOAT" : "ESPN summary";
   const truthLayer = isBdl ? "balldontlie_goat" : "espn_summary";
+  // A live/HT/finished match always has a definite score — always surface it
+  // (coerce a null feed value to 0) so the model never asks the user for the score.
+  const scoredStatus = isLiveStatus(detail.status) || isFinished(detail.status);
+  const showScore = detail.homeScore != null || scoredStatus;
+  const scoreText = showScore
+    ? ` · Score ${detail.homeScore ?? 0}-${detail.awayScore ?? 0}`
+    : "";
   const lines = [
     `MATCH INTEL (event ${id}) — ${detail.homeTeam} vs ${detail.awayTeam}`,
-    `Status: ${detail.status}${detail.homeScore != null ? ` · Score ${detail.homeScore}-${detail.awayScore}` : ""}${detail.venue ? ` · ${detail.venue}` : ""}`,
+    `Status: ${detail.status}${scoreText}${detail.venue ? ` · ${detail.venue}` : ""}`,
     `  Verified feed: ${feedLabel} · truth_layer: ${truthLayer} · lineupConfirmed: ${lineupConfirmed ? "yes" : "no"} · as of ${asOf}`,
   ];
 
@@ -595,6 +802,12 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     "",
   );
 
+  // Surface the live score/state up front and forbid asking the user for it.
+  const liveStateGuard = buildWcLiveStateGuardBlock(ctx.fixtures, ctx.matchDetails, ctx.live);
+  if (liveStateGuard) {
+    lines.push(liveStateGuard, "");
+  }
+
   lines.push(
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
     "",
@@ -641,14 +854,21 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
       groupLetters.length >= 12 ? "GROUPS (12 × 4 teams):" : "GROUPS (question-scoped):",
     );
 
+    // In knockout, never label teams by group-stage tier (Favorite/Contender/Longshot) —
+    // it framed completed group standing as if it decides a single-elimination tie.
+    const ko = isKnockoutPhase(phase);
     for (const letter of groupLetters) {
       const teams = groupsForPrompt[letter];
       if (!Array.isArray(teams) || !teams.length) continue;
       const teamBits = teams.map((t) => {
-        const rec = t.hasResults
+        if (ko) {
+          return t.hasResults
+            ? `${t.name} (final group: ${t.points} pts, ${t.won}W-${t.drawn}D-${t.lost}L)`
+            : `${t.name}`;
+        }
+        return t.hasResults
           ? `${t.name} (${t.strengthTag}, ${t.points} pts, ${t.won}W-${t.drawn}D-${t.lost}L)`
           : `${t.name} (${t.strengthTag})`;
-        return rec;
       });
       lines.push(`  Group ${letter}: ${teamBits.join(" · ")}`);
     }
@@ -707,6 +927,19 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   if (ctx.injuriesKv) {
     const scoped = filterInjuriesBoardForPrompt(ctx.injuriesKv, ctx.requiredEntities || []);
     lines.push("", ...formatInjuriesBoardForPrompt(scoped));
+  }
+
+  if (ctx.keyPlayersBlock) {
+    lines.push("", ctx.keyPlayersBlock);
+  }
+
+  if (ctx.squadTruthGuardBlock) {
+    lines.push("", ctx.squadTruthGuardBlock);
+  }
+
+  const stateGuardBlock = buildWcFixtureStateGuardBlock(ctx.fixtures, ctx.matchDetails);
+  if (stateGuardBlock) {
+    lines.push("", stateGuardBlock);
   }
 
   if (Array.isArray(ctx.fixtureOddsBlocks) && ctx.fixtureOddsBlocks.length) {
@@ -863,6 +1096,16 @@ async function loadWorldCupMatchesPayload() {
   return getMatchesPayload({ preferGoat: false });
 }
 
+async function loadWorldCupOutrightsPayload(nowMs = Date.now()) {
+  if (isWcGoatPrimaryEnabled()) {
+    const goat = await getGoatOutrightsPayload();
+    if (goat?.ok && goat.outrights && Object.keys(goat.outrights).length) {
+      return goat;
+    }
+  }
+  return readWcOutrightsFromKv(nowMs);
+}
+
 /**
  * @param {string} [question]
  * @param {{ wcIntent?: string, requiredEntities?: string[], injectStaticRules?: boolean, wcEventId?: string | null, liteFollowUp?: boolean, conversationHistory?: object[] }} [opts]
@@ -898,14 +1141,16 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const injectStaticRules =
     opts.injectStaticRules ?? shouldInjectStaticRules(question, wcIntent || "");
   const nowMs = Date.now();
+  const needsBettingGroundingOnLite =
+    liteFollowUp && wcLiteFollowUpNeedsBettingGrounding(question, wcIntent);
 
-  if (!liteFollowUp) {
+  if (!liteFollowUp || needsBettingGroundingOnLite) {
     if (isWcGoatPrimaryEnabled()) {
-      void prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 2500, runId: "urtake-context" }).catch(
-        (warmErr) => {
-          console.warn("[wc-context] GOAT prefetch failed:", warmErr?.message);
-        },
-      );
+      try {
+        await prefetchWcGoatDataForUrTake(nowMs, { timeoutMs: 3500, runId: "urtake-context" });
+      } catch (warmErr) {
+        console.warn("[wc-context] GOAT prefetch failed:", warmErr?.message);
+      }
     } else {
       void maybeWarmWcUrTakeKv(nowMs).catch((warmErr) => {
         console.warn("[wc-context] lazy warm failed:", warmErr?.message);
@@ -922,8 +1167,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       console.warn("[wc-context] loadWorldCupMatchesPayload failed:", err?.message);
       return null;
     }),
-    readWcOutrightsFromKv(nowMs).catch((err) => {
-      console.warn("[wc-context] readWcOutrightsFromKv failed:", err?.message);
+    loadWorldCupOutrightsPayload(nowMs).catch((err) => {
+      console.warn("[wc-context] loadWorldCupOutrightsPayload failed:", err?.message);
       return null;
     }),
   ]);
@@ -961,7 +1206,10 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     const slateTeams = resolveWcPlayerPropSlateFixtureTeams(question, matches, nowMs);
     if (slateTeams.length >= 2) mentionedTeams = slateTeams;
   }
-  const phase = getWorldCupPhase(matches);
+  // Date-aware: never report a stage below the ET calendar floor, so a lagging match feed
+  // (group rows not all marked FT, untagged knockout rounds) can't make the model treat a
+  // knockout fixture as group-stage. max(feed-derived, calendar-derived).
+  const phase = resolveWcTournamentPhase(matches, nowMs);
 
   const conversationHistory = Array.isArray(opts.conversationHistory)
     ? opts.conversationHistory
@@ -1010,13 +1258,14 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       resolveWcEventIdForFixtureTeams(matches, mentionedTeams[0], mentionedTeams[1]) ||
       effectiveEventId;
   }
-  if (!effectiveEventId && isWcLiveDominanceQuestion(question)) {
+  const liveIntentQuestion = isWcLiveIntentQuestion(question);
+  if (!effectiveEventId && liveIntentQuestion) {
     const livePinned = selectLiveFixtureForQuestion(matches, question, null);
     if (livePinned?.id) effectiveEventId = String(livePinned.id);
   }
 
   let fixtures = selectFixturesForQuestion(matches, mentionedTeams, effectiveEventId);
-  if (!fixtures.length && isWcLiveDominanceQuestion(question)) {
+  if (!fixtures.length && liveIntentQuestion) {
     const liveFx = selectLiveFixtureForQuestion(matches, question, effectiveEventId);
     if (liveFx) fixtures = [liveFx];
   }
@@ -1025,7 +1274,49 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     await Promise.all(
       fixtures.map(async (fx) => {
         try {
-          const detail = await readWcMatchDetailFromKv(fx.id);
+          let detail = await readWcMatchDetailFromKv(fx.id);
+          const detailSource = String(detail?.source || "").toLowerCase();
+          // For an in-play match the score/stats move, so a cached BDL detail can still be
+          // stale — force a refresh past the live max-age, not just when it's missing/non-BDL.
+          const detailAgeMs = detail
+            ? nowMs - Number(detail.lastUpdated || detail.fetchedAt || 0)
+            : Infinity;
+          const liveDetailStale =
+            isLiveStatus(fx?.status) && detailAgeMs > WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS;
+          // Imminent pre-match: lineups drop ~T-75, so a detail cached earlier lacks the
+          // Starting XI — refresh it so we don't report "no confirmed Starting XI yet".
+          const commenceTs = Number(fx?.commenceTs);
+          const preMatchImminent =
+            isScheduled(fx?.status) &&
+            Number.isFinite(commenceTs) &&
+            commenceTs > 0 &&
+            commenceTs - nowMs <= WC_CONTEXT_PREMATCH_LINEUP_WINDOW_MS;
+          const preMatchDetailStale =
+            preMatchImminent &&
+            (!detail?.lineupConfirmed) &&
+            detailAgeMs > WC_CONTEXT_PREMATCH_DETAIL_MAX_AGE_MS;
+          if (
+            isWcGoatPrimaryEnabled() &&
+            (!detail ||
+              !detailSource.startsWith("balldontlie") ||
+              liveDetailStale ||
+              preMatchDetailStale)
+          ) {
+            await Promise.race([
+              scrapeAndCacheWcMatchBundle(fx.id, {
+                homeTeam: fx.homeTeam,
+                awayTeam: fx.awayTeam,
+                date: fx.date,
+                commenceTs: fx.commenceTs,
+              }),
+              new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("bdl_match_detail_timeout")), 2500),
+              ),
+            ]).catch((err) => {
+              console.warn("[wc-context] BDL match detail refresh failed for", fx.id, err?.message);
+            });
+            detail = await readWcMatchDetailFromKv(fx.id);
+          }
           if (!detail) return null;
           let enriched = detail;
           try {
@@ -1056,6 +1347,10 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const resultsForPrompt = selectResultsForPrompt(results, phase);
   const upcomingForPrompt = selectUpcomingForPrompt(upcoming, matches, phase);
 
+  if (fixtures.some((fx) => isLiveStatus(fx?.status))) {
+    fixtures = await Promise.all(fixtures.map((fx) => attachLiveOddsToFixture(fx, nowMs)));
+  }
+
   const fixtureOddsBlocks = fixtures
     .map((fx) => buildMatchOddsFreshnessPromptBlock(fx, nowMs))
     .filter(Boolean);
@@ -1077,8 +1372,6 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
 
   let tournamentSimBlock = null;
   let tournamentSimResults = null;
-  const needsBettingGroundingOnLite =
-    liteFollowUp && wcLiteFollowUpNeedsBettingGrounding(question, wcIntent);
   if (!liteFollowUp || needsBettingGroundingOnLite) {
     try {
       const simResolved = await resolveWcTournamentSimForPrompt({
@@ -1159,6 +1452,48 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       };
     } catch (gloveErr) {
       console.warn("[wc-context] Golden Glove block failed:", gloveErr?.message);
+    }
+  }
+
+  // KEY PLAYERS — all-encompassing per-team star grounding for fixture-scoped questions so
+  // the model never under-names a squad (e.g. omitting the talisman). Merges squad registry,
+  // Golden Boot odds, this fixture's posted props, and the injury board. Keyed off the cited
+  // fixture's two teams (union with mentioned teams) so BOTH sides get grounding.
+  let keyPlayersBlock = null;
+  const primaryFx = Array.isArray(fixtures) && fixtures.length ? fixtures[0] : null;
+  const keyPlayerTeams = [
+    ...new Set(
+      [primaryFx?.homeTeam, primaryFx?.awayTeam, ...(mentionedTeams || [])]
+        .map((t) => String(t || "").trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ].slice(0, 4);
+  if (
+    (!liteFollowUp || needsBettingGroundingOnLite) &&
+    keyPlayerTeams.length &&
+    (primaryFx || mentionedTeams.length)
+  ) {
+    try {
+      const playersKv = roundupPlayerKv?.players || (await readWcPlayersFromKv());
+      const registry = buildResolvedWcPlayerRegistry(playersKv, nowMs);
+      const goldenBootKv = roundupPlayerKv?.goldenBoot || (await readWcGoldenBootFromKv(nowMs));
+      const goldenBootRows = goldenBootRowsFromKv(goldenBootKv, 50);
+      let eventProps = null;
+      const eventId = primaryFx?.id != null ? String(primaryFx.id) : effectiveEventId || null;
+      if (eventId) {
+        eventProps = await readWcMatchPlayerPropsForEvent(eventId, nowMs).catch(() => null);
+      }
+      keyPlayersBlock = formatWcKeyPlayersPromptBlock(keyPlayerTeams, {
+        registry,
+        goldenBootRows,
+        injuriesBoard: injuriesKv,
+        eventProps,
+        homeAbbr: primaryFx?.homeTeam,
+        awayAbbr: primaryFx?.awayTeam,
+        nowMs,
+      });
+    } catch (kpErr) {
+      console.warn("[wc-context] key players block failed:", kpErr?.message);
     }
   }
 
@@ -1249,6 +1584,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     fixtures,
     matchDetails,
     fixtureOddsBlocks,
+    keyPlayersBlock,
+    squadTruthGuardBlock: formatWcSquadTruthGuardBlock(),
     injuriesKv,
     dataConfidence,
     outrightsKv: outrightsKv?.outrights || null,
@@ -1262,7 +1599,9 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     roundupPlayerKv,
     wcEventId: effectiveEventId,
     liveMatchRulesBlock:
-      matchDetails.some((d) => isLiveStatus(d.status)) && isWcLiveDominanceQuestion(question)
+      (matchDetails.some((d) => isLiveStatus(d.status)) ||
+        fixtures.some((f) => isLiveStatus(f?.status))) &&
+      liveIntentQuestion
         ? WC_LIVE_MATCH_PROMPT_RULES
         : null,
     lastUpdated: Math.max(

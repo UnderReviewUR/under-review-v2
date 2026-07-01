@@ -17,6 +17,7 @@ import { scrapeAndCacheWcBdlReferenceCatalog } from "./_wcBdlData.js";
 import { emitWcPropsMonitoringAlert } from "./_wcPropsMonitoringAlert.js";
 import { getDurableJson } from "./_durableStore.js";
 import {
+  isWcBdlSource,
   isWcGoatPrimaryEnabled,
   shouldPreferBdlRefreshOverKv,
   wcGoatMatchPlayerPropsNeedsLiveRefresh,
@@ -339,7 +340,11 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
           const requireShotsRows = isWcShotsPropQuestion(question);
           let payload = readCachedMatchPlayerPropsForEvent(wcEventId, matchPropsKvRoot, nowMs);
           const cachedBeforeRefresh =
-            payload && hasMatchPlayerPropRows(payload) ? payload : null;
+            payload &&
+            hasMatchPlayerPropRows(payload) &&
+            (!isWcGoatPrimaryEnabled() || isWcBdlSource(payload.source))
+              ? payload
+              : null;
           const shotsOk = !requireShotsRows || matchPropsPayloadHasShotsRows(payload);
           const m = matches.find((row) => String(row?.id) === String(wcEventId));
           const matchInPlay = Boolean(m && isWcLiveMatchStatus(m.status));
@@ -394,13 +399,23 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
                   matchPropsKvRoot,
                   nowMs,
                 );
-                if (hasMatchPlayerPropRows(altPayload)) {
+                if (
+                  hasMatchPlayerPropRows(altPayload) &&
+                  (!isWcGoatPrimaryEnabled() || isWcBdlSource(altPayload.source))
+                ) {
                   payload = altPayload;
                 }
               }
             }
             if (!payload || !hasMatchPlayerPropRows(payload)) {
               payload = await readWcMatchPlayerPropsForEvent(wcEventId, nowMs, matchPropsKvRoot);
+              if (
+                payload &&
+                isWcGoatPrimaryEnabled() &&
+                !isWcBdlSource(payload.source)
+              ) {
+                payload = null;
+              }
             }
           }
           return payload;

@@ -33,6 +33,7 @@ import {
 import { detectParlayIntent } from "../../shared/detectParlayIntent.js";
 import { WC_INTENT } from "../../shared/wcUrTakeIntent.js";
 import { isDuplicateWcStructuredCard } from "../../shared/wcFixtureMatchupPrebuilt.js";
+import { resolveWcPinnedMatchForDelivery } from "../../shared/wcKnockoutFixture.js";
 
 /**
  * Deliver World Cup prebuilt takes without building prompts or calling Anthropic.
@@ -242,12 +243,16 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     history: normalizedUrTakeHistoryForGate,
   });
   if (structuredResponse && typeof structuredResponse === "object") {
+    // Thread pinned match + knockout scope so repairWcKnockoutMatchupStructured can strip
+    // group framing on knockout fixtures (without scope the repair silently no-ops).
     structuredResponse = normalizeWcStructuredForDelivery(
       structuredResponse,
       wcIntent,
       String(question || ""),
       wcRequiredEntities,
       normalizedUrTakeHistoryForGate,
+      resolveWcPinnedMatchForDelivery(wcContext, wcRelevanceLog?.wcEventId, wcRequiredEntities),
+      { tournamentPhase: wcContext?.phase, allMatches: wcContext?.allMatches },
     );
   }
   responseText = formatWcCompactDisplayText(structuredResponse, responseText);

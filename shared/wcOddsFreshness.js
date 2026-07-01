@@ -133,8 +133,62 @@ export function formatMatchOddsForPrompt(odds, homeTeam = "HOME", awayTeam = "AW
   if (away != null && String(away).trim()) parts.push(`${awayTeam} ${String(away).trim()}`);
 
   if (odds.totalLine != null && String(odds.totalLine).trim() !== "") {
+    const line = String(odds.totalLine).trim();
     const over = odds.totalOver != null ? String(odds.totalOver).trim() : "";
-    parts.push(`Total ${String(odds.totalLine).trim()} goals${over ? ` (Over ${over})` : ""}`);
+    const under = odds.totalUnder != null ? String(odds.totalUnder).trim() : "";
+    if (over && under) {
+      parts.push(`Total ${line} goals (Over ${over} · Under ${under})`);
+    } else if (over) {
+      parts.push(`Total ${line} goals (Over ${over})`);
+    } else if (under) {
+      parts.push(`Total ${line} goals (Under ${under})`);
+    } else {
+      parts.push(`Total ${line} goals`);
+    }
+  }
+
+  const btts = odds.btts;
+  if (btts && (btts.yes || btts.no)) {
+    const y = btts.yes ? `Yes ${String(btts.yes).trim()}` : "";
+    const n = btts.no ? `No ${String(btts.no).trim()}` : "";
+    parts.push(`Both teams to score (${[y, n].filter(Boolean).join(" · ")})`);
+  }
+
+  const dnb = odds.drawNoBet;
+  if (dnb && (dnb.home || dnb.away)) {
+    const h = dnb.home ? `${homeTeam} ${String(dnb.home).trim()}` : "";
+    const a = dnb.away ? `${awayTeam} ${String(dnb.away).trim()}` : "";
+    parts.push(`Draw no bet (${[h, a].filter(Boolean).join(" · ")})`);
+  }
+
+  const dc = odds.doubleChance;
+  if (dc && (dc.homeOrDraw || dc.awayOrDraw || dc.homeOrAway)) {
+    const segs = [];
+    if (dc.homeOrDraw) segs.push(`${homeTeam} or Draw ${String(dc.homeOrDraw).trim()}`);
+    if (dc.awayOrDraw) segs.push(`${awayTeam} or Draw ${String(dc.awayOrDraw).trim()}`);
+    if (dc.homeOrAway) segs.push(`${homeTeam} or ${awayTeam} ${String(dc.homeOrAway).trim()}`);
+    parts.push(`Double chance (${segs.join(" · ")})`);
+  }
+
+  if (odds.spreadHomeLine != null && (odds.spreadHome || odds.spreadAway)) {
+    const lineNum = Number(odds.spreadHomeLine);
+    if (Number.isFinite(lineNum)) {
+      const homeLine = lineNum > 0 ? `+${lineNum}` : String(lineNum);
+      const awayLine = -lineNum > 0 ? `+${-lineNum}` : String(-lineNum);
+      const segs = [];
+      if (odds.spreadHome) segs.push(`${homeTeam} ${homeLine} (${String(odds.spreadHome).trim()})`);
+      if (odds.spreadAway) segs.push(`${awayTeam} ${awayLine} (${String(odds.spreadAway).trim()})`);
+      if (segs.length) parts.push(`Spread/handicap ${segs.join(" · ")}`);
+    }
+  }
+
+  const advHome = odds.toAdvanceHome?.moneyline;
+  const advAway = odds.toAdvanceAway?.moneyline;
+  if (advHome || advAway) {
+    const segs = [];
+    if (advHome) segs.push(`${homeTeam} ${String(advHome).trim()}`);
+    if (advAway) segs.push(`${awayTeam} ${String(advAway).trim()}`);
+    parts.push(`To advance (${segs.join(" · ")})`);
   }
 
   return parts.length ? parts.join(" · ") : null;
@@ -170,7 +224,7 @@ export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
   if (!line) return null;
 
   const block = [
-    `MATCH ODDS — ${match.homeTeam} vs ${match.awayTeam} (1X2 + totals when posted):`,
+    `MATCH ODDS — ${match.homeTeam} vs ${match.awayTeam} (BDL GOAT: 1X2, totals, BTTS, draw-no-bet, double chance, spread when posted):`,
     `  ${line}`,
     `  Last updated: ${freshness.fetchedAt || "unknown"}`,
     `  Freshness: ${freshness.ageText} (max ${freshness.maxAgeMinutes} min)`,
@@ -182,7 +236,9 @@ export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
       "  Do not cite these match odds as live lines — use Elo-derived win/draw/loss structure only.",
     );
   } else {
-    block.push("  When citing match moneylines, quote only the prices listed above.");
+    block.push(
+      "  When citing any match market (moneyline, total, both-teams-to-score, draw-no-bet, double chance, spread), quote only the prices listed above; never invent a market or price not shown here.",
+    );
   }
 
   return block.join("\n");

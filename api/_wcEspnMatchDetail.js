@@ -368,9 +368,10 @@ export function normalizeEspnMatchSummary(json, meta = {}) {
 
   const homeScoreRaw = homeComp?.score;
   const awayScoreRaw = awayComp?.score;
-  const isScored = status !== "NS";
-  const homeScore = isScored && homeScoreRaw != null ? Number(homeScoreRaw) : null;
-  const awayScore = isScored && awayScoreRaw != null ? Number(awayScoreRaw) : null;
+  // A live/HT/finished match always has a definite score — treat a null feed value as 0.
+  const scored = status === "FT" || status === "live" || status === "HT";
+  const homeScore = scored ? (Number.isFinite(Number(homeScoreRaw)) ? Number(homeScoreRaw) : 0) : null;
+  const awayScore = scored ? (Number.isFinite(Number(awayScoreRaw)) ? Number(awayScoreRaw) : 0) : null;
 
   const dateRaw = String(comp.date || json?.header?.date || meta.date || "");
   const commenceTs =

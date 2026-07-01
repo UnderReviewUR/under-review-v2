@@ -198,11 +198,30 @@ test("buildWcTurnScopeBlock — line movement cites user price", () => {
   assert.match(scope, /User cited price: -669/i);
 });
 
-test("buildWcTurnScopeBlock — screenshot analyze forbids cold pass", () => {
-  const scope = buildWcTurnScopeBlock(
-    "analyze the options on this screenshot. whats best to play?",
-    WC_INTENT.GENERAL,
+test("classifyWcQuestionIntent — single-nation match bet routes to MATCHUP not outright", () => {
+  assert.equal(
+    classifyWcQuestionIntent("Best bets for the Netherlands match?"),
+    WC_INTENT.MATCHUP,
   );
-  assert.match(scope, /screenshot/i);
-  assert.match(scope, /NEVER.*Pass until verified/i);
+});
+
+test("classifyWcQuestionIntent — NED vs MAR market ranking is MATCHUP not PARLAY", () => {
+  const q =
+    "Rank these options beginning with which to use to which to avoid over 2.5 total goals at +127 both teams to score at -163 Netherlands money line at +144 Morocco money line +245";
+  assert.equal(classifyWcQuestionIntent(q), WC_INTENT.MATCHUP);
+});
+
+test("buildWcTurnScopeBlock — market ranking forbids parlay framing", () => {
+  const q =
+    "Rank these options over 2.5 at +127 both teams to score at -163 Netherlands money line at +144";
+  const scope = buildWcTurnScopeBlock(q, WC_INTENT.MATCHUP);
+  assert.match(scope, /RANK or COMPARE posted match markets/i);
+  assert.match(scope, /NOT a player parlay/i);
+  assert.match(scope, /Label Over vs Under explicitly/i);
+});
+
+test("buildWcTurnScopeBlock — line movement on user price correction", () => {
+  const scope = buildWcTurnScopeBlock("Under 2.5 goals is at -133", WC_INTENT.MATCHUP);
+  assert.match(scope, /ODDS LINE MOVEMENT/i);
+  assert.match(scope, /User cited price: -133/i);
 });

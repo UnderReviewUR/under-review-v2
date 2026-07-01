@@ -2,7 +2,12 @@
  * Resolve match + sim inputs for WC fixture matchup prebuilt cards.
  */
 
-import { readWcMatchesFromKv, readWcMatchDetailFromKv, refreshWcLiveScores } from "./_wcData.js";
+import {
+  readWcMatchesFromKv,
+  readWcMatchDetailFromKv,
+  refreshWcLiveScores,
+  scrapeAndCacheWcMatchBundle,
+} from "./_wcData.js";
 import { readWcTournamentSimFromKv } from "./_wcTournamentSimData.js";
 import { selectFixturesForQuestion } from "./_wcUrTakeContext.js";
 import {
@@ -11,9 +16,10 @@ import {
 } from "./_wcMatchPlayerProps.js";
 import { bdlFifaFetch } from "./_wcBdlFifa.js";
 import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
+import { getMatchesPayload } from "./world-cup.js";
 import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.js";
 import { buildLiveMatchChanceQualityFromDetail } from "../shared/wcMatchChanceQuality.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { isWcBdlSource, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import {
   selectLiveFixtureForQuestion,
   isWcLiveBetsQuestion,
@@ -29,6 +35,12 @@ import {
 
 const LIVE_ODDS_MAX_AGE_MS = 90_000;
 const LIVE_ODDS_FETCH_TIMEOUT_MS = 8000;
+const LIVE_DETAIL_MAX_AGE_MS = 60_000;
+const LIVE_DETAIL_FETCH_TIMEOUT_MS = 2500;
+/** Lineups drop ~T-75; load match detail for fixtures kicking off within this window. */
+const PREMATCH_LINEUP_WINDOW_MS = 90 * 60 * 1000;
+/** Pre-match detail changes slowly (scraper polls ~5 min) — refresh past this age. */
+const PREMATCH_DETAIL_MAX_AGE_MS = 5 * 60 * 1000;
 
 function isLiveOrScheduled(status) {
   const s = String(status || "").toLowerCase();
@@ -37,6 +49,20 @@ function isLiveOrScheduled(status) {
 
 function isWcLiveListStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+function isWcPreMatchStatus(status) {
+  return ["ns", "scheduled", "not started", "upcoming", "pre", "tbd"].includes(
+    String(status || "").toLowerCase(),
+  );
+}
+
+/** Imminent pre-match: scheduled and kicking off within the lineup-drop window. */
+function isWcImminentPreMatch(match, nowMs) {
+  if (!isWcPreMatchStatus(match?.status)) return false;
+  const commenceTs = Number(match?.commenceTs);
+  if (!Number.isFinite(commenceTs) || commenceTs <= 0) return false;
+  return commenceTs - nowMs <= PREMATCH_LINEUP_WINDOW_MS;
 }
 
 function isLiveQuestion(question) {
@@ -56,6 +82,7 @@ function isLiveQuestion(question) {
 function attachSeedOddsIfMissing(match, home, away) {
   const row = match && typeof match === "object" ? { ...match } : {};
   if (row.odds && typeof row.odds === "object") return row;
+  if (isWcGoatPrimaryEnabled()) return row.odds ? row : null;
   const seed = getWcFixtureMlSeed(home, away);
   if (!seed) return row.odds ? row : null;
   return { ...row, odds: seed, oddsUpdatedAt: Date.now() };
@@ -130,6 +157,44 @@ async function refreshWcLiveMatchOddsForPrebuilt(match, nowMs) {
 }
 
 /**
+ * Load a match detail (lineups/score/stats), refreshing the BDL bundle when the cached row is
+ * missing, non-BDL, or stale. Used for LIVE matches (mid-game score + chance quality) and for
+ * imminent PRE-MATCH fixtures (so freshly-dropped Starting XI is picked up, not reported as
+ * "no confirmed Starting XI yet").
+ * @param {string | number | null | undefined} eventId
+ * @param {{ homeTeam?: string, awayTeam?: string, date?: string, commenceTs?: number, status?: string }} match
+ * @param {number} nowMs
+ */
+async function loadMatchDetailForPrebuilt(eventId, match, nowMs) {
+  const id = String(eventId || "").trim();
+  if (!id) return null;
+  let detail = await readWcMatchDetailFromKv(id).catch(() => null);
+  const source = String(detail?.source || "").toLowerCase();
+  const ageMs = detail ? nowMs - Number(detail.lastUpdated || detail.fetchedAt || 0) : Infinity;
+  const maxAge = isWcLiveListStatus(match?.status)
+    ? LIVE_DETAIL_MAX_AGE_MS
+    : PREMATCH_DETAIL_MAX_AGE_MS;
+  const stale = ageMs > maxAge;
+  if (isWcGoatPrimaryEnabled() && (!detail || !source.startsWith("balldontlie") || stale)) {
+    await Promise.race([
+      scrapeAndCacheWcMatchBundle(id, {
+        homeTeam: match?.homeTeam,
+        awayTeam: match?.awayTeam,
+        date: match?.date,
+        commenceTs: match?.commenceTs,
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("bdl_detail_timeout")), LIVE_DETAIL_FETCH_TIMEOUT_MS),
+      ),
+    ]).catch((err) => {
+      console.warn("[wc-prebuilt] match detail refresh failed for", id, err?.message);
+    });
+    detail = await readWcMatchDetailFromKv(id).catch(() => detail);
+  }
+  return detail;
+}
+
+/**
  * @param {string | number | null | undefined} eventId
  * @param {{ homeTeam?: string, awayTeam?: string }} match
  * @param {number} nowMs
@@ -139,7 +204,14 @@ async function loadLivePlayerPropsForPrebuilt(eventId, match, nowMs) {
   if (!id) return null;
 
   let props = await readWcMatchPlayerPropsForEvent(id, nowMs).catch(() => null);
-  if (props && props.markets && typeof props.markets === "object") return props;
+  if (
+    props &&
+    props.markets &&
+    typeof props.markets === "object" &&
+    (!isWcGoatPrimaryEnabled() || isWcBdlSource(props.source))
+  ) {
+    return props;
+  }
 
   if (isWcGoatPrimaryEnabled()) {
     props = await ensureWcBdlMatchPlayerPropsForEvent(id, {
@@ -173,6 +245,12 @@ function resolvePairFromLiveSlate(question, matches, wcEventId) {
  * @param {number} [nowMs]
  */
 export async function loadWcMatchInventoryForUrTake(nowMs = Date.now()) {
+  if (isWcGoatPrimaryEnabled()) {
+    const payload = await getMatchesPayload({ preferGoat: true, forUrTake: true }).catch(() => null);
+    if (Array.isArray(payload?.matches) && payload.matches.length) {
+      return payload.matches;
+    }
+  }
   let matchesKv = await readWcMatchesFromKv().catch(() => null);
   if (matchesKv?.matches?.length) {
     const liveRefresh = await refreshWcLiveScores(matchesKv, nowMs);
@@ -264,7 +342,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
 
   if (isWcLiveListStatus(match.status)) {
     match = await refreshWcLiveMatchOddsForPrebuilt(match, nowMs);
-    if (!match.odds) {
+    if (!match.odds && !isWcGoatPrimaryEnabled()) {
       match = attachSeedOddsIfMissing(match, pair.home, pair.away);
     }
   }
@@ -274,15 +352,28 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   let liveChanceQuality = null;
   let playerProps = null;
 
-  if (eventId && isWcLiveListStatus(match?.status)) {
+  const isLiveMatch = isWcLiveListStatus(match?.status);
+  const isImminent = isWcImminentPreMatch(match, nowMs);
+  if (eventId && (isLiveMatch || isImminent)) {
     const [detailRow, propsRow] = await Promise.all([
-      readWcMatchDetailFromKv(eventId).catch(() => null),
+      loadMatchDetailForPrebuilt(eventId, match, nowMs).catch(() => null),
       loadLivePlayerPropsForPrebuilt(eventId, match, nowMs).catch(() => null),
     ]);
     matchDetail = detailRow;
     playerProps = propsRow;
     if (matchDetail) {
-      liveChanceQuality = buildLiveMatchChanceQualityFromDetail(matchDetail);
+      if (isLiveMatch) {
+        liveChanceQuality = buildLiveMatchChanceQualityFromDetail(matchDetail);
+      }
+      // Enrich the match with Starting-XI status so the prebuilt caveat reflects dropped
+      // lineups instead of always saying "no confirmed Starting XI yet".
+      match = {
+        ...match,
+        lineupConfirmed:
+          matchDetail.lineupConfirmed != null ? matchDetail.lineupConfirmed : match.lineupConfirmed,
+        lastUpdated: matchDetail.lastUpdated ?? matchDetail.fetchedAt ?? match.lastUpdated,
+        ...(matchDetail.xiStatus ? { xiStatus: matchDetail.xiStatus } : {}),
+      };
     }
   }
 
@@ -310,11 +401,15 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
  *   wcEventId?: string | null,
  *   history?: Array<unknown>,
  *   nowMs?: number,
+ *   tournamentPhase?: string,
+ *   allMatches?: Array<Record<string, unknown>>,
  * }} opts
  */
 export async function buildWcFixtureMatchupPrebuiltFromInputs(opts = {}) {
   const inputs = await resolveWcFixtureMatchupPrebuiltInputs(opts);
   if (!inputs) return null;
+  // Always forward the resolved match feed so knockout detection works even when no explicit
+  // phase is threaded; prefer an explicit (date-aware) phase from the caller when provided.
   return buildWcFixtureMatchupPrebuiltStructured({
     home: inputs.home,
     away: inputs.away,
@@ -326,6 +421,6 @@ export async function buildWcFixtureMatchupPrebuiltFromInputs(opts = {}) {
     nowMs: inputs.nowMs,
     history: opts.history,
     tournamentPhase: opts.tournamentPhase,
-    allMatches: opts.allMatches,
+    allMatches: opts.allMatches || inputs.allMatches,
   });
 }

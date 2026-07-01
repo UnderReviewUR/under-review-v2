@@ -3,6 +3,8 @@
  */
 
 import { readWcGroupsFromKv, readWcMatchesFromKv, readWcOutrightsFromKv } from "../api/_wcData.js";
+import { getGroupsPayload, getMatchesPayload, getOutrightsPayload } from "../api/world-cup.js";
+import { isWcGoatPrimaryEnabled } from "./wcBdlPolicy.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 import { wcTeamsWithStrengthTags } from "./wc2026Strength.js";
@@ -15,11 +17,21 @@ import { resolveWcTournamentPhase } from "./wcPhaseUtils.js";
 export async function loadWorldCupSlateBoard(nowMs = Date.now()) {
   if (!isWcHomePromoWindow(nowMs)) return null;
 
-  const [groupsKv, matchesKv, outrightsKv] = await Promise.all([
-    readWcGroupsFromKv(),
-    readWcMatchesFromKv(),
-    readWcOutrightsFromKv(),
-  ]);
+  // GOAT primary: route the home/daily-take board through the BDL-first payload
+  // helpers (live BDL → cached BDL → ESPN/seed) so the free preview never shows
+  // ESPN/static odds while BDL GOAT lines are available.
+  const preferGoat = isWcGoatPrimaryEnabled();
+  const [groupsKv, matchesKv, outrightsKv] = preferGoat
+    ? await Promise.all([
+        getGroupsPayload({ preferGoat: true }).catch(() => readWcGroupsFromKv()),
+        getMatchesPayload({ preferGoat: true }).catch(() => readWcMatchesFromKv()),
+        getOutrightsPayload({ preferGoat: true }).catch(() => readWcOutrightsFromKv()),
+      ])
+    : await Promise.all([
+        readWcGroupsFromKv(),
+        readWcMatchesFromKv(),
+        readWcOutrightsFromKv(),
+      ]);
 
   const groups = groupsKv?.groups || {};
   const matches = Array.isArray(matchesKv?.matches) ? matchesKv.matches : [];

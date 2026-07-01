@@ -25,6 +25,9 @@ const ROUND_LABEL = {
 function resolveKnockoutScope(opts = {}) {
   const explicit = String(opts.tournamentPhase || opts.phase || "").trim();
   const allMatches = Array.isArray(opts.allMatches) ? opts.allMatches : [];
+  // Prefer the explicit phase threaded from context (already date-aware via
+  // resolveWcTournamentPhase). Fall back to the feed only when no phase is provided — do not
+  // couple this low-level helper to the wall clock, which would flip isolated callers.
   const tournamentPhase =
     explicit || (allMatches.length ? getWorldCupPhase(allMatches) : "");
   return { tournamentPhase, allMatches };

@@ -10,6 +10,7 @@ import {
   resolveWcQaStructured,
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructured.js";
+import { resolveWcPinnedMatchForDelivery } from "../../shared/wcKnockoutFixture.js";
 import {
   buildWcFixturePlayerParlayStructured,
   buildWcFixturePlayerPropsListStructured,
@@ -664,11 +665,20 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       history,
       deliveryIntent,
     );
+    // Thread pinned match + knockout scope so repairWcKnockoutMatchupStructured can strip
+    // group framing on knockout fixtures (without scope the repair silently no-ops).
     structuredResponse = normalizeWcStructuredForDelivery(
       structuredResponse,
       deliveryIntent,
       String(question || ""),
       routePinnedTeams.length >= 2 ? routePinnedTeams : wcRequiredEntities,
+      history,
+      resolveWcPinnedMatchForDelivery(
+        wcContext,
+        wcRelevanceLog?.wcEventId,
+        routePinnedTeams.length >= 2 ? routePinnedTeams : wcRequiredEntities,
+      ),
+      { tournamentPhase: wcContext?.phase, allMatches: wcContext?.allMatches },
     );
     structuredResponse = applyWcGroundingCardToStructured(
       structuredResponse,

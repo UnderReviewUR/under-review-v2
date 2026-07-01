@@ -11,6 +11,7 @@ import {
   resolveWcQaStructured,
 } from "../../shared/wcUrTakeCompactDelivery.js";
 import { normalizeWcStructuredForDelivery } from "../../shared/wcUrTakeStructured.js";
+import { resolveWcPinnedMatchForDelivery } from "../../shared/wcKnockoutFixture.js";
 import {
   buildWcStructuredForPlan,
   shouldSuppressWcPlanDeliveryDuplicate,
@@ -149,12 +150,16 @@ export async function deliverWcTurnByPlan(plan, ctx) {
     history: normalizedUrTakeHistoryForGate,
   });
   if (structuredResponse && typeof structuredResponse === "object") {
+    // Thread pinned match + knockout scope so repairWcKnockoutMatchupStructured can strip
+    // group framing on knockout fixtures (without scope the repair silently no-ops).
     structuredResponse = normalizeWcStructuredForDelivery(
       structuredResponse,
       wcIntent,
       String(question || ""),
       wcRequiredEntities,
       normalizedUrTakeHistoryForGate,
+      resolveWcPinnedMatchForDelivery(wcContext, wcRelevanceLog?.wcEventId, wcRequiredEntities),
+      { tournamentPhase: wcContext?.phase, allMatches: wcContext?.allMatches },
     );
   }
   responseText = formatWcCompactDisplayText(structuredResponse, responseText);

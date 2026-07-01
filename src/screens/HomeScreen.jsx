@@ -269,6 +269,10 @@ export default function HomeScreen({
                     });
                     return;
                   }
+                  if (String(q.sportHint || "").toLowerCase() === "worldcup" && askWorldCup) {
+                    askWorldCup(q.prompt, { inheritThread: false });
+                    return;
+                  }
                   firePrompt(q.prompt, q.sportHint || null, q.id);
                 }}
               >

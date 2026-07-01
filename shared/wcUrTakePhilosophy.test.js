@@ -145,6 +145,13 @@ test("buildWcScriptPriceUserAppendix — team opener lines on matchup", () => {
   assert.match(block, /Opener/i);
 });
 
+test("detectWcSgpComboIntent — market ranking with ML/totals/BTTS is not SGP", () => {
+  const q =
+    "Rank these options over 2.5 total goals at +127 both teams to score at -163 Netherlands money line at +144";
+  assert.equal(detectWcSgpComboIntent(q), false);
+  assert.equal(classifyWcQuestionIntent(q), WC_INTENT.MATCHUP);
+});
+
 test("buildWcScriptPriceUserAppendix — includes script and cleaner leg for player props", () => {
   const block = buildWcScriptPriceUserAppendix({
     wcIntent: WC_INTENT.PLAYER_PROP,

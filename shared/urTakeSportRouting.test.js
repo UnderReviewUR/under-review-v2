@@ -82,3 +82,45 @@ describe("resolveSportHint WC thread lock", () => {
     assert.equal(hint, "worldcup");
   });
 });
+
+describe("resolveSportHint cross-tab WC guarantee (entry point must not matter)", () => {
+  // A genuine World Cup question must reach the WC pipeline regardless of which
+  // tab/sport hint the client sends.
+  const wcQuestions = [
+    "best bets for the Netherlands match?",
+    "Who wins the World Cup final?",
+    "Brazil vs Argentina group stage lean",
+    "Mbappe anytime scorer odds tonight",
+    "both teams to score in the USA match?",
+  ];
+  const nonWcTabHints = ["nba", "nfl", "mlb", "golf", "tennis", "generic", ""];
+
+  for (const question of wcQuestions) {
+    for (const incomingSportHint of nonWcTabHints) {
+      it(`routes "${question}" to worldcup even with hint="${incomingSportHint || "(none)"}"`, () => {
+        const hint = resolveSportHint({ incomingSportHint, question });
+        assert.equal(hint, "worldcup");
+      });
+    }
+  }
+
+  it("vague WC follow-up with no textual sport inherits worldcup from history (nba hint)", () => {
+    const hint = resolveSportHint({
+      incomingSportHint: "nba",
+      question: "what about the other side?",
+      chatHistory: [
+        { role: "user", content: "NED vs MAR best bet?", sport: "worldcup" },
+        { role: "assistant", content: "Lean Under 2.5", sport: "worldcup" },
+      ],
+    });
+    assert.equal(hint, "worldcup");
+  });
+
+  it("does NOT hijack a real NBA question typed on a WC-less generic tab", () => {
+    const hint = resolveSportHint({
+      incomingSportHint: "generic",
+      question: "Lakers -4.5 tonight, good bet?",
+    });
+    assert.notEqual(hint, "worldcup");
+  });
+});

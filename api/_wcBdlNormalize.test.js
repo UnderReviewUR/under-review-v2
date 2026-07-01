@@ -4,8 +4,13 @@ import {
   buildBdlPlayerIdLookup,
   collapseBdlIngestRowsOnePerPlayer,
   extractBdlRowTotals,
+  normalizeBdlFifaMatchRow,
   normalizeBdlPlayerPropsToMarkets,
   pickBdlMatchOddsForMatch,
+  pickBdlNestedBtts,
+  pickBdlNestedDoubleChance,
+  pickBdlNestedDrawNoBet,
+  pickBdlNestedMatchSpread,
   pickBdlNestedToAdvanceOdds,
   pickMainNestedMatchTotal,
 } from "./_wcBdlNormalize.js";
@@ -266,4 +271,152 @@ test("pickBdlNestedToAdvanceOdds — reads nested to-advance market when present
   );
   assert.equal(picked?.toAdvanceHome?.moneyline, "-125");
   assert.equal(picked?.toAdvanceAway?.moneyline, "+105");
+});
+
+test("pickBdlNestedBtts — reads both_teams_to_score yes/no", () => {
+  const btts = pickBdlNestedBtts([
+    {
+      type: "both_teams_to_score",
+      period: "match",
+      scope: "both_teams",
+      name: "Both Teams to Score",
+      outcomes: [
+        { type: "yes", name: "Yes", american_odds: -163 },
+        { type: "no", name: "No", american_odds: 125 },
+      ],
+    },
+  ]);
+  assert.deepEqual(btts, { yes: "-163", no: "+125" });
+});
+
+test("pickBdlNestedDrawNoBet — reads draw_no_bet home/away", () => {
+  const dnb = pickBdlNestedDrawNoBet([
+    {
+      type: "draw_no_bet",
+      period: "match",
+      scope: "match",
+      name: "Draw No Bet",
+      outcomes: [
+        { type: "home", side: "home", american_odds: -120 },
+        { type: "away", side: "away", american_odds: 240 },
+      ],
+    },
+  ]);
+  assert.deepEqual(dnb, { home: "-120", away: "+240" });
+});
+
+test("pickBdlNestedDoubleChance — classifies 1X / X2 / 12", () => {
+  const dc = pickBdlNestedDoubleChance([
+    {
+      type: "double_chance",
+      period: "match",
+      scope: "match",
+      name: "Double Chance",
+      outcomes: [
+        { type: "double_chance", side: "home", name: "Netherlands or Tie", american_odds: -260 },
+        { type: "double_chance", side: "away", name: "Morocco or Tie", american_odds: 120 },
+        { type: "double_chance", name: "Netherlands or Morocco", american_odds: -700 },
+      ],
+    },
+  ]);
+  assert.equal(dc?.homeOrDraw, "-260");
+  assert.equal(dc?.awayOrDraw, "+120");
+  assert.equal(dc?.homeOrAway, "-700");
+});
+
+test("pickBdlNestedMatchSpread — picks the most balanced handicap line", () => {
+  const spread = pickBdlNestedMatchSpread([
+    {
+      type: "spread",
+      period: "match",
+      scope: "match",
+      name: "2 Way Spread",
+      outcomes: [
+        { type: "home", side: "home", handicap: "-1.5", american_odds: 160 },
+        { type: "away", side: "away", handicap: "+1.5", american_odds: -200 },
+      ],
+    },
+    {
+      type: "spread",
+      period: "match",
+      scope: "match",
+      name: "2 Way Spread",
+      outcomes: [
+        { type: "home", side: "home", handicap: "-0.5", american_odds: -120 },
+        { type: "away", side: "away", handicap: "+0.5", american_odds: -110 },
+      ],
+    },
+  ]);
+  assert.equal(spread?.line, -0.5);
+  assert.equal(spread?.home, "-120");
+  assert.equal(spread?.away, "-110");
+});
+
+test("pickBdlMatchOddsForMatch — surfaces BTTS, DNB, double chance from nested markets", () => {
+  const odds = pickBdlMatchOddsForMatch(
+    [
+      {
+        match_id: 51,
+        vendor: "draftkings",
+        moneyline_home_odds: 144,
+        moneyline_away_odds: 245,
+        moneyline_draw_odds: 210,
+        markets: [
+          {
+            type: "both_teams_to_score",
+            period: "match",
+            scope: "both_teams",
+            name: "Both Teams to Score",
+            outcomes: [
+              { type: "yes", american_odds: -163 },
+              { type: "no", american_odds: 125 },
+            ],
+          },
+          {
+            type: "draw_no_bet",
+            period: "match",
+            scope: "match",
+            name: "Draw No Bet",
+            outcomes: [
+              { type: "home", american_odds: -110 },
+              { type: "away", american_odds: 160 },
+            ],
+          },
+        ],
+      },
+    ],
+    51,
+  );
+  assert.equal(odds?.home?.moneyline, "+144");
+  assert.deepEqual(odds?.btts, { yes: "-163", no: "+125" });
+  assert.deepEqual(odds?.drawNoBet, { home: "-110", away: "+160" });
+});
+
+test("normalizeBdlFifaMatchRow — live match with null score feed coerces to 0-0", () => {
+  const row = normalizeBdlFifaMatchRow({
+    id: 760599,
+    home_team: { abbreviation: "NED" },
+    away_team: { abbreviation: "MAR" },
+    status: "1H",
+    home_score: null,
+    away_score: null,
+    datetime: "2026-07-04T18:00:00Z",
+  });
+  assert.equal(row.status, "live");
+  assert.equal(row.homeScore, 0);
+  assert.equal(row.awayScore, 0);
+});
+
+test("normalizeBdlFifaMatchRow — not-started match keeps null scores", () => {
+  const row = normalizeBdlFifaMatchRow({
+    id: 760600,
+    home_team: { abbreviation: "MEX" },
+    away_team: { abbreviation: "RSA" },
+    status: "scheduled",
+    home_score: null,
+    away_score: null,
+    datetime: "2026-07-05T18:00:00Z",
+  });
+  assert.equal(row.homeScore, null);
+  assert.equal(row.awayScore, null);
 });

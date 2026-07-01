@@ -151,7 +151,39 @@ export function isWcRulesQuestion(question) {
 const PRICING_SIGNAL_RE =
   /\b(mispriced|outright|fairly priced|fair price|overpriced|underpriced)\b/i;
 
-const MATCHUP_SIGNAL_RE = /\b(vs\.?|versus|who advances|advance from|go through)\b/i;
+const MATCHUP_SIGNAL_RE =
+  /\b(vs\.?|versus|who advances|advance from|go through|best bets?|best bet|sharp lean|what to bet|which line)\b/i;
+
+/** Single-nation "the X match" betting asks — not tournament outright pricing. */
+const WC_SINGLE_TEAM_MATCH_BET_RE =
+  /\b(best bets?|best bet|sharp lean|betting angle|what to bet|which line|moneyline|\bml\b|total goals|over|under|btts|both teams to score)\b/i;
+
+/**
+ * User names one nation + "match" (e.g. "Best bets for the Netherlands match?") — fixture scope, not outright.
+ * @param {string} question
+ */
+export function isWcSingleTeamFixtureBetAsk(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  if (isTournamentWinnerQuestion(q)) return false;
+  if (!WC_SINGLE_TEAM_MATCH_BET_RE.test(q)) return false;
+  return /\b(?:the\s+)?[\w'’-]+(?:\s+[\w'’-]+){0,3}\s+match\b/i.test(q);
+}
+
+/**
+ * User ranks or compares posted match markets with cited American prices — not a player parlay build.
+ * @param {string} question
+ */
+export function isWcMatchMarketRankingQuestion(question) {
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  if (!q) return false;
+  const rankingCue =
+    /\b(rank|ranking|order|which to use|which to avoid|compare|stack rank|best to worst)\b/i.test(q);
+  const marketCue =
+    /\b(moneyline|\bml\b|over|under|btts|both teams to score|total goals|draw)\b/i.test(q);
+  const citesPrices = /[+-]\d{2,}/.test(q);
+  return rankingCue && marketCue && citesPrices;
+}
 
 const STRUCTURAL_SIGNAL_RE =
   /\b(best value|longshot|cleanest|structural|group [a-l]\b|contender|favorite)\b/i;
@@ -435,6 +467,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     return WC_INTENT.PARLAY;
   }
 
+  if (isWcMatchMarketRankingQuestion(q)) {
+    return WC_INTENT.MATCHUP;
+  }
+
   if (
     detectWcSgpComboIntent(q) &&
     (/\b(parlay|sgp|ticket)\b/i.test(q) || isWcMatchTotalsQuestion(q))
@@ -502,6 +538,10 @@ export function classifyWcQuestionIntent(question, history = []) {
     history.length > 0
   ) {
     return WC_INTENT.CONTINUATION;
+  }
+
+  if (mentioned.length === 1 && isWcSingleTeamFixtureBetAsk(q)) {
+    return WC_INTENT.MATCHUP;
   }
 
   if (mentioned.length === 1) {
@@ -637,6 +677,13 @@ ${WC_ODDS_LINE_MOVEMENT_PROMPT}${citedLine}`;
 - User asked for PROBABILITY / CHANCES on a match or team goal threshold — answer the number asked.
 - Cite sim or market implied % from VERIFIED CONTEXT; do not substitute a generic Under/Over lean card unless that is the closest posted market.
 - For "more than N goals" asks, discuss team total / scoring path — not Golden Boot or unrelated player props.`;
+  }
+  if (isWcMatchMarketRankingQuestion(routingQuestion)) {
+    return `TURN SCOPE (binding):
+- User asked to RANK or COMPARE posted match markets (ML, totals, BTTS, etc.) — NOT a player parlay or SGP build.
+- Anchor every ranked leg to FIXTURE MATCH ODDS in VERIFIED CONTEXT when present; prefer BDL-posted prices over user-cited numbers when they disagree.
+- Label Over vs Under explicitly — never swap sides. If a market is missing from context, say so instead of inventing a price.
+- Rank best-to-worst edge; one line per market with the American price you are using.`;
   }
   if (isWcFixturePlayerPropsQuestion(routingQuestion)) {
     return `TURN SCOPE (binding):

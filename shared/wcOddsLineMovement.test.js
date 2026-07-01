@@ -16,6 +16,10 @@ test("isWcOddsLineMovementQuestion — cited -669 target -575", () => {
   assert.equal(isWcOddsLineMovementQuestion(q), true);
 });
 
+test("isWcOddsLineMovementQuestion — user price correction on total", () => {
+  assert.equal(isWcOddsLineMovementQuestion("Under 2.5 goals is at -133"), true);
+});
+
 test("isWcOddsLineMovementQuestion — not a rules ask", () => {
   assert.equal(isWcOddsLineMovementQuestion("How do extra time rules work?"), false);
 });

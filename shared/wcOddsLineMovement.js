@@ -50,11 +50,17 @@ export function isWcOddsLineMovementQuestion(question) {
     LINE_MOVEMENT_CUE_REV_RE.test(q) ||
     TARGET_PRICE_RE.test(q) ||
     /\bdoes\s+that\s+go\s+to\b/i.test(q) ||
-    /\bwill\s+.+\s+odds?\b/i.test(q);
+    /\bwill\s+.+\s+odds?\b/i.test(q) ||
+    /\b(line moved|moved against|now at|is at|are at)\b/i.test(q);
+
+  const priceCorrection =
+    /\b(under|over)\s+\d+(?:\.\d+)?\s+goals?\s+is\s+at\b/i.test(q) ||
+    (/\b(is|are)\s+at\s+[+-]\d{2,}\b/i.test(q) &&
+      /\b(under|over|moneyline|\bml\b|btts|both teams to score|total)\b/i.test(q));
 
   const hypoState = HYPOTHETICAL_STATE_RE.test(q) || (EARLY_MINUTE_RE.test(q) && /\bscoreless|0-0|odds?|line\b/i.test(q));
 
-  return movementCue || (citesOdds && hypoState) || (hypoState && /\bodds?\b/i.test(q));
+  return movementCue || priceCorrection || (citesOdds && hypoState) || (hypoState && /\bodds?\b/i.test(q));
 }
 
 export const WC_ODDS_LINE_MOVEMENT_PROMPT = `ODDS LINE MOVEMENT / HYPOTHETICAL MATCH STATE (mandatory when user asks how a price moves):

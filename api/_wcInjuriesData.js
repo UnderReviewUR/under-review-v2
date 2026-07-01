@@ -21,7 +21,7 @@ import {
 } from "./_wcPlayerMarketsOverride.js";
 import { buildWcInjuriesSeedBoard } from "../src/data/wc2026InjuriesSeed.js";
 import { bdlFifaFetchPaginated } from "./_wcBdlFifa.js";
-import { hasWcBdlApiKey, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { hasWcBdlApiKey, isWcBdlSource, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
 /**
  * Incremental merge after match bundle (ESPN path only — BDL uses tournament board).
@@ -108,6 +108,28 @@ export async function scrapeAndCacheWcInjuries() {
     const bdl = await scrapeAndCacheWcBdlInjuries(nowMs);
     if (bdl?.ok && bdl.rowCount > 0) {
       return bdl;
+    }
+
+    // GOAT preserve guard: a transient BDL failure must not let the ESPN-derived board
+    // overwrite a still-fresh BDL-sourced injuries board.
+    const cached = await getDurableJson(WC_INJURIES_KV_KEY);
+    if (
+      isWcBdlSource(cached?.source) &&
+      nowMs - (Number(cached?.lastUpdated) || 0) < WC_INJURIES_TTL_SECONDS * 1000 &&
+      Array.isArray(cached?.rows) &&
+      cached.rows.length
+    ) {
+      console.log(
+        JSON.stringify({ event: "wc_injuries_bdl_preserved", lastUpdated: cached.lastUpdated }),
+      );
+      return {
+        ok: true,
+        board: cached,
+        rowCount: cached.rows.length,
+        starsOut: cached.starsOut,
+        source: cached.source,
+        preserved: true,
+      };
     }
   }
 
