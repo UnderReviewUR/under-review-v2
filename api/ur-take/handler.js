@@ -128,6 +128,8 @@ import {
   buildWorldCupUrTakeContext,
   buildWcFixtureStateGuardBlock,
   buildWcImageReferenceGroundingBlock,
+  buildWcLiveStateGuardBlock,
+  buildWcStubGuardSliceBlock,
 } from "../_wcUrTakeContext.js";
 import { loadWcPlayerMarketKvBlocksWithRetry, formatWcPlayerMarketsPromptBlock } from "../_wcPlayerUrTakeContext.js";
 import { isWcGoatPrimaryEnabled } from "../../shared/wcBdlPolicy.js";
@@ -1295,6 +1297,7 @@ ${contextJsonForModel(f1Context)}`;
       wcContext?.knockoutAppendix,
       wcContext?.keyPlayersBlock,
       wcContext?.squadTruthGuardBlock,
+      buildWcLiveStateGuardBlock(wcContext?.fixtures, wcContext?.matchDetails, wcContext?.live),
       buildWcFixtureStateGuardBlock(wcContext?.fixtures, wcContext?.matchDetails),
       Array.isArray(wcContext?.fixtureOddsBlocks) && wcContext.fixtureOddsBlocks.length
         ? `FIXTURE MATCH ODDS (verified):\n${wcContext.fixtureOddsBlocks.join("\n")}`
@@ -4665,16 +4668,23 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
   let draftTeamSimulationInject = false;
 
   // Home/other-tab image questions can't be sport-detected from text (the "World Cup 2026"
-  // header lives only in the picture), so they reach this handler as generic/image_review and
-  // skip the World Cup pipeline entirely. During the tournament window, build a conditional WC
-  // reference (knockout rules + bracket + squad truth) that is appended to the final prompt for
-  // ANY intent — the model applies it only if the screenshot is a World Cup match, so non-WC
-  // screenshots are unaffected. This makes a WC screenshot work from the Home tab too.
+  // header lives only in the picture), so they reach this handler as generic/image_review — or
+  // pinned to a sport-tab hint — and skip the World Cup pipeline entirely. During the tournament
+  // window, build a conditional WC reference (knockout rules + bracket + squad truth) that is
+  // appended to the final prompt for ANY intent — the model applies it only if the screenshot is
+  // a World Cup match, so non-WC screenshots are unaffected. Sport-tab image-only uploads (e.g.
+  // a WC screenshot pasted on the NFL tab with a vague caption) qualify when the question text
+  // itself carries no sport signal — the tab hint alone must not suppress WC grounding.
   let wcImageReference = null;
+  const imageTextualSport = hasImage
+    ? inferSportFromQuestionText(routingQuestion, matchupContext, hasImage)
+    : null;
   if (
     hasImage &&
-    (sportHint === "generic" || sportHint === "image_review") &&
-    isWcTournamentWindow()
+    isWcTournamentWindow() &&
+    (sportHint === "generic" ||
+      sportHint === "image_review" ||
+      (sportHint !== "worldcup" && !imageTextualSport))
   ) {
     try {
       const wcMatchesForImage = await loadWcMatchInventoryForUrTake().catch(() => []);
@@ -6072,7 +6082,15 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 
     userPrompt = `${wcRoleLine}
 
-${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPriorLeanBlock ? `${wcPriorLeanBlock}\n\n` : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${wcContext?.promptBlock || WC_STATIC_RULES_BLOCK}
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}${wcPriorLeanBlock ? `${wcPriorLeanBlock}\n\n` : ""}${wcPushBackBindingBlock ? `${wcPushBackBindingBlock}\n\n` : ""}${wcPushBackVoiceBlock ? `${wcPushBackVoiceBlock}\n\n` : ""}${wcTurnScopeBlock ? `${wcTurnScopeBlock}\n\n` : ""}${entityBindingBlock ? `${entityBindingBlock}\n\n` : ""}${priceBindingBlock ? `${priceBindingBlock}\n\n` : ""}${wcMatchupBlock ? `${wcMatchupBlock}\n\n` : ""}${wcGroupCompositionBlock}${wcPlayerMarketBlock}${
+      // Stub/empty contexts (prebuilt fast path fell through to the model) drop every prompt
+      // guardrail — attach the compact guard slice so live/pre-match/knockout/squad-truth
+      // protections still bind even without a full context build.
+      wcContext?.promptBlock ||
+      [WC_STATIC_RULES_BLOCK, buildWcStubGuardSliceBlock(wcContext)]
+        .filter(Boolean)
+        .join("\n\n")
+    }
 
 Question:
 ${question}

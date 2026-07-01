@@ -4,6 +4,7 @@ import {
   buildWcFixtureStateGuardBlock,
   buildWcImageReferenceGroundingBlock,
   buildWcLiveStateGuardBlock,
+  buildWcStubGuardSliceBlock,
   formatWorldCupUrTakePromptBlock,
   selectFixturesForQuestion,
 } from "./_wcUrTakeContext.js";
@@ -431,6 +432,34 @@ test("buildWcFixtureStateGuardBlock: pre-match yields guard, live/finished yield
   assert.equal(buildWcFixtureStateGuardBlock([{ status: "live" }], []), null);
   assert.equal(buildWcFixtureStateGuardBlock([{ status: "FT" }], []), null);
   assert.equal(buildWcFixtureStateGuardBlock([], []), null);
+});
+
+test("buildWcStubGuardSliceBlock keeps guardrails when the model runs on a prebuilt stub", () => {
+  // Live stub: LIVE STATE + knockout rules + squad truth must all bind.
+  const liveSlice = buildWcStubGuardSliceBlock({
+    phase: "ROUND_OF_32",
+    fixtures: [{ homeTeam: "BEL", awayTeam: "SEN", homeScore: 0, awayScore: 1, status: "HT" }],
+    matchDetails: [],
+    live: [],
+  });
+  assert.match(liveSlice, /KNOCKOUT PHASE \(mandatory\)/);
+  assert.match(liveSlice, /LIVE STATE \(binding/);
+  assert.match(liveSlice, /BEL 0-1 SEN/);
+  assert.match(liveSlice, /WC SQUAD TRUTH/);
+
+  // Pre-match stub: PRE-MATCH guard binds instead of LIVE STATE.
+  const preSlice = buildWcStubGuardSliceBlock({
+    phase: "ROUND_OF_32",
+    fixtures: [{ homeTeam: "MEX", awayTeam: "ECU", status: "NS" }],
+    matchDetails: [],
+    live: [],
+  });
+  assert.match(preSlice, /PRE-MATCH \(not started/);
+  assert.doesNotMatch(preSlice, /LIVE STATE/);
+
+  // Empty stub still carries squad truth (never crashes).
+  const emptySlice = buildWcStubGuardSliceBlock(null);
+  assert.match(emptySlice, /WC SQUAD TRUTH/);
 });
 
 test("buildWcImageReferenceGroundingBlock grounds knockout + bracket + squad truth (Home-tab image)", () => {

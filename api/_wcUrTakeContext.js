@@ -235,6 +235,34 @@ function isScheduled(status) {
 }
 
 /**
+ * Compact guardrail slice for WC turns that reach the model WITHOUT a full prompt block
+ * (e.g. prebuilt stub contexts whose fast-path delivery fell through). Composes the binding
+ * state guards from whatever fixtures the stub carries so the model can never ask for a live
+ * score, invent a pre-match scoreline, use group framing in knockout, or deny squad membership.
+ * @param {Record<string, unknown> | null | undefined} wcContext
+ * @returns {string}
+ */
+export function buildWcStubGuardSliceBlock(wcContext) {
+  const fixtures = Array.isArray(wcContext?.fixtures) ? wcContext.fixtures : [];
+  const matchDetails = Array.isArray(wcContext?.matchDetails) ? wcContext.matchDetails : [];
+  const live = Array.isArray(wcContext?.live) ? wcContext.live : [];
+  const parts = [];
+  const phase = wcContext?.phase;
+  const koRules = phase ? formatKnockoutPhasePromptRules(phase) : null;
+  if (koRules) parts.push(koRules);
+  const liveGuard = buildWcLiveStateGuardBlock(fixtures, matchDetails, live);
+  if (liveGuard) parts.push(liveGuard);
+  const preMatchGuard = buildWcFixtureStateGuardBlock(fixtures, matchDetails);
+  if (preMatchGuard) parts.push(preMatchGuard);
+  try {
+    parts.push(formatWcSquadTruthGuardBlock());
+  } catch {
+    /* squad registry unavailable — skip */
+  }
+  return parts.join("\n\n");
+}
+
+/**
  * Conditional World Cup reference for image/screenshot questions whose sport can't be resolved
  * from text (e.g. asked from the Home tab). The model applies it only if the screenshot is a
  * World Cup match — it grounds the tournament stage, knockout rules, the bracket (so it can
