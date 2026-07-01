@@ -4,11 +4,32 @@
 
 import { readWcGroupsFromKv, readWcMatchesFromKv, readWcOutrightsFromKv } from "../api/_wcData.js";
 import { getGroupsPayload, getMatchesPayload, getOutrightsPayload } from "../api/world-cup.js";
-import { isWcGoatPrimaryEnabled } from "./wcBdlPolicy.js";
+import { isWcBdlSource, isWcGoatPrimaryEnabled } from "./wcBdlPolicy.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 import { wcTeamsWithStrengthTags } from "./wc2026Strength.js";
 import { resolveWcTournamentPhase } from "./wcPhaseUtils.js";
+
+/**
+ * GOAT slate loaders: on payload failure, only accept KV when it is BDL-sourced.
+ * @template T
+ * @param {() => Promise<T>} loadPreferred
+ * @param {() => Promise<T | null | undefined>} readKv
+ * @param {boolean} preferGoat
+ * @returns {Promise<T | null | undefined>}
+ */
+export async function loadWcSlatePayloadPreferGoat(loadPreferred, readKv, preferGoat) {
+  if (!preferGoat) {
+    return readKv();
+  }
+  try {
+    return await loadPreferred();
+  } catch {
+    const kv = await readKv().catch(() => null);
+    if (kv && isWcBdlSource(kv?.source)) return kv;
+    return null;
+  }
+}
 
 /**
  * @param {number} [nowMs]
@@ -23,9 +44,21 @@ export async function loadWorldCupSlateBoard(nowMs = Date.now()) {
   const preferGoat = isWcGoatPrimaryEnabled();
   const [groupsKv, matchesKv, outrightsKv] = preferGoat
     ? await Promise.all([
-        getGroupsPayload({ preferGoat: true }).catch(() => readWcGroupsFromKv()),
-        getMatchesPayload({ preferGoat: true }).catch(() => readWcMatchesFromKv()),
-        getOutrightsPayload({ preferGoat: true }).catch(() => readWcOutrightsFromKv()),
+        loadWcSlatePayloadPreferGoat(
+          () => getGroupsPayload({ preferGoat: true }),
+          () => readWcGroupsFromKv(),
+          true,
+        ),
+        loadWcSlatePayloadPreferGoat(
+          () => getMatchesPayload({ preferGoat: true }),
+          () => readWcMatchesFromKv(),
+          true,
+        ),
+        loadWcSlatePayloadPreferGoat(
+          () => getOutrightsPayload({ preferGoat: true }),
+          () => readWcOutrightsFromKv(),
+          true,
+        ),
       ])
     : await Promise.all([
         readWcGroupsFromKv(),

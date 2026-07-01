@@ -46,6 +46,19 @@ const MIN_ANYTIME_ROWS = 3;
 const MIN_ANYTIME_ROWS_PER_BOOK = 2;
 
 /**
+ * GOAT read path: never surface book-scrape props when a BDL refresh fails.
+ * @param {Record<string, unknown> | null | undefined} result
+ * @param {Record<string, unknown> | null | undefined} cached
+ */
+export function resolveWcGoatMatchPlayerPropsCache(result, cached) {
+  if (result) return result;
+  if (cached && isWcBdlSource(cached.source) && hasMatchPlayerPropRows(cached)) {
+    return cached;
+  }
+  return null;
+}
+
+/**
  * @param {string | number} eventId
  */
 async function readMatchMetaFromKv(eventId) {
@@ -106,7 +119,7 @@ export async function refreshWcGoatMatchPlayerPropsIfNeeded(eventId, meta = {}, 
       }),
     );
   }
-  return result || cached;
+  return resolveWcGoatMatchPlayerPropsCache(result, cached);
 }
 
 /**
@@ -137,7 +150,7 @@ export async function ensureWcBdlMatchPlayerPropsForEvent(eventId, meta = {}) {
   }
 
   const existing = await readWcMatchPlayerPropsForEvent(id);
-  if (existing && hasMatchPlayerPropRows(existing)) {
+  if (existing && hasMatchPlayerPropRows(existing) && isWcBdlSource(existing.source)) {
     return existing;
   }
   return null;

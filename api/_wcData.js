@@ -245,10 +245,8 @@ export async function refreshWcLiveScores(kv, nowMs = Date.now()) {
       }
     } else {
       const bdl = await refreshWcLiveScoresFromBdl(kv, nowMs);
-      if (bdl.refreshed) return bdl;
-      const espn = await refreshWcLiveScoresFromEspn(bdl.kv, nowMs, { force: true });
-      if (espn.refreshed) return espn;
-      return bdl.checked ? bdl : espn;
+      // BDL-sourced KV: never patch live scores from ESPN on a transient BDL miss.
+      return bdl;
     }
   }
   return refreshWcLiveScoresFromEspn(kv, nowMs);
