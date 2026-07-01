@@ -6151,6 +6151,15 @@ ${continuationRule}`;
     userPrompt = `${userPrompt}\n\n${wcImageReference}`;
   }
 
+  // WC image question that didn't take the slip-review prompt (e.g. "can you read this?"):
+  // ensure the model reads and uses the posted markets in the screenshot instead of replying
+  // "no actionable line" / defaulting to Pass because the odds aren't repeated in text context.
+  if (hasImage && sportHint === "worldcup" && intent !== "slip_review") {
+    userPrompt = `${userPrompt}
+
+IMAGE MARKETS (binding): The user attached a World Cup screenshot that shows posted markets (e.g. To Advance, Moneyline, Total Goals, BTTS, spread). READ the visible odds and analyze which line is the best play. Treat the posted prices in the image as the authoritative offered lines for this fixture — do NOT respond "no actionable line yet" or default to Pass merely because those odds are not repeated in the text context.`;
+  }
+
   const messages = buildMessagesForAnthropic({
     userPrompt,
     history: incomingHistory,
