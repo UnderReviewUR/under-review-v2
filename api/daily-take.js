@@ -2,6 +2,7 @@ import { applyCors } from "./_cors.js";
 import { sanitizeDailyTakePreviewPayload } from "./_dailyTakeSanitize.js";
 import {
   dailyTakeSeriesFingerprintStale,
+  dailyTakeWcFeaturedStale,
   generateDailyTakePreview,
   getEtDateKey,
   readStoredDailyTake,
@@ -86,6 +87,22 @@ export default async function handler(req, res) {
           cached = await generateDailyTakePreview();
         } catch (refreshErr) {
           console.error("[daily-take series refresh]", refreshErr);
+        }
+      }
+
+      if (cached?.ok && (await dailyTakeWcFeaturedStale(cached))) {
+        console.log(
+          JSON.stringify({
+            event: "daily_take_wc_refresh",
+            dateKey,
+            priorMatchup: cached.matchupLabel ?? null,
+            priorEventId: cached.wcEventId ?? null,
+          }),
+        );
+        try {
+          cached = await generateDailyTakePreview();
+        } catch (refreshErr) {
+          console.error("[daily-take wc refresh]", refreshErr);
         }
       }
 

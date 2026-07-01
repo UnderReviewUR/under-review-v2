@@ -951,19 +951,21 @@ export const baseCss = `
   }
   .home-surface-option-a .ur-home-hero{
     padding:10px 0 28px;
-    text-align:left;
+    text-align:center;
   }
   .home-surface-option-a .ur-home-promise{
     font-size:21px;
     font-weight:600;
     letter-spacing:-0.025em;
     line-height:1.38;
-    margin:0 0 16px;
+    margin:0 auto 16px;
     max-width:340px;
     color:#fff;
     display:flex;
     flex-direction:column;
     gap:6px;
+    align-items:center;
+    text-align:center;
   }
   .home-surface-option-a .ur-home-promise-line{
     display:block;
@@ -4428,7 +4430,7 @@ export const baseCss = `
   @media (max-width:767px){
     .home-surface-option-a.home-surface-premium.screen{padding:4px 18px 24px;}
     .home-surface-option-a .ur-home-hero{padding:8px 0 24px;}
-    .home-surface-option-a .ur-home-promise{max-width:320px;}
+    .home-surface-option-a .ur-home-promise{max-width:320px;margin-left:auto;margin-right:auto;}
     .home-surface-option-a .ur-home-promise-line{font-size:20px;}
     .home-surface-option-a .ur-home-promise-line--soft{font-size:14px;}
     .ur-wc-home-promo-hero{gap:12px;min-height:100px;}

@@ -7,6 +7,13 @@ import { getNbaFinalsSeriesState } from "../shared/nbaFinalsUtils.js";
 import { isDailyTakeSportVisible } from "../shared/siteSportVisibility.js";
 import { loadWorldCupSlateBoard } from "../shared/wcSlateBundle.js";
 import { isKnockoutPhase, resolveWcTournamentPhase } from "../shared/wcPhaseUtils.js";
+import {
+  getWcMatchCommenceMs,
+  isWcFinishedMatchStatus,
+  isWcLiveMatchStatus,
+  isWcScheduledMatchStatus,
+} from "../shared/wcFeaturedMatch.js";
+import { readWcMatchesFromKv } from "./_wcData.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
 export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 5;
@@ -59,11 +66,30 @@ function scoreTennisRow(row) {
   return s;
 }
 
-function scoreWcMatch(m) {
-  const st = String(m?.status || "").toLowerCase();
-  if (["live", "ht", "1h", "2h"].includes(st)) return 100;
-  if (st === "ns" || st === "scheduled" || st === "upcoming") return 50;
-  return 10;
+/**
+ * Daily Take WC pick — live first, then earliest upcoming/not-finished kickoff.
+ * @param {Array<Record<string, unknown>>} candidates
+ * @param {number} [nowMs]
+ */
+export function pickWcDailyTakeMatch(candidates, nowMs = Date.now()) {
+  const playable = (candidates || []).filter(
+    (m) => m?.homeTeam && m?.awayTeam && !isWcFinishedMatchStatus(m?.status),
+  );
+  if (!playable.length) return null;
+
+  const live = playable.filter((m) => isWcLiveMatchStatus(m.status));
+  if (live.length) {
+    return [...live].sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b))[0];
+  }
+
+  const upcoming = playable.filter((m) => isWcScheduledMatchStatus(m.status));
+  if (upcoming.length) {
+    return [...upcoming].sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b))[0];
+  }
+
+  return [...playable]
+    .filter((m) => getWcMatchCommenceMs(m) >= nowMs - 2 * 60 * 60 * 1000)
+    .sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b))[0];
 }
 
 function formatWcDailyMatchOdds(match) {
@@ -172,9 +198,9 @@ export async function pickDailySlateTarget(fetchImpl = fetch) {
       const candidates = [
         ...(Array.isArray(board?.live) ? board.live : []),
         ...(Array.isArray(board?.upcoming) ? board.upcoming : []),
-      ].filter((m) => m?.homeTeam && m?.awayTeam);
-      if (candidates.length) {
-        const m = [...candidates].sort((a, b) => scoreWcMatch(b) - scoreWcMatch(a))[0];
+      ];
+      const m = pickWcDailyTakeMatch(candidates);
+      if (m) {
         const label = wcMatchupLabel(m);
         return {
           sportHint: "worldcup",
@@ -315,6 +341,41 @@ export async function dailyTakeSeriesFingerprintStale(cached) {
 }
 
 /**
+ * Regenerate when the cached WC featured match has finished or left the playable slate.
+ * @param {Record<string, unknown> | null | undefined} cached
+ */
+export async function dailyTakeWcFeaturedStale(cached) {
+  if (!cached?.ok || String(cached.sportHint || "").toLowerCase() !== "worldcup") return false;
+  try {
+    const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
+    const matches = Array.isArray(kv?.matches) ? kv.matches : [];
+    const eventId = cached.wcEventId != null ? String(cached.wcEventId) : "";
+    if (eventId) {
+      const match = matches.find((m) => String(m?.id) === eventId);
+      if (!match) return true;
+      return isWcFinishedMatchStatus(match.status);
+    }
+
+    const label = String(cached.matchupLabel || "").trim();
+    if (!label) return false;
+    const board = await loadWorldCupSlateBoard();
+    const slateRows = [
+      ...(Array.isArray(board?.live) ? board.live : []),
+      ...(Array.isArray(board?.upcoming) ? board.upcoming : []),
+    ];
+    const onSlate = slateRows.find((m) => wcMatchupLabel(m) === label);
+    if (!onSlate) return true;
+    if (isWcFinishedMatchStatus(onSlate.status)) return true;
+
+    const currentPick = pickWcDailyTakeMatch(slateRows);
+    return Boolean(currentPick && wcMatchupLabel(currentPick) !== label);
+  } catch (err) {
+    console.warn("[daily-take] WC featured stale check failed:", err?.message || err);
+    return false;
+  }
+}
+
+/**
  * @returns {Promise<object | null>}
  */
 export async function generateDailyTakePreview(fetchImpl = fetch) {
@@ -377,6 +438,7 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
     sportHint: target.sportHint,
     question: target.question,
     matchupLabel: target.matchupLabel,
+    wcEventId: target.wcEventId || null,
     sport: json.sport || target.sportHint,
     confidence: json.confidence || null,
     headline: condensed.headline,
