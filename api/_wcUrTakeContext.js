@@ -94,8 +94,10 @@ import { prefetchWcGoatDataForUrTake } from "./_wcGoatUrTakePrefetch.js";
 import { readWcGoldenBootFromKv } from "./_wcGoldenBootOdds.js";
 import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
+  isWcLiveBetsQuestion,
   isWcLiveDominanceQuestion,
   selectLiveFixtureForQuestion,
+  WC_LIVE_ANGLE_ASK_RE,
   WC_LIVE_MATCH_PROMPT_RULES,
 } from "../shared/wcLiveMatchQuestion.js";
 import { WC_MATCH_BETTING_PROMPT_RULES } from "../shared/wcMatchBettingPrompt.js";
@@ -256,6 +258,58 @@ export function buildWcImageReferenceGroundingBlock(matches, nowMs = Date.now())
   if (bracket) parts.push(bracket);
   parts.push(formatWcSquadTruthGuardBlock());
   return parts.join("\n\n");
+}
+
+/** Any question asking for a live/in-play angle, bets, or dominance read. */
+function isWcLiveIntentQuestion(question) {
+  const q = String(question || "");
+  return (
+    isWcLiveDominanceQuestion(q) ||
+    isWcLiveBetsQuestion(q) ||
+    WC_LIVE_ANGLE_ASK_RE.test(q)
+  );
+}
+
+/**
+ * LIVE STATE guard: when a cited/slate fixture is in progress, surface the verified score +
+ * status up front and forbid the model from asking the user for the current state. This kills
+ * the "Need the live score and time..." failure where the card already shows the score.
+ * @param {Array<Record<string, unknown>> | null | undefined} fixtures
+ * @param {Array<Record<string, unknown>> | null | undefined} matchDetails
+ * @param {Array<Record<string, unknown>> | null | undefined} live
+ * @returns {string | null}
+ */
+export function buildWcLiveStateGuardBlock(fixtures, matchDetails, live) {
+  const candidates = [
+    ...(Array.isArray(matchDetails) ? matchDetails : []),
+    ...(Array.isArray(fixtures) ? fixtures : []),
+    ...(Array.isArray(live) ? live : []),
+  ];
+  const rows = candidates.filter((m) => m && isLiveStatus(m.status));
+  if (!rows.length) return null;
+  const seen = new Set();
+  const lines = [
+    "LIVE STATE (binding — this IS the current verified state; do NOT ask the user for it):",
+  ];
+  for (const m of rows) {
+    const home = m.homeTeam || m.home || "";
+    const away = m.awayTeam || m.away || "";
+    if (!home || !away) continue;
+    const key = `${home}-${away}`.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const hs = Number(m.homeScore ?? 0);
+    const as = Number(m.awayScore ?? 0);
+    const status = String(m.status || "live").toUpperCase();
+    const minuteRaw = m.minute || m.clock || m.displayClock || m.statusDetail;
+    const minuteText = minuteRaw ? ` · ${String(minuteRaw)}` : "";
+    lines.push(`  ${home} ${hs}-${as} ${away} — ${status}${minuteText}`);
+  }
+  if (lines.length === 1) return null;
+  lines.push(
+    "  Give the live angle NOW using this score/time. NEVER reply by asking for the current score, minute, or state of play — it is provided here.",
+  );
+  return lines.join("\n");
 }
 
 /**
@@ -720,6 +774,12 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     "",
   );
 
+  // Surface the live score/state up front and forbid asking the user for it.
+  const liveStateGuard = buildWcLiveStateGuardBlock(ctx.fixtures, ctx.matchDetails, ctx.live);
+  if (liveStateGuard) {
+    lines.push(liveStateGuard, "");
+  }
+
   lines.push(
     formatWcDataConfidencePromptBlock(tier, ctx.matchDetails || []),
     "",
@@ -1170,13 +1230,14 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
       resolveWcEventIdForFixtureTeams(matches, mentionedTeams[0], mentionedTeams[1]) ||
       effectiveEventId;
   }
-  if (!effectiveEventId && isWcLiveDominanceQuestion(question)) {
+  const liveIntentQuestion = isWcLiveIntentQuestion(question);
+  if (!effectiveEventId && liveIntentQuestion) {
     const livePinned = selectLiveFixtureForQuestion(matches, question, null);
     if (livePinned?.id) effectiveEventId = String(livePinned.id);
   }
 
   let fixtures = selectFixturesForQuestion(matches, mentionedTeams, effectiveEventId);
-  if (!fixtures.length && isWcLiveDominanceQuestion(question)) {
+  if (!fixtures.length && liveIntentQuestion) {
     const liveFx = selectLiveFixtureForQuestion(matches, question, effectiveEventId);
     if (liveFx) fixtures = [liveFx];
   }
@@ -1510,7 +1571,9 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     roundupPlayerKv,
     wcEventId: effectiveEventId,
     liveMatchRulesBlock:
-      matchDetails.some((d) => isLiveStatus(d.status)) && isWcLiveDominanceQuestion(question)
+      (matchDetails.some((d) => isLiveStatus(d.status)) ||
+        fixtures.some((f) => isLiveStatus(f?.status))) &&
+      liveIntentQuestion
         ? WC_LIVE_MATCH_PROMPT_RULES
         : null,
     lastUpdated: Math.max(

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildWcFixtureStateGuardBlock,
   buildWcImageReferenceGroundingBlock,
+  buildWcLiveStateGuardBlock,
   formatWorldCupUrTakePromptBlock,
   selectFixturesForQuestion,
 } from "./_wcUrTakeContext.js";
@@ -385,6 +386,39 @@ test("live fixture does NOT inject the pre-match guard", () => {
     matchDetails: [],
   });
   assert.doesNotMatch(block, /PRE-MATCH \(not started/);
+});
+
+test("buildWcLiveStateGuardBlock: live fixture surfaces score and forbids asking for it", () => {
+  const guard = buildWcLiveStateGuardBlock(
+    [],
+    [{ homeTeam: "BEL", awayTeam: "SEN", homeScore: 0, awayScore: 1, status: "HT" }],
+    [],
+  );
+  assert.match(String(guard), /LIVE STATE \(binding/);
+  assert.match(String(guard), /BEL 0-1 SEN — HT/);
+  assert.match(String(guard), /NEVER reply by asking for the current score/i);
+  // No live match anywhere → no guard.
+  assert.equal(
+    buildWcLiveStateGuardBlock([{ homeTeam: "MEX", awayTeam: "ECU", status: "NS" }], [], []),
+    null,
+  );
+});
+
+test("formatWorldCupUrTakePromptBlock injects LIVE STATE for a live cited fixture", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    phase: "ROUND_OF_32",
+    groupsForPrompt: {},
+    fixtures: [{ homeTeam: "BEL", awayTeam: "SEN", round: "Round of 32", status: "live", homeScore: 0, awayScore: 1 }],
+    live: [],
+    results: [],
+    upcoming: [],
+    matchDetails: [],
+  });
+  assert.match(block, /LIVE STATE \(binding/);
+  assert.match(block, /BEL 0-1 SEN/);
 });
 
 test("buildWcFixtureStateGuardBlock: pre-match yields guard, live/finished yields null", () => {
