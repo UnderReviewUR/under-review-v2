@@ -290,6 +290,9 @@ const WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS = 90_000;
 const WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS = 2500;
 /** Live score/stats move — refresh a cached match detail older than this for an in-play match. */
 const WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS = 60_000;
+/** Imminent pre-match window (lineups drop ~T-75) + refresh age for dropped Starting XI. */
+const WC_CONTEXT_PREMATCH_LINEUP_WINDOW_MS = 90 * 60 * 1000;
+const WC_CONTEXT_PREMATCH_DETAIL_MAX_AGE_MS = 5 * 60 * 1000;
 
 /**
  * Attach fresh BDL match odds to a LIVE fixture so FIXTURE MATCH ODDS renders even when
@@ -1191,9 +1194,24 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
             : Infinity;
           const liveDetailStale =
             isLiveStatus(fx?.status) && detailAgeMs > WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS;
+          // Imminent pre-match: lineups drop ~T-75, so a detail cached earlier lacks the
+          // Starting XI — refresh it so we don't report "no confirmed Starting XI yet".
+          const commenceTs = Number(fx?.commenceTs);
+          const preMatchImminent =
+            isScheduled(fx?.status) &&
+            Number.isFinite(commenceTs) &&
+            commenceTs > 0 &&
+            commenceTs - nowMs <= WC_CONTEXT_PREMATCH_LINEUP_WINDOW_MS;
+          const preMatchDetailStale =
+            preMatchImminent &&
+            (!detail?.lineupConfirmed) &&
+            detailAgeMs > WC_CONTEXT_PREMATCH_DETAIL_MAX_AGE_MS;
           if (
             isWcGoatPrimaryEnabled() &&
-            (!detail || !detailSource.startsWith("balldontlie") || liveDetailStale)
+            (!detail ||
+              !detailSource.startsWith("balldontlie") ||
+              liveDetailStale ||
+              preMatchDetailStale)
           ) {
             await Promise.race([
               scrapeAndCacheWcMatchBundle(fx.id, {

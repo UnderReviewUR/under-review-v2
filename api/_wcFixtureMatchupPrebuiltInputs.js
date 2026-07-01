@@ -37,6 +37,10 @@ const LIVE_ODDS_MAX_AGE_MS = 90_000;
 const LIVE_ODDS_FETCH_TIMEOUT_MS = 8000;
 const LIVE_DETAIL_MAX_AGE_MS = 60_000;
 const LIVE_DETAIL_FETCH_TIMEOUT_MS = 2500;
+/** Lineups drop ~T-75; load match detail for fixtures kicking off within this window. */
+const PREMATCH_LINEUP_WINDOW_MS = 90 * 60 * 1000;
+/** Pre-match detail changes slowly (scraper polls ~5 min) — refresh past this age. */
+const PREMATCH_DETAIL_MAX_AGE_MS = 5 * 60 * 1000;
 
 function isLiveOrScheduled(status) {
   const s = String(status || "").toLowerCase();
@@ -45,6 +49,20 @@ function isLiveOrScheduled(status) {
 
 function isWcLiveListStatus(status) {
   return ["live", "in_progress", "1h", "2h", "ht"].includes(String(status || "").toLowerCase());
+}
+
+function isWcPreMatchStatus(status) {
+  return ["ns", "scheduled", "not started", "upcoming", "pre", "tbd"].includes(
+    String(status || "").toLowerCase(),
+  );
+}
+
+/** Imminent pre-match: scheduled and kicking off within the lineup-drop window. */
+function isWcImminentPreMatch(match, nowMs) {
+  if (!isWcPreMatchStatus(match?.status)) return false;
+  const commenceTs = Number(match?.commenceTs);
+  if (!Number.isFinite(commenceTs) || commenceTs <= 0) return false;
+  return commenceTs - nowMs <= PREMATCH_LINEUP_WINDOW_MS;
 }
 
 function isLiveQuestion(question) {
@@ -139,20 +157,24 @@ async function refreshWcLiveMatchOddsForPrebuilt(match, nowMs) {
 }
 
 /**
- * Load a LIVE match detail (score/stats), refreshing the BDL bundle when the cached row is
- * missing, non-BDL, or stale past the live max-age — so mid-game score + chance-quality
- * grounding stays current on the fast path.
+ * Load a match detail (lineups/score/stats), refreshing the BDL bundle when the cached row is
+ * missing, non-BDL, or stale. Used for LIVE matches (mid-game score + chance quality) and for
+ * imminent PRE-MATCH fixtures (so freshly-dropped Starting XI is picked up, not reported as
+ * "no confirmed Starting XI yet").
  * @param {string | number | null | undefined} eventId
- * @param {{ homeTeam?: string, awayTeam?: string, date?: string, commenceTs?: number }} match
+ * @param {{ homeTeam?: string, awayTeam?: string, date?: string, commenceTs?: number, status?: string }} match
  * @param {number} nowMs
  */
-async function loadLiveMatchDetailForPrebuilt(eventId, match, nowMs) {
+async function loadMatchDetailForPrebuilt(eventId, match, nowMs) {
   const id = String(eventId || "").trim();
   if (!id) return null;
   let detail = await readWcMatchDetailFromKv(id).catch(() => null);
   const source = String(detail?.source || "").toLowerCase();
   const ageMs = detail ? nowMs - Number(detail.lastUpdated || detail.fetchedAt || 0) : Infinity;
-  const stale = ageMs > LIVE_DETAIL_MAX_AGE_MS;
+  const maxAge = isWcLiveListStatus(match?.status)
+    ? LIVE_DETAIL_MAX_AGE_MS
+    : PREMATCH_DETAIL_MAX_AGE_MS;
+  const stale = ageMs > maxAge;
   if (isWcGoatPrimaryEnabled() && (!detail || !source.startsWith("balldontlie") || stale)) {
     await Promise.race([
       scrapeAndCacheWcMatchBundle(id, {
@@ -165,7 +187,7 @@ async function loadLiveMatchDetailForPrebuilt(eventId, match, nowMs) {
         setTimeout(() => reject(new Error("bdl_detail_timeout")), LIVE_DETAIL_FETCH_TIMEOUT_MS),
       ),
     ]).catch((err) => {
-      console.warn("[wc-prebuilt] live match detail refresh failed for", id, err?.message);
+      console.warn("[wc-prebuilt] match detail refresh failed for", id, err?.message);
     });
     detail = await readWcMatchDetailFromKv(id).catch(() => detail);
   }
@@ -330,15 +352,28 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   let liveChanceQuality = null;
   let playerProps = null;
 
-  if (eventId && isWcLiveListStatus(match?.status)) {
+  const isLiveMatch = isWcLiveListStatus(match?.status);
+  const isImminent = isWcImminentPreMatch(match, nowMs);
+  if (eventId && (isLiveMatch || isImminent)) {
     const [detailRow, propsRow] = await Promise.all([
-      loadLiveMatchDetailForPrebuilt(eventId, match, nowMs).catch(() => null),
+      loadMatchDetailForPrebuilt(eventId, match, nowMs).catch(() => null),
       loadLivePlayerPropsForPrebuilt(eventId, match, nowMs).catch(() => null),
     ]);
     matchDetail = detailRow;
     playerProps = propsRow;
     if (matchDetail) {
-      liveChanceQuality = buildLiveMatchChanceQualityFromDetail(matchDetail);
+      if (isLiveMatch) {
+        liveChanceQuality = buildLiveMatchChanceQualityFromDetail(matchDetail);
+      }
+      // Enrich the match with Starting-XI status so the prebuilt caveat reflects dropped
+      // lineups instead of always saying "no confirmed Starting XI yet".
+      match = {
+        ...match,
+        lineupConfirmed:
+          matchDetail.lineupConfirmed != null ? matchDetail.lineupConfirmed : match.lineupConfirmed,
+        lastUpdated: matchDetail.lastUpdated ?? matchDetail.fetchedAt ?? match.lastUpdated,
+        ...(matchDetail.xiStatus ? { xiStatus: matchDetail.xiStatus } : {}),
+      };
     }
   }
 

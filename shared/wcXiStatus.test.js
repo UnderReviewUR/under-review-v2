@@ -36,3 +36,20 @@ test("buildWcXiCaveatLine — pending and unavailable copy", () => {
   assert.match(buildWcXiCaveatLine({ xiStatus: "pending" }), /updating/i);
   assert.match(buildWcXiCaveatLine({}), /Pre-kickoff/i);
 });
+
+test("buildWcXiCaveatLine — a match enriched with a confirmed lineup drops the 'no Starting XI' caveat", () => {
+  // Regression: pre-match fixtures were passed to the prebuilt as bare KV rows (no lineup
+  // fields) and always reported "no confirmed Starting XI yet" even after lineups dropped.
+  // Once the match detail is loaded and merged (lineupConfirmed:true), the caveat must clear.
+  const bare = buildWcXiCaveatLine({ homeTeam: "MEX", awayTeam: "ECU", status: "NS" });
+  assert.match(bare, /no confirmed Starting XI yet/i);
+
+  const enriched = buildWcXiCaveatLine({
+    homeTeam: "MEX",
+    awayTeam: "ECU",
+    status: "NS",
+    lineupConfirmed: true,
+    lastUpdated: Date.now(),
+  });
+  assert.equal(enriched, "");
+});
