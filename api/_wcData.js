@@ -70,6 +70,8 @@ function isWcLiveMatchStatus(status) {
 
 const WC_PRE_KICKOFF_CHECK_MS = 15 * 60 * 1000;
 const WC_POST_KICKOFF_CHECK_MS = 4 * 60 * 60 * 1000;
+/** GOAT preserve window: ESPN may only overwrite a BDL match detail older than this. */
+const WC_MATCH_DETAIL_BDL_PRESERVE_MS = 5 * 60 * 1000;
 
 function isWcScheduledLikeStatus(status) {
   const s = String(status || "").toLowerCase();
@@ -659,6 +661,41 @@ export async function scrapeAndCacheWcMatchBundle(eventId, meta = {}) {
 
   if (summaryRes.ok && summaryRes.json) {
     const cachedDetail = await readWcMatchDetailFromKv(id);
+
+    // GOAT preserve guard: a transient BDL bundle failure must not let the ESPN summary
+    // overwrite a fresh BDL-sourced match detail. Only allow ESPN takeover once the BDL
+    // detail has aged past the preserve window (sustained outage → ESPN backup is correct,
+    // and keeps live scores fresh).
+    const cachedDetailAgeMs =
+      nowMs - (Number(cachedDetail?.lastUpdated || cachedDetail?.fetchedAt) || 0);
+    if (
+      isWcGoatPrimaryEnabled() &&
+      isWcBdlSource(cachedDetail?.source) &&
+      cachedDetailAgeMs < WC_MATCH_DETAIL_BDL_PRESERVE_MS
+    ) {
+      console.log(
+        JSON.stringify({
+          event: "wc_match_detail_bdl_preserved",
+          eventId: id,
+          ageMs: cachedDetailAgeMs,
+        }),
+      );
+      return {
+        ok: true,
+        eventId: id,
+        preserved: true,
+        detail: {
+          ok: true,
+          status: cachedDetail.status,
+          lineupConfirmed: cachedDetail.lineupConfirmed,
+          finalized: cachedDetail.finalized,
+        },
+        odds: { ok: false, error: "bdl_detail_preserved" },
+        lineupConfirmed: cachedDetail.lineupConfirmed,
+        finalized: cachedDetail.finalized,
+      };
+    }
+
     const detail = normalizeEspnMatchSummary(summaryRes.json, {
       eventId: id,
       homeTeam: meta.homeTeam,
@@ -890,6 +927,23 @@ export async function scrapeAndCacheWcOutrights() {
   }
 
   const cached = await getDurableJson(WC_OUTRIGHTS_KV_KEY);
+
+  // GOAT preserve guard: a transient BDL failure must not let the ESPN/scrape merge overwrite
+  // a fresh BDL-sourced outrights row. Only allow the fallback chain to take over when the
+  // cached BDL row has aged out (true BDL outage → ESPN backup is then correct).
+  if (
+    isWcGoatPrimaryEnabled() &&
+    isWcBdlSource(cached?.source) &&
+    Date.now() - (Number(cached?.lastUpdated) || 0) < WC_OUTRIGHTS_TTL_SECONDS * 1000
+  ) {
+    console.log(
+      JSON.stringify({
+        event: "wc_outrights_bdl_preserved",
+        lastUpdated: cached.lastUpdated,
+      }),
+    );
+    return { ok: true, preserved: true, source: cached.source, sourceTier: "balldontlie_kv" };
+  }
 
   const [espn, oddsApi, aggregators] = await Promise.all([
     fetchEspnOutrights(),

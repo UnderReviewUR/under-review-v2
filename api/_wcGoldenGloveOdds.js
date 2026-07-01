@@ -13,7 +13,7 @@ import { enrichGoldenBootRowsWithNation } from "../shared/wcGoldenBootNationReso
 import { sortGoldenBootRows } from "../shared/wcPlayerOddsFreshness.js";
 import { WC_GOLDEN_GLOVE_SEED_ROWS } from "../src/data/wc2026GoldenGloveSeed.js";
 import { attachGoldenGloveFreshness } from "../shared/wcGoldenGloveFreshness.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { isWcBdlSource, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
 /**
  * @param {Array<{ label?: string, odds?: string, team?: string }>} goalRows
@@ -68,6 +68,26 @@ export async function scrapeAndCacheWcGoldenGlove() {
       );
     } catch (err) {
       console.warn("[wc-golden-glove] BDL futures probe failed, falling back:", err?.message || err);
+    }
+
+    // GOAT preserve guard: a transient BDL failure must not let Goal.com/seed overwrite a
+    // still-fresh BDL-sourced Golden Glove row.
+    if (
+      isWcBdlSource(cached?.source) &&
+      nowMs - (Number(cached?.lastUpdated) || 0) < WC_GOLDEN_GLOVE_TTL_SECONDS * 1000 &&
+      Array.isArray(cached?.rows) &&
+      cached.rows.length
+    ) {
+      console.log(
+        JSON.stringify({ event: "wc_golden_glove_bdl_preserved", lastUpdated: cached.lastUpdated }),
+      );
+      return {
+        ok: true,
+        rows: cached.rows,
+        source: cached.source,
+        servedStale: true,
+        error: null,
+      };
     }
   }
 

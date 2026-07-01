@@ -32,7 +32,7 @@ import {
   WC_GOLDEN_BOOT_MIN_VERIFIED_ROWS,
 } from "../shared/wcGoldenBootWriteQA.js";
 import { WC_GOLDEN_BOOT_SOURCE_COUNT } from "../shared/wcGoldenBootSourceRegistry.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { isWcBdlSource, isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
 /**
  * @param {Record<string, unknown>} payload
@@ -78,6 +78,27 @@ export async function scrapeAndCacheWcGoldenBoot() {
         marketTypes: bdl?.marketTypes || [],
       }),
     );
+
+    // GOAT preserve guard: a transient BDL failure must not let the ESPN/scrape consensus
+    // overwrite a still-fresh BDL-sourced Golden Boot row.
+    if (
+      isWcBdlSource(cached?.source) &&
+      nowMs - (Number(cached?.lastUpdated) || 0) < WC_GOLDEN_BOOT_TTL_SECONDS * 1000 &&
+      Array.isArray(cached?.rows) &&
+      cached.rows.length
+    ) {
+      console.log(
+        JSON.stringify({ event: "wc_golden_boot_bdl_preserved", lastUpdated: cached.lastUpdated }),
+      );
+      return {
+        ok: true,
+        rows: cached.rows,
+        source: cached.source,
+        booksUsed: cached.booksUsed || ["balldontlie"],
+        servedStale: true,
+        error: null,
+      };
+    }
   }
 
   const [espn, bookResults] = await Promise.all([
