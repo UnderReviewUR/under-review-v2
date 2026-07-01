@@ -1179,6 +1179,273 @@ export const baseCss = `
     background:rgba(255,255,255,0.02) !important;
   }
 
+  /* ── Option B home (edge-first + WC cream spotlight) ── */
+  .home-surface-option-b{
+    --wc-premium-cream:#F3F0E8;
+    --wc-premium-ink:#1C1814;
+    --wc-premium-accent:#C4A574;
+    --wc-premium-muted:#8A8478;
+  }
+  .home-compact-ticker{
+    margin:0 0 14px;
+    padding:8px 0 10px;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+  }
+  .home-compact-ticker-track{
+    display:flex;
+    gap:8px;
+    overflow-x:auto;
+    scrollbar-width:none;
+    -webkit-overflow-scrolling:touch;
+  }
+  .home-compact-ticker-chip{
+    flex-shrink:0;
+    border:none;
+    border-radius:999px;
+    padding:6px 12px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(196,165,116,0.28);
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.04em;
+    color:rgba(255,255,255,0.82);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .home-compact-ticker-chip:hover{
+    border-color:rgba(196,165,116,0.5);
+    background:rgba(196,165,116,0.08);
+  }
+  .home-daily-edge-card{
+    margin:0 0 16px;
+    padding:16px 14px 14px;
+    border-radius:20px;
+    background:var(--wc-premium-cream);
+    color:var(--wc-premium-ink);
+    box-shadow:0 12px 40px rgba(0,0,0,0.32);
+  }
+  .home-daily-edge-card__kicker{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--wc-premium-accent);
+    margin-bottom:10px;
+    font-weight:600;
+  }
+  .home-daily-edge-card__matchup{
+    font-size:12px;
+    color:var(--wc-premium-muted);
+    margin-bottom:6px;
+  }
+  .home-daily-edge-card__headline{
+    font-family:'Playfair Display',Georgia,serif;
+    font-size:18px;
+    font-weight:700;
+    line-height:1.32;
+    margin:0 0 8px;
+    color:var(--wc-premium-ink);
+  }
+  .home-daily-edge-card__body{
+    font-size:13px;
+    line-height:1.45;
+    color:var(--wc-premium-muted);
+    margin:0 0 8px;
+  }
+  .home-daily-edge-card__closing{
+    font-size:13px;
+    font-weight:600;
+    line-height:1.4;
+    color:var(--wc-premium-ink);
+    margin:0 0 10px;
+  }
+  .home-daily-edge-card__cta{
+    border:none;
+    background:transparent;
+    padding:0;
+    font-family:var(--mono-font);
+    font-size:11px;
+    letter-spacing:0.06em;
+    color:var(--wc-premium-accent);
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:3px;
+  }
+  .home-spotlight-row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin:0 0 16px;
+    align-items:stretch;
+  }
+  .home-spotlight-row--single{
+    grid-template-columns:1fr;
+  }
+  .home-spotlight-row__cell{min-width:0;}
+  @media (max-width:767px){
+    .home-spotlight-row{grid-template-columns:1fr;}
+  }
+  .home-wc-compact-card{
+    height:100%;
+    padding:14px 12px 12px;
+    border-radius:18px;
+    background:var(--wc-premium-cream);
+    color:var(--wc-premium-ink);
+    box-shadow:0 10px 32px rgba(0,0,0,0.28);
+  }
+  .home-wc-compact-card__head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .home-wc-compact-card__kicker{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--wc-premium-accent);
+    font-weight:600;
+  }
+  .home-wc-compact-card__hub{
+    border:none;
+    background:transparent;
+    font-family:var(--mono-font);
+    font-size:10px;
+    color:var(--wc-premium-muted);
+    cursor:pointer;
+    padding:0;
+  }
+  .home-wc-compact-card__list{
+    list-style:none;
+    margin:0;
+    padding:0;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .home-wc-compact-card__list li{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .home-wc-compact-card__row{
+    flex:1;
+    min-width:0;
+    border:none;
+    border-radius:12px;
+    padding:8px 8px 8px 10px;
+    background:rgba(28,24,20,0.05);
+    cursor:pointer;
+    text-align:left;
+    color:inherit;
+    font:inherit;
+  }
+  .home-wc-compact-card__row:hover{background:rgba(28,24,20,0.08);}
+  .home-wc-compact-card__teams{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-bottom:4px;
+  }
+  .home-wc-compact-card__team{display:flex;align-items:center;gap:4px;}
+  .home-wc-compact-card__flag{border-radius:50%;object-fit:cover;}
+  .home-wc-compact-card__abbr{
+    font-family:var(--mono-font);
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:0.06em;
+  }
+  .home-wc-compact-card__vs{
+    font-family:'Playfair Display',Georgia,serif;
+    font-size:11px;
+    color:var(--wc-premium-accent);
+  }
+  .home-wc-compact-card__meta{
+    font-family:var(--mono-font);
+    font-size:10px;
+    color:var(--wc-premium-muted);
+  }
+  .home-wc-compact-card__score{font-weight:700;color:var(--wc-premium-ink);}
+  .home-wc-compact-card__ask{
+    flex-shrink:0;
+    border:none;
+    border-radius:10px;
+    padding:8px 10px;
+    background:rgba(196,165,116,0.18);
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.04em;
+    color:var(--wc-premium-ink);
+    cursor:pointer;
+  }
+  .home-golf-upcoming-card{height:100%;}
+  .home-golf-upcoming-card__btn{
+    width:100%;
+    height:100%;
+    text-align:left;
+    border:none;
+    border-radius:18px;
+    padding:14px 12px;
+    background:var(--wc-premium-cream);
+    color:var(--wc-premium-ink);
+    box-shadow:0 10px 32px rgba(0,0,0,0.28);
+    cursor:pointer;
+    font:inherit;
+  }
+  .home-golf-upcoming-card__kicker{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--wc-premium-accent);
+    margin-bottom:8px;
+    font-weight:600;
+  }
+  .home-golf-upcoming-card__title{
+    font-family:'Playfair Display',Georgia,serif;
+    font-size:17px;
+    font-weight:700;
+    line-height:1.25;
+    margin-bottom:6px;
+  }
+  .home-golf-upcoming-card__meta{
+    font-size:12px;
+    color:var(--wc-premium-muted);
+    margin-bottom:10px;
+  }
+  .home-golf-upcoming-card__ask{
+    display:inline-block;
+    border:none;
+    background:transparent;
+    padding:0;
+    font-family:var(--mono-font);
+    font-size:10px;
+    color:var(--wc-premium-accent);
+    cursor:pointer;
+    text-decoration:underline;
+    text-underline-offset:3px;
+  }
+  .golf-home-standings--cream{margin:0;height:100%;}
+  .golf-home-standings-btn--cream{
+    height:100%;
+    border:none !important;
+    border-radius:18px !important;
+    background:var(--wc-premium-cream) !important;
+    color:var(--wc-premium-ink) !important;
+    box-shadow:0 10px 32px rgba(0,0,0,0.28);
+  }
+  .golf-home-standings--cream .golf-home-standings-kicker{color:var(--wc-premium-accent);}
+  .golf-home-standings--cream .golf-home-standings-title{color:var(--wc-premium-ink);}
+  .golf-home-standings--cream .golf-home-standings-meta{color:var(--wc-premium-muted);}
+  .golf-home-standings--cream .golf-home-standings-chev{color:var(--wc-premium-muted);}
+  .golf-home-standings--cream .golf-home-standings-name{color:var(--wc-premium-ink);}
+  .golf-home-standings--cream .golf-home-standings-pos{color:var(--wc-premium-muted);}
+  .golf-home-standings--cream .golf-home-standings-foot{color:var(--wc-premium-muted);}
+  .golf-home-standings--cream .golf-home-standings-open{color:var(--wc-premium-accent);}
+  .home-surface-option-b .ur-home-starters-option-a{margin-top:2px;}
+
   .ur-home-try-row{display:flex;justify-content:center;margin:0 0 18px;}
   .ur-home-try-chip{
     display:inline-flex;

@@ -8,7 +8,12 @@ import { buildGolfDailyAngles, buildGolfStandingsRows } from "../../shared/golfD
 /**
  * Prominent live golf standings on Home — tap opens Golf tab.
  */
-export default function GolfHomeStandingsCard({ golfData, golfLoading, onOpenGolf }) {
+export default function GolfHomeStandingsCard({
+  golfData,
+  golfLoading,
+  onOpenGolf,
+  variant = "default",
+}) {
   const payload = useMemo(() => {
     if (!golfData || golfLoading || isGolfEventFinished(golfData)) return null;
     const validity = getGolfHomeValidity(golfData);
@@ -41,9 +46,18 @@ export default function GolfHomeStandingsCard({ golfData, golfLoading, onOpenGol
 
   if (!payload) return null;
 
+  const cream = variant === "cream";
+
   return (
-    <section className="golf-home-standings" aria-label={`${payload.eventName} live standings`}>
-      <button type="button" className="golf-home-standings-btn" onClick={onOpenGolf}>
+    <section
+      className={`golf-home-standings${cream ? " golf-home-standings--cream" : ""}`}
+      aria-label={`${payload.eventName} live standings`}
+    >
+      <button
+        type="button"
+        className={`golf-home-standings-btn${cream ? " golf-home-standings-btn--cream" : ""}`}
+        onClick={onOpenGolf}
+      >
         <div className="golf-home-standings-head">
           <div>
             <div className="golf-home-standings-kicker">Golf · Live</div>

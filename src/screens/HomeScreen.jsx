@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
-import HomeWcFeaturedCard from "../components/HomeWcFeaturedCard.jsx";
+import HomeCompactTicker from "../components/HomeCompactTicker.jsx";
+import HomeDailyEdgeCard from "../components/HomeDailyEdgeCard.jsx";
+import HomeSpotlightRow from "../components/HomeSpotlightRow.jsx";
 import AskBar from "../components/AskBar.jsx";
-import GolfHomeStandingsCard from "../components/GolfHomeStandingsCard.jsx";
 import HomeLastLeanCard from "../components/HomeLastLeanCard.jsx";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
@@ -17,9 +18,9 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
-/** Home hero copy — identity headline + pushback promise above ask. */
-const HOME_HEADLINE = "Argue like you know better.";
-const HOME_SUBHEAD = "Get a take sharp enough to push back on.";
+/** Home hero copy — value-first headline + product promise. */
+const HOME_HEADLINE = "Before you bet, know why.";
+const HOME_SUBHEAD = "Sharp reads on live lines, matchups, and slips.";
 const HOME_ASK_PROMISE = `${HOME_HEADLINE} ${HOME_SUBHEAD}`;
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
@@ -43,7 +44,7 @@ export default function HomeScreen({
   dynamicHomeQuestions,
   dailyFeaturedAngleCard,
   pgaChampionshipOddsCard,
-  wcHomePromoCard,
+  wcHomePromoCard: _wcHomePromoCard,
   goWorldCup,
   goWorldCupMatchesToday,
   wcXiConfirmedNotice,
@@ -212,8 +213,50 @@ export default function HomeScreen({
 
   const askPlaceholder = HOME_ASK_PLACEHOLDER;
 
+  const handleCompactTickerNav = (item) => {
+    if (!item?.kind) return;
+    switch (item.kind) {
+      case "worldcup":
+        _goWorldCup?.();
+        break;
+      case "golf":
+        _goGolf?.();
+        break;
+      case "nba":
+        _goNba?.();
+        break;
+      case "mlb":
+        _goMlb?.();
+        break;
+      case "tennis":
+        _goTennis?.();
+        break;
+      case "f1":
+        _goF1?.();
+        break;
+      case "nfl":
+        _goNfl?.();
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
-    <main className={`screen home-surface-premium home-surface-option-a${hasDockedBar ? " has-msgs" : ""}`}>
+    <main className={`screen home-surface-premium home-surface-option-a home-surface-option-b${hasDockedBar ? " has-msgs" : ""}`}>
+      <HomeCompactTicker
+        isNflSlateActive={isNflSlateActive}
+        tickerNbaGames={homeNbaGames}
+        wcMatches={wcMatches}
+        getSeriesLabel={getSeriesLabel}
+        tennisTickerMatches={tennisTickerMatches}
+        golfData={golfData}
+        mlbGames={mlbGames}
+        mlbData={mlbData}
+        f1Data={f1Data}
+        onNavigate={handleCompactTickerNav}
+      />
+
       <section className="ur-home-hero" aria-label="Ask Under Review">
         <h1 className="ur-home-promise">
           <span className="ur-home-promise-line">{HOME_HEADLINE}</span>
@@ -233,26 +276,29 @@ export default function HomeScreen({
         </div>
       </section>
 
-      {wcHomePromoCard ? (
-        <HomeWcFeaturedCard
-          card={wcHomePromoCard}
-          onOpenHub={goWorldCup}
-          onSeeMatches={goWorldCupMatchesToday}
-          onAskPrompt={(prompt) => {
-            const pin = {
-              eventId: wcHomePromoCard.featuredEventId,
-              highlightEventId: wcHomePromoCard.featuredEventId,
-            };
-            if (askWorldCup) askWorldCup(prompt, pin);
-            else firePrompt(prompt, wcHomePromoCard.sportHint || "worldcup", wcHomePromoCard.id);
-          }}
-        />
-      ) : null}
+      <HomeDailyEdgeCard
+        preview={dailyPreview}
+        onUnpack={() => {
+          if (!dailyPreview?.question) return;
+          prefillUrTakeQuestion?.(dailyPreview.question, dailyPreview.sportHint || null);
+        }}
+      />
+
+      <HomeSpotlightRow
+        wcMatches={wcMatches}
+        golfData={golfData}
+        golfLoading={golfLoading}
+        goWorldCup={goWorldCup}
+        goWorldCupMatchesToday={goWorldCupMatchesToday}
+        askWorldCup={askWorldCup}
+        firePrompt={firePrompt}
+        onOpenGolf={_goGolf}
+      />
 
       {starterQs.length > 0 ? (
         <section className="ur-home-starters ur-home-starters-option-a" aria-labelledby="ur-home-starters-heading">
           <h2 id="ur-home-starters-heading" className="ur-home-starters-heading">
-            Start here
+            Ask next
           </h2>
           <div className="ur-home-starter-list">
             {starterQs.map((q) => (
@@ -286,12 +332,6 @@ export default function HomeScreen({
           </div>
         </section>
       ) : null}
-
-      <GolfHomeStandingsCard
-        golfData={golfData}
-        golfLoading={golfLoading}
-        onOpenGolf={_goGolf}
-      />
 
       {!narrowHome ? (
       <div className="ur-home-feed">
@@ -354,69 +394,6 @@ export default function HomeScreen({
         mlbData={mlbData}
         f1Data={f1Data}
       />
-
-      {dailyPreview && prefillUrTakeQuestion ? (
-        <section
-          className="daily-edge-preview"
-          style={{
-            margin: "12px 0 14px",
-            padding: "14px 14px 12px",
-            borderRadius: 14,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "linear-gradient(180deg, rgba(0,212,168,0.06), rgba(255,255,255,0.02))",
-          }}
-        >
-          <div
-            style={{
-              fontFamily: "var(--mono-font)",
-              fontSize: 10,
-              letterSpacing: "0.14em",
-              color: "#00d4a8",
-              marginBottom: 10,
-              textTransform: "uppercase",
-            }}
-          >
-            TODAY&apos;S EDGE — FREE PREVIEW
-          </div>
-          {dailyPreview.matchupLabel ? (
-            <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>{dailyPreview.matchupLabel}</div>
-          ) : null}
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", lineHeight: 1.35, marginBottom: 8 }}>
-            {dailyPreview.headline}
-          </div>
-          {dailyPreview.bodyChunk ? (
-            <div style={{ fontSize: 13, color: "var(--soft)", lineHeight: 1.45, marginBottom: 8 }}>
-              {dailyPreview.bodyChunk}
-            </div>
-          ) : null}
-          {dailyPreview.closing ? (
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--cyan-bright)", lineHeight: 1.4 }}>
-              {dailyPreview.closing}
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => prefillUrTakeQuestion(dailyPreview.question, dailyPreview.sportHint || null)}
-            style={{
-              marginTop: 12,
-              width: "100%",
-              textAlign: "left",
-              background: "transparent",
-              border: "none",
-              padding: 0,
-              fontFamily: "var(--mono-font)",
-              fontSize: 12,
-              letterSpacing: "0.06em",
-              color: "#00d4a8",
-              cursor: "pointer",
-              textDecoration: "underline",
-              textUnderlineOffset: 3,
-            }}
-          >
-            Get the full take →
-          </button>
-        </section>
-      ) : null}
 
       <TodaySlatePanel
         excludeEventKeys={liveSnapshotEventKeys}
