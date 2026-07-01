@@ -144,6 +144,21 @@ test("formatMatchOddsForPrompt returns null when empty", () => {
   assert.equal(formatMatchOddsForPrompt({}), null);
 });
 
+test("formatMatchOddsForPrompt surfaces to-advance prices", () => {
+  const line = formatMatchOddsForPrompt(
+    {
+      home: { moneyline: "+285" },
+      draw: { moneyline: "+245" },
+      away: { moneyline: "+113" },
+      toAdvanceHome: { moneyline: "+178" },
+      toAdvanceAway: { moneyline: "-186" },
+    },
+    "CIV",
+    "NOR",
+  );
+  assert.match(line, /To advance \(CIV \+178 · NOR -186\)/);
+});
+
 test("formatWcOutrightsStaleChipLabel returns user-facing markets chip", () => {
   const label = formatWcOutrightsStaleChipLabel({
     stale: true,

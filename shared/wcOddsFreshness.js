@@ -182,6 +182,15 @@ export function formatMatchOddsForPrompt(odds, homeTeam = "HOME", awayTeam = "AW
     }
   }
 
+  const advHome = odds.toAdvanceHome?.moneyline;
+  const advAway = odds.toAdvanceAway?.moneyline;
+  if (advHome || advAway) {
+    const segs = [];
+    if (advHome) segs.push(`${homeTeam} ${String(advHome).trim()}`);
+    if (advAway) segs.push(`${awayTeam} ${String(advAway).trim()}`);
+    parts.push(`To advance (${segs.join(" · ")})`);
+  }
+
   return parts.length ? parts.join(" · ") : null;
 }
 
