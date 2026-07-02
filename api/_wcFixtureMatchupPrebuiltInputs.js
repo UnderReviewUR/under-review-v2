@@ -368,7 +368,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
       };
     }
   }
-  if (!match?.odds && !liveQuestion) return null;
+  if (!match?.odds && !liveQuestion && !isWcGoatPrimaryEnabled()) return null;
 
   if (!match) {
     match = {

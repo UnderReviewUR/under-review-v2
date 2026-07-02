@@ -148,7 +148,7 @@ test("formatWorldCupUrTakePromptBlock uses screenshot odds instructions when ima
   assert.doesNotMatch(block, /No live 1X2 lines/);
 });
 
-test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odds missing", () => {
+test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odds missing (non-GOAT)", () => {
   const block = formatWorldCupUrTakePromptBlock({
     tournament: "2026 FIFA World Cup",
     hosts: ["USA"],
@@ -159,9 +159,29 @@ test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odd
     upcoming: [],
     fixtures: [{ id: "1", homeTeam: "NOR", awayTeam: "FRA" }],
     fixtureOddsBlocks: [],
+    bdlGoatPrimary: false,
   });
   assert.match(block, /No live 1X2 lines/);
   assert.match(block, /Elo win\/draw\/loss structure only/);
+});
+
+test("formatWorldCupUrTakePromptBlock assumes BDL GOAT odds when primary", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: { I: [{ name: "Portugal", abbreviation: "POR", strengthTag: "Contender" }] },
+    live: [],
+    results: [],
+    upcoming: [],
+    fixtures: [{ id: "1", homeTeam: "POR", awayTeam: "CRO", round: "Quarterfinal" }],
+    fixtureOddsBlocks: [],
+    bdlGoatPrimary: true,
+  });
+  assert.match(block, /BDL GOAT/i);
+  assert.match(block, /never tell the user that book lines are unavailable/i);
+  assert.doesNotMatch(block, /No live 1X2 lines/);
+  assert.doesNotMatch(block, /Elo win\/draw\/loss structure only/);
 });
 
 test("formatWorldCupUrTakePromptBlock slim knockout context for Norway path question", () => {
@@ -216,6 +236,7 @@ test("formatWorldCupUrTakePromptBlock knockout fixture odds fallback mentions ET
     upcoming: [],
     fixtures: [{ id: "1", homeTeam: "NOR", awayTeam: "FRA", round: "Round of 16" }],
     fixtureOddsBlocks: [],
+    bdlGoatPrimary: false,
   });
   assert.match(block, /Knockout fixture — use Elo structure for regulation lean only/);
   assert.match(block, /ET\/pens/);

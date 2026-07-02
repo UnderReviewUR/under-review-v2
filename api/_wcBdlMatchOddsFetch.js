@@ -6,7 +6,8 @@ import { bdlFifaFetch } from "./_wcBdlFifa.js";
 import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 
-const BDL_MATCH_ODDS_FETCH_TIMEOUT_MS = 2500;
+const BDL_MATCH_ODDS_FETCH_TIMEOUT_MS = 4000;
+const BDL_MATCH_ODDS_FETCH_ATTEMPTS = 4;
 
 /**
  * @param {string | number | null | undefined} bdlMatchId
@@ -16,7 +17,7 @@ export async function fetchBdlMatchOddsForUrTake(bdlMatchId, nowMs = Date.now())
   void nowMs;
   if (!isWcGoatPrimaryEnabled()) return null;
   if (bdlMatchId == null) return null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < BDL_MATCH_ODDS_FETCH_ATTEMPTS; attempt += 1) {
     try {
       const res = await Promise.race([
         bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
@@ -31,8 +32,8 @@ export async function fetchBdlMatchOddsForUrTake(bdlMatchId, nowMs = Date.now())
       );
       if (odds) return odds;
     } catch {
-      if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 400));
+      if (attempt < BDL_MATCH_ODDS_FETCH_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
       }
     }
   }

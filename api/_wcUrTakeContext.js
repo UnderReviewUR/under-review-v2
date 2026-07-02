@@ -68,7 +68,7 @@ import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
 import { fetchBdlMatchOddsForUrTake } from "./_wcBdlMatchOddsFetch.js";
-import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
+import { isWcGoatPrimaryEnabled, WC_BDL_GOAT_FIXTURE_ODDS_POLICY } from "../shared/wcBdlPolicy.js";
 import { getGoatOutrightsPayload } from "./_wcBdlGoatMode.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
 import {
@@ -1005,14 +1005,18 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
       "  Analyze which posted line is the best play and cite the numbers you see (-138, +488, O2.5 -117, etc.).",
     );
   } else if (Array.isArray(ctx.fixtures) && ctx.fixtures.length) {
-    const koFixture = ctx.fixtures.some((fx) => isKnockoutRound(fx.round));
-    lines.push(
-      "",
-      "FIXTURE MATCH ODDS: No live 1X2 lines in verified feed for cited fixture(s).",
-      koFixture
-        ? "  Knockout fixture — use Elo structure for regulation lean only; advancement may require ET/pens (see KNOCKOUT STAGE RULES)."
-        : "  Use Elo win/draw/loss structure only — do not invent match prices.",
-    );
+    if (ctx.bdlGoatPrimary !== false && (ctx.bdlGoatPrimary || isWcGoatPrimaryEnabled())) {
+      lines.push("", WC_BDL_GOAT_FIXTURE_ODDS_POLICY);
+    } else {
+      const koFixture = ctx.fixtures.some((fx) => isKnockoutRound(fx.round));
+      lines.push(
+        "",
+        "FIXTURE MATCH ODDS: No live 1X2 lines in verified feed for cited fixture(s).",
+        koFixture
+          ? "  Knockout fixture — use Elo structure for regulation lean only; advancement may require ET/pens (see KNOCKOUT STAGE RULES)."
+          : "  Use Elo win/draw/loss structure only — do not invent match prices.",
+      );
+    }
   }
 
   lines.push("");
@@ -1611,6 +1615,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
     source: "world_cup_2026",
     questionText: question,
     userAttachedBettingImage: Boolean(opts.hasImage),
+    bdlGoatPrimary: isWcGoatPrimaryEnabled(),
     advancementMarketBlock,
     bdlFuturesBlock,
     bdlFuturesPayload: bdlPayloadForRanking,

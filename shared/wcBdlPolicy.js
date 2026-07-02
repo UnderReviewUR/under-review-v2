@@ -99,6 +99,22 @@ export function shouldUseWcBookScrapeForPlayerMarkets() {
 }
 
 /**
+ * Binding copy: BDL GOAT is the authoritative World Cup match-odds feed.
+ * Injected when fixture odds blocks are empty so the model never tells users books haven't posted.
+ */
+export const WC_BDL_GOAT_FIXTURE_ODDS_POLICY = `FIXTURE MATCH ODDS (BDL GOAT — binding):
+  BallDontLie GOAT posts match markets for every World Cup fixture (90-min moneyline, totals, BTTS, to-advance, spread when offered).
+  Cite only American prices from FIXTURE MATCH ODDS in this context block when listed.
+  BDL always carries posted lines for cited fixtures — never tell the user that book lines are unavailable, unposted, or "not in the feed yet."
+  Never default to "Pass — no actionable line yet" or Elo-only structure when answering a matchup or line question — lead with the BDL price and your lean.`;
+
+/**
+ * One-line matcher rule for handler prompt appendices.
+ */
+export const WC_BDL_GOAT_MATCH_ML_RULE =
+  "For match 1X2 moneylines, cite only prices from FIXTURE MATCH ODDS (BDL GOAT). BDL posts lines for every World Cup fixture — never tell the user lines are unavailable or unposted.";
+
+/**
  * GOAT read paths should re-scrape when cache is empty, stale, or the fixture is live.
  * @param {{ lastUpdated?: number, source?: string, matchStatus?: string } | null | undefined} eventPayload
  * @param {{ nowMs?: number, matchStatus?: string }} [opts]
