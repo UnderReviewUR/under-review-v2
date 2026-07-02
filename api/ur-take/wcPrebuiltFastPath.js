@@ -122,6 +122,33 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
         passKind = "runner_up_follow_up";
       }
     }
+  } else if (
+    !isConversationFollowUp &&
+    (wcLiveBetTimingPrebuiltEarly ||
+      wcLiveInPlayBetsPrebuiltEarly ||
+      wcLiveMatchWinnerPrebuiltEarly ||
+      wcFixtureMatchupPrebuiltEarly ||
+      wcFixtureAltFollowUpPrebuiltEarly) &&
+    !isWcPlayerMarketIntent(wcIntent) &&
+    wcIntent !== WC_INTENT.PLAYER_PROP &&
+    !isWcFixtureScopedPlayerMarketQuestion(routingQuestion) &&
+    !(detectParlayIntent(routingQuestion) && /\bplayer\b/i.test(routingQuestion))
+  ) {
+    structuredResponse =
+      wcLiveInPlayBetsPrebuiltEarly ||
+      wcLiveMatchWinnerPrebuiltEarly ||
+      wcLiveBetTimingPrebuiltEarly ||
+      wcFixtureMatchupPrebuiltEarly ||
+      wcFixtureAltFollowUpPrebuiltEarly;
+    passKind = wcLiveInPlayBetsPrebuiltEarly
+      ? "live_in_play_bets"
+      : wcLiveMatchWinnerPrebuiltEarly
+        ? "live_match_winner"
+        : wcLiveBetTimingPrebuiltEarly
+          ? "live_bet_timing"
+          : wcFixtureAltFollowUpPrebuiltEarly
+            ? "fixture_alt_follow_up"
+            : "fixture_matchup";
   } else if (!isConversationFollowUp) {
     const route = resolveWcGroupSlatePrebuiltRoute({
       question: routingQuestion,

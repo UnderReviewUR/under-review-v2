@@ -910,3 +910,72 @@ test("buildWcFixtureMatchupPrebuiltStructured who wins answers moneyline not tot
   assert.match(structured?.lean || "", /Mexico \+100 to win/i);
   assert.doesNotMatch(structured?.call || "", /Under 2\.5/i);
 });
+
+test("BIH vs USA live angle — one direct play without BDL odds still delivers ML lean", () => {
+  const q = "Best live angle in BIH vs USA right now — one direct play.";
+  assert.ok(
+    shouldUseWcLiveInPlayBetsPrebuilt(q, {
+      mentionedTeams: ["BIH", "USA"],
+      hasKvFixture: true,
+      match: { homeTeam: "BIH", awayTeam: "USA", status: "NS", homeScore: 0, awayScore: 0 },
+    }),
+  );
+  const structured = buildWcLiveInPlayBetsPrebuiltStructured({
+    home: "BIH",
+    away: "USA",
+    question: q,
+    match: {
+      homeTeam: "BIH",
+      awayTeam: "USA",
+      status: "live",
+      homeScore: 0,
+      awayScore: 0,
+      minute: 26,
+    },
+  });
+  assert.ok(structured);
+  assert.doesNotMatch(String(structured.lean || ""), /no actionable line/i);
+  assert.doesNotMatch(String(structured.lean || ""), /^Pass/i);
+  assert.match(String(structured.call || ""), /to win|match-winner lean/i);
+});
+
+test("0-0 26 min follow-up — score from user text drives live prebuilt", () => {
+  const q = "0-0 26 min";
+  const match = {
+    homeTeam: "BIH",
+    awayTeam: "USA",
+    status: "NS",
+    odds: {
+      home: { moneyline: "+450" },
+      away: { moneyline: "-180" },
+      draw: { moneyline: "+260" },
+      totalLine: "2.5",
+      totalOver: "-110",
+      totalUnder: "-110",
+    },
+  };
+  const structured = buildWcLiveInPlayBetsPrebuiltStructured({
+    home: "BIH",
+    away: "USA",
+    question: q,
+    match: applyUserLiveStateMatch(match, q),
+  });
+  assert.ok(structured);
+  assert.match(String(structured.lean || ""), /0-0/i);
+  assert.doesNotMatch(String(structured.lean || ""), /no actionable line/i);
+});
+
+/** Mirror applyUserLiveStateFromQuestion for unit tests. */
+function applyUserLiveStateMatch(match, question) {
+  const m = String(question || "").match(/\b(\d+)\s*[-–]\s*(\d+)\b/);
+  const minM = String(question || "").match(/\b(\d{1,3})\s*min(?:ute)?s?\b/i);
+  const next = { ...match };
+  if (m) {
+    next.homeScore = Number(m[1]);
+    next.awayScore = Number(m[2]);
+    next.status = "live";
+    next.userProvidedLiveState = true;
+  }
+  if (minM) next.minute = `${minM[1]}'`;
+  return next;
+}

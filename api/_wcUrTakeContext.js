@@ -96,6 +96,8 @@ import { readWcPlayersFromKv } from "./_wcPlayersData.js";
 import {
   isWcLiveBetsQuestion,
   isWcLiveDominanceQuestion,
+  parseLiveMinuteFromQuestion,
+  parseLiveScoreFromQuestion,
   selectLiveFixtureForQuestion,
   WC_LIVE_ANGLE_ASK_RE,
   WC_LIVE_MATCH_PROMPT_RULES,
@@ -250,7 +252,12 @@ export function buildWcStubGuardSliceBlock(wcContext) {
   const phase = wcContext?.phase;
   const koRules = phase ? formatKnockoutPhasePromptRules(phase) : null;
   if (koRules) parts.push(koRules);
-  const liveGuard = buildWcLiveStateGuardBlock(fixtures, matchDetails, live);
+  const liveGuard = buildWcLiveStateGuardBlock(
+    fixtures,
+    matchDetails,
+    live,
+    wcContext?.questionText,
+  );
   if (liveGuard) parts.push(liveGuard);
   const preMatchGuard = buildWcFixtureStateGuardBlock(fixtures, matchDetails);
   if (preMatchGuard) parts.push(preMatchGuard);
@@ -305,16 +312,16 @@ function isWcLiveIntentQuestion(question) {
  * @param {Array<Record<string, unknown>> | null | undefined} fixtures
  * @param {Array<Record<string, unknown>> | null | undefined} matchDetails
  * @param {Array<Record<string, unknown>> | null | undefined} live
+ * @param {string} [question]
  * @returns {string | null}
  */
-export function buildWcLiveStateGuardBlock(fixtures, matchDetails, live) {
+export function buildWcLiveStateGuardBlock(fixtures, matchDetails, live, question) {
   const candidates = [
     ...(Array.isArray(matchDetails) ? matchDetails : []),
     ...(Array.isArray(fixtures) ? fixtures : []),
     ...(Array.isArray(live) ? live : []),
   ];
   const rows = candidates.filter((m) => m && isLiveStatus(m.status));
-  if (!rows.length) return null;
   const seen = new Set();
   const lines = [
     "LIVE STATE (binding — this IS the current verified state; do NOT ask the user for it):",
@@ -333,6 +340,34 @@ export function buildWcLiveStateGuardBlock(fixtures, matchDetails, live) {
     const minuteText = minuteRaw ? ` · ${String(minuteRaw)}` : "";
     lines.push(`  ${home} ${hs}-${as} ${away} — ${status}${minuteText}`);
   }
+
+  const q = String(question || "").trim();
+  const parsedScore = q ? parseLiveScoreFromQuestion(q) : null;
+  const parsedMinute = q ? parseLiveMinuteFromQuestion(q) : null;
+  if (parsedScore || parsedMinute != null) {
+    const cited =
+      (Array.isArray(fixtures) && fixtures[0]) ||
+      (Array.isArray(matchDetails) && matchDetails[0]) ||
+      null;
+    const home = cited?.homeTeam || cited?.home || "";
+    const away = cited?.awayTeam || cited?.away || "";
+    if (home && away) {
+      const key = `${home}-${away}`.toUpperCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        const hs = parsedScore ? parsedScore.home : Number(cited?.homeScore ?? 0);
+        const as = parsedScore ? parsedScore.away : Number(cited?.awayScore ?? 0);
+        const minuteText =
+          parsedMinute != null
+            ? ` · ${parsedMinute}'`
+            : cited?.minute
+              ? ` · ${String(cited.minute)}`
+              : "";
+        lines.push(`  ${home} ${hs}-${as} ${away} — LIVE${minuteText}`);
+      }
+    }
+  }
+
   if (lines.length === 1) return null;
   lines.push(
     "  Give the live angle NOW using this score/time. NEVER reply by asking for the current score, minute, or state of play — it is provided here.",
@@ -803,7 +838,12 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
   );
 
   // Surface the live score/state up front and forbid asking the user for it.
-  const liveStateGuard = buildWcLiveStateGuardBlock(ctx.fixtures, ctx.matchDetails, ctx.live);
+  const liveStateGuard = buildWcLiveStateGuardBlock(
+    ctx.fixtures,
+    ctx.matchDetails,
+    ctx.live,
+    ctx.questionText,
+  );
   if (liveStateGuard) {
     lines.push(liveStateGuard, "");
   }

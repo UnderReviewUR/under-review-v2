@@ -41,7 +41,7 @@ import { isWcKnockoutFixtureMatch, getWcKnockoutRoundLabelForMatch, ensureWcKnoc
 import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
 import { buildWcXiCaveatLine } from "./wcXiStatus.js";
 import { shouldBlockMatchupAltPrebuiltAfterPlayerPivot } from "./wcFollowUpExplain.js";
-import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, isWcLiveBetsQuestion, isWcSecondHalfContext, parseLiveScoreFromQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
+import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, isWcLiveBetsQuestion, isWcSecondHalfContext, parseLiveMinuteFromQuestion, parseLiveScoreFromQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
@@ -704,10 +704,14 @@ export function buildWcLiveBetTimingPrebuiltStructured(opts = {}) {
 /** @param {Record<string, unknown> | null | undefined} match */
 export function isWcLiveFixtureForMatchWinner(match) {
   if (!match || typeof match !== "object") return false;
+  if (match.userProvidedLiveState) return true;
   if (isWcLiveMatchStatus(match.status)) return true;
   const hs = Number(match.homeScore);
   const as = Number(match.awayScore);
-  return Number.isFinite(hs) && Number.isFinite(as) && hs + as > 0;
+  if (Number.isFinite(hs) && Number.isFinite(as) && (hs + as > 0 || match.minute != null)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1095,7 +1099,6 @@ export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
     match.odds && typeof match.odds === "object" ? match.odds : seedOdds;
   const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
   const awayMl = readWcMatchMoneylineAmerican(matchOdds?.away);
-  if (!homeMl || !awayMl) return null;
 
   const parsed = parseLiveScoreFromQuestion(question);
   let hs = Number(match.homeScore);
@@ -1111,6 +1114,64 @@ export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
     as = 0;
   }
 
+  const parsedMinute = parseLiveMinuteFromQuestion(question);
+  const minute =
+    parsedMinute != null
+      ? `${parsedMinute}'`
+      : match.minute != null && String(match.minute).trim() !== ""
+        ? String(match.minute).trim()
+        : null;
+  const oneDirectPlay = /\bone direct play\b/i.test(question);
+
+  if (!homeMl || !awayMl) {
+    if (!WC_LIVE_ANGLE_RE.test(question) && !isWcLiveBetsQuestion(question)) return null;
+    const favAbbr =
+      Number.isFinite(hs) && Number.isFinite(as) && hs !== as
+        ? hs > as
+          ? home
+          : away
+        : home;
+    const favName = wcMatchupTeamDisplayName(favAbbr);
+    const scoreLine = `${hs}-${as}`;
+    const minSuffix = minute ? ` at ${minute}` : " live";
+    const call = `${favName} match-winner lean${minSuffix}`;
+    const lean = `Live at ${scoreLine}${minute ? ` (${minute})` : ""}: ${favName} — lock ML on your book before the next goal`;
+    const whyNow = buildWcLiveMatchWinnerWhyNow({
+      homeName,
+      awayName,
+      homeScore: hs,
+      awayScore: as,
+      minute,
+      liveChanceQuality: opts.liveChanceQuality,
+    });
+    return {
+      sport: "worldcup",
+      callType: "matchup",
+      groupLetter: String(opts.group || match.group || "").trim().toUpperCase() || undefined,
+      fixtureHome: home,
+      fixtureAway: away,
+      lean: lean.slice(0, 120),
+      call: call.slice(0, 100),
+      line: "",
+      deep: `Score ${scoreLine}${minute ? ` · ${minute}` : ""}. Live moneyline was not in feed — lean ${favName} from game state; confirm posted price before betting.`,
+      breakdownAvailable: true,
+      breakdownDefaultExpanded: false,
+      whyNow,
+      edge: "Live lines move on every goal — confirm the posted ML before you lock.",
+      modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
+      confidence: "Medium",
+      caveats: ["Live ML not in feed — confirm price on your book"],
+      timestamp: new Date().toISOString(),
+      gameStateLine: formatWcLiveGameStateLine({ ...match, homeScore: hs, awayScore: as, minute }, home, away),
+      wcEventId:
+        opts.eventId != null
+          ? String(opts.eventId)
+          : match.id != null
+            ? String(match.id)
+            : null,
+    };
+  }
+
   const secondHalf = isWcSecondHalfContext(question) || /2h|second/i.test(String(match.status || ""));
   const mlCall = pickWcLiveMatchWinnerCall({
     home,
@@ -1119,7 +1180,7 @@ export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
     awayMl,
     homeScore: hs,
     awayScore: as,
-    minute: match.minute,
+    minute,
   });
   const second = pickWcLiveSecondBet({
     home,
@@ -1135,6 +1196,43 @@ export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
   });
 
   const scoreLine = `${hs}-${as}`;
+  if (oneDirectPlay) {
+    const whyNow = buildWcLiveMatchWinnerWhyNow({
+      homeName,
+      awayName,
+      homeScore: hs,
+      awayScore: as,
+      minute,
+      liveChanceQuality: opts.liveChanceQuality,
+    });
+    return {
+      sport: "worldcup",
+      callType: "matchup",
+      groupLetter: String(opts.group || match.group || "").trim().toUpperCase() || undefined,
+      fixtureHome: home,
+      fixtureAway: away,
+      lean: mlCall.slice(0, 120),
+      call: mlCall.slice(0, 100),
+      line: "",
+      deep: `One direct play at ${scoreLine}${minute ? ` (${minute})` : ""}: ${mlCall}`,
+      breakdownAvailable: true,
+      breakdownDefaultExpanded: false,
+      whyNow,
+      edge: "Live lines move on every goal — lock before the next VAR check or red card.",
+      modelAttribution: wcModelAttributionFooter(opts.simLastUpdated, opts.nowMs),
+      confidence: "Medium",
+      caveats: [],
+      timestamp: new Date().toISOString(),
+      gameStateLine: formatWcLiveGameStateLine({ ...match, homeScore: hs, awayScore: as, minute }, home, away),
+      wcEventId:
+        opts.eventId != null
+          ? String(opts.eventId)
+          : match.id != null
+            ? String(match.id)
+            : null,
+    };
+  }
+
   const call = `${mlCall} · ${second.headline}`.slice(0, 100);
   const lean = `2 live leans at ${scoreLine}: ${mlCall.split(" to win")[0]} + ${second.headline.replace(/\s+live$/i, "")}`.slice(
     0,
@@ -1145,7 +1243,7 @@ export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
     awayName,
     homeScore: hs,
     awayScore: as,
-    minute: match.minute,
+    minute,
     liveChanceQuality: opts.liveChanceQuality,
   });
   const deep = [
@@ -1155,7 +1253,7 @@ export function buildWcLiveInPlayBetsPrebuiltStructured(opts = {}) {
       awayName,
       homeScore: hs,
       awayScore: as,
-      minute: match.minute,
+      minute,
       liveChanceQuality: opts.liveChanceQuality,
     }),
     "",

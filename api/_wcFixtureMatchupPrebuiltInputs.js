@@ -24,6 +24,8 @@ import {
   selectLiveFixtureForQuestion,
   isWcLiveBetsQuestion,
   isWcLiveDominanceQuestion,
+  parseLiveMinuteFromQuestion,
+  parseLiveScoreFromQuestion,
   WC_LIVE_ANGLE_ASK_RE,
 } from "../shared/wcLiveMatchQuestion.js";
 import {
@@ -72,6 +74,51 @@ function isLiveQuestion(question) {
     isWcLiveDominanceQuestion(q) ||
     WC_LIVE_ANGLE_ASK_RE.test(q)
   );
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} match
+ * @param {Record<string, unknown> | null | undefined} detail
+ */
+function enrichMatchRowFromDetail(match, detail) {
+  if (!match || !detail) return match;
+  const next = { ...match };
+  const detailStatus = String(detail.status || "").trim();
+  if (detailStatus && isWcPreMatchStatus(match.status) && !isWcPreMatchStatus(detailStatus)) {
+    next.status = detailStatus;
+  } else if (detailStatus && !next.status) {
+    next.status = detailStatus;
+  }
+  const hs = Number(detail.homeScore);
+  const as = Number(detail.awayScore);
+  if (Number.isFinite(hs)) next.homeScore = hs;
+  if (Number.isFinite(as)) next.awayScore = as;
+  const minute = detail.minute ?? detail.clock ?? detail.displayClock;
+  if (minute != null && String(minute).trim() !== "") {
+    next.minute = minute;
+  }
+  return next;
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} match
+ * @param {string} question
+ */
+function applyUserLiveStateFromQuestion(match, question) {
+  const parsed = parseLiveScoreFromQuestion(question);
+  const minute = parseLiveMinuteFromQuestion(question);
+  if (!parsed && minute == null) return match;
+  const next = { ...(match && typeof match === "object" ? match : {}) };
+  if (parsed) {
+    next.homeScore = parsed.home;
+    next.awayScore = parsed.away;
+  }
+  if (minute != null) next.minute = `${minute}'`;
+  if (parsed || minute != null) {
+    next.userProvidedLiveState = true;
+    if (!isWcLiveListStatus(next.status)) next.status = "live";
+  }
+  return next;
 }
 
 /**
@@ -319,6 +366,20 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   }
 
   let match = attachSeedOddsIfMissing(pinned, pair.home, pair.away);
+  const liveQuestion = isLiveQuestion(question);
+  const eventIdEarly =
+    match?.id ?? match?.bdlMatchId ?? pair.eventId ?? opts.wcEventId ?? null;
+
+  if (liveQuestion && eventIdEarly && match) {
+    const earlyDetail = await loadMatchDetailForPrebuilt(eventIdEarly, match, nowMs).catch(() => null);
+    if (earlyDetail) {
+      match = enrichMatchRowFromDetail(match, earlyDetail);
+      if (isWcLiveListStatus(match.status)) {
+        match = await refreshWcLiveMatchOddsForPrebuilt(match, nowMs);
+      }
+    }
+  }
+
   if (!match?.odds) {
     const bdlMatchId =
       match?.bdlMatchId ?? match?.id ?? pair.eventId ?? opts.wcEventId ?? null;
@@ -338,7 +399,17 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
       };
     }
   }
-  if (!match?.odds) return null;
+  if (!match?.odds && !liveQuestion) return null;
+
+  if (!match) {
+    match = {
+      homeTeam: pair.home,
+      awayTeam: pair.away,
+      group: pair.group,
+      id: eventIdEarly != null ? String(eventIdEarly) : undefined,
+      status: liveQuestion ? "live" : "scheduled",
+    };
+  }
 
   if (isWcLiveListStatus(match.status)) {
     match = await refreshWcLiveMatchOddsForPrebuilt(match, nowMs);
@@ -354,7 +425,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
 
   const isLiveMatch = isWcLiveListStatus(match?.status);
   const isImminent = isWcImminentPreMatch(match, nowMs);
-  if (eventId && (isLiveMatch || isImminent)) {
+  if (eventId && (isLiveMatch || isImminent || liveQuestion)) {
     const [detailRow, propsRow] = await Promise.all([
       loadMatchDetailForPrebuilt(eventId, match, nowMs).catch(() => null),
       loadLivePlayerPropsForPrebuilt(eventId, match, nowMs).catch(() => null),
@@ -362,7 +433,11 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
     matchDetail = detailRow;
     playerProps = propsRow;
     if (matchDetail) {
-      if (isLiveMatch) {
+      match = enrichMatchRowFromDetail(match, matchDetail);
+      if (isWcLiveListStatus(match.status) && !match.odds) {
+        match = await refreshWcLiveMatchOddsForPrebuilt(match, nowMs);
+      }
+      if (isLiveMatch || isWcLiveListStatus(match?.status)) {
         liveChanceQuality = buildLiveMatchChanceQualityFromDetail(matchDetail);
       }
       // Enrich the match with Starting-XI status so the prebuilt caveat reflects dropped
@@ -377,6 +452,8 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
     }
   }
 
+  match = applyUserLiveStateFromQuestion(match, question);
+
   const teamStats = simRow?.teamStats || null;
 
   return {
@@ -385,7 +462,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
     allMatches: matches,
     teamStats,
     simLastUpdated: simRow?.lastUpdated,
-    hasKvFixture: Boolean(pinned || match?.odds),
+    hasKvFixture: Boolean(pinned || match?.odds || liveQuestion),
     matchDetail,
     liveChanceQuality,
     playerProps,

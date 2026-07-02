@@ -78,6 +78,22 @@ export function parseLiveScoreFromQuestion(question) {
 }
 
 /**
+ * @param {string} question
+ * @returns {number | null}
+ */
+export function parseLiveMinuteFromQuestion(question) {
+  const q = String(question || "");
+  const minMatch =
+    q.match(/\b(\d{1,3})\s*(?:'|′)\b/) ||
+    q.match(/\b(\d{1,3})\s*min(?:ute)?s?\b/i) ||
+    q.match(/\b(\d{1,3})(?:st|nd|rd|th)\s+minute\b/i);
+  if (!minMatch) return null;
+  const minute = Number(minMatch[1]);
+  if (!Number.isFinite(minute) || minute < 0 || minute > 130) return null;
+  return minute;
+}
+
+/**
  * Pick fixture for live/dominance Qs — prefers live slate, then mentioned teams.
  * @param {Array<Record<string, unknown>>} matches
  * @param {string} question

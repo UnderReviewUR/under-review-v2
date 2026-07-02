@@ -405,6 +405,18 @@ test("buildWcLiveStateGuardBlock: live fixture surfaces score and forbids asking
   );
 });
 
+test("buildWcLiveStateGuardBlock binds user-provided score on stale NS fixture", () => {
+  const guard = buildWcLiveStateGuardBlock(
+    [{ homeTeam: "BIH", awayTeam: "USA", status: "NS" }],
+    [],
+    [],
+    "0-0 26 min",
+  );
+  assert.match(String(guard), /LIVE STATE \(binding/);
+  assert.match(String(guard), /BIH 0-0 USA — LIVE · 26'/);
+  assert.match(String(guard), /NEVER reply by asking for the current score/i);
+});
+
 test("formatWorldCupUrTakePromptBlock injects LIVE STATE for a live cited fixture", () => {
   const block = formatWorldCupUrTakePromptBlock({
     tournament: "2026 FIFA World Cup",
