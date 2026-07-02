@@ -130,6 +130,24 @@ test("formatWorldCupUrTakePromptBlock injects fixture match odds when present", 
   assert.match(block, /NOR \+250/);
 });
 
+test("formatWorldCupUrTakePromptBlock uses screenshot odds instructions when image attached", () => {
+  const block = formatWorldCupUrTakePromptBlock({
+    tournament: "2026 FIFA World Cup",
+    hosts: ["USA"],
+    dateRange: "June 11 — July 19, 2026",
+    groups: { I: [{ name: "Portugal", abbreviation: "POR", strengthTag: "Contender" }] },
+    live: [],
+    results: [],
+    upcoming: [],
+    fixtures: [{ id: "1", homeTeam: "POR", awayTeam: "CRO", round: "Quarterfinal" }],
+    fixtureOddsBlocks: [],
+    userAttachedBettingImage: true,
+  });
+  assert.match(block, /user screenshot/i);
+  assert.match(block, /Do NOT respond Pass/i);
+  assert.doesNotMatch(block, /No live 1X2 lines/);
+});
+
 test("formatWorldCupUrTakePromptBlock falls back to Elo structure when match odds missing", () => {
   const block = formatWorldCupUrTakePromptBlock({
     tournament: "2026 FIFA World Cup",
@@ -178,9 +196,9 @@ test("formatWorldCupUrTakePromptBlock slim knockout context for Norway path ques
   assert.match(block, /KNOCKOUT STAGE RULES/);
   assert.match(block, /KNOCKOUT PHASE \(mandatory\)/);
   assert.match(block, /CITED TEAM PATH/);
-  assert.match(block, /question-scoped/i);
+  assert.match(block, /KNOCKOUT FIXTURE SCOPE/);
   assert.doesNotMatch(block, /Group A:/);
-  assert.match(block, /Group I:/);
+  assert.doesNotMatch(block, /GROUPS \(12/);
 });
 
 test("formatWorldCupUrTakePromptBlock knockout fixture odds fallback mentions ET/pens", () => {

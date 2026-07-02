@@ -67,8 +67,7 @@ import {
 import { buildWcBdlFuturesPromptBlock } from "../shared/wcBdlFutures.js";
 import { readWcBdlGoatSeedFromKv } from "./_wcBdlSeed.js";
 import { readBdlLiveFuturesFromKv } from "./_wcBdlData.js";
-import { bdlFifaFetch } from "./_wcBdlFifa.js";
-import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
+import { fetchBdlMatchOddsForUrTake } from "./_wcBdlMatchOddsFetch.js";
 import { isWcGoatPrimaryEnabled } from "../shared/wcBdlPolicy.js";
 import { getGoatOutrightsPayload } from "./_wcBdlGoatMode.js";
 import { readWcMatchAdvancedStatsForEvent } from "./_wcMatchAdvancedStats.js";
@@ -404,6 +403,7 @@ export function buildWcFixtureStateGuardBlock(fixtures, matchDetails) {
 
 /** Live lines churn — refresh KV odds older than this before grounding a live fixture. */
 const WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS = 90_000;
+const WC_CONTEXT_PREMATCH_ODDS_MAX_AGE_MS = 30 * 60 * 1000;
 const WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS = 2500;
 /** Live score/stats move — refresh a cached match detail older than this for an in-play match. */
 const WC_CONTEXT_LIVE_DETAIL_MAX_AGE_MS = 60_000;
@@ -412,43 +412,51 @@ const WC_CONTEXT_PREMATCH_LINEUP_WINDOW_MS = 90 * 60 * 1000;
 const WC_CONTEXT_PREMATCH_DETAIL_MAX_AGE_MS = 5 * 60 * 1000;
 
 /**
- * Attach fresh BDL match odds to a LIVE fixture so FIXTURE MATCH ODDS renders even when
- * the slate row's odds lag. Bounded timeout; freshness/stale warnings stay owned by
- * buildMatchOddsFreshnessPromptBlock. Non-live fixtures pass through untouched.
+ * Attach fresh BDL match odds when the slate row is missing lines or they are stale.
+ * Live fixtures refresh on a ~90s cadence; pre-match fixtures fetch on demand (same as prebuilt path).
  * @param {Record<string, unknown>} fx
  * @param {number} nowMs
  */
-async function attachLiveOddsToFixture(fx, nowMs) {
-  if (!fx || !isLiveStatus(fx.status) || !isWcGoatPrimaryEnabled()) return fx;
+async function attachFixtureOddsIfNeeded(fx, nowMs) {
+  if (!fx || !isWcGoatPrimaryEnabled()) return fx;
+  if (isFinished(fx.status)) return fx;
+
+  const live = isLiveStatus(fx.status);
+  const preMatch = isScheduled(fx.status);
+  if (!live && !preMatch) return fx;
+
+  const maxAgeMs = live ? WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS : WC_CONTEXT_PREMATCH_ODDS_MAX_AGE_MS;
   const oddsUpdatedAt = Number(fx.oddsUpdatedAt || 0);
   if (
     fx.odds &&
     typeof fx.odds === "object" &&
     oddsUpdatedAt > 0 &&
-    nowMs - oddsUpdatedAt < WC_CONTEXT_LIVE_ODDS_MAX_AGE_MS
+    nowMs - oddsUpdatedAt < maxAgeMs
   ) {
     return fx;
   }
+
   const bdlMatchId = fx.bdlMatchId ?? fx.id;
   if (bdlMatchId == null) return fx;
+
   try {
-    const res = await Promise.race([
-      bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
+    const odds = await Promise.race([
+      fetchBdlMatchOddsForUrTake(bdlMatchId, nowMs),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("live_odds_timeout")), WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS),
+        setTimeout(() => reject(new Error("fixture_odds_timeout")), WC_CONTEXT_LIVE_ODDS_TIMEOUT_MS),
       ),
     ]);
-    if (res?.ok) {
-      const odds = pickBdlMatchOddsForMatch(
-        Array.isArray(res.data?.data) ? res.data.data : [],
-        bdlMatchId,
-      );
-      if (odds) return { ...fx, odds, oddsUpdatedAt: nowMs, oddsStale: false };
-    }
+    if (odds) return { ...fx, odds, oddsUpdatedAt: nowMs, oddsStale: false };
   } catch (err) {
-    console.warn("[wc-context] live odds attach failed for", fx?.id, err?.message);
+    console.warn("[wc-context] fixture odds attach failed for", fx?.id, err?.message);
   }
   return fx;
+}
+
+/** @deprecated — use attachFixtureOddsIfNeeded */
+async function attachLiveOddsToFixture(fx, nowMs) {
+  if (!fx || !isLiveStatus(fx.status)) return fx;
+  return attachFixtureOddsIfNeeded(fx, nowMs);
 }
 
 function buildStaticGroups() {
@@ -987,6 +995,15 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
     for (const block of ctx.fixtureOddsBlocks) {
       lines.push(block);
     }
+  } else if (ctx.userAttachedBettingImage) {
+    lines.push(
+      "",
+      "FIXTURE MATCH ODDS (user screenshot):",
+      "  User attached a sportsbook screenshot with visible fixture markets (To Advance, 90-min ML, totals, BTTS, spread, props).",
+      "  READ the posted American prices from the attached image — they are authoritative offered lines for this turn.",
+      "  Do NOT respond Pass / no actionable line / wait for lines to post when prices are visible on screen.",
+      "  Analyze which posted line is the best play and cite the numbers you see (-138, +488, O2.5 -117, etc.).",
+    );
   } else if (Array.isArray(ctx.fixtures) && ctx.fixtures.length) {
     const koFixture = ctx.fixtures.some((fx) => isKnockoutRound(fx.round));
     lines.push(
@@ -1387,8 +1404,8 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const resultsForPrompt = selectResultsForPrompt(results, phase);
   const upcomingForPrompt = selectUpcomingForPrompt(upcoming, matches, phase);
 
-  if (fixtures.some((fx) => isLiveStatus(fx?.status))) {
-    fixtures = await Promise.all(fixtures.map((fx) => attachLiveOddsToFixture(fx, nowMs)));
+  if (fixtures.length) {
+    fixtures = await Promise.all(fixtures.map((fx) => attachFixtureOddsIfNeeded(fx, nowMs)));
   }
 
   const fixtureOddsBlocks = fixtures
@@ -1593,6 +1610,7 @@ async function _buildWorldCupUrTakeContextInner(question = "", opts = {}) {
   const ctx = {
     source: "world_cup_2026",
     questionText: question,
+    userAttachedBettingImage: Boolean(opts.hasImage),
     advancementMarketBlock,
     bdlFuturesBlock,
     bdlFuturesPayload: bdlPayloadForRanking,

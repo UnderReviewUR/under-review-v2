@@ -14,8 +14,7 @@ import {
   readWcMatchPlayerPropsForEvent,
   ensureWcBdlMatchPlayerPropsForEvent,
 } from "./_wcMatchPlayerProps.js";
-import { bdlFifaFetch } from "./_wcBdlFifa.js";
-import { pickBdlMatchOddsForMatch } from "./_wcBdlNormalize.js";
+import { fetchBdlMatchOddsForUrTake } from "./_wcBdlMatchOddsFetch.js";
 import { getMatchesPayload } from "./world-cup.js";
 import { buildStaticPromoMatchesFallback } from "../shared/wc2026PromoFixtures.js";
 import { buildLiveMatchChanceQualityFromDetail } from "../shared/wcMatchChanceQuality.js";
@@ -152,36 +151,6 @@ function findKvFixture(matches, home, away) {
 }
 
 /**
- * @param {string | number | null | undefined} bdlMatchId
- * @param {number} nowMs
- */
-async function fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs) {
-  if (!isWcGoatPrimaryEnabled()) return null;
-  if (bdlMatchId == null) return null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      const res = await Promise.race([
-        bdlFifaFetch("/odds", { "seasons[]": 2026, "match_ids[]": bdlMatchId }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("live_odds_timeout")), LIVE_ODDS_FETCH_TIMEOUT_MS),
-        ),
-      ]);
-      if (!res?.ok) continue;
-      const odds = pickBdlMatchOddsForMatch(
-        Array.isArray(res.data?.data) ? res.data.data : [],
-        bdlMatchId,
-      );
-      if (odds) return odds;
-    } catch {
-      if (attempt === 0) {
-        await new Promise((r) => setTimeout(r, 400));
-      }
-    }
-  }
-  return null;
-}
-
-/**
  * @param {Record<string, unknown>} match
  * @param {number} nowMs
  */
@@ -198,7 +167,7 @@ async function refreshWcLiveMatchOddsForPrebuilt(match, nowMs) {
   }
 
   const bdlMatchId = match.bdlMatchId ?? match.id;
-  const odds = await fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs);
+  const odds = await fetchBdlMatchOddsForUrTake(bdlMatchId, nowMs);
   if (!odds) return match;
   return { ...match, odds, oddsUpdatedAt: nowMs, oddsStale: false };
 }
@@ -383,7 +352,7 @@ export async function resolveWcFixtureMatchupPrebuiltInputs(opts = {}) {
   if (!match?.odds) {
     const bdlMatchId =
       match?.bdlMatchId ?? match?.id ?? pair.eventId ?? opts.wcEventId ?? null;
-    const goatOdds = await fetchBdlMatchOddsForPrebuilt(bdlMatchId, nowMs);
+    const goatOdds = await fetchBdlMatchOddsForUrTake(bdlMatchId, nowMs);
     if (goatOdds) {
       match = {
         ...(match && typeof match === "object" ? match : {}),

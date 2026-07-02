@@ -2025,6 +2025,19 @@ function wcCardPlayRestatesCall(lean, call) {
  * @param {object | null | undefined} wcContext
  */
 export function resolveWcPlayerMarketResponse(question, wcIntent, wcContext) {
+  if (wcContext?.hasImage || wcContext?.userAttachedBettingImage) {
+    return {
+      forcePass: false,
+      tier: wcContext?.playerMarketTier || "market_only",
+      playerMarketTier: wcContext?.playerMarketTier || "market_only",
+      tierLabel: tierMetaFor(wcContext?.playerMarketTier || "market_only").label,
+      callType: tierMetaFor(wcContext?.playerMarketTier || "market_only").callType,
+      structured: null,
+      responseText: null,
+      responseDeep: null,
+      promptAppendix: null,
+    };
+  }
   const kvBlocks = wcContext?.playerMarketKv || null;
   const tier = resolveWcPlayerMarketTier({
     goldenBoot: kvBlocks?.goldenBoot,

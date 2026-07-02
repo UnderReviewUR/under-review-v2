@@ -215,8 +215,10 @@ export function buildMatchOddsFreshness(match, kvLastUpdatedMs, nowMs = Date.now
 export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
   if (!match?.odds) return null;
 
-  const updatedAt = Number(match.oddsUpdatedAt);
-  if (!Number.isFinite(updatedAt) || updatedAt <= 0) return null;
+  let updatedAt = Number(match.oddsUpdatedAt);
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0) {
+    updatedAt = nowMs;
+  }
 
   const maxAgeMs = resolveMatchMlMaxAgeMs(match, nowMs);
   const freshness = calculateOddsFreshness(updatedAt, maxAgeMs, nowMs);

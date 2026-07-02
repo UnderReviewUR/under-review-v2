@@ -116,7 +116,7 @@ export function resolveOutputJsonMode({
 export function buildJsonOutputContract(
   mode,
   sportHint,
-  { requireStatusShift = false, longFormRequested = false, wcIntent = null } = {},
+  { requireStatusShift = false, longFormRequested = false, wcIntent = null, hasImage = false } = {},
 ) {
   const sport = String(sportHint || "generic").toLowerCase();
 
@@ -247,7 +247,7 @@ ${WC_CARD_CONTRACT_TIER25_APPENDIX}
 
 CRITICAL
 - Never say "limited profile", "held back", or apologize for thin data.
-- Never invent scores, lineups, or odds not in context.
+- Never invent scores, lineups, or odds not in context${hasImage ? " — except American prices visibly posted in the user's attached screenshot, which you must read and cite" : ""}.
 - Never include the phrase "Full Breakdown" in any field (UI handles that).
 - Reference strength as Favorite / Contender / Longshot only — never cite Elo or numeric power ratings.`;
 

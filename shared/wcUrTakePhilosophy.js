@@ -53,6 +53,7 @@ export function isWcBettingScreenshotAnalyzeQuestion(question) {
   if (!q) return false;
   return (
     /\b(screenshot|see attached|attached|paste[sd]?)\b/i.test(q) ||
+    /\b(can you read|read this|read the screenshot|what are these lines|what does this say|decode this)\b/i.test(q) ||
     /\banalyze\b[\s\S]{0,48}\b(options|lines|markets|screenshot|odds|this)\b/i.test(q) ||
     /\bwhat'?s best to (play|bet)\b/i.test(q) ||
     /\bbest (?:thing|market|line|bet) to play\b/i.test(q) ||
