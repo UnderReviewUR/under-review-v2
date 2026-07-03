@@ -210,6 +210,7 @@ import {
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_MISSING_WINNER_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
+  WC_HOME_FAVORITE_MISLABEL_QA_SUFFIX,
   WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX,
   WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
@@ -6978,6 +6979,10 @@ You are responding to a Pro subscriber. Apply the following:
             }${
               prevQaCriticalCodes.includes("wc_matchup_alt_followup_ml_headline")
                 ? WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_home_favorite_mislabel")
+                ? WC_HOME_FAVORITE_MISLABEL_QA_SUFFIX
                 : ""
             }${
               prevQaCriticalCodes.includes("wc_knockout_both_advance_bleed")

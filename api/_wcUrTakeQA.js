@@ -21,6 +21,7 @@ import { isWcGroupStructureQuestion } from "../shared/wcUrTakeIntent.js";
 import { extractLatestUserTurnForRouting } from "../shared/urTakeSportRouting.js";
 import { isTournamentWinnerQuestion } from "../shared/wcPhaseUtils.js";
 import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
+import { detectWcHomeFavoriteMislabel } from "../shared/wcHostNationLanguage.js";
 import {
   scoreWcCardContractVoice,
   WC_CARD_VOICE_QA_SUFFIX,
@@ -204,6 +205,16 @@ export function runWcUrTakeQA(opts = {}) {
     if (detectContenderAheadOfFavoriteClaim(headline, strengthTags)) {
       issueCodes.push("wc_matchup_contender_ahead_of_favorite");
     }
+  }
+
+  const fixtureHome =
+    String(structured?.fixtureHome || "").trim().toUpperCase() ||
+    String(matchDetails[0]?.homeTeam || "").trim().toUpperCase() ||
+    "";
+  if (
+    detectWcHomeFavoriteMislabel(`${headline} ${body}`, { homeTeam: fixtureHome || null })
+  ) {
+    issueCodes.push("wc_home_favorite_mislabel");
   }
 
   if (requiredEntities.length > 0) {
@@ -573,6 +584,7 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_matchup_pass_only_no_alt",
       "wc_matchup_missing_winner_line",
       "wc_matchup_alt_followup_ml_headline",
+      "wc_home_favorite_mislabel",
       "wc_knockout_both_advance_bleed",
       "wc_knockout_group_framing_bleed",
       "wc_roundup_dark_horse_weak",
@@ -634,6 +646,7 @@ export {
   WC_PUSHBACK_VOICE_QA_SUFFIX,
 };
 export { WC_MATCH_PASS_ONLY_QA_SUFFIX, WC_MATCH_MISSING_WINNER_QA_SUFFIX, WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX };
+export { WC_HOME_FAVORITE_MISLABEL_QA_SUFFIX } from "../shared/wcHostNationLanguage.js";
 
 export const WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX = `
 

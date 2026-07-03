@@ -3,6 +3,7 @@
  */
 
 import { isWcMatchTotalsQuestion } from "./wcUrTakeIntent.js";
+import { WC_HOME_FAVORITE_LANGUAGE_RULE } from "./wcHostNationLanguage.js";
 
 /** Player-prop O/U with a stat line — not match goals. */
 function isWcPlayerPropStatOuAsk(question) {
@@ -53,7 +54,9 @@ export const WC_MATCH_BETTING_PROMPT_RULES = `MATCH BETTING — CASUAL BETTOR MO
 - BAD THE PLAY: "Pass at -240 — this is a fair line, not a mispricing." (no market named)
 - GOOD THE PLAY: "Pass on MEX -240 — lean Both Teams to Advance in Group A (Mexico and South Africa both qualify in sims)." OR "Lean Under 2.5 — South Africa sits back; Mexico controls but may not blow them out."
 - Only pure Pass (no alternate) when lineups are unconfirmed AND no team-level market has support in VERIFIED CONTEXT — then say what to wait for.
-- Never label the shorter ML favorite as a "Longshot" when both sides are plus money (e.g. USA +110 vs PAR +285 — USA is the favorite, Paraguay is the underdog).`;
+- Never label the shorter ML favorite as a "Longshot" when both sides are plus money (e.g. USA +110 vs PAR +285 — USA is the favorite, Paraguay is the underdog).
+
+${WC_HOME_FAVORITE_LANGUAGE_RULE}`;
 
 /** QA regen hint when matchup take is pass-only on the moneyline. */
 export const WC_MATCH_PASS_ONLY_QA_SUFFIX =

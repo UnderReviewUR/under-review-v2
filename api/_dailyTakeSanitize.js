@@ -2,6 +2,10 @@ import {
   filterIrrelevantPlayersFromPreviewText,
   polishHomePreviewField,
 } from "../shared/nbaHomePreviewFilter.js";
+import {
+  parseWcMatchupLabelHomeAbbr,
+  repairWcHomeFavoriteLanguage,
+} from "../shared/wcHostNationLanguage.js";
 
 const DAILY_TAKE_REFUSAL_PATTERNS = [
   /\bi appreciate the detailed setup\b/i,
@@ -30,16 +34,31 @@ export function isDailyTakePreviewRefusalText(text) {
  */
 export function sanitizeDailyTakePreviewPayload(payload) {
   if (!payload || payload.ok !== true) return payload;
+  const sport = String(payload.sportHint || payload.sport || "").toLowerCase();
+  const fixtureHome =
+    String(payload.fixtureHome || "").trim().toUpperCase() ||
+    (sport === "worldcup" ? parseWcMatchupLabelHomeAbbr(payload.matchupLabel) : null);
+  const repairOpts = fixtureHome ? { homeTeam: fixtureHome } : {};
+
   const headline = polishHomePreviewField(
-    filterIrrelevantPlayersFromPreviewText(String(payload.headline || "")),
+    repairWcHomeFavoriteLanguage(
+      filterIrrelevantPlayersFromPreviewText(String(payload.headline || "")),
+      repairOpts,
+    ),
     280,
   );
   const bodyChunk = polishHomePreviewField(
-    filterIrrelevantPlayersFromPreviewText(String(payload.bodyChunk || "")),
+    repairWcHomeFavoriteLanguage(
+      filterIrrelevantPlayersFromPreviewText(String(payload.bodyChunk || "")),
+      repairOpts,
+    ),
     520,
   );
   const closing = polishHomePreviewField(
-    filterIrrelevantPlayersFromPreviewText(String(payload.closing || "")),
+    repairWcHomeFavoriteLanguage(
+      filterIrrelevantPlayersFromPreviewText(String(payload.closing || "")),
+      repairOpts,
+    ),
     240,
   );
   const combined = `${headline} ${bodyChunk} ${closing}`.trim();

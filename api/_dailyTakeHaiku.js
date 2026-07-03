@@ -10,7 +10,8 @@ Return ONLY valid JSON (no markdown, no preamble) with exactly these keys:
   "closing": "One actionable closer, max 100 chars",
   "confidence": "High | Medium | Speculative"
 }
-Ground every claim in the SLATE JSON only. No section headers. No bullet lists.`;
+Ground every claim in the SLATE JSON only. No section headers. No bullet lists.
+For World Cup: only USA, MEX, and CAN are co-hosts — never call Australia or any other nation a "home favorite"; listed homeTeam is the ticket home side, not their home country. Use "on the moneyline" or "listed home side" instead.`;
 
 /**
  * @param {string} raw

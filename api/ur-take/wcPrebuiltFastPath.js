@@ -228,6 +228,7 @@ export async function tryDeliverWcPrebuiltFastPath(ctx) {
     intent,
     liveMode: false,
     structuredLean: String(structuredResponse.lean || ""),
+    fixtureHome: structuredResponse?.fixtureHome || null,
   };
   const post = runUnderReviewPostProcess(responseText, qaPostOpts);
   responseText = post.text;

@@ -23,6 +23,7 @@ import {
   sanitizeLeanBroTone,
 } from "./_urTakeCoreVoice.js";
 import { sanitizeOverFormalOutput } from "./_urTakeVoiceProfile.js";
+import { repairWcHomeFavoriteLanguage } from "../shared/wcHostNationLanguage.js";
 import { lintLeanContract } from "../shared/urTakeLean.js";
 import { stripBrokenQuoteFragments } from "./types/urTakeResponse.js";
 
@@ -347,6 +348,11 @@ function applyDeterministicQaEnforcement(text, options = {}) {
   s = patchStatusContradiction(s);
   s = appendSlateDiversificationLine(s, options);
   s = enforceSlipCompleteness(s, options);
+  if (String(options.sport || "").toLowerCase() === "worldcup") {
+    s = repairWcHomeFavoriteLanguage(s, {
+      homeTeam: options.fixtureHome || options.wcFixtureHome,
+    });
+  }
   return s.trim();
 }
 

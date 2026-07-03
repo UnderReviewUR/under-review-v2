@@ -14,10 +14,11 @@ import {
   isWcScheduledMatchStatus,
   isWcUpcomingFeaturedCandidate,
 } from "../shared/wcFeaturedMatch.js";
+import { isWc2026HostNation, parseWcMatchupLabelHomeAbbr } from "../shared/wcHostNationLanguage.js";
 import { readWcMatchesFromKv } from "./_wcData.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
-export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 5;
+export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 6;
 const STORAGE_PREFIX = "daily_take:v2:";
 const PREVIEW_TRIM_VERSION = DAILY_TAKE_PREVIEW_TRIM_VERSION;
 
@@ -142,6 +143,8 @@ function buildWcSlateContext(board, featuredLabel) {
     sport: "worldcup",
     featured: featuredLabel,
     featuredMatch,
+    hosts: ["USA", "MEX", "CAN"],
+    listedHomeIsHost: featuredMatch ? isWc2026HostNation(featuredMatch.home) : false,
     tournamentPhase,
     knockout: isKnockoutPhase(tournamentPhase),
     outrightsSample: board?.outrightsSample || {},
@@ -442,6 +445,9 @@ export async function generateDailyTakePreview(fetchImpl = fetch) {
     question: target.question,
     matchupLabel: target.matchupLabel,
     wcEventId: target.wcEventId || null,
+    fixtureHome:
+      target.slateContext?.featuredMatch?.home ||
+      (target.sportHint === "worldcup" ? parseWcMatchupLabelHomeAbbr(target.matchupLabel) : null),
     sport: json.sport || target.sportHint,
     confidence: json.confidence || null,
     headline: condensed.headline,
