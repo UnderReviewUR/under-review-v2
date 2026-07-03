@@ -12,6 +12,7 @@ import {
   isWcFinishedMatchStatus,
   isWcLiveMatchStatus,
   isWcScheduledMatchStatus,
+  isWcUpcomingFeaturedCandidate,
 } from "../shared/wcFeaturedMatch.js";
 import { readWcMatchesFromKv } from "./_wcData.js";
 
@@ -82,7 +83,9 @@ export function pickWcDailyTakeMatch(candidates, nowMs = Date.now()) {
     return [...live].sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b))[0];
   }
 
-  const upcoming = playable.filter((m) => isWcScheduledMatchStatus(m.status));
+  const upcoming = playable.filter(
+    (m) => isWcScheduledMatchStatus(m.status) && isWcUpcomingFeaturedCandidate(m, nowMs),
+  );
   if (upcoming.length) {
     return [...upcoming].sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b))[0];
   }

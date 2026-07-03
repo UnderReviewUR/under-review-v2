@@ -131,6 +131,24 @@ test("shouldCheckWcLiveScores skips far-future scheduled fixtures", () => {
   assert.equal(shouldCheckWcLiveScores(kv, nowMs), false);
 });
 
+test("shouldCheckWcLiveScores runs for yesterday fixture still stuck at NS", () => {
+  const nowMs = Date.parse("2026-07-03T09:00:00-04:00");
+  const kv = {
+    matches: [
+      {
+        id: 99,
+        homeTeam: "POR",
+        awayTeam: "CRO",
+        status: "NS",
+        date: "2026-07-02",
+        time: "18:00 ET",
+        commenceTs: Date.parse("2026-07-02T22:00:00Z"),
+      },
+    ],
+  };
+  assert.equal(shouldCheckWcLiveScores(kv, nowMs), true);
+});
+
 test("mergeWcLiveScorePatches promotes NS to live by team pair when dates differ", () => {
   const { matches, changed } = mergeWcLiveScorePatches(
     [

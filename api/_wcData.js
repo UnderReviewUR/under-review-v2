@@ -44,6 +44,10 @@ import {
   wcTodayEtYmd,
 } from "../shared/wcKickoffDisplay.js";
 import {
+  isWcStaleUnfinishedMatch,
+  wcStaleUnfinishedPairKeys,
+} from "../shared/wcFeaturedMatch.js";
+import {
   fetchOpenFootballWc2026Schedule,
   validateEspnScheduleAgainstOpenFootball,
   enrichMatchesWithOpenFootballMetadata,
@@ -88,6 +92,7 @@ export function shouldCheckWcLiveScores(kv, nowMs = Date.now()) {
   const todayEt = wcTodayEtYmd(nowMs);
   for (const m of kv.matches) {
     if (isWcLiveMatchStatus(m.status)) return true;
+    if (isWcStaleUnfinishedMatch(m, nowMs)) return true;
     if (!isWcScheduledLikeStatus(m.status)) continue;
     if (!wcMatchDatesIncludeYmd(m, todayEt)) continue;
     const kickoff = resolveWcMatchKickoffMs(m);
@@ -182,12 +187,18 @@ export async function refreshWcLiveScoresFromBdl(kv, nowMs = Date.now()) {
   }
 
   const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+  const stalePairKeys = wcStaleUnfinishedPairKeys(kv.matches, nowMs);
   const patches = rows
     .map((row) => normalizeBdlFifaMatchRow(row, nowMs))
-    .filter(
-      (norm) =>
-        norm && (wcMatchDatesIncludeYmd(norm, todayEt) || isWcLiveMatchStatus(norm.status)),
-    )
+    .filter((norm) => {
+      if (!norm) return false;
+      if (wcMatchDatesIncludeYmd(norm, todayEt) || isWcLiveMatchStatus(norm.status)) {
+        return true;
+      }
+      const home = String(norm.homeTeam || "").trim().toUpperCase();
+      const away = String(norm.awayTeam || "").trim().toUpperCase();
+      return home && away && stalePairKeys.has(`${home}-${away}`);
+    })
     .map((norm) => ({
       id: norm.id,
       bdlMatchId: norm.bdlMatchId,
@@ -271,15 +282,24 @@ export async function refreshWcLiveScoresFromEspn(kv, nowMs = Date.now(), opts =
   }
 
   const ymd = wcTodayEtYmd(nowMs).replace(/-/g, "");
-  const board = await fetchEspnScoreboardForDate(ymd);
+  const boards = [await fetchEspnScoreboardForDate(ymd)];
+  const stalePairKeys = wcStaleUnfinishedPairKeys(kv.matches, nowMs);
+  if (stalePairKeys.size) {
+    const yesterdayYmd = wcTodayEtYmd(nowMs - 24 * 60 * 60 * 1000).replace(/-/g, "");
+    if (yesterdayYmd !== ymd) {
+      boards.push(await fetchEspnScoreboardForDate(yesterdayYmd));
+    }
+  }
   const nextCheckedAt = nowMs;
-  if (!board.ok) {
+  const okBoards = boards.filter((b) => b?.ok);
+  if (!okBoards.length) {
     const throttled = { ...kv, liveCheckedAt: nextCheckedAt };
     await setDurableJson(WC_MATCHES_KV_KEY, throttled, { ttlSeconds: WC_MATCHES_TTL_SECONDS });
     return { kv: throttled, refreshed: false, checked: true };
   }
 
-  const patches = board.events
+  const patches = okBoards
+    .flatMap((board) => board.events || [])
     .map((ev) => normalizeEspnScoreboardEvent(ev, nowMs))
     .filter(Boolean);
   const { matches, changed } = mergeWcLiveScorePatches(kv.matches, patches);

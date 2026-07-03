@@ -2,10 +2,9 @@ import { isWcHomePromoWindow } from "../../../shared/wc2026Constants.js";
 import {
   getWcMatchCommenceMs,
   isWcLiveMatchStatus,
-  isWcFinishedMatchStatus,
+  isWcUpcomingFeaturedCandidate,
   pickWcFeaturedMatch,
 } from "../../../shared/wcFeaturedMatch.js";
-import { wcMatchOnEtBroadcastSlateDay, wcTodayEtYmd } from "../../../shared/wcKickoffDisplay.js";
 import { getGolfHomeValidity } from "../../lib/golfEventStatus.js";
 
 /**
@@ -18,19 +17,13 @@ export function pickWcHomeCompactFixtures(wcMatches, nowMs = Date.now(), opts = 
   const limit = opts.limit ?? 2;
   const exclude = new Set((opts.excludeIds || []).map((id) => String(id)));
   const all = Array.isArray(wcMatches) ? wcMatches : [];
-  const todayEt = wcTodayEtYmd(nowMs);
 
   const live = all
     .filter((m) => isWcLiveMatchStatus(m?.status))
     .sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b));
 
   const upcoming = all
-    .filter((m) => !isWcLiveMatchStatus(m?.status) && !isWcFinishedMatchStatus(m?.status))
-    .filter(
-      (m) =>
-        wcMatchOnEtBroadcastSlateDay(m, todayEt) ||
-        getWcMatchCommenceMs(m) >= nowMs - 3 * 60 * 60 * 1000,
-    )
+    .filter((m) => isWcUpcomingFeaturedCandidate(m, nowMs) && !isWcLiveMatchStatus(m?.status))
     .sort((a, b) => getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b));
 
   const ordered = [...live, ...upcoming];

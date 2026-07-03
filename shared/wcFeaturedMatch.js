@@ -35,6 +35,62 @@ function sortByKickoff(a, b) {
   return getWcMatchCommenceMs(a) - getWcMatchCommenceMs(b);
 }
 
+/** Typical match length + stoppage before a scheduled row is treated as stale for slate picks. */
+export const WC_MATCH_PLAYABLE_GRACE_MS = 3 * 60 * 60 * 1000;
+
+/** After kickoff, keep trying to reconcile stuck NS/live rows from the feed. */
+export const WC_STALE_SCORE_RECONCILE_MS = 36 * 60 * 60 * 1000;
+
+const WC_UPCOMING_KICKOFF_SLACK_MS = 15 * 60 * 1000;
+
+/**
+ * KV row still NS/live long after kickoff — needs a scoreboard/BDL refresh, not a hero slot.
+ * @param {Record<string, unknown> | null | undefined} match
+ * @param {number} [nowMs]
+ */
+export function isWcStaleUnfinishedMatch(match, nowMs = Date.now()) {
+  if (!match || isWcFinishedMatchStatus(match?.status)) return false;
+  if (!isWcScheduledMatchStatus(match?.status) && !isWcLiveMatchStatus(match?.status)) {
+    return false;
+  }
+  const kickoff = getWcMatchCommenceMs(match);
+  if (!Number.isFinite(kickoff) || kickoff >= Number.MAX_SAFE_INTEGER) return false;
+  const ageMs = nowMs - kickoff;
+  if (ageMs < WC_MATCH_PLAYABLE_GRACE_MS) return false;
+  return ageMs <= WC_STALE_SCORE_RECONCILE_MS;
+}
+
+/**
+ * True when a fixture should appear in featured/upcoming UI (not a past kickoff stuck at NS).
+ * @param {Record<string, unknown> | null | undefined} match
+ * @param {number} [nowMs]
+ */
+export function isWcUpcomingFeaturedCandidate(match, nowMs = Date.now()) {
+  if (!match?.homeTeam || !match?.awayTeam) return false;
+  if (isWcFinishedMatchStatus(match?.status) || isWcStaleUnfinishedMatch(match, nowMs)) {
+    return false;
+  }
+  if (isWcLiveMatchStatus(match?.status)) return true;
+  if (!isWcScheduledMatchStatus(match?.status)) return false;
+  const kickoff = getWcMatchCommenceMs(match);
+  return kickoff >= nowMs - WC_UPCOMING_KICKOFF_SLACK_MS;
+}
+
+/**
+ * @param {Array<Record<string, unknown>> | null | undefined} matches
+ * @param {number} [nowMs]
+ */
+export function wcStaleUnfinishedPairKeys(matches, nowMs = Date.now()) {
+  const keys = new Set();
+  for (const m of matches || []) {
+    if (!isWcStaleUnfinishedMatch(m, nowMs)) continue;
+    const home = String(m.homeTeam || "").trim().toUpperCase();
+    const away = String(m.awayTeam || "").trim().toUpperCase();
+    if (home && away) keys.add(`${home}-${away}`);
+  }
+  return keys;
+}
+
 /**
  * @param {object} [opts]
  * @param {number} [opts.nowMs]
@@ -67,7 +123,7 @@ export function pickWcFeaturedMatch(opts = {}) {
   }
 
   const nextScheduled = all
-    .filter((m) => isWcScheduledMatchStatus(m.status) && !isWcFinishedMatchStatus(m.status))
+    .filter((m) => isWcScheduledMatchStatus(m.status) && isWcUpcomingFeaturedCandidate(m, nowMs))
     .sort(sortByKickoff)[0];
 
   if (!nextScheduled) return null;

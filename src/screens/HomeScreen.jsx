@@ -13,6 +13,7 @@ import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
 import { buildWcXiConfirmedHomeStarter } from "../features/home/buildWcHomePromoCard.js";
 import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
+import { isWcLiveMatchStatus } from "../../shared/wcFeaturedMatch.js";
 
 const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
@@ -143,12 +144,17 @@ export default function HomeScreen({
     trackFunnelEvent("first_session_home_view", { surface: "stripped_home" });
   }, [strippedHomeSession]);
 
+  const wcHasLive = useMemo(
+    () => (wcMatches || []).some((m) => isWcLiveMatchStatus(m?.status)),
+    [wcMatches],
+  );
+
   useEffect(() => {
     if (strippedHomeSession) return;
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/daily-take");
+        const res = await fetch("/api/daily-take", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data?.ok && data?.headline) setDailyPreview(data);
@@ -159,7 +165,7 @@ export default function HomeScreen({
     return () => {
       cancelled = true;
     };
-  }, [strippedHomeSession]);
+  }, [strippedHomeSession, wcHasLive]);
 
   if (strippedHomeSession) {
     return (

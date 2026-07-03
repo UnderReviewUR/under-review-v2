@@ -65,3 +65,62 @@ test("sortWcTodayMatches orders by kickoff", () => {
   );
   assert.deepEqual(sorted.map((m) => m.id), ["early", "late"]);
 });
+
+test("pickWcFeaturedMatch skips stale NS from last night and picks next kickoff", () => {
+  const nowMs = Date.parse("2026-07-03T09:00:00-04:00");
+  const featured = pickWcFeaturedMatch({
+    nowMs,
+    matches: [
+      {
+        id: "stale-cro-por",
+        homeTeam: "POR",
+        awayTeam: "CRO",
+        status: "NS",
+        date: "2026-07-02",
+        time: "18:00 ET",
+        commenceTs: Date.parse("2026-07-02T22:00:00Z"),
+      },
+      {
+        id: "today-next",
+        homeTeam: "USA",
+        awayTeam: "MEX",
+        status: "NS",
+        date: "2026-07-03",
+        time: "20:00 ET",
+        commenceTs: Date.parse("2026-07-04T00:00:00Z"),
+      },
+    ],
+    liveMatches: [],
+  });
+  assert.equal(featured?.match?.id, "today-next");
+  assert.equal(featured?.kicker, "Tonight");
+});
+
+test("pickWcFeaturedMatch prefers live over stale scheduled hero", () => {
+  const nowMs = Date.parse("2026-07-03T20:30:00-04:00");
+  const featured = pickWcFeaturedMatch({
+    nowMs,
+    matches: [
+      {
+        id: "stale",
+        homeTeam: "POR",
+        awayTeam: "CRO",
+        status: "NS",
+        commenceTs: Date.parse("2026-07-02T22:00:00Z"),
+      },
+      {
+        id: "live-now",
+        homeTeam: "USA",
+        awayTeam: "MEX",
+        status: "live",
+        homeScore: 1,
+        awayScore: 0,
+        minute: 67,
+        commenceTs: Date.parse("2026-07-04T00:00:00Z"),
+      },
+    ],
+    liveMatches: [],
+  });
+  assert.equal(featured?.match?.id, "live-now");
+  assert.equal(featured?.kind, "live");
+});
