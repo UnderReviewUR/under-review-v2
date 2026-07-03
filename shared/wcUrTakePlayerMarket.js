@@ -1482,6 +1482,55 @@ function isWcNationOrAwardFalsePositive(name, question = "") {
   return false;
 }
 
+const WC_EXTRACTED_PLAYER_TRAILING_VERBS = new Set([
+  "get",
+  "go",
+  "have",
+  "take",
+  "see",
+  "play",
+  "need",
+  "record",
+  "score",
+  "make",
+  "find",
+  "hit",
+  "draw",
+  "win",
+  "end",
+  "finish",
+]);
+
+/**
+ * Strip trailing verbs misparsed as part of a player name ("Salah get" → "Salah").
+ * @param {string} raw
+ */
+export function sanitizeWcExtractedPlayerName(raw) {
+  let parts = String(raw || "")
+    .trim()
+    .replace(/\?+$/, "")
+    .split(/\s+/)
+    .filter(Boolean);
+  while (
+    parts.length > 1 &&
+    WC_EXTRACTED_PLAYER_TRAILING_VERBS.has(parts[parts.length - 1].toLowerCase())
+  ) {
+    parts.pop();
+  }
+  return parts.join(" ").trim();
+}
+
+/**
+ * @param {string | null | undefined} raw
+ * @param {string} question
+ */
+function finalizeWcExtractedPlayerName(raw, question) {
+  const name = sanitizeWcExtractedPlayerName(String(raw || ""));
+  if (!name || name.length < 2) return null;
+  if (isWcNationOrAwardFalsePositive(name, question)) return null;
+  return name;
+}
+
 /**
  * Named player in a prop ask — null for slate/generic questions ("best player props today").
  * @param {string} question
@@ -1497,46 +1546,60 @@ export function extractWcNamedPlayerFromQuestion(question) {
   if (/\b(your read on|read on the|outlook on)\b/i.test(q)) return null;
   if (/\bhost nations?\b/i.test(q) && !/\bwill\b/i.test(q)) return null;
 
+  const howManyGetOnTarget = q.match(
+    /\bhow many\s+shots?(?:\s+on\s+target)?\s+will\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+get\s+(?:on\s+)?target\b/i,
+  );
+  if (howManyGetOnTarget?.[1]) {
+    const name = finalizeWcExtractedPlayerName(howManyGetOnTarget[1], q);
+    if (name) return name;
+  }
+
   const willScore = q.match(
     /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+score\b/i,
   );
-  if (willScore?.[1] && !isWcNationOrAwardFalsePositive(willScore[1], q)) {
-    return willScore[1].trim();
+  if (willScore?.[1]) {
+    const name = finalizeWcExtractedPlayerName(willScore[1], q);
+    if (name) return name;
   }
 
   const howManyWill = q.match(
-    /\bhow many\s+shots?\s+will\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\b/i,
+    /\bhow many\s+shots?(?:\s+on\s+target)?\s+will\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\b/i,
   );
-  if (howManyWill?.[1] && !isWcNationOrAwardFalsePositive(howManyWill[1], q)) {
-    return howManyWill[1].trim();
+  if (howManyWill?.[1]) {
+    const name = finalizeWcExtractedPlayerName(howManyWill[1], q);
+    if (name) return name;
   }
 
   const willGet = q.match(
     /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+get\b/i,
   );
-  if (willGet?.[1] && !isWcNationOrAwardFalsePositive(willGet[1], q)) {
-    return willGet[1].trim();
+  if (willGet?.[1]) {
+    const name = finalizeWcExtractedPlayerName(willGet[1], q);
+    if (name) return name;
   }
 
   const willGoOver = q.match(
     /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+go\s+over\b/i,
   );
-  if (willGoOver?.[1] && !isWcNationOrAwardFalsePositive(willGoOver[1], q)) {
-    return willGoOver[1].trim();
+  if (willGoOver?.[1]) {
+    const name = finalizeWcExtractedPlayerName(willGoOver[1], q);
+    if (name) return name;
   }
 
   const nameFirst = q.match(
     /^([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+(?:sot|shots?\s+on\s+target|shots?)\s+(?:line|prop|market|bet)/i,
   );
-  if (nameFirst?.[1] && !isWcNationOrAwardFalsePositive(nameFirst[1], q)) {
-    return nameFirst[1].trim();
+  if (nameFirst?.[1]) {
+    const name = finalizeWcExtractedPlayerName(nameFirst[1], q);
+    if (name) return name;
   }
 
   const propFor = q.match(
     /\b(?:prop|scorer|shots?)\s+for\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\b/i,
   );
   if (propFor?.[1] && !WC_PLAYER_PROP_LEAD_WORDS.has(propFor[1].toLowerCase())) {
-    if (!isWcNationOrAwardFalsePositive(propFor[1], q)) return propFor[1].trim();
+    const name = finalizeWcExtractedPlayerName(propFor[1], q);
+    if (name) return name;
   }
 
   const normalized = q.replace(/^(what|who|how)['']s\b/i, "$1");
@@ -1555,8 +1618,7 @@ export function extractWcNamedPlayerFromQuestion(question) {
   }
   const first = name.split(/\s+/)[0]?.toLowerCase();
   if (!first || WC_PLAYER_PROP_LEAD_WORDS.has(first)) return null;
-  if (isWcNationOrAwardFalsePositive(name, q)) return null;
-  return name;
+  return finalizeWcExtractedPlayerName(name, q);
 }
 
 /** @typedef {{ name: string, threshold: string, marketKey: string, marketLabel: string }} WcNamedPlayerPropLeg */
@@ -1696,9 +1758,11 @@ function buildWcNamedPropLegsFromNames(rawNames, threshold, chunk, q) {
   const seen = new Set();
 
   for (const rawName of rawNames) {
-    const name = String(rawName || "")
-      .replace(/\?+$/, "")
-      .trim();
+    const name = sanitizeWcExtractedPlayerName(
+      String(rawName || "")
+        .replace(/\?+$/, "")
+        .trim(),
+    );
     if (!isWcNamedPropLegNameValid(name)) continue;
     if (isWcNationOrAwardFalsePositive(name, q)) continue;
     const dedupeKey = `${name.toLowerCase()}|${threshold}|${isSot ? "sot" : "shots"}`;
@@ -1802,6 +1866,23 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
 
   const eachHaveLegs = extractWcEachHaveNamedPropLegs(q);
   if (eachHaveLegs.length) return eachHaveLegs;
+
+  const howManyGetOnTarget = q.match(
+    /\bhow many\s+shots?(?:\s+on\s+target)?\s+will\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+get\s+(?:on\s+)?target\b/i,
+  );
+  if (howManyGetOnTarget?.[1]) {
+    const name = finalizeWcExtractedPlayerName(howManyGetOnTarget[1], q);
+    if (name && isWcNamedPropLegNameValid(name)) {
+      return [
+        {
+          name,
+          threshold: "",
+          marketKey: "player_sot_ou",
+          marketLabel: "shots on target",
+        },
+      ];
+    }
+  }
 
   const willGoOver = q.match(
     /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+(?:go\s+)?over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i,
@@ -1982,6 +2063,8 @@ export function prefersWcFixtureScorerIntelFallback(question) {
   const q = String(question || "").trim();
   if (!q) return false;
   if (isWcGoalkeeperPropsQuestion(q)) return false;
+  if (isWcNamedPlayerPropQuestion(q)) return false;
+  if (needsWcFixtureShotsMarketRows(q) && extractWcNamedPlayerFromQuestion(q)) return false;
   if (isGenericWcPlayerPropQuestion(q) && !WC_FIXTURE_PLAYER_MARKET_ASK_RE.test(q)) {
     return false;
   }

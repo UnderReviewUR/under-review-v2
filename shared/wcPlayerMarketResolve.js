@@ -73,6 +73,13 @@ import { WC_INTENT, isWcFixturePlayerMarketIntent } from "./wcUrTakeIntent.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
 import { WC_CARD_TYPE } from "./wcThreadState.js";
 import { WC_GROUNDING_MARKET_LABELS } from "./wcGroundingLabels.js";
+import {
+  buildWcThreadParlayStructured,
+  ensureWcParlayStructuredLean,
+  isWcScorerTotalsSgpQuestion,
+  resolveWcParlayPassLegCount,
+  shouldBuildWcThreadParlay,
+} from "./wcThreadParlayPrebuilt.js";
 
 /** @typedef {"verified" | "market_only" | "squad" | "thin"} WcPlayerMarketTier */
 
@@ -255,7 +262,7 @@ export function buildWcPlayerMarketEmptyStructured(question, wcIntent) {
  * @param {number | null} [legCount]
  */
 export function buildWcPlayerParlayPassStructured(question, legCount = null) {
-  const n = legCount ?? extractParlayLegCount(question);
+  const n = legCount ?? resolveWcParlayPassLegCount(question);
   const ticketLabel = n ? `${n}-leg player parlay` : "player parlay";
   return {
     sport: "worldcup",
@@ -883,6 +890,7 @@ export function buildWcFixturePlayerParlayStructured(
   legCount = null,
 ) {
   const q = String(question || "").trim();
+  if (isWcScorerTotalsSgpQuestion(q)) return null;
   const teams = resolveWcPlayerPropFixtureTeams(
     q,
     wcContext?.conversationHistory || [],
@@ -941,7 +949,7 @@ export function buildWcFixturePlayerParlayStructured(
     nationAbbr: row.nationAbbr,
   }));
 
-  return {
+  return ensureWcParlayStructuredLean({
     sport: "worldcup",
     cardType: WC_CARD_TYPE.PARLAY_TICKET,
     callType: "parlay",
@@ -962,7 +970,7 @@ export function buildWcFixturePlayerParlayStructured(
     confidence: tier === WC_PLAYER_MARKET_TIER.VERIFIED ? "Medium" : "Speculative",
     breakdownAvailable: true,
     analysis: q,
-  };
+  });
 }
 
 export function buildWcPlayerMarketPrebuiltStructured(
@@ -1346,14 +1354,53 @@ export function resolveWcPlayerMarketAnswer(
     promptAppendix: null,
   };
 
+  const parlayAsk =
+    detectParlayIntent(questionStr) || wcIntent === WC_INTENT.PARLAY;
+
+  if (parlayAsk && shouldBuildWcThreadParlay(questionStr, history, wcIntent)) {
+    const threadParlay = ensureWcParlayStructuredLean(
+      buildWcThreadParlayStructured(
+        questionStr,
+        history,
+        tier,
+        {
+          ...kvBlocks,
+          wcEventId: kvBlocks?.wcEventId || wcContext?.wcEventId,
+        },
+        { ...wcContextWithHistory, requiredEntities: fixtureTeams },
+      ),
+    );
+    if (threadParlay) {
+      return {
+        ...base,
+        forcePass: true,
+        structured: threadParlay,
+        responseText: `${threadParlay.lean}\n\n${threadParlay.whyNow}`,
+      };
+    }
+    if (isWcScorerTotalsSgpQuestion(questionStr)) {
+      const structured = buildWcPlayerParlayPassStructured(questionStr, 2);
+      return {
+        ...base,
+        forcePass: true,
+        structured,
+        responseText: `${structured.lean}\n\n${structured.whyNow}`,
+      };
+    }
+  }
+
   // Safety net: bare PARLAY intent should never fall through to generic LLM.
   if (wcIntent === WC_INTENT.PARLAY) {
     const canBuildParlayLegs =
-      fixturePlayerProps && freshMatchProps && propRows.length >= 2 && detectParlayIntent(questionStr);
+      fixturePlayerProps &&
+      freshMatchProps &&
+      propRows.length >= 2 &&
+      detectParlayIntent(questionStr) &&
+      !isWcScorerTotalsSgpQuestion(questionStr);
     if (!canBuildParlayLegs) {
       const structured = buildWcPlayerParlayPassStructured(
         questionStr,
-        extractParlayLegCount(questionStr),
+        resolveWcParlayPassLegCount(questionStr),
       );
       return {
         ...base,
@@ -1365,7 +1412,7 @@ export function resolveWcPlayerMarketAnswer(
   }
 
   if (fixturePlayerProps && freshMatchProps) {
-    if (detectParlayIntent(questionStr) || wcIntent === WC_INTENT.PARLAY) {
+    if (parlayAsk && !isWcScorerTotalsSgpQuestion(questionStr)) {
       const parlayStructured = buildWcFixturePlayerParlayStructured(
         questionStr,
         tier,
@@ -1387,7 +1434,7 @@ export function resolveWcPlayerMarketAnswer(
       if (wcIntent === WC_INTENT.PARLAY) {
         const structured = buildWcPlayerParlayPassStructured(
           questionStr,
-          extractParlayLegCount(questionStr),
+          resolveWcParlayPassLegCount(questionStr),
         );
         return {
           ...base,

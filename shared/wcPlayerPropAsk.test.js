@@ -18,6 +18,7 @@ import {
   isWcFixtureScopedPlayerMarketQuestion,
   isWcNamedPlayerPropQuestion,
   needsWcFixtureShotsMarketRows,
+  sanitizeWcExtractedPlayerName,
 } from "./wcUrTakePlayerMarket.js";
 
 /** @type {Array<{ q: string, intent: "sot"|"shots"|"both"|null, keys?: string[] | null, count?: number, named?: string | null, legs?: number }>} */
@@ -51,23 +52,32 @@ for (const { q, intent, keys, count } of BOARD_CASES) {
 /** @type {Array<{ q: string, named: string, marketKey?: string, legs?: number }>} */
 const NAMED_CASES = [
   { q: "how many shots will salah get on target today?", named: "salah", marketKey: "player_sot_ou" },
+  { q: "How many shots will Salah get on target?", named: "Salah", marketKey: "player_sot_ou" },
   { q: "will salah go over 1.5 shots on target?", named: "salah", legs: 1 },
   { q: "salah sot line?", named: "salah", marketKey: "player_sot_ou" },
   { q: "Mo Salah over 2.5 shots attempted?", named: "Mo Salah", legs: 1 },
+  { q: "How many shots will Mbappé get on target?", named: "Mbappé", marketKey: "player_sot_ou" },
+  { q: "How many shots will Christian Pulisic get on target?", named: "Christian Pulisic", marketKey: "player_sot_ou" },
 ];
 
 for (const { q, named, marketKey, legs } of NAMED_CASES) {
   test(`named player prop routing — ${q.slice(0, 48)}`, () => {
     const extracted = extractWcNamedPlayerFromQuestion(q);
     assert.ok(extracted, `expected named player from: ${q}`);
-    assert.match(extracted.toLowerCase(), new RegExp(named.toLowerCase().split(/\s+/)[0]));
+    assert.equal(extracted, named);
+    assert.equal(sanitizeWcExtractedPlayerName(extracted), named);
+    assert.doesNotMatch(extracted.toLowerCase(), /\bget\b$/);
     assert.equal(isWcNamedPlayerPropQuestion(q), true);
+    const legRows = extractWcNamedPlayerPropLegsFromQuestion(q);
+    assert.ok(legRows.length >= 1);
+    assert.equal(legRows[0].name, named);
     if (legs != null) {
-      assert.equal(extractWcNamedPlayerPropLegsFromQuestion(q).length, legs);
+      assert.equal(legRows.length, legs);
     }
     if (marketKey) {
       const inferred = inferWcNamedPlayerPropLegFromQuestion(q);
       assert.equal(inferred?.marketKey, marketKey);
+      assert.equal(legRows[0].marketKey, marketKey);
     }
     assert.equal(classifyWcQuestionIntent(q), WC_INTENT.PLAYER_PROP);
   });

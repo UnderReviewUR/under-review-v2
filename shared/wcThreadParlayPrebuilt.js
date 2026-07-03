@@ -164,6 +164,14 @@ function parseExplicitPlayerScorerLeg(question) {
   const named = extractWcNamedPlayerFromQuestion(q);
   if (named && /\b(scorer|score|goal)\b/i.test(q)) return named;
 
+  const comboScorer = q.match(
+    new RegExp(`\\b(${PARLAY_PLAYER_CAPTURE})\\s+scorer\\s*(?:\\+|\\band\\b)`, "i"),
+  );
+  if (comboScorer?.[1]) {
+    const n = cleanParlayPlayerToken(comboScorer[1]);
+    if (n) return n;
+  }
+
   const scorerPatterns = [
     new RegExp(`\\bparlay:?\\s*(${PARLAY_PLAYER_CAPTURE})\\s+scorer\\b`, "i"),
     parlayPlayerRe("\\s+(?:anytime\\s+)?(?:goal\\s*)?scorer\\s*(?:\\+|\\s+)\\s*(?:under|over)\\b"),
@@ -289,6 +297,59 @@ function resolveScorerLeg(playerName, history, kvBlocks, teams) {
 }
 
 /**
+ * Explicit scorer + match-total SGP ("Parlay: Salah scorer + over 1.5 goals?").
+ * @param {string} question
+ */
+export function isWcScorerTotalsSgpQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (!(detectParlayIntent(q) || detectWcSgpComboIntent(q))) return false;
+  const totals = parseWcMatchGoalsOverUnder(q);
+  if (!totals?.side || totals.line == null) return false;
+  if (parseExplicitPlayerScorerLeg(q)) return true;
+  return /\b(scorer|to\s+score|anytime\s+scorer|goal\s+scorer)\b/i.test(q);
+}
+
+/**
+ * Leg count for pass cards — never default cross-market SGP asks to N-leg player parlays.
+ * @param {string} question
+ */
+export function resolveWcParlayPassLegCount(question) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  if (isWcScorerTotalsSgpQuestion(q)) return 2;
+  return extractParlayLegCount(q);
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} structured
+ */
+export function ensureWcParlayStructuredLean(structured) {
+  if (!structured || typeof structured !== "object") return structured;
+  if (String(structured.callType || "").toLowerCase() !== "parlay") return structured;
+
+  const lean = String(structured.lean || "").trim();
+  const legs = Array.isArray(structured.parlayLegs) ? structured.parlayLegs : [];
+  if (lean && lean.length > 8 && !/^\s*lean\s*$/i.test(lean)) return structured;
+  if (legs.length < 2) return structured;
+
+  const numbered = legs
+    .map((leg, i) => {
+      const play = String(leg?.play || "").trim();
+      const odds = String(leg?.odds || "").trim();
+      if (!play) return "";
+      const oddsBit =
+        odds && odds.toUpperCase() !== "TBD" && !play.includes(odds) ? ` ${odds}` : "";
+      return `${i + 1}. ${play}${oddsBit}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  if (!numbered) return structured;
+  return { ...structured, lean: numbered };
+}
+
+/**
  * @param {string} question
  * @param {object[]} history
  * @param {string} wcIntent
@@ -300,6 +361,8 @@ export function shouldBuildWcThreadParlay(question, history, wcIntent) {
   const q = String(question || "").trim();
   if (!q) return false;
   if (!(detectParlayIntent(q) || detectWcSgpComboIntent(q))) return false;
+
+  if (isWcScorerTotalsSgpQuestion(q)) return true;
 
   const thread = extractWcThreadStateFromHistory(history);
   const totalsInQ = parseWcMatchGoalsOverUnder(q);
@@ -377,7 +440,7 @@ export function buildWcThreadParlayStructured(question, history, tier, kvBlocks,
     ? `Lean 2-leg SGP · ${combinedDisplay}`
     : "Lean 2-leg SGP";
 
-  return {
+  return ensureWcParlayStructuredLean({
     sport: "worldcup",
     cardType: WC_CARD_TYPE.PARLAY_TICKET,
     callType: "parlay",
@@ -394,5 +457,5 @@ export function buildWcThreadParlayStructured(question, history, tier, kvBlocks,
     confidence: "Medium",
     breakdownAvailable: true,
     analysis: q,
-  };
+  });
 }

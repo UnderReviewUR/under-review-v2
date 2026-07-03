@@ -59,6 +59,9 @@ import {
 } from "../../shared/wcMatchPlayerProps.js";
 import {
   buildWcThreadParlayStructured,
+  ensureWcParlayStructuredLean,
+  isWcScorerTotalsSgpQuestion,
+  resolveWcParlayPassLegCount,
   shouldBuildWcThreadParlay,
 } from "../../shared/wcThreadParlayPrebuilt.js";
 import { finalizeWcStructuredThreadState } from "../../shared/wcThreadState.js";
@@ -483,15 +486,24 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
 
   if (!structuredResponse && isParlayAsk && !namedPlayerPropsAsk) {
     if (shouldBuildWcThreadParlay(routingQ, history, wcIntent)) {
-      structuredResponse = buildWcThreadParlayStructured(
-        String(question || ""),
-        history,
-        tier,
-        kvBlocks,
-        syntheticContext,
+      structuredResponse = ensureWcParlayStructuredLean(
+        buildWcThreadParlayStructured(
+          String(question || ""),
+          history,
+          tier,
+          kvBlocks,
+          syntheticContext,
+        ),
       );
-      passKind = "thread_parlay";
-    } else if (wcIntent === WC_INTENT.PARLAY || detectParlayIntent(routingQ)) {
+      if (structuredResponse) {
+        passKind = "thread_parlay";
+      }
+    }
+    if (
+      !structuredResponse &&
+      !isWcScorerTotalsSgpQuestion(routingQ) &&
+      (wcIntent === WC_INTENT.PARLAY || detectParlayIntent(routingQ))
+    ) {
       if (propRows.length >= 2) {
         structuredResponse = buildWcFixturePlayerParlayStructured(
           String(question || ""),
@@ -504,21 +516,24 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
           passKind = "player_props_parlay";
         }
       }
-      if (!structuredResponse) {
-        structuredResponse = buildWcPlayerParlayPassStructured(
-          String(question || ""),
-          extractParlayLegCount(routingQ),
-        );
-        passKind = "player_props_parlay_pass";
-      }
-    } else if (detectWcSgpComboIntent(routingQ)) {
+    }
+    if (!structuredResponse && detectWcSgpComboIntent(routingQ) && !isWcScorerTotalsSgpQuestion(routingQ)) {
       structuredResponse = buildWcFixturePlayerParlayStructured(
         String(question || ""),
         tier,
         kvBlocks,
         syntheticContext,
       );
-      passKind = "player_props_parlay";
+      if (structuredResponse) {
+        passKind = "player_props_parlay";
+      }
+    }
+    if (!structuredResponse) {
+      structuredResponse = buildWcPlayerParlayPassStructured(
+        String(question || ""),
+        resolveWcParlayPassLegCount(routingQ),
+      );
+      passKind = "player_props_parlay_pass";
     }
   }
 
@@ -553,7 +568,7 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
   if (!structuredResponse && wcIntent === WC_INTENT.PARLAY) {
     structuredResponse = buildWcPlayerParlayPassStructured(
       String(question || ""),
-      extractParlayLegCount(routingQ),
+      resolveWcParlayPassLegCount(routingQ),
     );
     passKind = "player_props_parlay_pass";
   }
