@@ -213,6 +213,8 @@ import {
   WC_HOME_FAVORITE_MISLABEL_QA_SUFFIX,
   WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX,
   WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX,
+  WC_KNOCKOUT_INSIGHT_FIRST_QA_SUFFIX,
+  WC_KNOCKOUT_DRAW_DISMISSAL_QA_SUFFIX,
 } from "../_wcUrTakeQA.js";
 import { resolveWcPinnedMatchForDelivery } from "../../shared/wcKnockoutFixture.js";
 import { WC_PREDICTIONS_ROUNDUP_PROMPT } from "../../shared/wcPredictionsRoundup.js";
@@ -6991,6 +6993,14 @@ You are responding to a Pro subscriber. Apply the following:
             }${
               prevQaCriticalCodes.includes("wc_knockout_group_framing_bleed")
                 ? WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_knockout_format_boilerplate_lead")
+                ? WC_KNOCKOUT_INSIGHT_FIRST_QA_SUFFIX
+                : ""
+            }${
+              prevQaCriticalCodes.includes("wc_knockout_draw_dismissal")
+                ? WC_KNOCKOUT_DRAW_DISMISSAL_QA_SUFFIX
                 : ""
             }${
               prevQaCriticalCodes.includes("wc_player_not_in_squad") ||

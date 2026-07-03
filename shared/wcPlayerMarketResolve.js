@@ -58,6 +58,9 @@ import {
   buildWcNamedPlayerPropDataPresentNoMatchHeadline,
   buildWcNamedPlayerPropNoLineWhyNow,
   buildWcNamedPlayerPropNoLineEdge,
+  needsWcFixtureShotsMarketRows,
+  extractWcPropBoardCountFromQuestion,
+  isWcExtendedPlayerPropBoardQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import {
   findWcNamedPlayerPropLegMatch,
@@ -644,17 +647,27 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const eventId = resolved.eventId;
   const eventPayload = resolved.payload;
 
-  const propBoard = pickFixturePropBoardForQuestion(eventPayload, String(question || ""), 24);
+  const propBoard = pickFixturePropBoardForQuestion(
+    eventPayload,
+    String(question || ""),
+    Math.max(12, extractWcPropBoardCountFromQuestion(question, 6) * 2),
+  );
   if (!propBoard) return null;
   const { key: marketKey, label: marketLabel, rows } = propBoard;
 
   const perTeamAsk = isWcPerTeamPlayerPropsQuestion(question);
+  const shotsBoardAsk =
+    needsWcFixtureShotsMarketRows(String(question || "")) &&
+    !isWcNamedPlayerPropQuestion(String(question || ""));
   const pluralPropsAsk =
     isGenericWcPlayerPropQuestion(question) ||
     isWcFixturePlayerPropsQuestion(question) ||
     perTeamAsk ||
+    shotsBoardAsk ||
+    isWcExtendedPlayerPropBoardQuestion(String(question || "")) ||
     /\bwhat about player props?\b/i.test(String(question || ""));
-  const perSide = perTeamAsk ? extractWcPerTeamPlayerPropCount(question) : pluralPropsAsk ? 3 : 2;
+  const boardCount = extractWcPropBoardCountFromQuestion(question, pluralPropsAsk ? 3 : 2);
+  const perSide = perTeamAsk ? extractWcPerTeamPlayerPropCount(question) : boardCount;
 
   const homeAbbr = String(eventPayload?.homeTeam || teams[0] || "").toUpperCase();
   const awayAbbr = String(eventPayload?.awayTeam || teams[1] || "").toUpperCase();
@@ -686,12 +699,15 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   if (!eventPayload || !isMatchPlayerPropsFresh(eventPayload)) return null;
 
   let numbered;
+  const rowMarketKey = (row) => String(row?._marketKey || marketKey);
+  const rowMarketLabel = (row) => String(row?._marketLabel || marketLabel);
+
   if (perTeamAsk && homePicks.length && awayPicks.length) {
     const homeLines = homePicks.map((r, i) =>
-      `${i + 1}. ${formatFixturePropBoardRowLabel(r, marketKey, marketLabel)}`,
+      `${i + 1}. ${formatFixturePropBoardRowLabel(r, rowMarketKey(r), rowMarketLabel(r))}`,
     );
     const awayLines = awayPicks.map((r, i) =>
-      `${i + 1}. ${formatFixturePropBoardRowLabel(r, marketKey, marketLabel)}`,
+      `${i + 1}. ${formatFixturePropBoardRowLabel(r, rowMarketKey(r), rowMarketLabel(r))}`,
     );
     numbered = [
       `${homeLabel} (${homeAbbr})`,
@@ -704,7 +720,7 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
       .slice(0, perSide * 2)
       .map(
         (r, i) =>
-          `${i + 1}. ${formatFixturePropBoardRowLabel(r, marketKey, marketLabel)}`,
+          `${i + 1}. ${formatFixturePropBoardRowLabel(r, rowMarketKey(r), rowMarketLabel(r))}`,
       )
       .join("\n");
   }
@@ -713,16 +729,18 @@ export function buildWcFixturePlayerPropsListStructured(question, tier, kvBlocks
   const meta = tierMetaFor(tier);
   const propBoardRows = picked.slice(0, Math.max(3, perSide * 2)).map((r) => ({
     label: r.name,
-    lean: formatFixturePropBoardRowLabel(r, marketKey, marketLabel),
-    market: marketKey,
+    lean: formatFixturePropBoardRowLabel(r, rowMarketKey(r), rowMarketLabel(r)),
+    market: rowMarketKey(r),
     odds: r.americanOdds,
     nationAbbr: r.nationAbbr ? String(r.nationAbbr).toUpperCase() : undefined,
   }));
-  const leadLabel = formatFixturePropBoardRowLabel(lead, marketKey, marketLabel);
+  const leadLabel = formatFixturePropBoardRowLabel(lead, rowMarketKey(lead), rowMarketLabel(lead));
   const call = pluralPropsAsk
     ? perTeamAsk
       ? `${perSide} props per side — ${homeLabel} vs ${awayLabel}`
-      : `${homeLabel} vs ${awayLabel} — top player props`
+      : shotsBoardAsk
+        ? `${homeLabel} vs ${awayLabel} — shots & SOT lines`
+        : `${homeLabel} vs ${awayLabel} — top player props`
     : leadLabel;
 
   return {

@@ -483,7 +483,11 @@ export function resolveWcTurnPlan(params = {}) {
   });
   let skipPropsFastForShape = shouldSkipWcPlayerPropsFastPathForShape(propsPreview.askShape);
   // Pinned fixture + fixture_board is still deterministic props KV — not Claude-only.
-  if (skipPropsFastForShape && propsPreview.askShape === "fixture_board" && pinnedEventId) {
+  if (
+    skipPropsFastForShape &&
+    propsPreview.askShape === "fixture_board" &&
+    (pinnedEventId || (pinnedHome && pinnedAway))
+  ) {
     skipPropsFastForShape = false;
   }
   const genericPropsThreadFollowUp =

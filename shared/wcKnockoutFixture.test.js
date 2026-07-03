@@ -1,211 +1,118 @@
-/**
- * Knockout fixture guards — no group-stage both-advance on R32+.
- */
-
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assessWcBothTeamsAdvanceFixture } from "./wcBothTeamsAdvance.js";
-import { buildWcFixtureMatchupPrebuiltStructured } from "./wcFixtureMatchupPrebuilt.js";
 import {
   detectWcKnockoutBothAdvanceBleed,
-  detectWcKnockoutGroupFramingBleed,
-  isWcKnockoutFixtureMatch,
+  detectWcKnockoutFormatBoilerplateLead,
+  isWcKnockoutFormatBoilerplateSentence,
+  detectWcKnockoutDrawDismissal,
+  isWcKnockoutDrawDismissalSentence,
   repairWcKnockoutMatchupStructured,
+  stripWcKnockoutFormatBoilerplateLead,
+  stripKnockoutDrawDismissal,
 } from "./wcKnockoutFixture.js";
 
-const BRA_JPN_R32 = {
-  homeTeam: "BRA",
-  awayTeam: "JPN",
-  group: "F",
-  round: "Round of 32",
-  status: "NS",
-  odds: {
-    home: { moneyline: "-180" },
-    draw: { moneyline: "+280" },
-    away: { moneyline: "+420" },
-    totalLine: "2.5",
-    totalUnder: { moneyline: "-110" },
-    totalOver: { moneyline: "-110" },
-  },
-};
+const R32_MATCH = { homeTeam: "EGY", awayTeam: "AUS", round: "Round of 32", status: "NS" };
+const KNOCKOUT_SCOPE = { tournamentPhase: "ROUND_OF_32" };
 
-const BRA_JPN_NO_ROUND = {
-  ...BRA_JPN_R32,
-  round: undefined,
-};
-
-test("isWcKnockoutFixtureMatch detects Round of 32", () => {
-  assert.equal(isWcKnockoutFixtureMatch(BRA_JPN_R32), true);
-  assert.equal(isWcKnockoutFixtureMatch({ round: "Group Stage" }), false);
+test("detectWcKnockoutBothAdvanceBleed — tournament sims both-advance on R32", () => {
+  const structured = {
+    lean: "Egypt advances — Salah's creation load overwhelms Australia.",
+    whyNow:
+      "Both teams advance from the Round of 32 in tournament sims (100% each), but this is single elimination.",
+  };
+  assert.equal(
+    detectWcKnockoutBothAdvanceBleed("", structured, [R32_MATCH], KNOCKOUT_SCOPE),
+    true,
+  );
 });
 
-test("isWcKnockoutFixtureMatch treats missing round as knockout during R32 phase", () => {
+test("stripWcKnockoutFormatBoilerplateLead removes format openers", () => {
+  const raw =
+    "Both teams advance from the Round of 32 in tournament sims (100% each), but this is single elimination – exactly one team wins. The 90-minute moneyline is the only settlement that matters for advancement; extra time and penalties are live if level after 90. Pass the moneyline — lean Egypt -1.5 (+105).";
+  const stripped = stripWcKnockoutFormatBoilerplateLead(raw);
+  assert.doesNotMatch(stripped, /Both teams advance/i);
+  assert.doesNotMatch(stripped, /single elimination/i);
+  assert.match(stripped, /Egypt -1\.5/);
+});
+
+test("isWcKnockoutFormatBoilerplateSentence flags settlement reminders", () => {
   assert.equal(
-    isWcKnockoutFixtureMatch(BRA_JPN_NO_ROUND, { tournamentPhase: "ROUND_OF_32" }),
+    isWcKnockoutFormatBoilerplateSentence(
+      "The 90-minute moneyline is the only settlement that matters for advancement.",
+    ),
     true,
   );
   assert.equal(
-    isWcKnockoutFixtureMatch(BRA_JPN_NO_ROUND, { tournamentPhase: "GROUP_STAGE" }),
-    false,
-  );
-});
-
-test("isWcKnockoutFixtureMatch does not infer knockout on finished fixtures without round", () => {
-  assert.equal(
-    isWcKnockoutFixtureMatch(
-      { ...BRA_JPN_NO_ROUND, status: "FT" },
-      { tournamentPhase: "ROUND_OF_32" },
+    isWcKnockoutFormatBoilerplateSentence(
+      "Egypt -110 · UR win bar 58% — Salah's creation breaks Australia's low block.",
     ),
     false,
   );
 });
 
-test("assessWcBothTeamsAdvanceFixture blocks knockout fixtures", () => {
-  const result = assessWcBothTeamsAdvanceFixture({
-    home: "BRA",
-    away: "JPN",
-    group: "F",
-    match: BRA_JPN_R32,
-    teamStats: {
-      BRA: { advancePct: 80 },
-      JPN: { advancePct: 70 },
-    },
-  });
-  assert.equal(result.ok, false);
-  assert.equal(result.reason, "knockout_fixture");
+test("detectWcKnockoutFormatBoilerplateLead flags wasted whyNow opening", () => {
+  const structured = {
+    whyNow:
+      "Both teams advance from the Round of 32 in tournament sims (100% each), but this is single elimination. Pass the ML — lean Over 2.5.",
+  };
+  assert.equal(
+    detectWcKnockoutFormatBoilerplateLead("", structured, [R32_MATCH], KNOCKOUT_SCOPE),
+    true,
+  );
 });
 
-test("assessWcBothTeamsAdvanceFixture blocks upcoming knockout without round metadata", () => {
-  const result = assessWcBothTeamsAdvanceFixture({
-    home: "BRA",
-    away: "JPN",
-    group: "F",
-    match: BRA_JPN_NO_ROUND,
-    tournamentPhase: "ROUND_OF_32",
-    teamStats: {
-      BRA: { advancePct: 80 },
-      JPN: { advancePct: 70 },
-    },
-  });
-  assert.equal(result.ok, false);
-  assert.equal(result.reason, "knockout_fixture");
-});
-
-test("BRA vs JPN R32 moneyline-best-bet prebuilt never both-advances", () => {
-  const structured = buildWcFixtureMatchupPrebuiltStructured({
-    home: "BRA",
-    away: "JPN",
-    group: "F",
-    question: "Best bet on BRA vs JPN if I only know the moneyline?",
-    match: BRA_JPN_R32,
-    teamStats: {
-      BRA: { advancePct: 80 },
-      JPN: { advancePct: 70 },
-      SEN: { advancePct: 40 },
-    },
-  });
-  const blob = [structured?.lean, structured?.call, structured?.whyNow, structured?.edge]
-    .filter(Boolean)
-    .join("\n");
-  assert.match(blob, /under|over/i);
-  assert.doesNotMatch(blob, /both teams to advance/i);
-});
-
-test("BRA vs JPN upcoming knockout without round never both-advances", () => {
-  const structured = buildWcFixtureMatchupPrebuiltStructured({
-    home: "BRA",
-    away: "JPN",
-    group: "F",
-    question: "Best bet on BRA vs JPN if I only know the moneyline?",
-    match: BRA_JPN_NO_ROUND,
-    tournamentPhase: "ROUND_OF_32",
-    teamStats: {
-      BRA: { advancePct: 80 },
-      JPN: { advancePct: 70 },
-      SEN: { advancePct: 40 },
-    },
-  });
-  const blob = [structured?.lean, structured?.call, structured?.whyNow, structured?.edge]
-    .filter(Boolean)
-    .join("\n");
-  assert.match(blob, /under|over/i);
-  assert.doesNotMatch(blob, /both teams to advance/i);
-});
-
-test("repairWcKnockoutMatchupStructured strips both-advance bleed", () => {
+test("repairWcKnockoutMatchupStructured strips sims-advance bleed from whyNow", () => {
   const repaired = repairWcKnockoutMatchupStructured(
     {
-      call: "Under 2.5 goals",
-      lean: "Pass on ML — lean both BRA and JPN to advance",
-      whyNow: "Group-stage paths for both sides.",
+      call: "Egypt advances — Salah's creation load overwhelms Australia.",
+      lean: "Pass on ML — lean Over 2.5 goals",
+      whyNow:
+        "Both teams advance from the Round of 32 in tournament sims (100% each), but this is single elimination. Pass the moneyline — lean Egypt -1.5 (+105).",
     },
-    BRA_JPN_R32,
+    R32_MATCH,
+    KNOCKOUT_SCOPE,
   );
-  assert.doesNotMatch(String(repaired.lean), /both teams to advance/i);
-  assert.match(String(repaired.call), /Under 2\.5/i);
+  assert.doesNotMatch(String(repaired.whyNow), /Both teams advance/i);
+  assert.match(String(repaired.whyNow), /Egypt -1\.5/);
 });
 
-test("repairWcKnockoutMatchupStructured works when round missing but phase is knockout", () => {
+test("detectWcKnockoutDrawDismissal — avoid draw because one team must advance", () => {
+  const structured = {
+    deep:
+      "Avoid the draw at +195; too juicy a trap in a knockout where one team has to advance.",
+  };
+  assert.equal(
+    detectWcKnockoutDrawDismissal("", structured, [R32_MATCH], KNOCKOUT_SCOPE),
+    true,
+  );
+});
+
+test("isWcKnockoutDrawDismissalSentence — tactical fade without format confusion is OK", () => {
+  assert.equal(
+    isWcKnockoutDrawDismissalSentence(
+      "Fade Draw +195 — Egypt presses for a lead and Australia chases late, not a cagey 0-0 script.",
+    ),
+    false,
+  );
+});
+
+test("stripKnockoutDrawDismissal removes invalid draw dismissal", () => {
+  const raw =
+    "If Over 2.5 goals posts at -110 or better, that's live too. Avoid the draw at +195; too juicy a trap in a knockout where one team has to advance.";
+  const stripped = stripKnockoutDrawDismissal(raw);
+  assert.doesNotMatch(stripped, /Avoid the draw/i);
+  assert.match(stripped, /Over 2\.5/);
+});
+
+test("repairWcKnockoutMatchupStructured strips draw dismissal from deep", () => {
   const repaired = repairWcKnockoutMatchupStructured(
     {
-      call: "Under 2.5 goals",
-      lean: "Pass on ML — lean both teams to advance in Group F.",
+      lean: "Lean Egypt -1.5 (+105)",
+      deep:
+        "Egypt -1.5 is the cleanest lean. Avoid the draw at +195; too juicy a trap in a knockout where one team has to advance.",
     },
-    BRA_JPN_NO_ROUND,
-    { tournamentPhase: "ROUND_OF_32" },
+    R32_MATCH,
+    KNOCKOUT_SCOPE,
   );
-  assert.doesNotMatch(String(repaired.lean), /both teams to advance/i);
-});
-
-test("detectWcKnockoutBothAdvanceBleed flags LLM group bleed on knockout match", () => {
-  assert.equal(
-    detectWcKnockoutBothAdvanceBleed(
-      "Best bet on BRA vs JPN",
-      { lean: "Pass on ML — lean both teams to advance in Group F." },
-      [BRA_JPN_R32],
-    ),
-    true,
-  );
-});
-
-test("detectWcKnockoutBothAdvanceBleed flags bleed when round missing on upcoming fixture", () => {
-  assert.equal(
-    detectWcKnockoutBothAdvanceBleed(
-      "Best bet on BRA vs JPN",
-      { lean: "Pass on ML — lean both teams to advance." },
-      [BRA_JPN_NO_ROUND],
-      { tournamentPhase: "ROUND_OF_32" },
-    ),
-    true,
-  );
-});
-
-test("detectWcKnockoutGroupFramingBleed flags Favorite on knockout", () => {
-  assert.equal(
-    detectWcKnockoutGroupFramingBleed(
-      "Best bet on BRA vs JPN",
-      { whyNow: "Group F Favorite Brazil controls the path." },
-      [BRA_JPN_R32],
-    ),
-    true,
-  );
-});
-
-test("BRA vs JPN R32 prebuilt edge includes regulation note", () => {
-  const structured = buildWcFixtureMatchupPrebuiltStructured({
-    home: "BRA",
-    away: "JPN",
-    group: "F",
-    question: "Best bet on BRA vs JPN if I only know the moneyline?",
-    match: BRA_JPN_R32,
-    teamStats: {
-      BRA: { advancePct: 80 },
-      JPN: { advancePct: 70 },
-    },
-  });
-  assert.match(String(structured?.edge || ""), /90-min|extra time/i);
-  assert.doesNotMatch(
-    [structured?.whyNow, structured?.deep].filter(Boolean).join("\n"),
-    /Favorite|Contender|Group F paths/i,
-  );
+  assert.doesNotMatch(String(repaired.deep), /Avoid the draw/i);
 });

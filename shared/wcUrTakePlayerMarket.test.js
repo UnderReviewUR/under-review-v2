@@ -27,6 +27,8 @@ import {
   isWcMisroutedShotsHeadline,
   isWcPlayerPropPassStructured,
   isWcShotsPropQuestion,
+  needsWcFixtureShotsMarketRows,
+  isWcFixtureScopedPlayerMarketQuestion,
   questionAsksForWcPlayerMarket,
   repairWcPlayerPropPassCard,
   repairWcShotsPropStructured,
@@ -633,4 +635,12 @@ test("extractWcNamedPlayerPropLegsFromQuestion — two names with and (no comma)
     ["Jimenez", "Quinones"],
   );
   assert.equal(legs[0].threshold, "2.5");
+});
+
+test("needsWcFixtureShotsMarketRows — combined shots and SOT thread follow-up", () => {
+  const q = "best shots and shots on target bets?";
+  assert.equal(needsWcFixtureShotsMarketRows(q), true);
+  assert.equal(isWcShotsPropQuestion(q), false);
+  assert.equal(isWcFixtureScopedPlayerMarketQuestion(q), true);
+  assert.equal(classifyWcQuestionIntent(q), WC_INTENT.PLAYER_PROP);
 });

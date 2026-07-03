@@ -28,6 +28,7 @@ import {
   isWcGoalkeeperPropsQuestion,
   isWcNamedPlayerPropQuestion,
   isWcPerTeamPlayerPropsQuestion,
+  needsWcFixtureShotsMarketRows,
   prefersWcFixtureScorerIntelFallback,
   extractWcNamedPlayerPropLegsFromQuestion,
   buildWcNamedPlayerPropNoLineHeadline,
@@ -105,6 +106,10 @@ export function shouldRunWcPlayerPropsFastPath(
     isConversationFollowUp &&
     isWcGenericPlayerPropsThreadFollowUp(q, history, priorLean)
   ) {
+    const pair = resolveWcFixturePairFromHistory(history);
+    return Boolean(pair?.home && pair?.away);
+  }
+  if (isConversationFollowUp && needsWcFixtureShotsMarketRows(q)) {
     const pair = resolveWcFixturePairFromHistory(history);
     return Boolean(pair?.home && pair?.away);
   }
@@ -258,6 +263,11 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
     history,
     priorLeanFromHistory,
   );
+  const shotsMarketThreadFollowUp =
+    isConversationFollowUp &&
+    priorLeanFromHistory &&
+    needsWcFixtureShotsMarketRows(routingQ) &&
+    !isWcNamedPlayerPropQuestion(routingQ);
 
   if (
     wcTurnPlannerEnabled &&
@@ -554,6 +564,9 @@ export async function tryDeliverWcPlayerPropsFastPath(ctx) {
       wcPropsRoute?.applyRoute ||
       isGenericWcPlayerPropQuestion(routingQ) ||
       isWcPerTeamPlayerPropsQuestion(routingQ) ||
+      needsWcFixtureShotsMarketRows(routingQ) ||
+      genericPropsThreadFollowUp ||
+      shotsMarketThreadFollowUp ||
       detectParlayIntent(routingQ);
     if (hasEvent && (genericPropsAsk || namedPlayerPropsAsk)) {
       const namedLegs = namedPlayerPropsAsk

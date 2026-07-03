@@ -465,7 +465,45 @@ export const WC_FIXTURE_PROP_BOARD_MARKETS = [
   { key: "player_sot_ou", label: "shots on target" },
   { key: "player_shots_ou", label: "shots" },
   { key: "player_assists_ou", label: "assists" },
+  { key: "player_tackles_ou", label: "tackles" },
+  { key: "player_card", label: "card" },
 ];
+
+/** Prop/board ask cues — "props" plural included. */
+export const WC_PROP_ASK_CUE_RE =
+  /\b(?:prop|props|bet|bets|line|lines|angle|angles|market|markets|board|pick|picks|lean|legs?|parlay|wager|play|plays|today|tonight|match|fixture|game)\b/i;
+
+/**
+ * Shots vs SOT vs both — SOT phrases win unless user explicitly asks for both markets.
+ * @param {string} question
+ * @returns {"shots"|"sot"|"both"|null}
+ */
+export function classifyWcFixtureShotsMarketIntent(question) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  const hasBothPhrase =
+    /\bshots?\s+and\s+shots?\s+on\s+target\b/i.test(q) ||
+    /\bshots?\s+and\s+sot\b/i.test(q) ||
+    /\btotal\s+shots?\s+and\s+(?:sot|shots?\s+on\s+target)\b/i.test(q);
+  if (hasBothPhrase) return "both";
+  const hasSotPhrase =
+    /\bshots?\s+on\s+target\b/i.test(q) ||
+    /\bon\s+target\b/i.test(q) ||
+    /\b(?:sot|sots)\b/i.test(q);
+  if (hasSotPhrase) return "sot";
+  const stripped = q
+    .replace(/\bshots?\s+on\s+target\b/gi, " ")
+    .replace(/\b(?:sot|sots)\b/gi, " ");
+  const wantsTotalShots =
+    /\bshots?\s+attempted\b/i.test(q) ||
+    /\btotal\s+shots?\b/i.test(q) ||
+    (/\bhow many\s+shots?\b/i.test(q) && !hasSotPhrase) ||
+    (/\bshots?\b/i.test(stripped) && WC_PROP_ASK_CUE_RE.test(q)) ||
+    /\bbest\s+shots?\b/i.test(stripped) ||
+    /\b(?:most|top)\s+shots?\b/i.test(stripped);
+  if (wantsTotalShots) return "shots";
+  return null;
+}
 
 /**
  * Higher = more interesting on the card face (avoid -2500 juice traps).
@@ -563,7 +601,71 @@ export function resolveWcPropBoardMarketKeysForQuestion(question) {
   if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) {
     return ["player_goal_or_assist", "anytime_scorer"];
   }
+  const shotsIntent = classifyWcFixtureShotsMarketIntent(q);
+  if (shotsIntent === "both") return ["player_shots_ou", "player_sot_ou"];
+  if (shotsIntent === "sot") return ["player_sot_ou", "player_shots_ou"];
+  if (shotsIntent === "shots") return ["player_shots_ou", "player_sot_ou"];
+  if (/\b(?:card|booking|yellow card|red card|booked)\b/i.test(q)) {
+    return ["player_card", "player_red_card"];
+  }
+  if (/\btackles?\b/i.test(q)) return ["player_tackles_ou"];
+  if (/\bassist/i.test(q)) return ["player_assists_ou", "player_goal_or_assist"];
   return null;
+}
+
+function isShotsMarketCombo(keys) {
+  const set = new Set(keys);
+  return set.has("player_shots_ou") && set.has("player_sot_ou");
+}
+
+/**
+ * @param {Record<string, unknown> | null | undefined} eventPayload
+ * @param {string} key
+ * @param {number} [limit]
+ */
+function pickSingleFixturePropBoard(eventPayload, key, limit = 24) {
+  const entry = WC_FIXTURE_PROP_BOARD_MARKETS.find((e) => e.key === key) || {
+    key,
+    label: (WC_MATCH_PLAYER_PROP_PROMPT_LABELS[key] || key).toLowerCase(),
+  };
+  const rawRows = matchPlayerPropRowsFromEvent(eventPayload, entry.key, limit);
+  const collapsed = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
+  const rows = rankFixturePropBoardRows(collapsed, limit, entry.key);
+  const boardRows = rows.length >= 2 ? rows : collapsed.slice(0, limit);
+  if (boardRows.length < 2) return null;
+  return { ...entry, rows: boardRows };
+}
+
+/**
+ * Merge top rows from multiple posted markets (e.g. shots + SOT on same fixture).
+ * @param {Record<string, unknown> | null | undefined} eventPayload
+ * @param {string[]} keys
+ * @param {number} [limit]
+ */
+function pickMergedFixturePropBoards(eventPayload, keys, limit = 24) {
+  const perMarket = Math.max(2, Math.floor(limit / Math.max(keys.length, 1)));
+  /** @type {Array<Record<string, unknown>>} */
+  const mergedRows = [];
+  /** @type {string[]} */
+  const labels = [];
+  for (const key of keys) {
+    const board = pickSingleFixturePropBoard(eventPayload, key, perMarket);
+    if (!board) continue;
+    labels.push(board.label);
+    for (const row of board.rows.slice(0, perMarket)) {
+      mergedRows.push({
+        ...row,
+        _marketKey: board.key,
+        _marketLabel: board.label,
+      });
+    }
+  }
+  if (mergedRows.length < 2) return null;
+  return {
+    key: keys.join("+"),
+    label: labels.join(" & "),
+    rows: mergedRows,
+  };
 }
 
 /**
@@ -619,19 +721,18 @@ export function pickFixturePropBoardForQuestion(eventPayload, question = "", lim
 
   const preferredKeys = resolveWcPropBoardMarketKeysForQuestion(q) || [];
 
-  for (const key of preferredKeys) {
-    const entry = WC_FIXTURE_PROP_BOARD_MARKETS.find((e) => e.key === key) || {
-      key,
-      label: (WC_MATCH_PLAYER_PROP_PROMPT_LABELS[key] || key).toLowerCase(),
-    };
-    const rawRows = matchPlayerPropRowsFromEvent(eventPayload, entry.key, limit);
-    const collapsed = collapseMatchPlayerPropRowsForDisplay(rawRows, entry.key);
-    const rows = rankFixturePropBoardRows(collapsed, limit, entry.key);
-    const boardRows = rows.length >= 2 ? rows : collapsed.slice(0, limit);
-    if (boardRows.length >= 2) {
-      return { ...entry, rows: boardRows };
-    }
+  if (preferredKeys.length >= 2 && isShotsMarketCombo(preferredKeys)) {
+    const merged = pickMergedFixturePropBoards(eventPayload, preferredKeys, limit);
+    if (merged) return merged;
   }
+
+  for (const key of preferredKeys) {
+    const board = pickSingleFixturePropBoard(eventPayload, key, limit);
+    if (board) return board;
+  }
+
+  // User named a market family — do not substitute scorer boards when shots/SOT are empty.
+  if (preferredKeys.length) return null;
 
   return pickFixturePropBoardFromEvent(eventPayload, limit);
 }

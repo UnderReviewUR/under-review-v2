@@ -23,6 +23,8 @@ import {
   isGenericWcPlayerPropQuestion,
   isWcFixturePlayerPropsQuestion,
   isWcNamedPlayerPropQuestion,
+  needsWcFixtureShotsMarketRows,
+  isWcExtendedPlayerPropBoardQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import {
   isWcMatchupAltMarketFollowUp,
@@ -117,6 +119,8 @@ export function isWcVaguePlayerPropsThreadAsk(question) {
   if (!q) return false;
   return (
     isGenericWcPlayerPropQuestion(q) ||
+    needsWcFixtureShotsMarketRows(q) ||
+    isWcExtendedPlayerPropBoardQuestion(q) ||
     /\bany\s+player\s+props?\s+to\s+consider\b/i.test(q) ||
     /\bplayer\s+props?\s+to\s+consider\b/i.test(q) ||
     /\bconsider\s+any\s+player\s+props?\b/i.test(q) ||

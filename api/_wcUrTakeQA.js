@@ -80,7 +80,7 @@ import {
   WC_MATCH_PASS_ONLY_QA_SUFFIX,
   WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX,
 } from "../shared/wcMatchBettingPrompt.js";
-import { detectWcKnockoutBothAdvanceBleed, detectWcKnockoutGroupFramingBleed } from "../shared/wcKnockoutFixture.js";
+import { detectWcKnockoutBothAdvanceBleed, detectWcKnockoutGroupFramingBleed, detectWcKnockoutFormatBoilerplateLead, detectWcKnockoutDrawDismissal } from "../shared/wcKnockoutFixture.js";
 
 const BETTING_LEAD_RE =
   /^(?:lean:|)?\s*(?:norway|brazil|paraguay|france|mexico|argentina|germany|spain|england).{0,80}(?:advances|mispriced|longshot|value|group [a-l]|favorite|contender)/i;
@@ -504,6 +504,26 @@ export function runWcUrTakeQA(opts = {}) {
     ) {
       issueCodes.push("wc_knockout_group_framing_bleed");
     }
+
+    if (
+      detectWcKnockoutFormatBoilerplateLead(routingQuestion, structured, matchDetails, {
+        tournamentPhase: opts.tournamentPhase,
+        allMatches: opts.allMatches,
+        pinnedMatch: opts.pinnedMatch,
+      })
+    ) {
+      issueCodes.push("wc_knockout_format_boilerplate_lead");
+    }
+
+    if (
+      detectWcKnockoutDrawDismissal(routingQuestion, structured, matchDetails, {
+        tournamentPhase: opts.tournamentPhase,
+        allMatches: opts.allMatches,
+        pinnedMatch: opts.pinnedMatch,
+      })
+    ) {
+      issueCodes.push("wc_knockout_draw_dismissal");
+    }
   }
 
   if (
@@ -587,6 +607,8 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_home_favorite_mislabel",
       "wc_knockout_both_advance_bleed",
       "wc_knockout_group_framing_bleed",
+      "wc_knockout_format_boilerplate_lead",
+      "wc_knockout_draw_dismissal",
       "wc_roundup_dark_horse_weak",
       "wc_roundup_fair_price_contradiction",
       "wc_roundup_line_missing_delta",
@@ -652,8 +674,11 @@ export const WC_KNOCKOUT_BOTH_ADVANCE_QA_SUFFIX = `
 
 WC KNOCKOUT MATCHUP QA (mandatory — prior answer used group-stage "both teams to advance" on a knockout fixture):
 - This is single elimination — only ONE team advances from this match.
-- Remove any "both teams to advance" / "both sides qualify" language from THE PLAY, Alt, and why.
+- Remove any "both teams to advance" / "both sides qualify" / "both teams advance in tournament sims" language from THE PLAY, Alt, and why.
+- Never cite group-stage advancePct on a knockout fixture — use winPct or regulation ML only.
 - Use winner ML, Over/Under, BTTS, DNB, or to-advance — never group-stage both-advance framing.`;
+
+export { WC_KNOCKOUT_INSIGHT_FIRST_QA_SUFFIX, WC_KNOCKOUT_DRAW_DISMISSAL_QA_SUFFIX } from "../shared/wcKnockoutFixture.js";
 
 export const WC_KNOCKOUT_GROUP_FRAMING_QA_SUFFIX = `
 

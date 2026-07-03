@@ -75,7 +75,7 @@ import { extractWcMatchupPlayHeadline } from "./wcMatchupWinnerLine.js";
 /** QA regen when user asked for a non-ML market but the card repeated the moneyline headline. */
 export const WC_MATCH_ALT_FOLLOWUP_QA_SUFFIX = `MATCH ALT FOLLOW-UP (mandatory — user asked besides the moneyline):
 - Do NOT repeat "[Team] [ML] to win" as the headline or CALL — they already got the ML.
-- HEADLINE / CALL must name the alternate market only: Under/Over 2.5 goals, both teams to advance, BTTS, etc.
+- HEADLINE / CALL must name the alternate market only: Under/Over 2.5 goals, both teams to advance, BTTS, regulation Draw, etc.
 - Put the ML winner line in breakdown / alt only — never as sentence one again.`;
 
 export function isWcMatchupOtherSideFollowUp(question) {
@@ -85,6 +85,25 @@ export function isWcMatchupOtherSideFollowUp(question) {
     /\bwhat'?s?\s+the\s+other\s+side\b/i.test(q) ||
     /\b(?:give me|show me)\s+the\s+other\s+side\b/i.test(q) ||
     /\bother\s+side\s+of\s+(?:this|that|the\s+(?:lean|play|total|line))\b/i.test(q)
+  );
+}
+
+/**
+ * Both teams to score (BTTS) — match market, never a player prop.
+ * @param {string} question
+ */
+export function isWcBttsQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (/\bboth\s+teams?\s+to\s+advance\b/i.test(q)) return false;
+  return (
+    /\bbtts\b/i.test(q) ||
+    /\bboth\s+teams?\s+(?:to\s+)?score\b/i.test(q) ||
+    /\bchances?\s+(?:that\s+)?both\s+teams?\s+score\b/i.test(q) ||
+    /\bwhat\s+(?:are|is)\s+the\s+chances?\s+both\s+teams?\s+score\b/i.test(q) ||
+    /\bwill\s+both\s+teams?\s+score\b/i.test(q) ||
+    /\bboth\s+teams?\s+find(?:ing)?\s+the\s+net\b/i.test(q) ||
+    /\bboth\s+sides?\s+(?:to\s+)?score\b/i.test(q)
   );
 }
 
@@ -142,6 +161,7 @@ export function isWcTotalsHoldPriorLeanFollowUp(question) {
 export function isWcMatchupAltMarketFollowUp(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcBttsQuestion(q)) return true;
   if (isWcTotalsExplainFollowUp(q)) return true;
   if (isWcMatchupOtherSideFollowUp(q)) return true;
   if (

@@ -17,6 +17,7 @@ import {
   wcMatchupTeamDisplayName,
 } from "../../shared/wcMatchupWinnerLine.js";
 import { isWcMatchupAltMarketFollowUp } from "../../shared/wcMatchBettingPrompt.js";
+import { resolveParlayCombinedOddsDisplay } from "./calculateParlayOdds.js";
 import {
   extractWcModelAttributionPrefix,
   stripWcModelAttributionPrefix,
@@ -166,21 +167,53 @@ export function buildWcPropsListFace(opts = {}) {
 }
 
 /**
+ * Normalize parlay leg copy — models often embed prices in `play` while `odds` is "TBD".
+ * @param {string} play
+ * @param {string|number|null|undefined} odds
+ */
+export function normalizeWcParlayLegFace(play, odds) {
+  let playText = String(play || "").trim();
+  let oddsText = String(odds ?? "").trim();
+  if (!oddsText || oddsText.toUpperCase() === "TBD") {
+    const embedded = playText.match(/([+-]\d{2,})\s*$/);
+    if (embedded?.[1]) {
+      oddsText = embedded[1];
+      playText = playText.replace(new RegExp(`\\s*${embedded[1].replace("+", "\\+")}\\s*$`), "").trim();
+    } else {
+      oddsText = "";
+    }
+  } else if (playText.endsWith(oddsText)) {
+    playText = playText.slice(0, -oddsText.length).trim();
+  }
+  const lean = [playText, oddsText].filter(Boolean).join(" · ");
+  return { play: playText, odds: oddsText, lean };
+}
+
+/**
  * Parlay ticket list face from structured legs.
  * @param {object} [opts]
  */
 export function buildWcParlayListFace(opts = {}) {
   const legs = Array.isArray(opts.parlayLegs) ? opts.parlayLegs : [];
   if (legs.length < 2) return null;
-  const combined = String(opts.parlayCombinedOdds || "").trim();
+  const normalizedLegs = legs.map((leg) =>
+    normalizeWcParlayLegFace(leg?.play, leg?.odds),
+  );
+  let combined = String(opts.parlayCombinedOdds || "").trim();
+  if (!combined || combined.toUpperCase() === "TBD") {
+    const resolved = resolveParlayCombinedOddsDisplay(
+      normalizedLegs.map((leg) => ({ odds: leg.odds })),
+      combined,
+    );
+    if (resolved) combined = resolved;
+  }
+  const callStr = String(opts.call || "").trim();
   const intro =
-    String(opts.call || "").trim() ||
-    `2-leg SGP${combined ? ` (${combined})` : ""}`;
-  const rows = legs.map((leg, i) => ({
+    callStr ||
+    `${legs.length}-leg parlay${combined ? ` (${combined})` : ""}`;
+  const rows = normalizedLegs.map((leg, i) => ({
     label: `Leg ${i + 1}`,
-    lean: [String(leg?.play || "").trim(), leg?.odds != null ? String(leg.odds) : ""]
-      .filter(Boolean)
-      .join(" · "),
+    lean: leg.lean,
   }));
   return { intro, rows };
 }

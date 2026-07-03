@@ -36,7 +36,7 @@ import {
   WC_MATCH_PLAYER_PROPS_MAX_AGE_MS,
 } from "../shared/wc2026PlayerConstants.js";
 import { calculateOddsFreshness } from "../shared/wcOddsFreshness.js";
-import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion, isWcGoalkeeperPropsQuestion, isWcNamedPlayerPropQuestion, extractWcNamedPlayerPropLegsFromQuestion, isWcShotsPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
+import { formatWcPlayerMarketPromptRules, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion, isWcFixtureScopedPlayerMarketQuestion, isWcGoalkeeperPropsQuestion, isWcNamedPlayerPropQuestion, extractWcNamedPlayerPropLegsFromQuestion, needsWcFixtureShotsMarketRows } from "../shared/wcUrTakePlayerMarket.js";
 import { extractMentionedWcTeams } from "../shared/wcUrTakeKeywords.js";
 import {
   findWcNamedPlayerPropLegMatch,
@@ -337,7 +337,7 @@ export async function loadWcPlayerMarketKvBlocks(nowMs = Date.now(), opts = {}) 
     readWcInjuriesFromKv(),
     loadMatchProps && !loadNamedPlayerMatchProps && wcEventId && !loadSlateMatchProps
       ? (async () => {
-          const requireShotsRows = isWcShotsPropQuestion(question);
+          const requireShotsRows = needsWcFixtureShotsMarketRows(question);
           let payload = readCachedMatchPlayerPropsForEvent(wcEventId, matchPropsKvRoot, nowMs);
           const cachedBeforeRefresh =
             payload &&
@@ -560,7 +560,7 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
     }
     for (const payload of propPayloads) {
       if (!isUsableUrTakeMatchPropsPayload(payload)) continue;
-      if (isWcShotsPropQuestion(question)) {
+      if (needsWcFixtureShotsMarketRows(question)) {
         const shotRows =
           matchPlayerPropRowsFromEvent(payload, "player_shots_ou", 1).length +
           matchPlayerPropRowsFromEvent(payload, "player_sot_ou", 1).length +
@@ -607,7 +607,7 @@ function wcPlayerMarketKvBlocksAreUsable(kvBlocks, opts = {}) {
   if (isWcGoalkeeperPropsQuestion(question)) {
     return matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_saves_ou", 2).length >= 1;
   }
-  if (isWcShotsPropQuestion(question)) {
+  if (needsWcFixtureShotsMarketRows(question)) {
     return (
       matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_shots_ou", 2).length >= 1 ||
       matchPlayerPropRowsFromEvent(kvBlocks.matchPlayerProps, "player_sot_ou", 2).length >= 1
@@ -657,7 +657,7 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
 ) {
   const question = String(opts.question || "");
   const namedShotsAsk =
-    isWcNamedPlayerPropQuestion(question) && isWcShotsPropQuestion(question);
+    isWcNamedPlayerPropQuestion(question) && needsWcFixtureShotsMarketRows(question);
   const goatEnabled = isWcGoatPrimaryEnabled();
   const maxRetries = retryOpts.maxRetries ?? (goatEnabled ? 2 : 3);
   const backoffMs = retryOpts.backoffMs ?? 400;
@@ -734,7 +734,7 @@ export async function loadWcPlayerMarketKvBlocksWithRetry(
     last?.matchPlayerProps && hasMatchPlayerPropRows(last.matchPlayerProps);
   const rejectedWithShots =
     rejectedWithData &&
-    isWcShotsPropQuestion(question) &&
+    needsWcFixtureShotsMarketRows(question) &&
     matchPropsPayloadHasShotsRows(last.matchPlayerProps);
   const rejectedInPlayUsable =
     rejectedWithData &&

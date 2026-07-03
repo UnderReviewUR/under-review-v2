@@ -23,7 +23,8 @@ import {
   resolveWcPlayerMarketTier,
   tierMetaFor,
 } from "./wcPlayerMarketResolve.js";
-import { resolveWcPropBoardMarketKeysForQuestion } from "./wcMatchPlayerProps.js";
+import { resolveWcPropBoardMarketKeysForQuestion, classifyWcFixtureShotsMarketIntent, WC_PROP_ASK_CUE_RE } from "./wcMatchPlayerProps.js";
+import { isWcBttsQuestion } from "./wcMatchBettingPrompt.js";
 import {
   buildWcSgpComboPassHeadline,
   detectWcSgpComboIntent,
@@ -921,10 +922,107 @@ const MISROUTED_SHOTS_CALL_RE =
   /\b(structural longshot|longshot thesis|outright|tournament winner|golden boot|wins the tournament|win the tournament)\b/i;
 
 /**
+ * Cards, tackles, assists board asks (fixture-scoped).
+ * @param {string} question
+ */
+export function isWcExtendedPlayerPropBoardQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q || !WC_PROP_ASK_CUE_RE.test(q)) return false;
+  if (/\b(?:card|booking|yellow card|red card|booked)\b/i.test(q)) return true;
+  if (/\btackles?\b/i.test(q)) return true;
+  if (/\bassist/i.test(q) && !/\b(score|goal)\s+or\s+assist\b/i.test(q)) return true;
+  return false;
+}
+
+/**
+ * User-requested list size for prop boards ("give me 5 SOT bets", "top 3 shots props").
+ * @param {string} question
+ * @param {number} [defaultCount]
+ */
+export function extractWcPropBoardCountFromQuestion(question, defaultCount = 3) {
+  const q = String(question || "").trim();
+  let m = q.match(/\b(?:give\s+me|show\s+me|list|rank|gimme)\s+(?:the\s+)?(\d+)\b/i);
+  if (m?.[1]) return Math.min(10, Math.max(1, parseInt(m[1], 10)));
+  m = q.match(
+    /\b(\d+)\s+(?:best\s+)?(?:shots?\s+on\s+target|sot|shots?|player\s+props?|scorer|goalscorer|card|tackle|assist)/i,
+  );
+  if (m?.[1]) return Math.min(10, Math.max(1, parseInt(m[1], 10)));
+  m = q.match(/\b(\d+)\s+best\b/i);
+  if (m?.[1]) return Math.min(10, Math.max(1, parseInt(m[1], 10)));
+  m = q.match(/\btop\s+(\d+)\b/i);
+  if (m?.[1]) return Math.min(10, Math.max(1, parseInt(m[1], 10)));
+  m = q.match(/\bbest\s+(\d+)\b/i);
+  if (m?.[1]) return Math.min(10, Math.max(1, parseInt(m[1], 10)));
+  return defaultCount;
+}
+
+/**
+ * @param {string} question
+ * @returns {string | null}
+ */
+export function resolveWcNamedPlayerPropMarketKeyFromQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  const shotsIntent = classifyWcFixtureShotsMarketIntent(q);
+  if (shotsIntent === "sot") return "player_sot_ou";
+  if (shotsIntent === "shots") return "player_shots_ou";
+  if (/\b(?:card|booking|yellow)\b/i.test(q)) return "player_card";
+  if (/\bred card\b/i.test(q)) return "player_red_card";
+  if (/\btackles?\b/i.test(q)) return "player_tackles_ou";
+  if (/\bassist/i.test(q)) return "player_assists_ou";
+  if (isWcGoalkeeperPropsQuestion(q)) return "player_saves_ou";
+  if (/\bfirst\s+goal/i.test(q)) return "first_goalscorer";
+  if (/\banytime\s+scorer\b/i.test(q)) return "anytime_scorer";
+  if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) return "player_goal_or_assist";
+  return null;
+}
+
+/**
+ * Named player + market cue without an explicit over/under threshold.
+ * @param {string} question
+ * @returns {WcNamedPlayerPropLeg | null}
+ */
+export function inferWcNamedPlayerPropLegFromQuestion(question) {
+  const q = String(question || "").trim();
+  if (!q) return null;
+  const name = extractWcNamedPlayerFromQuestion(q);
+  if (!name) return null;
+  if (isGenericWcPlayerPropQuestion(q) && extractMentionedWcTeams(q).length < 1) return null;
+  const marketKey = resolveWcNamedPlayerPropMarketKeyFromQuestion(q);
+  if (!marketKey) return null;
+  const marketLabel =
+    marketKey === "player_sot_ou"
+      ? "shots on target"
+      : marketKey === "player_shots_ou"
+        ? "shots"
+        : detectWcPlayerPropMarketLabel(q);
+  return { name, threshold: "", marketKey, marketLabel };
+}
+
+/**
+ * Total-shots ladder repair scope — not combined SOT board asks.
  * @param {string} question
  */
 export function isWcShotsPropQuestion(question) {
   return detectWcPlayerPropMarketLabel(question) === "shots";
+}
+
+/**
+ * Fixture shots/SOT market ask — triggers BDL refresh and props fast-path routing.
+ * @param {string} question
+ */
+export function needsWcFixtureShotsMarketRows(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  const legs = extractWcNamedPlayerPropLegsFromQuestion(q);
+  if (legs.length) {
+    return legs.some(
+      (leg) => leg.marketKey === "player_shots_ou" || leg.marketKey === "player_sot_ou",
+    );
+  }
+  if (classifyWcFixtureShotsMarketIntent(q)) return true;
+  const label = detectWcPlayerPropMarketLabel(q);
+  return label === "shots" || label === "shots on target";
 }
 
 /**
@@ -1269,13 +1367,21 @@ export function formatWcPlayerMarketPromptRules(wcIntent, question = "") {
 export function detectWcPlayerPropMarketLabel(question) {
   const q = String(question || "").trim();
   if (!q) return "player prop";
+  if (isWcBttsQuestion(q)) return "both teams to score";
   if (isWcGoalkeeperPropsQuestion(q)) return "goalkeeper saves";
   if (/\bfirst\s+goal\b|\bfirst\s+goalscorer\b|\bfirst\s+to\s+score\b/i.test(q)) {
     return "first goalscorer";
   }
   if (/\blast\s+goal\b|\blast\s+goalscorer\b/i.test(q)) return "last goalscorer";
   if (/\b(score|goal)\s+or\s+assist\b/i.test(q)) return "goal or assist";
-  if (/\bshots?\s+on\s+target\b|\bsot\b/i.test(q)) return "shots on target";
+  if (
+    /\bshots?\s+on\s+target\b/i.test(q) ||
+    /\bon\s+target\b/i.test(q) ||
+    /\b(?:sot|sots)\b/i.test(q)
+  ) {
+    return "shots on target";
+  }
+  if (/\bhow many\s+shots?\b/i.test(q) && /\bon\s+target\b/i.test(q)) return "shots on target";
   if (/\d+\.?\d*\s*shots?\b/i.test(q) || /\bshots?\s*(?:o\/u|over|under)\b/i.test(q)) {
     return "shots";
   }
@@ -1384,6 +1490,8 @@ export function extractWcNamedPlayerFromQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return null;
 
+  if (isWcBttsQuestion(q)) return null;
+
   if (isWcMatchTotalsQuestion(q)) return null;
   if (isWcVagueMatchGoalsOverUnderAsk(q)) return null;
   if (/\b(your read on|read on the|outlook on)\b/i.test(q)) return null;
@@ -1394,6 +1502,34 @@ export function extractWcNamedPlayerFromQuestion(question) {
   );
   if (willScore?.[1] && !isWcNationOrAwardFalsePositive(willScore[1], q)) {
     return willScore[1].trim();
+  }
+
+  const howManyWill = q.match(
+    /\bhow many\s+shots?\s+will\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\b/i,
+  );
+  if (howManyWill?.[1] && !isWcNationOrAwardFalsePositive(howManyWill[1], q)) {
+    return howManyWill[1].trim();
+  }
+
+  const willGet = q.match(
+    /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+get\b/i,
+  );
+  if (willGet?.[1] && !isWcNationOrAwardFalsePositive(willGet[1], q)) {
+    return willGet[1].trim();
+  }
+
+  const willGoOver = q.match(
+    /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+go\s+over\b/i,
+  );
+  if (willGoOver?.[1] && !isWcNationOrAwardFalsePositive(willGoOver[1], q)) {
+    return willGoOver[1].trim();
+  }
+
+  const nameFirst = q.match(
+    /^([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+(?:sot|shots?\s+on\s+target|shots?)\s+(?:line|prop|market|bet)/i,
+  );
+  if (nameFirst?.[1] && !isWcNationOrAwardFalsePositive(nameFirst[1], q)) {
+    return nameFirst[1].trim();
   }
 
   const propFor = q.match(
@@ -1667,6 +1803,18 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
   const eachHaveLegs = extractWcEachHaveNamedPropLegs(q);
   if (eachHaveLegs.length) return eachHaveLegs;
 
+  const willGoOver = q.match(
+    /\bwill\s+([A-Za-zÀ-ÿ][\wÀ-ÿ'-]+(?:\s+[A-Za-zÀ-ÿ][\wÀ-ÿ'-]+)?)\s+(?:go\s+)?over\s+(\d+(?:\.\d+)?)\s+(?:shots?\s+on\s+target|shots?\s+attempted|\bsot\b|shots?)\b/i,
+  );
+  if (willGoOver?.[1] && willGoOver?.[2]) {
+    return buildWcNamedPropLegsFromNames(
+      [willGoOver[1].trim()],
+      String(willGoOver[2]).trim(),
+      willGoOver[0],
+      q,
+    );
+  }
+
   /** @type {WcNamedPlayerPropLeg[]} */
   const legs = [];
   const seen = new Set();
@@ -1713,7 +1861,8 @@ export function extractWcNamedPlayerPropLegsFromQuestion(question) {
     ];
   }
 
-  return [];
+  const inferred = inferWcNamedPlayerPropLegFromQuestion(q);
+  return inferred ? [inferred] : [];
 }
 
 /**
@@ -1852,12 +2001,15 @@ const WC_FIXTURE_PLAYER_MARKET_ASK_RE =
 export function isWcFixtureScopedPlayerMarketQuestion(question) {
   const q = String(question || "").trim();
   if (!q) return false;
+  if (isWcBttsQuestion(q)) return false;
   if (isWcMatchTotalsQuestion(q)) return false;
   if (WC_AWARD_FALSE_POSITIVE_RE.test(q)) return false;
   if (/\bhow many goals\b/i.test(q) && extractMentionedWcTeams(q).length) return false;
   if (extractWcNamedPlayerFromQuestion(q)) return true;
   if (isWcFixturePlayerPropsQuestion(q)) return true;
   if (isGenericWcPlayerPropQuestion(q)) return true;
+  if (needsWcFixtureShotsMarketRows(q)) return true;
+  if (isWcExtendedPlayerPropBoardQuestion(q)) return true;
   return WC_FIXTURE_PLAYER_MARKET_ASK_RE.test(q);
 }
 

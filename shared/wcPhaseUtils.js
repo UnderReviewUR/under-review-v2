@@ -498,9 +498,10 @@ export function formatKnockoutUrTakeAppendix(phase, matches, mentionedTeams = []
     "KNOCKOUT STAGE RULES (binding):",
     "  Single elimination — one loss ends the run (except where feed shows a separate third-place match).",
     "  Regulation draw → extra time → penalty shootout if still level. 90-minute moneylines do NOT settle as a draw for advancement purposes.",
+    "  90-minute Draw (1X2 draw leg) IS a valid bet in knockout — wins if level after 90; ET/pens then decide who advances. Do not dismiss draw as unbettable.",
     "  Away goals rule does NOT apply in 2026.",
-    "  For match 1X2 bets in knockout: cite FIXTURE MATCH ODDS as regulation-time prices only unless the feed states otherwise.",
-    "  For advancement or \"who wins the match\" questions: factor ET/pens — do not treat a draw price as a safe push.",
+    "  For match 1X2 bets in knockout: cite FIXTURE MATCH ODDS as regulation-time prices (home / draw / away) unless the feed states otherwise.",
+    "  For advancement or \"who wins the match\" questions: factor ET/pens on winner ML — but regulation Draw remains its own market; fade it on script/price, not because knockout forbids ties after 90.",
     `  Current tournament round: ${getKnockoutRoundLabel(phase)} (${phase}).`,
   ];
 
@@ -543,7 +544,8 @@ export function formatKnockoutPhasePromptRules(phase) {
     "KNOCKOUT PHASE (mandatory):",
     "  Do not answer as if the group stage is still undecided unless VERIFIED CONTEXT shows open group matches.",
     "  Use KNOCKOUT STAGE RULES and bracket path for advancement and tournament-winner questions.",
-    "  Match draw percentages from Elo are regulation-oriented — in knockout, ties go to extra time and penalties.",
+    "  Match draw percentages from Elo are regulation-oriented — in knockout, ties after 90 go to extra time and penalties.",
+    "  Regulation Draw (1X2) is still a posted market — valid if you expect level after 90; separate from winner ML and to-advance.",
     `  Active round: ${getKnockoutRoundLabel(phase)}.`,
   ].join("\n");
 }

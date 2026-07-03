@@ -123,7 +123,8 @@ test("formatKnockoutUrTakeAppendix covers advancement questions with ET/pens gui
     "Norway vs France — who advances?",
   );
   assert.match(block, /advancement angles/i);
-  assert.match(block, /do not treat a draw price as a safe push/i);
+  assert.match(block, /valid bet in knockout/i);
+  assert.match(block, /Do not dismiss draw as unbettable/i);
   assert.match(block, /\[R16\] NOR vs FRA/);
 });
 

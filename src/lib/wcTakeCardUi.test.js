@@ -14,6 +14,8 @@ import {
   wcTakeCardHasVisibleContent,
   buildWcSlateListFace,
   formatWcSlateListLean,
+  buildWcParlayListFace,
+  normalizeWcParlayLegFace,
   pickWcBreakdownLabel,
   UR_TAKE_FULL_BREAKDOWN_LABEL,
 } from "./wcTakeCardUi.js";
@@ -66,6 +68,31 @@ test("prepareWcCardFaceDisplay — parlay ticket uses leg-count headline", () =>
   assert.match(face.headline, /4-Leg Player Parlay/i);
   assert.ok(face.slateListFace?.rows?.length >= 4);
   assert.doesNotMatch(face.headline, /structural longshot/i);
+});
+
+test("buildWcParlayListFace — strips TBD when odds are embedded in play", () => {
+  const face = buildWcParlayListFace({
+    call: "3-Leg Player Parlay — Australia vs Egypt",
+    parlayLegs: [
+      {
+        play: "Jackson Irvine over 0.5 shots on target +220",
+        odds: "TBD",
+      },
+      {
+        play: "Mahmoud Trézéguet over 1 shots on target -120",
+        odds: "TBD",
+      },
+      {
+        play: "Mohamed Salah over 0.5 shots on target -159",
+        odds: "TBD",
+      },
+    ],
+    parlayCombinedOdds: "TBD",
+  });
+  assert.ok(face);
+  assert.match(face.rows[0].lean, /Jackson Irvine over 0\.5 shots on target · \+220/);
+  assert.doesNotMatch(face.rows[0].lean, /TBD/i);
+  assert.match(face.rows[2].lean, /Salah.*· -159/);
 });
 
 test("prepareWcCardFaceDisplay — pass lean ignores long prop call headline", () => {

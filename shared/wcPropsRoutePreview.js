@@ -7,6 +7,8 @@ import { detectParlayIntent } from "./detectParlayIntent.js";
 import {
   isWcNamedPlayerPropQuestion,
   isGenericWcPlayerPropQuestion,
+  needsWcFixtureShotsMarketRows,
+  isWcExtendedPlayerPropBoardQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import { isWcPlayerPropFollowUpExplain } from "./wcFollowUpExplain.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
@@ -65,6 +67,8 @@ function isNamedOrGenericPropAsk(q) {
   return (
     isWcNamedPlayerPropQuestion(q) ||
     isGenericWcPlayerPropQuestion(q) ||
+    needsWcFixtureShotsMarketRows(q) ||
+    isWcExtendedPlayerPropBoardQuestion(q) ||
     /\bplayers?\s+props?\b/i.test(q) ||
     /\bprop\s+board\b/i.test(q) ||
     /\banytime\s+scorer\b/i.test(q) ||

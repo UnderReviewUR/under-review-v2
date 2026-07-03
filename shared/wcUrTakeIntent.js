@@ -31,6 +31,7 @@ import {
 } from "./wcOddsLineMovement.js";
 import { isWcBettingScreenshotAnalyzeQuestion } from "./wcUrTakePhilosophy.js";
 import { extractFirstAmericanOddsToken } from "./formatOddsAmerican.js";
+import { isWcBttsQuestion } from "./wcMatchBettingPrompt.js";
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"PARLAY"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -330,6 +331,7 @@ export function classifyWcPlayerMarketIntent(question) {
   const q = String(question || "").trim();
   const ql = q.toLowerCase();
   if (!q) return null;
+  if (isWcBttsQuestion(q)) return null;
   if (isWcMatchTotalsQuestion(q)) return null;
   if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
   if (isWcTeamMatchGoalsQuestion(q)) return null;
@@ -479,6 +481,10 @@ export function classifyWcQuestionIntent(question, history = []) {
   }
 
   if (isWcMatchTotalsQuestion(q)) {
+    return WC_INTENT.MATCHUP;
+  }
+
+  if (isWcBttsQuestion(q)) {
     return WC_INTENT.MATCHUP;
   }
 

@@ -270,6 +270,32 @@ export function pickWcFixtureSpreadLean({ home, away, matchOdds }) {
   };
 }
 
+/**
+ * @param {{ matchOdds?: Record<string, unknown>, passOnMlPrefix?: boolean }} row
+ */
+export function pickWcFixtureBttsLean(row) {
+  const yes = readWcMatchMoneylineAmerican(row.matchOdds?.btts?.yes);
+  const no = readWcMatchMoneylineAmerican(row.matchOdds?.btts?.no);
+  const prefix = row.passOnMlPrefix === false ? "" : "Pass on ML — ";
+  if (!yes || !no) {
+    return {
+      headline: "BTTS — lines not posted yet",
+      lean: `${prefix}BTTS Yes/No not in verified feed yet — check back closer to kickoff.`,
+    };
+  }
+  const yesImp = americanOddsImplied(yes);
+  const noImp = americanOddsImplied(no);
+  const leanYes = yesImp >= noImp;
+  const side = leanYes ? "Yes" : "No";
+  const price = leanYes ? yes : no;
+  const headline = `BTTS ${side} ${price}`;
+  return {
+    headline,
+    lean: `${prefix}${headline} — posted both-teams-to-score market.`,
+    kind: leanYes ? "btts_yes" : "btts_no",
+  };
+}
+
 export function pickWcFixtureTotalsAlternateLean(row) {
   const q = String(row.question || "");
   const hs = Number(row.homeScore);
@@ -1529,6 +1555,13 @@ function pickWcFixtureAltFollowUpLean(row) {
     return formatTotalsLeanHeadline(priorTotals.kind, priorTotals.line);
   }
 
+  if (isWcBttsQuestion(q)) {
+    return pickWcFixtureBttsLean({
+      matchOdds: row.matchOdds,
+      passOnMlPrefix: false,
+    }).lean;
+  }
+
   if (isWcMatchupOtherSideFollowUp(q)) {
     const flipped = flipPriorTotalsLeanFromHistory(row.history);
     if (flipped) return flipped;
@@ -1694,7 +1727,8 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const lean = altFollowUp
     ? isWcMatchupOtherSideFollowUp(routingQ) ||
         isWcTotalsExplainFollowUp(routingQ) ||
-        isWcTotalsHoldPriorLeanFollowUp(routingQ)
+        isWcTotalsHoldPriorLeanFollowUp(routingQ) ||
+        isWcBttsQuestion(routingQ)
       ? altLeanText
       : `Pass on ML — ${altLeanText}`
     : pickWcFixturePrebuiltLean({
@@ -2036,6 +2070,41 @@ function buildWcTotalsExplainWhyNow(row) {
 }
 
 /**
+ * @param {Record<string, unknown>} row
+ * @param {ReturnType<typeof resolveWcFixtureMatchRoles>} roles
+ */
+function buildWcKnockoutMatchupWhyNow(row, roles) {
+  const { favName, dogName, favWinPct } = roles;
+  const favMl = favName === row.homeName ? row.homeMl : row.awayMl;
+  const dogMl = favName === row.homeName ? row.awayMl : row.homeMl;
+  const playHeadline = String(row.playHeadline || row.lean || "").replace(/^lean:\s*/i, "");
+
+  if (/\b(?:over|under)\s+\d/i.test(playHeadline)) {
+    const ou = playHeadline.match(/\b(Over|Under)\s+(\d+\.?\d*)\s*goals?\b/i);
+    if (ou) {
+      return `${ou[1]} ${ou[2]} fits the knockout script — ${favName} can win without a shootout if ${dogName} sits in.`;
+    }
+  }
+
+  if (Number.isFinite(favWinPct) && favMl) {
+    const marketPct = Math.round(americanOddsImplied(favMl) * 100);
+    const delta =
+      Number.isFinite(marketPct) && Math.abs(favWinPct - marketPct) > 4
+        ? ` · UR ${favWinPct}% vs book ~${marketPct}%`
+        : favWinPct
+          ? ` · UR win bar ${favWinPct}%`
+          : "";
+    return `${favName} ${favMl} owns the path${delta}; ${dogName} ${dogMl || "live"} needs chaos, not a cagey 0-0.`;
+  }
+
+  if (favMl && dogMl) {
+    return `${favName} ${favMl} vs ${dogName} ${dogMl} — win or go home; lean the side that controls tempo and chance quality.`;
+  }
+
+  return `${favName} should edge a knockout sprint — ${dogName} has to steal the game state early.`;
+}
+
+/**
  * @param {{
  *   homeName: string,
  *   awayName: string,
@@ -2106,14 +2175,13 @@ function buildWcFixturePrebuiltWhyNow(row) {
     );
   }
   if (row.homeMl && row.awayMl) {
-    const scope = isKnockout ? `${knockoutLabel} — win or go home` : "market leans";
-    const advanceNote =
-      isKnockout && row.advancementQ &&
-      !readWcMatchMoneylineAmerican(row.matchOdds?.toAdvanceHome) &&
-      !readWcMatchMoneylineAmerican(row.matchOdds?.toAdvanceAway)
-        ? " · regulation ML only (ET/pens if level)"
-        : "";
-    return `${xiPrefix}${row.homeName} ${row.homeMl} vs ${row.awayName} ${row.awayMl}${row.drawMl ? ` (Draw ${row.drawMl})` : ""} — ${scope}${advanceNote}${isKnockout ? "" : ` ${row.homeName} but the price is tight`}.`;
+    if (isKnockout) {
+      const knockoutWhy = buildWcKnockoutMatchupWhyNow(row, roles);
+      return xiPrefix ? `${xiPrefix}${knockoutWhy}` : knockoutWhy;
+    }
+    const scope = "market leans";
+    const advanceNote = "";
+    return `${xiPrefix}${row.homeName} ${row.homeMl} vs ${row.awayName} ${row.awayMl}${row.drawMl ? ` (Draw ${row.drawMl})` : ""} — ${scope}${advanceNote} ${row.homeName} but the price is tight.`;
   }
   return isKnockout
     ? `${xiPrefix}${knockoutLabel} — expect a cautious elimination script, not a blowout.`

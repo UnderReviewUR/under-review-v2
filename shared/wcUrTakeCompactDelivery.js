@@ -42,6 +42,7 @@ import {
   repairWcOddsLineMovementGenericPass,
   synthesizeWcOddsLineMovementLean,
 } from "./wcOddsLineMovement.js";
+import { repairWcKnockoutMatchupStructured } from "./wcKnockoutFixture.js";
 import { extractLastAssistantStructured } from "./wcCardContractFollowUpScorer.js";
 import {
   extractWcMatchupPlayHeadline,
@@ -899,6 +900,19 @@ function finalizeWcCompactExplainDelivery(built, opts = {}) {
   }
   out = applyWcThreadPriorLeanPassRewrite(out, opts);
   out = repairWcOddsLineMovementGenericPass(out, String(opts.question || ""));
+  const pinnedMatch =
+    opts.match ||
+    (out.fixtureHome && out.fixtureAway
+      ? {
+          homeTeam: out.fixtureHome,
+          awayTeam: out.fixtureAway,
+          round: out.round,
+        }
+      : null);
+  out = repairWcKnockoutMatchupStructured(out, pinnedMatch, {
+    tournamentPhase: opts.tournamentPhase,
+    allMatches: opts.allMatches,
+  });
   return out;
 }
 

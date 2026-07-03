@@ -13,6 +13,8 @@ import {
   pickFixturePropBoardForQuestion,
   resolveMatchPlayerPropsPayload,
   resolveWcPropBoardMarketKeysForQuestionWithHistory,
+  resolveWcPropBoardMarketKeysForQuestion,
+  classifyWcFixtureShotsMarketIntent,
 } from "./wcMatchPlayerProps.js";
 import { MOCK_WC_MATCH_PLAYER_PROPS_EVENT } from "../api/wcPlayerMarkets.fixture.js";
 
@@ -181,4 +183,54 @@ test("resolveWcPropBoardMarketKeysForQuestionWithHistory inherits first goalscor
     },
   ]);
   assert.ok(keys?.includes("first_goalscorer"));
+});
+
+const SHOTS_SOT_FIXTURE_EVENT = {
+  ...MOCK_WC_MATCH_PLAYER_PROPS_EVENT,
+  markets: {
+    anytime_scorer: [
+      { name: "Mo Salah", americanOdds: "+180", nationAbbr: "EGY" },
+      { name: "Mathew Leckie", americanOdds: "+450", nationAbbr: "AUS" },
+    ],
+    player_shots_ou: [
+      { name: "Mo Salah", americanOdds: "-135", line: "3", side: "over", nationAbbr: "EGY" },
+      { name: "Mo Salah", americanOdds: "+120", line: "2", side: "over", nationAbbr: "EGY" },
+      { name: "Mathew Leckie", americanOdds: "+210", line: "2", side: "over", nationAbbr: "AUS" },
+    ],
+    player_sot_ou: [
+      { name: "Mo Salah", americanOdds: "+105", line: "1.5", side: "over", nationAbbr: "EGY" },
+      { name: "Mathew Leckie", americanOdds: "+175", line: "0.5", side: "over", nationAbbr: "AUS" },
+    ],
+  },
+};
+
+test("resolveWcPropBoardMarketKeysForQuestion — combined shots and SOT board ask", () => {
+  const keys = resolveWcPropBoardMarketKeysForQuestion(
+    "best shots and shots on target bets?",
+  );
+  assert.deepEqual(keys, ["player_shots_ou", "player_sot_ou"]);
+});
+
+test("pickFixturePropBoardForQuestion — shots ask does not fall back to anytime scorer", () => {
+  const board = pickFixturePropBoardForQuestion(
+    SHOTS_SOT_FIXTURE_EVENT,
+    "best shots and shots on target bets?",
+    12,
+  );
+  assert.ok(board);
+  assert.match(String(board.key), /player_shots_ou|player_sot_ou/);
+  assert.ok(board.rows?.some((r) => /Salah/i.test(String(r.name))));
+});
+
+test("pickFixturePropBoardForQuestion — shots ask merges shots and SOT rows", () => {
+  const board = pickFixturePropBoardForQuestion(
+    SHOTS_SOT_FIXTURE_EVENT,
+    "best shots and shots on target bets?",
+    12,
+  );
+  assert.ok(board?.rows?.length >= 2);
+  const markets = new Set(
+    board.rows.map((r) => String(r._marketKey || board.key)),
+  );
+  assert.ok(markets.has("player_shots_ou") || markets.has("player_sot_ou"));
 });

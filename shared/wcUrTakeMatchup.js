@@ -76,6 +76,10 @@ export function buildWcMatchupIntentRules(opts = {}) {
   } else {
     lines.push(
       "- Knockout fixture: one team advances — factor extra time and penalties if level after 90 minutes.",
+      "- Regulation Draw (1X2 draw leg) is a valid knockout market — wins if tied after 90; ET/pens decide advancement separately.",
+      "- Never dismiss draw as unbettable because one team must advance — fade draw only on tactical/price grounds.",
+      "- WHY must open with matchup insight (tactical edge, mispriced line, player hook) — never open with format reminders or tournament-sim advancePct stats.",
+      "- Never cite group-stage advancePct or 'both teams advance in tournament sims' on a knockout fixture — use winPct / regulation ML only.",
       "- Cite FIXTURE MATCH ODDS when present; otherwise use structural knockout path language only.",
     );
   }
