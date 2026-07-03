@@ -193,11 +193,43 @@ export function isWcPropBoardArtifact(artifact) {
   return artifact.propBoardRows.length >= 2;
 }
 
+function parseParlayLegAsPropRow(leg) {
+  const play = String(leg?.play || "").trim();
+  const oddsRaw = String(leg?.odds || "").trim();
+  if (!play) return null;
+  const odds =
+    oddsRaw && oddsRaw.toUpperCase() !== "TBD"
+      ? oddsRaw
+      : play.match(/([+-]\d{2,})\s*$/)?.[1] || "";
+  const player = play
+    .replace(/\s+over\s+\d+(?:\.\d+)?\s+(?:shots?\s+on\s+target|sot|shots?).*$/i, "")
+    .replace(/\s+(anytime\s+)?(?:goal\s*)?scorer.*$/i, "")
+    .trim();
+  if (!player) return null;
+  const market = /\b(?:sot|on target)\b/i.test(play)
+    ? "player_sot_ou"
+    : /\bshots?\b/i.test(play)
+      ? "player_shots_ou"
+      : /\b(?:scorer|goal)\b/i.test(play)
+        ? "anytime_scorer"
+        : "player_prop";
+  return { player, market, odds };
+}
+
 /**
  * @param {WcTurnArtifact} artifact
  * @returns {import("./wcTurnArtifact.js").WcPropBoardRow | null}
  */
 export function leadWcPropBoardRow(artifact) {
+  if (artifact?.cardType === WC_CARD_TYPE.PARLAY_TICKET && Array.isArray(artifact.parlayLegs)) {
+    /** @type {import("./wcTurnArtifact.js").WcPropBoardRow[]} */
+    const parsed = artifact.parlayLegs.map(parseParlayLegAsPropRow).filter(Boolean);
+    const juicy = parsed.find((row) => {
+      const n = Number.parseInt(String(row.odds || ""), 10);
+      return Number.isFinite(n) && n < 0;
+    });
+    return juicy || parsed[0] || null;
+  }
   return artifact?.propBoardRows?.[0] || null;
 }
 

@@ -211,16 +211,20 @@ function buildWcShotPropProxyNote(leg, marketKey) {
  * @param {object | null | undefined} matchPlayerProps
  * @param {string} marketKey
  * @param {string | number | undefined} [threshold]
+ * @param {string | undefined} [nameOverride] — use structured leg name when question text omits a parseable hint
  */
 export function findWcMatchPlayerPropRowForMarket(
   question,
   matchPlayerProps,
   marketKey,
   threshold,
+  nameOverride,
 ) {
   if (!matchPlayerProps) return null;
-  const hint = normPlayerToken(extractWcPlayerPropNameHint(question));
-  if (!hint) return null;
+  const hint = nameOverride
+    ? normPlayerToken(normalizeWcPlayerName(nameOverride))
+    : normPlayerToken(extractWcPlayerPropNameHint(question));
+  if (!hint || hint === "player") return null;
 
   const rows = matchPlayerPropRowsFromEvent(matchPlayerProps, marketKey, 50);
   const nameMatches = rows.filter((r) => wcPlayerPropRowMatchesHint(hint, r));
@@ -250,6 +254,7 @@ export function findWcNamedPlayerPropLegMatch(leg, matchPlayerProps) {
       matchPlayerProps,
       step.marketKey,
       leg.threshold,
+      leg.name,
     );
     if (!row?.americanOdds) continue;
     return {

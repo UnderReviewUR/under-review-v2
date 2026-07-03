@@ -800,14 +800,18 @@ function resolveFixtureParlayMarketKeys(question, history = []) {
  * @param {Record<string, unknown>} eventPayload
  * @param {string[]} [marketKeys]
  */
-function fixtureParlayCandidateRowsFromEvent(eventPayload, marketKeys = FIXTURE_PARLAY_MARKET_KEYS) {
+function fixtureParlayCandidateRowsFromEvent(
+  eventPayload,
+  marketKeys = FIXTURE_PARLAY_MARKET_KEYS,
+  limitPerMarket = 8,
+) {
   /** @type {Array<{ name: string, americanOdds: string, nationAbbr?: string, market: string, line?: string }>} */
   const rows = [];
   const seen = new Set();
   for (const marketKey of marketKeys) {
-    const raw = matchPlayerPropRowsFromEvent(eventPayload, marketKey, 24);
+    const raw = matchPlayerPropRowsFromEvent(eventPayload, marketKey, limitPerMarket * 3);
     const collapsed = collapseMatchPlayerPropRowsForDisplay(raw, marketKey);
-    for (const row of collapsed.slice(0, 8)) {
+    for (const row of collapsed.slice(0, limitPerMarket)) {
       const key = `${row.name}|${marketKey}|${row.americanOdds}`;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -910,11 +914,53 @@ export function buildWcFixturePlayerParlayStructured(
   const history = wcContext?.conversationHistory || [];
   const parlayMarketKeys = resolveFixtureParlayMarketKeys(q, history);
   const n = legCount ?? extractParlayLegCount(q) ?? 4;
-  const candidates = fixtureParlayCandidateRowsFromEvent(resolved.payload, parlayMarketKeys);
+  const limitPerMarket = Math.max(8, Math.min(20, n * 3));
+  let candidates = fixtureParlayCandidateRowsFromEvent(
+    resolved.payload,
+    parlayMarketKeys,
+    limitPerMarket,
+  );
+  const requested = extractParlayLegCount(q);
+  if (requested != null && requested >= 4 && candidates.length < requested) {
+    const scorerExtras = fixtureParlayCandidateRowsFromEvent(
+      resolved.payload,
+      FIXTURE_SCORER_PARLAY_MARKET_KEYS,
+      limitPerMarket,
+    );
+    const seen = new Set(candidates.map((row) => `${row.name}|${row.market}`));
+    for (const row of scorerExtras) {
+      const key = `${row.name}|${row.market}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      candidates.push(row);
+    }
+  }
   if (candidates.length < Math.min(n, 2)) return null;
 
-  const picked = pickBalancedFixtureParlayLegRows(candidates, q, n);
+  let picked = pickBalancedFixtureParlayLegRows(candidates, q, n);
   if (picked.length < Math.min(n, 2)) return null;
+
+  if (requested != null && picked.length < requested && candidates.length > picked.length) {
+    const seen = new Set(picked.map((row) => `${row.name}|${row.market}`));
+    for (const row of candidates) {
+      if (picked.length >= requested) break;
+      const key = `${row.name}|${row.market}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const marketKey = String(row.market || "anytime_scorer");
+      const marketLabel = WC_GROUNDING_MARKET_LABELS[marketKey] || marketKey;
+      picked.push({
+        label: row.name,
+        lean: formatFixturePropBoardRowLabel(row, marketKey, marketLabel),
+        market: marketKey,
+        odds: row.americanOdds,
+        nationAbbr: row.nationAbbr,
+        name: row.name,
+        americanOdds: row.americanOdds,
+        line: row.line,
+      });
+    }
+  }
 
   const homeAbbr = String(resolved.payload?.homeTeam || teams[0] || "").toUpperCase();
   const awayAbbr = String(resolved.payload?.awayTeam || teams[1] || "").toUpperCase();
