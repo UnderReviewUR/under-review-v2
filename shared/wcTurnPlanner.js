@@ -61,7 +61,9 @@ import {
   shouldUseWcLiveInPlayBetsPrebuilt,
   shouldUseWcLiveMatchWinnerPrebuilt,
   resolveWcFixturePairFromHistory,
+  resolveWcFixturePairFromQuestion,
 } from "./wcFixtureMatchupPrebuilt.js";
+import { shouldForceWcLineMovementStructuredCard } from "./wcOddsLineMovement.js";
 import { resolveWcGroupSlatePrebuiltRoute } from "./wcGroupSlateRoute.js";
 import { previewWcPropsRoute, needsWcPropsRouting } from "./wcPropsRoutePreview.js";
 import { isWcPropsRouteV2Enabled } from "./wcPropsRouteTurn.js";
@@ -161,9 +163,18 @@ function buildBaseDataPackages(params) {
   if (
     params.lane === WC_TURN_LANE.LIVE_IN_PLAY ||
     params.lane === WC_TURN_LANE.LIVE_BET_TIMING ||
-    params.lane === WC_TURN_LANE.LIVE_MATCH_WINNER
+    params.lane === WC_TURN_LANE.LIVE_MATCH_WINNER ||
+    params.lane === WC_TURN_LANE.LINE_MOVEMENT
   ) {
     packs.push(WC_DATA_PACKAGE.LIVE_INTEL, WC_DATA_PACKAGE.PLAYER_PROPS_KV);
+  }
+  if (params.lane === WC_TURN_LANE.LINE_MOVEMENT && params.pinnedEventId) {
+    if (!packs.includes(WC_DATA_PACKAGE.MATCH_DETAIL)) {
+      packs.push(WC_DATA_PACKAGE.MATCH_DETAIL);
+    }
+    if (!packs.includes(WC_DATA_PACKAGE.FIXTURE_ODDS)) {
+      packs.push(WC_DATA_PACKAGE.FIXTURE_ODDS);
+    }
   }
   if (
     params.lane === WC_TURN_LANE.MATCHUP_PREBUILT ||
@@ -563,6 +574,42 @@ export function resolveWcTurnPlan(params = {}) {
     plan.useLiteContext = false;
     plan.confidence = resolveTurnConfidence(plan.lane, plan.intent, hasKvFixture);
     return finalizeWcTurnPlan(plan);
+  }
+
+  // ── Step 6b: Line movement / live-entry planning — deterministic synthesis ─
+  if (shouldForceWcLineMovementStructuredCard(question)) {
+    let pair =
+      resolveWcFixturePairFromQuestion(question, {
+        mentionedTeams,
+        wcEventId: pinnedEventId,
+      }) ||
+      (pinnedHome && pinnedAway
+        ? { home: pinnedHome, away: pinnedAway, eventId: pinnedEventId }
+        : null) ||
+      resolveWcFixturePairFromHistory(history);
+    if (!pair?.home && pinnedEventId && matches.length) {
+      const hit = matches.find((row) => String(row?.id) === String(pinnedEventId));
+      if (hit?.homeTeam && hit?.awayTeam) {
+        pair = {
+          home: String(hit.homeTeam).toUpperCase(),
+          away: String(hit.awayTeam).toUpperCase(),
+          eventId: pinnedEventId,
+        };
+      }
+    }
+    if (pair?.home && pair?.away) {
+      plan.lane = WC_TURN_LANE.LINE_MOVEMENT;
+      plan.reason = "line_movement_structured_prebuilt";
+      plan.shouldUseFastPath = true;
+      plan.intent = WC_INTENT.MATCHUP;
+      plan.pinnedHome = pair.home;
+      plan.pinnedAway = pair.away;
+      plan.pinnedEventId = pair.eventId || pinnedEventId;
+      plan.dataPackages = buildBaseDataPackages({ ...plan, lane: plan.lane, intent: plan.intent });
+      plan.useLiteContext = false;
+      plan.confidence = resolveTurnConfidence(plan.lane, plan.intent, hasKvFixture);
+      return finalizeWcTurnPlan(plan);
+    }
   }
 
   // ── Step 7: Matchup prebuilt lanes ────────────────────────────────────────

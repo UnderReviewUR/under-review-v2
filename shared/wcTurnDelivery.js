@@ -13,6 +13,7 @@ import {
   buildWcLiveMatchWinnerPrebuiltStructured,
   isDuplicateWcStructuredCard,
 } from "./wcFixtureMatchupPrebuilt.js";
+import { buildWcLineMovementStructuredPrebuilt } from "./wcOddsLineMovement.js";
 import {
   buildWcRunnerUpFollowUpPrebuiltStructured,
 } from "./wcGroupComposition.js";
@@ -54,6 +55,7 @@ export const WC_TURN_PASS_KIND = {
   LIVE_IN_PLAY: "live_in_play_bets",
   LIVE_BET_TIMING: "live_bet_timing",
   LIVE_MATCH_WINNER: "live_match_winner",
+  LINE_MOVEMENT: "line_movement",
   FIXTURE_MATCHUP: "fixture_matchup",
   FIXTURE_ALT_FOLLOWUP: "fixture_alt_follow_up",
   RUNNER_UP_FOLLOWUP: "runner_up_follow_up",
@@ -75,6 +77,8 @@ export function wcTurnLaneToPassKind(lane) {
       return WC_TURN_PASS_KIND.LIVE_BET_TIMING;
     case WC_TURN_LANE.LIVE_MATCH_WINNER:
       return WC_TURN_PASS_KIND.LIVE_MATCH_WINNER;
+    case WC_TURN_LANE.LINE_MOVEMENT:
+      return WC_TURN_PASS_KIND.LINE_MOVEMENT;
     case WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP:
       return WC_TURN_PASS_KIND.FIXTURE_ALT_FOLLOWUP;
     case WC_TURN_LANE.MATCHUP_ML_REPEAT:
@@ -140,6 +144,7 @@ export function shouldActivateWcFixturePrebuiltBlock(plannerEnabled, plan, legac
     driven === WC_TURN_LANE.LIVE_IN_PLAY ||
     driven === WC_TURN_LANE.LIVE_BET_TIMING ||
     driven === WC_TURN_LANE.LIVE_MATCH_WINNER ||
+    driven === WC_TURN_LANE.LINE_MOVEMENT ||
     driven === WC_TURN_LANE.MATCHUP_PREBUILT ||
     driven === WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP ||
     driven === WC_TURN_LANE.MATCHUP_ML_REPEAT
@@ -212,6 +217,8 @@ function pickEarlyPrebuiltForLane(plan, early = {}) {
       return early.liveBetTiming || early.wcLiveBetTimingPrebuiltEarly || null;
     case WC_TURN_LANE.LIVE_MATCH_WINNER:
       return early.liveMatchWinner || early.wcLiveMatchWinnerPrebuiltEarly || null;
+    case WC_TURN_LANE.LINE_MOVEMENT:
+      return early.lineMovement || early.wcLineMovementPrebuiltEarly || null;
     case WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP:
       return early.fixtureAltFollowUp || early.wcFixtureAltFollowUpPrebuiltEarly || null;
     case WC_TURN_LANE.MATCHUP_ML_REPEAT:
@@ -348,6 +355,12 @@ export async function buildWcStructuredForPlan(plan, ctx = {}) {
       break;
     case WC_TURN_LANE.LIVE_MATCH_WINNER:
       structured = buildWcLiveMatchWinnerPrebuiltStructured(fixtureCommon);
+      break;
+    case WC_TURN_LANE.LINE_MOVEMENT:
+      structured = buildWcLineMovementStructuredPrebuilt({
+        ...fixtureCommon,
+        eventId: plan.pinnedEventId,
+      });
       break;
     case WC_TURN_LANE.MATCHUP_ALT_FOLLOWUP:
     case WC_TURN_LANE.MATCHUP_ML_REPEAT:

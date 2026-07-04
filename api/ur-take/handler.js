@@ -182,6 +182,7 @@ import {
   shouldUseWcLiveInPlayBetsPrebuilt,
   shouldUseWcLiveMatchWinnerPrebuilt,
 } from "../../shared/wcFixtureMatchupPrebuilt.js";
+import { shouldForceWcLineMovementStructuredCard } from "../../shared/wcOddsLineMovement.js";
 import {
   isGoldenEvalMode,
   resolveGoldenEvalAnthropicResponse,
@@ -3036,6 +3037,13 @@ export default async function handler(req, res) {
           ? String(historyPinnedFixture.eventId).trim()
           : null;
     wcRelevanceLog.wcEventId = wcEventIdTrimmed;
+    let wcLitePlanMatches = [];
+    if (
+      wcTurnPlannerEnabled &&
+      shouldForceWcLineMovementStructuredCard(routingQuestion)
+    ) {
+      wcLitePlanMatches = await loadWcMatchInventoryForUrTake(Date.now()).catch(() => []);
+    }
     if (wcTurnPlannerEnabled) {
       wcTurnPlanLiteHint = resolveWcTurnPlan({
         question: routingQuestion,
@@ -3048,6 +3056,8 @@ export default async function handler(req, res) {
         mentionedTeams: wcRelevanceLog.mentionedTeams,
         routeHeader: String(req?.headers?.["x-wc-props-route-v2"] ?? "").trim(),
         fromWcTab: sportHint === "worldcup",
+        matches: wcLitePlanMatches,
+        hasKvFixture: Boolean(wcEventIdTrimmed || wcLitePlanMatches.length),
       });
       wcIntent = wcTurnPlanLiteHint.intent;
       wcRelevanceLog.wcIntent = wcIntent;
@@ -3493,6 +3503,11 @@ export default async function handler(req, res) {
       wcLiveInPlayBetsPrebuiltEarly = null;
       wcLiveMatchWinnerPrebuiltEarly = null;
     }
+    const wcLineMovementFastPath =
+      wcTurnPlannerEnabled &&
+      (shouldForceWcLineMovementStructuredCard(routingQuestion) ||
+        (wcTurnPlanLiteHint?.shouldUseFastPath &&
+          wcTurnPlanLiteHint.lane === WC_TURN_LANE.LINE_MOVEMENT));
     if (
       !wcTomorrowSlatePrebuiltEarly &&
       !wcCrossGroupPrebuiltEarly &&
@@ -3500,7 +3515,8 @@ export default async function handler(req, res) {
       !wcFixtureAltFollowUpPrebuiltEarly &&
       !wcLiveBetTimingPrebuiltEarly &&
       !wcLiveInPlayBetsPrebuiltEarly &&
-      !wcLiveMatchWinnerPrebuiltEarly
+      !wcLiveMatchWinnerPrebuiltEarly &&
+      !wcLineMovementFastPath
     ) {
       try {
         wcContext = await buildWorldCupUrTakeContext(String(question || ""), {
@@ -3522,7 +3538,38 @@ export default async function handler(req, res) {
         });
       } catch (err) {
         console.warn("[ur-take] buildWorldCupUrTakeContext failed:", err?.message || err);
-        if (isWcPlayerMarketIntent(wcIntent)) {
+        if (wcLineMovementFastPath) {
+          try {
+            const inventory = await loadWcMatchInventoryForUrTake(Date.now()).catch(() => []);
+            const pinnedMatch =
+              inventory.find((m) => String(m.id) === String(wcEventIdTrimmed)) ||
+              (wcTurnPlanLiteHint?.pinnedHome && wcTurnPlanLiteHint?.pinnedAway
+                ? inventory.find(
+                    (m) =>
+                      String(m.homeTeam || "").toUpperCase() ===
+                        String(wcTurnPlanLiteHint.pinnedHome).toUpperCase() &&
+                      String(m.awayTeam || "").toUpperCase() ===
+                        String(wcTurnPlanLiteHint.pinnedAway).toUpperCase(),
+                  )
+                : null);
+            wcContext = buildWcPrebuiltUrTakeStubContext("worldcup_line_movement_prebuilt", {
+              matches: inventory,
+              match: pinnedMatch,
+              wcEventId: wcEventIdTrimmed || pinnedMatch?.id,
+            });
+            console.log(
+              JSON.stringify({
+                event: "ur_take_wc_line_movement_context_timeout_stub",
+                pinnedEventId: wcTurnPlanLiteHint?.pinnedEventId || wcEventIdTrimmed,
+              }),
+            );
+          } catch (stubErr) {
+            console.warn(
+              "[ur-take] line_movement context-timeout stub failed:",
+              stubErr?.message || stubErr,
+            );
+          }
+        } else if (isWcPlayerMarketIntent(wcIntent)) {
           wcContext = await ensureWcPlayerPropsUrTakeContext(null, {
             requiredEntities: wcRequiredEntities,
             conversationHistory: normalizedUrTakeHistoryForGate,
@@ -3548,6 +3595,35 @@ export default async function handler(req, res) {
           wcEventId: wcEventIdTrimmed,
         });
       }
+    } else if (wcLineMovementFastPath) {
+      const inventory =
+        wcPrebuiltScope?.allMatches ||
+        (await loadWcMatchInventoryForUrTake(Date.now()).catch(() => []));
+      const pinnedMatch =
+        wcPrebuiltScope?.match ||
+        inventory.find((m) => String(m.id) === String(wcEventIdTrimmed)) ||
+        (wcTurnPlanLiteHint?.pinnedHome && wcTurnPlanLiteHint?.pinnedAway
+          ? inventory.find(
+              (m) =>
+                String(m.homeTeam || "").toUpperCase() ===
+                  String(wcTurnPlanLiteHint.pinnedHome).toUpperCase() &&
+                String(m.awayTeam || "").toUpperCase() ===
+                  String(wcTurnPlanLiteHint.pinnedAway).toUpperCase(),
+            )
+          : null);
+      wcContext = buildWcPrebuiltUrTakeStubContext("worldcup_line_movement_prebuilt", {
+        matches: inventory,
+        match: pinnedMatch,
+        wcEventId: wcEventIdTrimmed || pinnedMatch?.id,
+      });
+      console.log(
+        JSON.stringify({
+          event: "ur_take_wc_line_movement_prebuilt_stub",
+          pinnedEventId: wcTurnPlanLiteHint?.pinnedEventId || wcEventIdTrimmed,
+          home: pinnedMatch?.homeTeam || wcTurnPlanLiteHint?.pinnedHome,
+          away: pinnedMatch?.awayTeam || wcTurnPlanLiteHint?.pinnedAway,
+        }),
+      );
     } else if (wcTomorrowSlatePrebuiltEarly) {
       const inventory =
         wcPrebuiltScope?.allMatches ||
@@ -8074,6 +8150,9 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         playerMarketTier: tier,
         structuredSeed: structuredResponse,
         history: normalizedUrTakeHistoryForGate,
+        match: pinnedWcMatch,
+        allMatches: wcContext?.allMatches,
+        wcEventId: wcRelevanceLog.wcEventId || wcContext?.wcEventId || wcEventIdTrimmed,
       });
       if (structuredResponse && typeof structuredResponse === "object") {
         structuredResponse = normalizeWcStructuredForDelivery(

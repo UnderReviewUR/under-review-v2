@@ -60,7 +60,9 @@ export function parseWcLiveCheckpointMinuteBucket(question) {
 
   const minMatch =
     q.match(/\b(\d{1,2})\s*(?:'|′|mins?\b|minutes?\b)/i) ||
-    q.match(/\b(?:at|around|about|~)\s*(\d{1,2})\s*(?:mins?|minutes?)\b/i) ||
+    q.match(/\b(?:at|around|about|~|for)\s*(\d{1,2})\s*(?:'|′|mins?|minutes?)\b/i) ||
+    q.match(/\b(?:at|for)\s+0-0\s+at\s+(\d{1,2})\b/i) ||
+    q.match(/\b(?:at|@)\s+(\d{1,2})\s*(?:\?|$|[,.]\s|\b(?:and|or|then|before|after|if)\b)/i) ||
     q.match(/\b(?:first|opening)\s+(\d{1,2})\s*mins?\b/i);
   if (minMatch) {
     const n = Number.parseInt(minMatch[1], 10);

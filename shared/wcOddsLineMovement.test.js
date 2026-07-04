@@ -12,6 +12,7 @@ import {
   isWcOddsLineMovementQuestion,
   repairWcOddsLineMovementGenericPass,
   repairWcOddsLineMovementWrongDirection,
+  applyWcForceLineMovementStructuredGuard,
   repairWcTalkLineMovementProse,
   runWcLineMovementOutputQA,
   shouldForceWcLineMovementStructuredCard,
@@ -83,6 +84,29 @@ test("repairWcTalkLineMovementProse — rewrites wrong checkpoint", () => {
   const fixed = repairWcTalkLineMovementProse(bad, q);
   assert.match(fixed, /drift/i);
   assert.doesNotMatch(fixed, /shorten to -600/i);
+});
+
+test("applyWcForceLineMovementStructuredGuard — overwrites Sonnet call/whyNow", () => {
+  const q =
+    "France moneyline is -525 and Over 1.5 is -525. I might wait to see if it's 0-0 about 30 minutes in and then evaluate the lines";
+  const sonnetCard = {
+    fixtureHome: "PAR",
+    fixtureAway: "FRA",
+    lean:
+      "Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Over 1.5 drift OUT at that snapshot too (~-410).",
+    call: "France (Favorite) vs Norway (Contender) in Group I — France's ML at -525 is fair for a group opener.",
+    whyNow:
+      "France (Favorite) vs Norway (Contender) in Group I — France's ML at -525 is fair for a group opener; the 0-0 checkpoint at 30' is your real entry point.",
+  };
+  const out = applyWcForceLineMovementStructuredGuard(sonnetCard, q, {
+    home: "PAR",
+    away: "FRA",
+  });
+  assert.match(String(out.call), /CHECKPOINT|Smart wait/i);
+  assert.match(String(out.whyNow), /France/i);
+  assert.doesNotMatch(String(out.call), /Norway/i);
+  assert.doesNotMatch(String(out.whyNow), /Norway/i);
+  assert.match(String(out.lean), /drift/i);
 });
 
 test("repairWcOddsLineMovementGenericPass — replaces cold pass", () => {

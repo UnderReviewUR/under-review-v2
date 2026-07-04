@@ -10,6 +10,7 @@ import {
   extractMentionedWcTeamsInQuestionOrder,
 } from "./wcUrTakeKeywords.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
+import { resolveWcFixturePairFromQuestion } from "./wcFixtureMatchupPrebuilt.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { pickWcBookFavorite } from "./wcMatchMoneylineProbs.js";
 import {
@@ -397,6 +398,96 @@ export function synthesizeWcLiveEntryPlanningLean(question, opts = {}) {
 }
 
 /**
+ * Deterministic structured card for line-movement / live-entry planning (lean === call).
+ * @param {{
+ *   home?: string,
+ *   away?: string,
+ *   question?: string,
+ *   group?: string,
+ *   match?: Record<string, unknown>,
+ *   simLastUpdated?: number | null,
+ *   nowMs?: number,
+ *   eventId?: string | null,
+ * }} opts
+ */
+export function buildWcLineMovementStructuredPrebuilt(opts = {}) {
+  const home = String(opts.home || "").trim().toUpperCase();
+  const away = String(opts.away || "").trim().toUpperCase();
+  const question = String(opts.question || "").trim();
+  if (!home || !away || !question) return null;
+  if (!shouldForceWcLineMovementStructuredCard(question) && !isWcLiveEntryPlanningQuestion(question)) {
+    return null;
+  }
+
+  const synthOpts = {
+    home,
+    away,
+    match: opts.match,
+    matchOdds: opts.match?.odds && typeof opts.match.odds === "object" ? opts.match.odds : null,
+  };
+  const lean = isWcLiveEntryPlanningQuestion(question)
+    ? synthesizeWcLiveEntryPlanningLean(question, synthOpts)
+    : synthesizeWcOddsLineMovementLean(question, synthOpts);
+  if (!lean) return null;
+
+  const favorite = resolveWcFavoriteForCheckpoint(question, synthOpts);
+  const favAbbr = favorite.abbr || away;
+  const favOdds =
+    favorite.odds != null
+      ? String(favorite.odds)
+      : extractFavoriteMlTokenFromQuestion(question) || extractFirstAmericanOddsToken(question);
+  const bucket = parseWcLiveCheckpointMinuteBucket(question);
+  const minuteLabel = wcCheckpointMinuteLabel(bucket);
+  const marketKind = resolveWcLineMovementMarketKind(question);
+  const marketLabel = wcCheckpointMarketLabel(marketKind);
+  const favName = wcMatchupTeamDisplayName(favAbbr);
+  const mlDrift =
+    favOdds && parseAmericanOddsValue(favOdds) < 0
+      ? estimateCheckpointDriftAmerican(favOdds, bucket, WC_CHECKPOINT_MARKET.ML_90MIN)
+      : null;
+
+  let whyNow = `CHECKPOINT ${minuteLabel}: ${favName} ${marketLabel}`;
+  if (marketKind === WC_CHECKPOINT_MARKET.TOTAL_OVER) {
+    whyNow += ` drifts OUT at the checkpoint; draw/Under shorten. SCRIPT is a separate later tick.`;
+  } else if (marketKind === WC_CHECKPOINT_MARKET.TO_ADVANCE) {
+    whyNow += ` often shortens or holds at 0-0 — not the same as 90-min ML drift.`;
+  } else if (mlDrift) {
+    whyNow += ` drifts OUT toward ~${mlDrift}; Overs drift OUT; draw/Under shorten. SCRIPT (55-75' press) is separate.`;
+  } else {
+    whyNow += `: 90-min ML and Overs drift OUT; Unders/draw shorten at the checkpoint.`;
+  }
+
+  const call = lean.slice(0, 100);
+
+  return {
+    sport: "worldcup",
+    callType: "matchup",
+    groupLetter: String(opts.group || opts.match?.group || "").trim().toUpperCase() || undefined,
+    fixtureHome: home,
+    fixtureAway: away,
+    lean: lean.slice(0, 120),
+    call,
+    line: favOdds || "",
+    deep: lean,
+    breakdownAvailable: false,
+    whyNow,
+    edge: "Checkpoint mechanics — instant pricing at the minute named, not a pre-match pick or later script.",
+    modelAttribution: opts.simLastUpdated
+      ? `Sims as of ${new Date(opts.simLastUpdated).toISOString().slice(0, 10)}`
+      : undefined,
+    confidence: "Medium",
+    caveats: [],
+    timestamp: new Date().toISOString(),
+    wcEventId:
+      opts.eventId != null
+        ? String(opts.eventId)
+        : opts.match?.id != null
+          ? String(opts.match.id)
+          : null,
+  };
+}
+
+/**
  * @param {{
  *   home?: string,
  *   away?: string,
@@ -408,45 +499,7 @@ export function synthesizeWcLiveEntryPlanningLean(question, opts = {}) {
  * }} opts
  */
 export function buildWcLiveEntryPlanningPrebuiltStructured(opts = {}) {
-  const home = String(opts.home || "").trim().toUpperCase();
-  const away = String(opts.away || "").trim().toUpperCase();
-  const question = String(opts.question || "").trim();
-  if (!home || !away || !question) return null;
-  if (!isWcLiveEntryPlanningQuestion(question)) return null;
-
-  const favorite = resolveWcFavoriteForCheckpoint(question, opts);
-  const favAbbr = favorite.abbr || home;
-  const lean = synthesizeWcLiveEntryPlanningLean(question, opts);
-  const favOdds = favorite.odds ? String(favorite.odds) : extractFavoriteMlTokenFromQuestion(question);
-  const bucket = parseWcLiveCheckpointMinuteBucket(question);
-  const minuteLabel = wcCheckpointMinuteLabel(bucket);
-  const mlDrift =
-    favOdds && parseAmericanOddsValue(favOdds) < 0
-      ? estimateCheckpointDriftAmerican(favOdds, bucket, WC_CHECKPOINT_MARKET.ML_90MIN)
-      : null;
-
-  return {
-    sport: "worldcup",
-    callType: "matchup",
-    groupLetter: String(opts.group || opts.match?.group || "").trim().toUpperCase() || undefined,
-    fixtureHome: home,
-    fixtureAway: away,
-    lean: lean.slice(0, 120),
-    call: lean.slice(0, 100),
-    line: favOdds || "",
-    deep: "",
-    breakdownAvailable: false,
-    whyNow: mlDrift
-      ? `CHECKPOINT ${minuteLabel}: ${wcMatchupTeamDisplayName(favAbbr)} 90-min ML drifts OUT toward ~${mlDrift}; Overs drift OUT; draw/Under shorten. SCRIPT (55-75' press) is separate — do not merge into this snapshot.`
-      : `CHECKPOINT ${minuteLabel}: 90-min ML and Overs drift OUT; Unders/draw shorten. Plan live entry at the minute they name, not pre-kickoff.`,
-    edge: "Live-entry timing — checkpoint mechanics vs later script, not a new pre-match pick.",
-    modelAttribution: opts.simLastUpdated
-      ? `Sims as of ${new Date(opts.simLastUpdated).toISOString().slice(0, 10)}`
-      : undefined,
-    confidence: "Medium",
-    caveats: [],
-    timestamp: new Date().toISOString(),
-  };
+  return buildWcLineMovementStructuredPrebuilt(opts);
 }
 
 /**
@@ -641,12 +694,103 @@ export function repairWcOddsLineMovementWrongDirection(structured, question) {
 }
 
 /**
+ * When forceLineMovementStructured applies, never let Sonnet prose own call/whyNow.
+ * @param {Record<string, unknown> | null | undefined} structured
+ * @param {string} question
+ * @param {{
+ *   home?: string,
+ *   away?: string,
+ *   match?: Record<string, unknown> | null,
+ *   group?: string,
+ *   eventId?: string | null,
+ *   matches?: Array<Record<string, unknown>>,
+ *   simLastUpdated?: number | null,
+ *   nowMs?: number,
+ * }} [opts]
+ */
+export function applyWcForceLineMovementStructuredGuard(structured, question, opts = {}) {
+  if (!structured || typeof structured !== "object") return structured;
+  const q = String(question || "").trim();
+  if (!shouldForceWcLineMovementStructuredCard(q) && !isWcLiveEntryPlanningQuestion(q)) {
+    return structured;
+  }
+
+  const home = String(
+    opts.home || structured.fixtureHome || opts.match?.homeTeam || "",
+  )
+    .trim()
+    .toUpperCase();
+  let away = String(
+    opts.away || structured.fixtureAway || opts.match?.awayTeam || "",
+  )
+    .trim()
+    .toUpperCase();
+  let resolvedHome = home;
+  let resolvedAway = away;
+  if (!resolvedHome || !resolvedAway) {
+    const eventId = opts.eventId ?? structured.wcEventId ?? null;
+    if (eventId && Array.isArray(opts.matches) && opts.matches.length) {
+      const hit = opts.matches.find((row) => String(row?.id) === String(eventId));
+      if (hit?.homeTeam && hit?.awayTeam) {
+        resolvedHome = String(hit.homeTeam).toUpperCase();
+        resolvedAway = String(hit.awayTeam).toUpperCase();
+      }
+    }
+    if (!resolvedHome || !resolvedAway) {
+      const pair = resolveWcFixturePairFromQuestion(q, {
+        mentionedTeams: extractMentionedWcTeams(q),
+        wcEventId: eventId,
+      });
+      if (pair?.home && pair?.away) {
+        resolvedHome = pair.home;
+        resolvedAway = pair.away;
+      }
+    }
+  }
+  if (!resolvedHome || !resolvedAway) return structured;
+
+  const prebuilt = buildWcLineMovementStructuredPrebuilt({
+    home: resolvedHome,
+    away: resolvedAway,
+    question: q,
+    match: opts.match,
+    group: opts.group || structured.groupLetter,
+    eventId: opts.eventId ?? structured.wcEventId,
+    simLastUpdated: opts.simLastUpdated,
+    nowMs: opts.nowMs,
+  });
+  if (!prebuilt) return structured;
+
+  return {
+    ...structured,
+    callType: "matchup",
+    fixtureHome: resolvedHome,
+    fixtureAway: resolvedAway,
+    lean: prebuilt.lean,
+    call: prebuilt.call,
+    line: prebuilt.line || structured.line,
+    whyNow: prebuilt.whyNow,
+    edge: prebuilt.edge,
+    deep: prebuilt.deep || prebuilt.lean,
+    breakdownAvailable: false,
+    wcEventId: prebuilt.wcEventId ?? structured.wcEventId,
+    groupLetter: prebuilt.groupLetter ?? structured.groupLetter,
+  };
+}
+
+/**
  * @param {Record<string, unknown> | null | undefined} structured
  * @param {string} question
  */
 export function repairWcOddsLineMovementGenericPass(structured, question) {
   if (!structured || typeof structured !== "object") return structured;
-  if (!isWcOddsLineMovementQuestion(question)) return structured;
+  if (!isWcOddsLineMovementQuestion(question) && !isWcLiveEntryPlanningQuestion(question)) {
+    return structured;
+  }
+
+  if (shouldForceWcLineMovementStructuredCard(question) || isWcLiveEntryPlanningQuestion(question)) {
+    return applyWcForceLineMovementStructuredGuard(structured, question);
+  }
 
   const lean = String(structured.lean || "").trim();
   if (lean && !isLineMovementPassLean(lean)) {

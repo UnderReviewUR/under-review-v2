@@ -18,6 +18,7 @@ import {
   isWcOddsLineMovementQuestion,
   shouldForceWcLineMovementStructuredCard,
 } from "./wcOddsLineMovement.js";
+import { isWcLiveBetsQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
 import {
   isWcBttsQuestion,
   isWcMatchupAltMarketFollowUp,
@@ -34,6 +35,7 @@ import {
 export function isWcSimpleMatchupTalkOpener(question) {
   const q = String(question || "").trim();
   if (!q || !/\b(vs\.?|versus)\b/i.test(q)) return false;
+  if (WC_LIVE_ANGLE_ASK_RE.test(q) || isWcLiveBetsQuestion(q)) return false;
   if (detectParlayIntent(q)) return false;
   if (
     /\b(mispric|parlay|prop|goalscorer|both teams to advance|over or under|best bet|moneyline|totals?\s+on|group context)\b/i.test(
@@ -153,16 +155,20 @@ export function resolveUrTakeDeliveryMode(opts = {}) {
 
   if (!question || hasImage) return "take";
 
+  if (sport === "worldcup" && shouldForceWcLineMovementStructuredCard(question)) {
+    return "take";
+  }
+
+  if (isUrTakeNewBettingAsk({ question, wcIntent, isConversationFollowUp: isFollowUp })) {
+    return "take";
+  }
+
   if (
     sport === "worldcup" &&
     !isFollowUp &&
     isWcSimpleMatchupTalkOpener(question)
   ) {
     return "talk";
-  }
-
-  if (isUrTakeNewBettingAsk({ question, wcIntent, isConversationFollowUp: isFollowUp })) {
-    return "take";
   }
 
   if (sport === "worldcup" && isWcPlayerPropBettingQuestion(question, wcIntent)) {

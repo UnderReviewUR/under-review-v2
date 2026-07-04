@@ -38,8 +38,12 @@ import {
 import { wcSentenceSimilarity } from "./wcTakeRetentionQA.js";
 import { buildWcThreadAwarePassFallback, applyWcThreadPriorLeanPassRewrite } from "./wcTurnDelivery.js";
 import {
+  applyWcForceLineMovementStructuredGuard,
+  buildWcLineMovementStructuredPrebuilt,
+  isWcLiveEntryPlanningQuestion,
   isWcOddsLineMovementQuestion,
   repairWcOddsLineMovementGenericPass,
+  shouldForceWcLineMovementStructuredCard,
   synthesizeWcOddsLineMovementLean,
 } from "./wcOddsLineMovement.js";
 import { repairWcKnockoutMatchupStructured } from "./wcKnockoutFixture.js";
@@ -301,6 +305,48 @@ function buildWcMatchupCompactStructured(opts = {}) {
     opts.structuredSeed && typeof opts.structuredSeed === "object"
       ? opts.structuredSeed
       : null;
+
+  if (
+    shouldForceWcLineMovementStructuredCard(question) ||
+    isWcLiveEntryPlanningQuestion(question)
+  ) {
+    const teams = parseWcMatchupTeamsFromQuestion(question);
+    const home = String(seed?.fixtureHome || teams.home || "").trim().toUpperCase();
+    const away = String(seed?.fixtureAway || teams.away || "").trim().toUpperCase();
+    if (home && away) {
+      const prebuilt = buildWcLineMovementStructuredPrebuilt({
+        home,
+        away,
+        question,
+        match: opts.match,
+        group: seed?.groupLetter,
+        eventId: seed?.wcEventId,
+      });
+      if (prebuilt) {
+        const seedDeep = String(prebuilt.deep || prebuilt.lean || "").trim();
+        return {
+          sport: "worldcup",
+          callType: "matchup",
+          groupLetter: prebuilt.groupLetter,
+          fixtureHome: home,
+          fixtureAway: away,
+          wcEventId: prebuilt.wcEventId,
+          lean: String(prebuilt.lean).trim(),
+          call: String(prebuilt.call).trim(),
+          line: String(prebuilt.line || "").trim(),
+          whyNow: String(prebuilt.whyNow || "").trim(),
+          edge: String(prebuilt.edge || "").trim(),
+          deep: capWcDeepWords(seedDeep, 220),
+          breakdownAvailable: Boolean(seedDeep && seedDeep.length > 40),
+          confidence: String(prebuilt.confidence || seed?.confidence || "Medium"),
+          caveats: Array.isArray(prebuilt.caveats) ? prebuilt.caveats : [],
+          timestamp: prebuilt.timestamp || seed?.timestamp || new Date().toISOString(),
+          modelAttribution: prebuilt.modelAttribution || seed?.modelAttribution || null,
+        };
+      }
+    }
+  }
+
   const blob = wcMatchupSynthesisBlob(summary, String(opts.deep || "").trim(), seed);
   const deep = capWcDeepWords(blob, 220);
   const summarySents = splitWcSentences(summary);
@@ -899,6 +945,11 @@ function finalizeWcCompactExplainDelivery(built, opts = {}) {
     out = applyWcFollowUpExplainDelivery(out, String(opts.question || ""), opts.history);
   }
   out = applyWcThreadPriorLeanPassRewrite(out, opts);
+  out = applyWcForceLineMovementStructuredGuard(out, String(opts.question || ""), {
+    match: opts.match,
+    matches: opts.allMatches,
+    eventId: opts.wcEventId,
+  });
   out = repairWcOddsLineMovementGenericPass(out, String(opts.question || ""));
   const pinnedMatch =
     opts.match ||
