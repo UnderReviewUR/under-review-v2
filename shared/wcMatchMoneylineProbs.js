@@ -10,8 +10,13 @@ import {
 import {
   applyHostAdvantage,
   eloWinProbability,
+  inferWcVenueNation,
 } from "../src/data/wc2026WinProbability.js";
 import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import {
+  alignWcMatchOddsToSlateTeams,
+  validateWcMoneylinePublicationGuard,
+} from "./wcMatchOddsAlignment.js";
 
 /** @typedef {"bdl_market" | "elo_model"} WcMatchWinProbSource */
 
@@ -112,13 +117,14 @@ export function devigWcMatchMoneylineProbs(matchOdds) {
  * @param {string} homeAbbr
  * @param {string} awayAbbr
  * @param {Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>} teamsData
+ * @param {string | null | undefined} [venueNation]
  */
-export function eloMatchWinProbabilityBar(homeAbbr, awayAbbr, teamsData) {
+export function eloMatchWinProbabilityBar(homeAbbr, awayAbbr, teamsData, venueNation = null) {
   const a = (teamsData || []).find((t) => t.abbreviation === homeAbbr);
   const b = (teamsData || []).find((t) => t.abbreviation === awayAbbr);
   if (!a || !b) return null;
-  const eloA = applyHostAdvantage(a.eloRating, a.isHost);
-  const eloB = applyHostAdvantage(b.eloRating, b.isHost);
+  const eloA = applyHostAdvantage(a.eloRating, a.isHost, venueNation);
+  const eloB = applyHostAdvantage(b.eloRating, b.isHost, venueNation);
   const probs = eloWinProbability(eloA, eloB);
   return {
     teamA: { abbr: homeAbbr, winPct: probs.win },
@@ -137,6 +143,8 @@ export function eloMatchWinProbabilityBar(homeAbbr, awayAbbr, teamsData) {
  *   teams?: Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>,
  *   matchOdds?: Record<string, unknown> | null,
  *   oddsStale?: boolean,
+ *   venueNation?: string | null,
+ *   match?: { city?: string, stadium?: string } | null,
  * }} input
  */
 export function resolveMatchWinProbabilityBar(input) {
@@ -145,9 +153,18 @@ export function resolveMatchWinProbabilityBar(input) {
   const teams = input?.teams || [];
   if (!homeAbbr || !awayAbbr || !teams.length) return null;
 
+  const venueNation =
+    input?.venueNation ??
+    inferWcVenueNation(input?.match?.city, input?.match?.stadium);
+
   if (!input?.oddsStale && input?.matchOdds) {
-    const reconciled = reconcileWcMatchOddsHomeAway(input.matchOdds, homeAbbr, awayAbbr, teams);
-    const market = devigWcMatchMoneylineProbs(reconciled);
+    const aligned = alignWcMatchOddsToSlateTeams(input.matchOdds, homeAbbr, awayAbbr, {
+      oddsAnchorHome: input?.match?.bdlOddsAnchorHome,
+      oddsAnchorAway: input?.match?.bdlOddsAnchorAway,
+      teams,
+      venueNation,
+    });
+    const market = devigWcMatchMoneylineProbs(aligned);
     if (market) {
       return {
         teamA: { abbr: homeAbbr, winPct: market.homePct },
@@ -160,75 +177,53 @@ export function resolveMatchWinProbabilityBar(input) {
     }
   }
 
-  return eloMatchWinProbabilityBar(homeAbbr, awayAbbr, teams);
+  return eloMatchWinProbabilityBar(homeAbbr, awayAbbr, teams, venueNation);
 }
 
 /**
- * When book ML sides disagree sharply with Elo (home/away attach inversion), swap home/away prices.
- * @param {Record<string, unknown> | null | undefined} matchOdds
- * @param {string} homeAbbr
- * @param {string} awayAbbr
- * @param {Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>} [teams]
+ * @deprecated Prefer alignWcMatchOddsToSlateTeams — kept for callers still on this name.
  */
 export function reconcileWcMatchOddsHomeAway(
   matchOdds,
   homeAbbr,
   awayAbbr,
   teams = WC_2026_TEAMS,
+  opts = {},
 ) {
-  if (!matchOdds || typeof matchOdds !== "object") return matchOdds;
-  const home = String(homeAbbr || "").trim().toUpperCase();
-  const away = String(awayAbbr || "").trim().toUpperCase();
-  if (!home || !away) return matchOdds;
-
-  const homeMl = readWcMatchMoneylineAmerican(matchOdds.home);
-  const awayMl = readWcMatchMoneylineAmerican(matchOdds.away);
-  if (!homeMl || !awayMl) return matchOdds;
-
-  const bar = eloMatchWinProbabilityBar(home, away, teams);
-  if (!bar) return matchOdds;
-
-  const homeN = parseAmericanOddsNumber(homeMl);
-  const awayN = parseAmericanOddsNumber(awayMl);
-  if (homeN == null || awayN == null) return matchOdds;
-
-  const homeImp = impliedProbFromAmerican(homeN) ?? 0;
-  const awayImp = impliedProbFromAmerican(awayN) ?? 0;
-  const bookFavIsHome = homeImp >= awayImp;
-  const bookFavElo = bookFavIsHome ? bar.teamA.winPct : bar.teamB.winPct;
-  const bookDogElo = bookFavIsHome ? bar.teamB.winPct : bar.teamA.winPct;
-
-  if (bookFavElo >= 35 || bookDogElo < 45) return matchOdds;
-
-  const toAdvanceHome = readWcMatchMoneylineAmerican(matchOdds.toAdvanceHome);
-  const toAdvanceAway = readWcMatchMoneylineAmerican(matchOdds.toAdvanceAway);
-  const drawNoBet =
-    matchOdds.drawNoBet && typeof matchOdds.drawNoBet === "object" ? matchOdds.drawNoBet : null;
-
-  return {
-    ...matchOdds,
-    home: { moneyline: awayMl },
-    away: { moneyline: homeMl },
-    toAdvanceHome: toAdvanceAway ? { moneyline: toAdvanceAway } : matchOdds.toAdvanceHome,
-    toAdvanceAway: toAdvanceHome ? { moneyline: toAdvanceHome } : matchOdds.toAdvanceAway,
-    spreadHome: matchOdds.spreadAway ?? matchOdds.spreadHome,
-    spreadAway: matchOdds.spreadHome ?? matchOdds.spreadAway,
-    drawNoBet: drawNoBet
-      ? { home: drawNoBet.away ?? drawNoBet.home, away: drawNoBet.home ?? drawNoBet.away }
-      : matchOdds.drawNoBet,
-    oddsHomeAwayReconciled: true,
-  };
+  return alignWcMatchOddsToSlateTeams(matchOdds, homeAbbr, awayAbbr, {
+    ...opts,
+    teams,
+    oddsAnchorHome: opts.oddsAnchorHome || opts.bdlOddsAnchorHome,
+    oddsAnchorAway: opts.oddsAnchorAway || opts.bdlOddsAnchorAway,
+  });
 }
 
+export { alignWcMatchOddsToSlateTeams, validateWcMoneylinePublicationGuard } from "./wcMatchOddsAlignment.js";
+
 /**
- * Book favorite after Elo reconciliation — use for prebuilt ML headlines and checkpoint copy.
+ * Book favorite after BDL team alignment — use for prebuilt ML headlines and checkpoint copy.
  * @param {string} homeAbbr
  * @param {string} awayAbbr
  * @param {Record<string, unknown> | null | undefined} matchOdds
  * @param {Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>} [teams]
+ * @param {{
+ *   oddsAnchorHome?: string,
+ *   oddsAnchorAway?: string,
+ *   bdlOddsAnchorHome?: string,
+ *   bdlOddsAnchorAway?: string,
+ *   venueNation?: string | null,
+ *   match?: { city?: string, stadium?: string } | null,
+ * }} [opts]
  */
-export function pickWcBookFavorite(homeAbbr, awayAbbr, matchOdds, teams = WC_2026_TEAMS) {
-  const odds = reconcileWcMatchOddsHomeAway(matchOdds, homeAbbr, awayAbbr, teams);
+export function pickWcBookFavorite(homeAbbr, awayAbbr, matchOdds, teams = WC_2026_TEAMS, opts = {}) {
+  const venueNation =
+    opts.venueNation ?? inferWcVenueNation(opts.match?.city, opts.match?.stadium);
+  const odds = alignWcMatchOddsToSlateTeams(matchOdds, homeAbbr, awayAbbr, {
+    teams,
+    venueNation,
+    oddsAnchorHome: opts.oddsAnchorHome || opts.bdlOddsAnchorHome || opts.match?.bdlOddsAnchorHome,
+    oddsAnchorAway: opts.oddsAnchorAway || opts.bdlOddsAnchorAway || opts.match?.bdlOddsAnchorAway,
+  });
   const home = String(homeAbbr || "").trim().toUpperCase();
   const away = String(awayAbbr || "").trim().toUpperCase();
   const homeMl = readWcMatchMoneylineAmerican(odds?.home);

@@ -15,7 +15,7 @@ test("reconcileWcMatchOddsHomeAway — swaps inverted PAR home / FRA away ML", (
   const out = reconcileWcMatchOddsHomeAway(INVERTED_PAR_FRA, "PAR", "FRA");
   assert.equal(out?.home?.moneyline, "+1800");
   assert.equal(out?.away?.moneyline, "-550");
-  assert.equal(out?.oddsHomeAwayReconciled, true);
+  assert.equal(out?.oddsAlignedToSlate, "elo_inversion_swap");
 });
 
 test("pickWcBookFavorite — FRA -550 after PAR-home attach inversion", () => {

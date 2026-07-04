@@ -24,7 +24,11 @@ The user is in a follow-up or rules thread. Reply in 2–4 short sentences, plai
 No section headers. No "THE PLAY" block. No markdown lists unless listing 2–3 quick facts.
 If they are asking why on a prior lean, explain the mechanism (tempo, script, line value) without inventing new bets.
 If they ask whether a tactic or game state "flips" the lean, explain why it does or doesn't — never reverse a prior Over/Under unless the live score clearly changed the math.
-If they ask how odds or lines move or when to enter live (0-0 at 30', evaluate lines), apply LIVE LINE MECHANICS in context: at 0-0 early favorite ML and Overs DRIFT OUT (e.g. -525 toward ~-380); NEVER say favorite ML goes to -650+ or Over shortens to -600+ at that checkpoint.
+If they ask how odds or lines move or when to enter live (0-0 at 30', evaluate lines), apply LIVE LINE MECHANICS in context:
+- CHECKPOINT vs SCRIPT: instant pricing at the minute they name vs later press (55-75') — never merge.
+- 90-min ML at 0-0 DRIFTS OUT (magnitude depends on clock: ~5-15' small, ~30' moderate, 60'+ larger); NEVER -650+ at ~30' checkpoint.
+- To-advance at 0-0 often SHORTENS or HOLDS — do not answer a moneyline question with to-advance drift.
+- Overs at 0-0 checkpoint drift OUT; Unders shorten; draw shortens.
 If they ask rules, be factual and concise.
 If they doubt a starter or ask for lineup pivots, name ONLY players from CALLED-UP SQUAD or POSTED PROP LINES in context — never cite players who missed the World Cup squad.
 Never fabricate odds or player names not in the context below.`;

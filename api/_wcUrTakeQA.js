@@ -22,6 +22,7 @@ import { extractLatestUserTurnForRouting } from "../shared/urTakeSportRouting.js
 import { isTournamentWinnerQuestion } from "../shared/wcPhaseUtils.js";
 import { textMentionsCrossSportGolfer } from "../shared/wcGoldenBootRowGuard.js";
 import { detectWcHomeFavoriteMislabel } from "../shared/wcHostNationLanguage.js";
+import { runWcLineMovementOutputQA } from "../shared/wcOddsLineMovement.js";
 import {
   scoreWcCardContractVoice,
   WC_CARD_VOICE_QA_SUFFIX,
@@ -215,6 +216,11 @@ export function runWcUrTakeQA(opts = {}) {
     detectWcHomeFavoriteMislabel(`${headline} ${body}`, { homeTeam: fixtureHome || null })
   ) {
     issueCodes.push("wc_home_favorite_mislabel");
+  }
+
+  const lineMovementQa = runWcLineMovementOutputQA(`${headline}\n${body}`, routingQuestion);
+  if (!lineMovementQa.passed) {
+    issueCodes.push(...lineMovementQa.issueCodes);
   }
 
   if (requiredEntities.length > 0) {
@@ -605,6 +611,9 @@ export function wcQaRequiresRegeneration(qaResult) {
       "wc_matchup_missing_winner_line",
       "wc_matchup_alt_followup_ml_headline",
       "wc_home_favorite_mislabel",
+      "wc_line_movement_wrong_direction",
+      "wc_line_movement_market_conflation",
+      "wc_line_movement_checkpoint_script_merged",
       "wc_knockout_both_advance_bleed",
       "wc_knockout_group_framing_bleed",
       "wc_knockout_format_boilerplate_lead",

@@ -16,6 +16,7 @@ import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
   isWcLiveEntryPlanningQuestion,
   isWcOddsLineMovementQuestion,
+  shouldForceWcLineMovementStructuredCard,
 } from "./wcOddsLineMovement.js";
 import {
   isWcBttsQuestion,
@@ -57,7 +58,7 @@ export function isWcSimpleMatchupTalkOpener(question) {
 export function isWcPriceSensitiveTalkBypass(question) {
   const q = String(question || "").trim();
   if (!q) return false;
-  if (isWcOddsLineMovementQuestion(q)) return true;
+  if (shouldForceWcLineMovementStructuredCard(q)) return true;
   if (isWcLiveEntryPlanningQuestion(q)) return true;
   if (isWcVagueMatchGoalsOverUnderAsk(q)) return true;
   if (isWcBttsQuestion(q)) return true;

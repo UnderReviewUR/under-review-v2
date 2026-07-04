@@ -9,7 +9,7 @@
 import { normalizeEspnAbbr } from "./_wcEspn.js";
 import { groupLetterForAbbr } from "./_wcEspn.js";
 import { createEmptyMatchPlayerPropMarkets } from "../shared/wcMatchPlayerProps.js";
-import { reconcileWcMatchOddsHomeAway } from "../shared/wcMatchMoneylineProbs.js";
+import { alignWcMatchOddsToSlateTeams, resolveBdlMatchIdForOddsAttach } from "../shared/wcMatchOddsAlignment.js";
 import { buildBdlGoatMatchIntel } from "../shared/wcBdlMatchIntel.js";
 import {
   formatWcMatchFieldText,
@@ -475,13 +475,36 @@ function formatAm(n) {
  * @param {number} [nowMs]
  */
 export function attachBdlMoneylinesToMatches(matches, oddsRows, nowMs = Date.now()) {
+  /** @type {Map<number, { home: string, away: string }>} */
+  const bdlAnchorByMatchId = new Map();
+  for (const m of matches || []) {
+    const bdlMatchId = resolveBdlMatchIdForOddsAttach(m);
+    if (bdlMatchId == null) continue;
+    bdlAnchorByMatchId.set(bdlMatchId, {
+      home: String(m.homeTeam || "").trim().toUpperCase(),
+      away: String(m.awayTeam || "").trim().toUpperCase(),
+    });
+  }
+
   return (matches || []).map((m) => {
-    const bdlMatchId = m?.bdlMatchId ?? m?.id;
+    const bdlMatchId = resolveBdlMatchIdForOddsAttach(m);
     if (bdlMatchId == null) return m;
-    const odds = pickBdlMatchOddsForMatch(oddsRows, bdlMatchId);
-    if (!odds) return m;
-    const reconciled = reconcileWcMatchOddsHomeAway(odds, m.homeTeam, m.awayTeam);
-    return { ...m, odds: reconciled, oddsUpdatedAt: nowMs };
+    const anchor = bdlAnchorByMatchId.get(bdlMatchId);
+    const anchorHome = anchor?.home || String(m.homeTeam || "").trim().toUpperCase();
+    const anchorAway = anchor?.away || String(m.awayTeam || "").trim().toUpperCase();
+    const rawOdds = pickBdlMatchOddsForMatch(oddsRows, bdlMatchId);
+    if (!rawOdds) return m;
+    const aligned = alignWcMatchOddsToSlateTeams(rawOdds, m.homeTeam, m.awayTeam, {
+      oddsAnchorHome: anchorHome,
+      oddsAnchorAway: anchorAway,
+    });
+    return {
+      ...m,
+      odds: aligned,
+      bdlOddsAnchorHome: anchorHome,
+      bdlOddsAnchorAway: anchorAway,
+      oddsUpdatedAt: nowMs,
+    };
   });
 }
 

@@ -15,9 +15,11 @@ import {
   devigWcMatchMoneylineProbs,
   pickWcBookFavorite,
   readWcMatchMoneylineAmerican,
-  reconcileWcMatchOddsHomeAway,
+  alignWcMatchOddsToSlateTeams,
+  validateWcMoneylinePublicationGuard,
   resolveMatchWinProbabilityBar,
 } from "./wcMatchMoneylineProbs.js";
+import { inferWcVenueNation } from "../src/data/wc2026WinProbability.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { WC_INTENT, isWcMatchTotalsQuestion } from "./wcUrTakeIntent.js";
 import {
@@ -1706,7 +1708,12 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const seedOdds = getWcFixtureMlSeed(home, away);
   const rawMatchOdds =
     opts.match?.odds && typeof opts.match.odds === "object" ? opts.match.odds : seedOdds;
-  const matchOdds = reconcileWcMatchOddsHomeAway(rawMatchOdds, home, away, WC_2026_TEAMS);
+  const venueNation = inferWcVenueNation(opts.match?.city, opts.match?.stadium);
+  const matchOdds = alignWcMatchOddsToSlateTeams(rawMatchOdds, home, away, {
+    oddsAnchorHome: opts.match?.bdlOddsAnchorHome,
+    oddsAnchorAway: opts.match?.bdlOddsAnchorAway,
+    venueNation,
+  });
   const oddsStale = Boolean(opts.match?.oddsStale);
 
   const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
@@ -1715,7 +1722,15 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
 
   if (!homeMl || !awayMl) return null;
 
-  const fav = pickWcBookFavorite(home, away, matchOdds, WC_2026_TEAMS);
+  const mlSanity = validateWcMoneylinePublicationGuard(home, away, matchOdds, WC_2026_TEAMS, venueNation);
+  if (!mlSanity.ok) return null;
+
+  const fav = pickWcBookFavorite(home, away, matchOdds, WC_2026_TEAMS, {
+    oddsAnchorHome: opts.match?.bdlOddsAnchorHome,
+    oddsAnchorAway: opts.match?.bdlOddsAnchorAway,
+    venueNation,
+    match: opts.match,
+  });
   const favName = wcMatchupTeamDisplayName(fav.abbr);
   const advancementQ = isKnockout && isKnockoutAdvancementQuestion(routingQ);
   const toAdvanceHomeMl = readWcMatchMoneylineAmerican(matchOdds?.toAdvanceHome);
@@ -1782,6 +1797,8 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
     teams: WC_2026_TEAMS,
     matchOdds,
     oddsStale,
+    venueNation,
+    match: opts.match,
   });
 
   const bothAdvanceAssessment = isKnockout

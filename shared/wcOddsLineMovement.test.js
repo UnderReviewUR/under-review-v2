@@ -2,16 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildWcLiveEntryPlanningPrebuiltStructured,
+  detectWcLineMovementCheckpointScriptCollapse,
+  detectWcLineMovementMarketConflation,
+  hasExplicitCheckpointScriptSeparation,
   estimateFavoriteDriftOutAmerican,
+  isWcLineMovementTalkEligible,
   isWcLiveEntryPlanningQuestion,
   isWcLineMovementWrongDirectionProse,
   isWcOddsLineMovementQuestion,
   repairWcOddsLineMovementGenericPass,
   repairWcOddsLineMovementWrongDirection,
   repairWcTalkLineMovementProse,
+  runWcLineMovementOutputQA,
+  shouldForceWcLineMovementStructuredCard,
   synthesizeWcOddsLineMovementLean,
   synthesizeWcLiveEntryPlanningLean,
+  resolveWcLineMovementMarketKind,
 } from "./wcOddsLineMovement.js";
+import { WC_CHECKPOINT_MARKET } from "./wcLiveCheckpointLookup.js";
 
 test("isWcOddsLineMovementQuestion — Germany scoreless at 5 min", () => {
   const q = "Will Germany odds go up or down if it's 5 mins in and scoreless?";
@@ -121,4 +129,75 @@ test("buildWcLiveEntryPlanningPrebuiltStructured — FRA fixture", () => {
   assert.match(String(card.lean), /drift/i);
   assert.match(String(card.whyNow), /France/i);
   assert.doesNotMatch(String(card.whyNow), /Paraguay ML/i);
+});
+
+test("shouldForceWcLineMovementStructuredCard — cited price + 0-0 forces Take", () => {
+  const q = "France -525 moneyline — if 0-0 at 30 does that drift out?";
+  assert.equal(shouldForceWcLineMovementStructuredCard(q), true);
+});
+
+test("isWcLineMovementTalkEligible — casual movement without cited hypo stays Talk", () => {
+  const q = "Will Germany odds go up or down if it's 5 mins in and scoreless?";
+  assert.equal(isWcOddsLineMovementQuestion(q), true);
+  assert.equal(shouldForceWcLineMovementStructuredCard(q), false);
+  assert.equal(isWcLineMovementTalkEligible(q), true);
+});
+
+test("synthesizeWcOddsLineMovementLean — to-advance at 0-0 is not ML drift", () => {
+  const lean = synthesizeWcOddsLineMovementLean(
+    "If it's 0-0 at 30, does France -650 to advance shorten or drift?",
+  );
+  assert.match(lean, /shorten|hold/i);
+  assert.doesNotMatch(lean, /drift out.*90-min/i);
+});
+
+test("detectWcLineMovementCheckpointScriptCollapse — desperate at 30 merged", () => {
+  const bad =
+    "At 0-0 after 30, Over 1.5 will shorten to -600+ because France gets desperate for goals.";
+  assert.equal(detectWcLineMovementCheckpointScriptCollapse(bad, "0-0 at 30"), true);
+});
+
+test("detectWcLineMovementCheckpointScriptCollapse — skips explicit separation disclaimer", () => {
+  const fixed =
+    "CHECKPOINT at 0-0 ~30': France ML drifts OUT; Over 1.5 drifts OUT. Draw/Under shorten. SCRIPT (55-75' if they press) is a later tick — not the instant checkpoint.";
+  assert.equal(hasExplicitCheckpointScriptSeparation(fixed), true);
+  assert.equal(detectWcLineMovementCheckpointScriptCollapse(fixed, "0-0 at 30"), false);
+});
+
+test("detectWcLineMovementMarketConflation — drifts out on to-advance question", () => {
+  const bad =
+    "France to advance drifts out to -450 at 0-0 ~30 just like the 90-minute moneyline.";
+  assert.equal(
+    detectWcLineMovementMarketConflation(
+      bad,
+      "If it's 0-0 at 30, does France -650 to advance shorten or drift?",
+    ),
+    true,
+  );
+});
+
+test("repairWcTalkLineMovementProse — FRA thread repair passes QA", () => {
+  const bad =
+    "At 0-0 after 30, FRA moneyline will compress tighter (probably -650+) because Paraguay's still in it. Over 1.5 will likely shorten to -600+ at 0-0 after 30 because France gets desperate for goals.";
+  const q =
+    "money line is -525 on france... over 1.5 is -525. wait for 0-0 about 30 minutes in and evaluate the lines";
+  const fixed = repairWcTalkLineMovementProse(bad, q);
+  const qa = runWcLineMovementOutputQA(fixed, q);
+  assert.equal(qa.passed, true);
+});
+
+test("runWcLineMovementOutputQA — flags ML shortens at 0-0", () => {
+  const qa = runWcLineMovementOutputQA(
+    "At 0-0 after 30, FRA moneyline compresses to -650+.",
+    "France -525 moneyline at 0-0 30 minutes",
+  );
+  assert.equal(qa.passed, false);
+  assert.ok(qa.issueCodes.includes("wc_line_movement_wrong_direction"));
+});
+
+test("resolveWcLineMovementMarketKind — exported re-export", () => {
+  assert.equal(
+    resolveWcLineMovementMarketKind("France moneyline at 0-0"),
+    WC_CHECKPOINT_MARKET.ML_90MIN,
+  );
 });

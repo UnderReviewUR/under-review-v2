@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  attachBdlMoneylinesToMatches,
   buildBdlPlayerIdLookup,
   collapseBdlIngestRowsOnePerPlayer,
   extractBdlRowTotals,
@@ -14,6 +15,7 @@ import {
   pickBdlNestedToAdvanceOdds,
   pickMainNestedMatchTotal,
 } from "./_wcBdlNormalize.js";
+import { pickWcBookFavorite, reconcileWcMatchOddsHomeAway } from "../shared/wcMatchMoneylineProbs.js";
 
 test("normalizeBdlPlayerPropsToMarkets — resolves player_id via lookup", () => {
   const lookup = buildBdlPlayerIdLookup([

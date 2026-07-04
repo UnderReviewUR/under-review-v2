@@ -8,6 +8,10 @@ import {
   isWcSimpleMatchupTalkOpener,
   resolveUrTakeDeliveryMode,
 } from "./urTakeDeliveryMode.js";
+import {
+  isWcLineMovementTalkEligible,
+  shouldForceWcLineMovementStructuredCard,
+} from "./wcOddsLineMovement.js";
 import { isWcVagueMatchGoalsOverUnderAsk } from "./wcMatchBettingPrompt.js";
 import {
   buildWcLiveEntryPlanningPrebuiltStructured,
@@ -139,6 +143,25 @@ test("explain-only follow-up stays Talk", () => {
           { role: "user", content: "totals on FRA vs PAR" },
           { role: "assistant", structured: { lean: "Lean Under 2.5" } },
         ],
+      }),
+      "talk",
+    );
+  });
+});
+
+test("casual line movement without cited hypo — Talk with mechanics augment", () => {
+  const q = "Will Germany odds go up or down if it's 5 mins in and scoreless?";
+  withTalkMode(() => {
+    assert.equal(isWcLineMovementTalkEligible(q), true);
+    assert.equal(shouldForceWcLineMovementStructuredCard(q), false);
+    assert.equal(isWcPriceSensitiveTalkBypass(q), false);
+    assert.equal(
+      resolveUrTakeDeliveryMode({
+        sportHint: "worldcup",
+        wcIntent: WC_INTENT.MATCHUP,
+        question: q,
+        isConversationFollowUp: true,
+        history: FRA_HISTORY,
       }),
       "talk",
     );
