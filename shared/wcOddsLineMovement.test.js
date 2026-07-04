@@ -105,11 +105,20 @@ test("buildWcLiveEntryPlanningPrebuiltStructured — FRA fixture", () => {
   const q =
     "money line is -525 on france... over 1.5 is -525. i might wait to see if 0-0 about 30 minutes in and evaluate the lines";
   const card = buildWcLiveEntryPlanningPrebuiltStructured({
-    home: "FRA",
-    away: "PAR",
+    home: "PAR",
+    away: "FRA",
     question: q,
+    match: {
+      odds: {
+        home: { moneyline: "-525" },
+        away: { moneyline: "+1800" },
+        draw: { moneyline: "+650" },
+      },
+    },
   });
   assert.ok(card);
+  assert.match(String(card.lean), /France/i);
   assert.match(String(card.lean), /drift/i);
-  assert.match(String(card.whyNow), /0-0/i);
+  assert.match(String(card.whyNow), /France/i);
+  assert.doesNotMatch(String(card.whyNow), /Paraguay ML/i);
 });

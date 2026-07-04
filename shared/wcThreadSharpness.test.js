@@ -92,7 +92,18 @@ test("FRA wait for 0-0 at 30 — Take + drift-out lean", () => {
       "take",
     );
   });
-  const lean = synthesizeWcLiveEntryPlanningLean(q);
+  const lean = synthesizeWcLiveEntryPlanningLean(q, {
+    home: "PAR",
+    away: "FRA",
+    match: {
+      odds: {
+        home: { moneyline: "-525" },
+        away: { moneyline: "+1800" },
+        draw: { moneyline: "+650" },
+      },
+    },
+  });
+  assert.match(lean, /France/i);
   assert.match(lean, /drift/i);
   assert.doesNotMatch(lean, /(?:toward|to|at|compress(?:es)?\s+to)\s*-650/i);
 });

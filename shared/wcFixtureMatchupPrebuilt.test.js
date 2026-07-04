@@ -267,6 +267,24 @@ test("shouldUseWcFixtureMatchupMoneylineRepeatPrebuilt MEX/KOR who wins pins fro
   assert.doesNotMatch(structured?.lean || "", /Under 2\.5/i);
 });
 
+test("buildWcFixtureMatchupPrebuiltStructured — PAR home FRA away uses France ML favorite", () => {
+  const card = buildWcFixtureMatchupPrebuiltStructured({
+    home: "PAR",
+    away: "FRA",
+    question: "Who wins PAR vs FRA? Give me the sharpest pre-match lean with the line.",
+    match: {
+      odds: {
+        home: { moneyline: "-550" },
+        away: { moneyline: "+1800" },
+        draw: { moneyline: "+650" },
+      },
+    },
+  });
+  assert.ok(card);
+  assert.match(String(card.call), /France -550 to win/i);
+  assert.doesNotMatch(String(card.call), /Paraguay -550/i);
+});
+
 test("buildWcFixtureMatchupPrebuiltStructured USA vs PAR winner headline", () => {
   const structured = buildWcFixtureMatchupPrebuiltStructured({
     home: "USA",

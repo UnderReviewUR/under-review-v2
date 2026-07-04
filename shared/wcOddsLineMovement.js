@@ -5,8 +5,13 @@
 
 import { extractFirstAmericanOddsToken, parseAmericanOddsValue } from "./formatOddsAmerican.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
-import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import {
+  extractMentionedWcTeams,
+  extractMentionedWcTeamsInQuestionOrder,
+} from "./wcUrTakeKeywords.js";
 import { wcMatchupTeamDisplayName } from "./wcMatchupWinnerLine.js";
+import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
+import { pickWcBookFavorite } from "./wcMatchMoneylineProbs.js";
 
 function isColdPassLean(lean) {
   const s = String(lean || "").trim();
@@ -169,18 +174,85 @@ export function resolveWcLineMovementMarketLabel(question) {
 /**
  * @param {string} question
  */
-export function synthesizeWcOddsLineMovementLean(question) {
+function extractFavoriteMlTokenFromQuestion(question) {
+  const q = String(question || "");
+  const moneyLine = q.match(/\bmoney\s*line\b[^.?!]{0,40}?([+-]\d{2,})/i);
+  if (moneyLine) return moneyLine[1];
+  const onTeam = q.match(/([+-]\d{2,})\s+on\s+[a-z]/i);
+  if (onTeam && !/\bover\s+\d/i.test(q.slice(0, onTeam.index))) return onTeam[1];
+  return null;
+}
+
+/**
+ * @param {string} question
+ * @param {{
+ *   home?: string,
+ *   away?: string,
+ *   matchOdds?: Record<string, unknown> | null,
+ *   match?: Record<string, unknown> | null,
+ *   teams?: Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>,
+ * }} [opts]
+ */
+export function resolveWcFavoriteForCheckpoint(question, opts = {}) {
+  const home = String(opts.home || opts.match?.homeTeam || "").trim().toUpperCase();
+  const away = String(opts.away || opts.match?.awayTeam || "").trim().toUpperCase();
+  const teams = opts.teams || WC_2026_TEAMS;
+  const matchOdds = opts.matchOdds || opts.match?.odds;
+
+  if (home && away && matchOdds) {
+    return pickWcBookFavorite(home, away, matchOdds, teams);
+  }
+
+  const q = extractLatestUserTurnForRouting(String(question || "").trim());
+  const ordered = extractMentionedWcTeamsInQuestionOrder(q);
+  if (ordered.length >= 2) {
+    const a = teams.find((t) => t.abbreviation === ordered[0]);
+    const b = teams.find((t) => t.abbreviation === ordered[1]);
+    if (a && b) {
+      const favAbbr = a.eloRating >= b.eloRating ? ordered[0] : ordered[1];
+      const mlToken = extractFavoriteMlTokenFromQuestion(q);
+      return { abbr: favAbbr, odds: mlToken, matchOdds: matchOdds || null };
+    }
+  }
+
+  if (home && away && matchOdds) {
+    return pickWcBookFavorite(home, away, matchOdds, teams);
+  }
+
+  const mlToken = extractFavoriteMlTokenFromQuestion(q);
+  return {
+    abbr: ordered[0] || home || null,
+    odds: mlToken,
+    matchOdds: matchOdds || null,
+  };
+}
+
+/**
+ * @param {string} question
+ * @param {{
+ *   home?: string,
+ *   away?: string,
+ *   matchOdds?: Record<string, unknown> | null,
+ *   match?: Record<string, unknown> | null,
+ *   teams?: Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>,
+ * }} [opts]
+ */
+export function synthesizeWcOddsLineMovementLean(question, opts = {}) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return "";
 
   if (isWcLiveEntryPlanningQuestion(q)) {
-    return synthesizeWcLiveEntryPlanningLean(q);
+    return synthesizeWcLiveEntryPlanningLean(q, opts);
   }
 
-  const americanStr = extractFirstAmericanOddsToken(q);
+  const favorite = resolveWcFavoriteForCheckpoint(q, opts);
+  const americanStr =
+    extractFavoriteMlTokenFromQuestion(q) ||
+    (favorite.odds ? String(favorite.odds) : extractFirstAmericanOddsToken(q));
   const american = americanStr ? parseAmericanOddsValue(americanStr) : null;
-  const teams = extractMentionedWcTeams(q);
-  const team = teams[0] ? wcMatchupTeamDisplayName(teams[0]) : "The favorite";
+  const team = favorite.abbr
+    ? wcMatchupTeamDisplayName(favorite.abbr)
+    : "The favorite";
   const market = resolveWcLineMovementMarketLabel(q);
   const priceBit = americanStr ? ` at ${americanStr}` : "";
 
@@ -211,12 +283,22 @@ export function synthesizeWcOddsLineMovementLean(question) {
 
 /**
  * @param {string} question
+ * @param {{
+ *   home?: string,
+ *   away?: string,
+ *   matchOdds?: Record<string, unknown> | null,
+ *   match?: Record<string, unknown> | null,
+ *   teams?: Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>,
+ * }} [opts]
  */
-export function synthesizeWcLiveEntryPlanningLean(question) {
+export function synthesizeWcLiveEntryPlanningLean(question, opts = {}) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
-  const teams = extractMentionedWcTeams(q);
-  const fav = teams[0] ? wcMatchupTeamDisplayName(teams[0]) : "The favorite";
-  const mlStr = extractFirstAmericanOddsToken(q);
+  const favorite = resolveWcFavoriteForCheckpoint(q, opts);
+  const fav = favorite.abbr ? wcMatchupTeamDisplayName(favorite.abbr) : "The favorite";
+  const mlStr =
+    favorite.odds != null
+      ? String(favorite.odds)
+      : extractFavoriteMlTokenFromQuestion(q);
   const ml = mlStr ? parseAmericanOddsValue(mlStr) : null;
   const mlDrift = ml != null && ml < 0 ? estimateFavoriteDriftOutAmerican(ml) : null;
   const mlBit = mlStr ? ` from ${mlStr}` : "";
@@ -247,17 +329,13 @@ export function buildWcLiveEntryPlanningPrebuiltStructured(opts = {}) {
   if (!home || !away || !question) return null;
   if (!isWcLiveEntryPlanningQuestion(question)) return null;
 
-  const teams = extractMentionedWcTeams(question);
-  const favAbbr =
-    teams[0] ||
-    (Number(parseAmericanOddsValue(extractFirstAmericanOddsToken(question) || "")) <= -400
-      ? home
-      : home);
-  const lean = synthesizeWcLiveEntryPlanningLean(question);
-  const mlStr = extractFirstAmericanOddsToken(question);
+  const favorite = resolveWcFavoriteForCheckpoint(question, opts);
+  const favAbbr = favorite.abbr || home;
+  const lean = synthesizeWcLiveEntryPlanningLean(question, opts);
+  const favOdds = favorite.odds ? String(favorite.odds) : extractFavoriteMlTokenFromQuestion(question);
   const mlDrift =
-    mlStr && parseAmericanOddsValue(mlStr) < 0
-      ? estimateFavoriteDriftOutAmerican(mlStr)
+    favOdds && parseAmericanOddsValue(favOdds) < 0
+      ? estimateFavoriteDriftOutAmerican(favOdds)
       : null;
 
   return {
@@ -268,7 +346,7 @@ export function buildWcLiveEntryPlanningPrebuiltStructured(opts = {}) {
     fixtureAway: away,
     lean: lean.slice(0, 120),
     call: lean.slice(0, 100),
-    line: mlStr || "",
+    line: favOdds || "",
     deep: "",
     breakdownAvailable: false,
     whyNow: mlDrift

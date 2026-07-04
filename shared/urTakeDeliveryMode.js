@@ -12,6 +12,7 @@ import {
   isWcFixtureScopedPlayerMarketQuestion,
   isWcNamedPlayerPropQuestion,
 } from "./wcUrTakePlayerMarket.js";
+import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import {
   isWcLiveEntryPlanningQuestion,
   isWcOddsLineMovementQuestion,
@@ -61,6 +62,7 @@ export function isWcPriceSensitiveTalkBypass(question) {
   if (isWcVagueMatchGoalsOverUnderAsk(q)) return true;
   if (isWcBttsQuestion(q)) return true;
   if (/\bbesides\s+(?:the\s+)?(?:moneyline|ml)\b/i.test(q)) return true;
+  if (/\bmispriced\b/i.test(q) && extractMentionedWcTeams(q).length >= 2) return true;
   if (/\bover or under goals\b/i.test(q)) return true;
   if (isWcMatchupAltMarketFollowUp(q) && !isWcTotalsExplainFollowUp(q)) return true;
   if (

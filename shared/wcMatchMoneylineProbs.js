@@ -11,6 +11,7 @@ import {
   applyHostAdvantage,
   eloWinProbability,
 } from "../src/data/wc2026WinProbability.js";
+import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 
 /** @typedef {"bdl_market" | "elo_model"} WcMatchWinProbSource */
 
@@ -145,7 +146,8 @@ export function resolveMatchWinProbabilityBar(input) {
   if (!homeAbbr || !awayAbbr || !teams.length) return null;
 
   if (!input?.oddsStale && input?.matchOdds) {
-    const market = devigWcMatchMoneylineProbs(input.matchOdds);
+    const reconciled = reconcileWcMatchOddsHomeAway(input.matchOdds, homeAbbr, awayAbbr, teams);
+    const market = devigWcMatchMoneylineProbs(reconciled);
     if (market) {
       return {
         teamA: { abbr: homeAbbr, winPct: market.homePct },
@@ -159,4 +161,91 @@ export function resolveMatchWinProbabilityBar(input) {
   }
 
   return eloMatchWinProbabilityBar(homeAbbr, awayAbbr, teams);
+}
+
+/**
+ * When book ML sides disagree sharply with Elo (home/away attach inversion), swap home/away prices.
+ * @param {Record<string, unknown> | null | undefined} matchOdds
+ * @param {string} homeAbbr
+ * @param {string} awayAbbr
+ * @param {Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>} [teams]
+ */
+export function reconcileWcMatchOddsHomeAway(
+  matchOdds,
+  homeAbbr,
+  awayAbbr,
+  teams = WC_2026_TEAMS,
+) {
+  if (!matchOdds || typeof matchOdds !== "object") return matchOdds;
+  const home = String(homeAbbr || "").trim().toUpperCase();
+  const away = String(awayAbbr || "").trim().toUpperCase();
+  if (!home || !away) return matchOdds;
+
+  const homeMl = readWcMatchMoneylineAmerican(matchOdds.home);
+  const awayMl = readWcMatchMoneylineAmerican(matchOdds.away);
+  if (!homeMl || !awayMl) return matchOdds;
+
+  const bar = eloMatchWinProbabilityBar(home, away, teams);
+  if (!bar) return matchOdds;
+
+  const homeN = parseAmericanOddsNumber(homeMl);
+  const awayN = parseAmericanOddsNumber(awayMl);
+  if (homeN == null || awayN == null) return matchOdds;
+
+  const homeImp = impliedProbFromAmerican(homeN) ?? 0;
+  const awayImp = impliedProbFromAmerican(awayN) ?? 0;
+  const bookFavIsHome = homeImp >= awayImp;
+  const bookFavElo = bookFavIsHome ? bar.teamA.winPct : bar.teamB.winPct;
+  const bookDogElo = bookFavIsHome ? bar.teamB.winPct : bar.teamA.winPct;
+
+  if (bookFavElo >= 35 || bookDogElo < 45) return matchOdds;
+
+  const toAdvanceHome = readWcMatchMoneylineAmerican(matchOdds.toAdvanceHome);
+  const toAdvanceAway = readWcMatchMoneylineAmerican(matchOdds.toAdvanceAway);
+  const drawNoBet =
+    matchOdds.drawNoBet && typeof matchOdds.drawNoBet === "object" ? matchOdds.drawNoBet : null;
+
+  return {
+    ...matchOdds,
+    home: { moneyline: awayMl },
+    away: { moneyline: homeMl },
+    toAdvanceHome: toAdvanceAway ? { moneyline: toAdvanceAway } : matchOdds.toAdvanceHome,
+    toAdvanceAway: toAdvanceHome ? { moneyline: toAdvanceHome } : matchOdds.toAdvanceAway,
+    spreadHome: matchOdds.spreadAway ?? matchOdds.spreadHome,
+    spreadAway: matchOdds.spreadHome ?? matchOdds.spreadAway,
+    drawNoBet: drawNoBet
+      ? { home: drawNoBet.away ?? drawNoBet.home, away: drawNoBet.home ?? drawNoBet.away }
+      : matchOdds.drawNoBet,
+    oddsHomeAwayReconciled: true,
+  };
+}
+
+/**
+ * Book favorite after Elo reconciliation — use for prebuilt ML headlines and checkpoint copy.
+ * @param {string} homeAbbr
+ * @param {string} awayAbbr
+ * @param {Record<string, unknown> | null | undefined} matchOdds
+ * @param {Array<{ abbreviation: string, eloRating: number, isHost?: boolean }>} [teams]
+ */
+export function pickWcBookFavorite(homeAbbr, awayAbbr, matchOdds, teams = WC_2026_TEAMS) {
+  const odds = reconcileWcMatchOddsHomeAway(matchOdds, homeAbbr, awayAbbr, teams);
+  const home = String(homeAbbr || "").trim().toUpperCase();
+  const away = String(awayAbbr || "").trim().toUpperCase();
+  const homeMl = readWcMatchMoneylineAmerican(odds?.home);
+  const awayMl = readWcMatchMoneylineAmerican(odds?.away);
+  if (!homeMl || !awayMl) {
+    return { abbr: home, odds: homeMl || awayMl, matchOdds: odds };
+  }
+
+  const homeN = parseAmericanOddsNumber(homeMl);
+  const awayN = parseAmericanOddsNumber(awayMl);
+  if (homeN == null || awayN == null) {
+    return { abbr: home, odds: homeMl, matchOdds: odds };
+  }
+
+  const homeImp = impliedProbFromAmerican(homeN) ?? 0;
+  const awayImp = impliedProbFromAmerican(awayN) ?? 0;
+  return homeImp >= awayImp
+    ? { abbr: home, odds: homeMl, matchOdds: odds }
+    : { abbr: away, odds: awayMl, matchOdds: odds };
 }

@@ -13,7 +13,9 @@ import {
 } from "./wcMatchupWinnerLine.js";
 import {
   devigWcMatchMoneylineProbs,
+  pickWcBookFavorite,
   readWcMatchMoneylineAmerican,
+  reconcileWcMatchOddsHomeAway,
   resolveMatchWinProbabilityBar,
 } from "./wcMatchMoneylineProbs.js";
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
@@ -1702,8 +1704,9 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
   const awayStats = opts.teamStats?.[away];
 
   const seedOdds = getWcFixtureMlSeed(home, away);
-  const matchOdds =
+  const rawMatchOdds =
     opts.match?.odds && typeof opts.match.odds === "object" ? opts.match.odds : seedOdds;
+  const matchOdds = reconcileWcMatchOddsHomeAway(rawMatchOdds, home, away, WC_2026_TEAMS);
   const oddsStale = Boolean(opts.match?.oddsStale);
 
   const homeMl = readWcMatchMoneylineAmerican(matchOdds?.home);
@@ -1712,7 +1715,7 @@ export function buildWcFixtureMatchupPrebuiltStructured(opts = {}) {
 
   if (!homeMl || !awayMl) return null;
 
-  const fav = pickMlFavorite(homeMl, awayMl, home, away);
+  const fav = pickWcBookFavorite(home, away, matchOdds, WC_2026_TEAMS);
   const favName = wcMatchupTeamDisplayName(fav.abbr);
   const advancementQ = isKnockout && isKnockoutAdvancementQuestion(routingQ);
   const toAdvanceHomeMl = readWcMatchMoneylineAmerican(matchOdds?.toAdvanceHome);

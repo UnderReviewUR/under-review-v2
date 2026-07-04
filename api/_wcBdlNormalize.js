@@ -9,6 +9,7 @@
 import { normalizeEspnAbbr } from "./_wcEspn.js";
 import { groupLetterForAbbr } from "./_wcEspn.js";
 import { createEmptyMatchPlayerPropMarkets } from "../shared/wcMatchPlayerProps.js";
+import { reconcileWcMatchOddsHomeAway } from "../shared/wcMatchMoneylineProbs.js";
 import { buildBdlGoatMatchIntel } from "../shared/wcBdlMatchIntel.js";
 import {
   formatWcMatchFieldText,
@@ -479,7 +480,8 @@ export function attachBdlMoneylinesToMatches(matches, oddsRows, nowMs = Date.now
     if (bdlMatchId == null) return m;
     const odds = pickBdlMatchOddsForMatch(oddsRows, bdlMatchId);
     if (!odds) return m;
-    return { ...m, odds, oddsUpdatedAt: nowMs };
+    const reconciled = reconcileWcMatchOddsHomeAway(odds, m.homeTeam, m.awayTeam);
+    return { ...m, odds: reconciled, oddsUpdatedAt: nowMs };
   });
 }
 

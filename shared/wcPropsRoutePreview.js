@@ -72,7 +72,8 @@ function isNamedOrGenericPropAsk(q) {
     /\bplayers?\s+props?\b/i.test(q) ||
     /\bprop\s+board\b/i.test(q) ||
     /\banytime\s+scorer\b/i.test(q) ||
-    /\bbest\s+props\b/i.test(q)
+    /\bbest\s+props\b/i.test(q) ||
+    /\bbest\s+player\s+prop\b/i.test(q)
   );
 }
 
