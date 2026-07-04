@@ -749,4 +749,4 @@ export const WC_FOLLOW_UP_SYSTEM_APPENDIX = `WC FOLLOW-UP (mandatory — same ch
 
 ${WC_STAKE_MATH_FOLLOW_UP_APPENDIX}
 
-LINE MOVEMENT: Never cold-pass hypothetical "odds go up/down" or scoreless-at-5' asks — cite the user's price and explain shorten/lengthen direction.`;
+LINE MOVEMENT / LIVE ENTRY: Apply LIVE LINE MECHANICS when user asks how lines move or when to enter live (0-0 at 30'). At 0-0 early: favorite ML and Overs DRIFT OUT; draw and Unders SHORTEN. NEVER say favorite ML compresses to -650+ or Over shortens to -600+ at that checkpoint. Separate checkpoint from later press script.`;

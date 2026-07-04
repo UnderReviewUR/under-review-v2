@@ -42,6 +42,10 @@ import { isKnockoutAdvancementQuestion } from "./wcPhaseUtils.js";
 import { buildWcXiCaveatLine } from "./wcXiStatus.js";
 import { shouldBlockMatchupAltPrebuiltAfterPlayerPivot } from "./wcFollowUpExplain.js";
 import { isWcLiveDominanceQuestion, isWcLiveBetTimingQuestion, isWcLiveBetsQuestion, isWcSecondHalfContext, parseLiveMinuteFromQuestion, parseLiveScoreFromQuestion, WC_LIVE_ANGLE_ASK_RE } from "./wcLiveMatchQuestion.js";
+import {
+  buildWcLiveEntryPlanningPrebuiltStructured,
+  isWcLiveEntryPlanningQuestion,
+} from "./wcOddsLineMovement.js";
 import { isWcMatchProbabilityQuestion } from "./wcMatchProbabilityQuestion.js";
 import { detectParlayIntent } from "./detectParlayIntent.js";
 import { detectWcSgpComboIntent } from "./wcUrTakePhilosophy.js";
@@ -643,6 +647,10 @@ export function shouldUseWcFixtureMatchupAltFollowUpPrebuilt(question, wcIntent,
  */
 export function shouldUseWcLiveBetTimingPrebuilt(question, opts = {}) {
   if (!opts.isConversationFollowUp) return false;
+  if (isWcLiveEntryPlanningQuestion(question)) {
+    const pair = resolveWcFixturePairFromHistory(opts.history);
+    return Boolean(pair?.home && pair?.away);
+  }
   if (!isWcLiveBetTimingQuestion(question)) return false;
   const pair = resolveWcFixturePairFromHistory(opts.history);
   if (!pair?.home || !pair?.away) return false;
@@ -666,6 +674,10 @@ export function buildWcLiveBetTimingPrebuiltStructured(opts = {}) {
   const home = String(opts.home || "").trim().toUpperCase();
   const away = String(opts.away || "").trim().toUpperCase();
   const question = String(opts.question || "").trim();
+
+  const entryPlan = buildWcLiveEntryPlanningPrebuiltStructured(opts);
+  if (entryPlan) return entryPlan;
+
   const prior = extractPriorTotalsLeanFromHistory(opts.history);
   if (!home || !away || !prior?.line) return null;
 

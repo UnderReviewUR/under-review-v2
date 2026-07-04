@@ -29,10 +29,10 @@ export function isWcVagueMatchGoalsOverUnderAsk(question) {
   const hasOuCue =
     /\bgo\s+(?:over|under)\b/i.test(q) ||
     (/\b(?:over|under)\b/i.test(q) &&
-      /\b(?:tempted|leaning|thinking|consider(?:ing)?|flip|instead)\b/i.test(q));
+      /\b(?:tempted|tempting|leaning|thinking|consider(?:ing)?|flip|instead)\b/i.test(q));
   if (!hasOuCue) return false;
   if (
-    /\b(?:tempted|leaning|thinking|consider(?:ing)?|flip|instead|multiple|goals?|scoring|score\s+multiple|high\s+scoring|low\s+scoring|pressured\s+to\s+respond)\b/i.test(
+    /\b(?:tempted|tempting|leaning|thinking|consider(?:ing)?|flip|instead|multiple|goals?|scoring|score\s+multiple|high\s+scoring|low\s+scoring|pressured\s+to\s+respond)\b/i.test(
       q,
     )
   ) {

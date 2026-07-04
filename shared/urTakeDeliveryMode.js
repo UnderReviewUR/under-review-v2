@@ -12,6 +12,16 @@ import {
   isWcFixtureScopedPlayerMarketQuestion,
   isWcNamedPlayerPropQuestion,
 } from "./wcUrTakePlayerMarket.js";
+import {
+  isWcLiveEntryPlanningQuestion,
+  isWcOddsLineMovementQuestion,
+} from "./wcOddsLineMovement.js";
+import {
+  isWcBttsQuestion,
+  isWcMatchupAltMarketFollowUp,
+  isWcTotalsExplainFollowUp,
+  isWcVagueMatchGoalsOverUnderAsk,
+} from "./wcMatchBettingPrompt.js";
 
 /** @typedef {"take"|"talk"} UrTakeDeliveryMode */
 
@@ -30,7 +40,36 @@ export function isWcSimpleMatchupTalkOpener(question) {
   ) {
     return false;
   }
+  if (
+    /\b(?:with the line|sharpest lean|lean with|posted line|at [+-]\d|\bml\b)\b/i.test(q) ||
+    /[+-]\d{2,}/.test(q)
+  ) {
+    return false;
+  }
   return isWcMatchWinnerQuestion(q) || /\bwho wins\b/i.test(q) || /\bpick to win\b/i.test(q);
+}
+
+/**
+ * Follow-ups that need Take/prebuilt (prices, markets, live timing) — not Haiku Talk.
+ * @param {string} question
+ */
+export function isWcPriceSensitiveTalkBypass(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  if (isWcOddsLineMovementQuestion(q)) return true;
+  if (isWcLiveEntryPlanningQuestion(q)) return true;
+  if (isWcVagueMatchGoalsOverUnderAsk(q)) return true;
+  if (isWcBttsQuestion(q)) return true;
+  if (/\bbesides\s+(?:the\s+)?(?:moneyline|ml)\b/i.test(q)) return true;
+  if (/\bover or under goals\b/i.test(q)) return true;
+  if (isWcMatchupAltMarketFollowUp(q) && !isWcTotalsExplainFollowUp(q)) return true;
+  if (
+    /[+-]\d{2,}/.test(q) &&
+    /\b(?:wait|live|lock|evaluate|0-0|scoreless|lines?|moneyline|\bml\b)\b/i.test(q)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function isUrTalkModeEnabled() {
@@ -128,6 +167,15 @@ export function resolveUrTakeDeliveryMode(opts = {}) {
   }
 
   if (wcIntent === WC_INTENT.RULES || isWcRulesQuestion(question)) return "talk";
+
+  if (
+    sport === "worldcup" &&
+    isFollowUp &&
+    history.length > 0 &&
+    isWcPriceSensitiveTalkBypass(question)
+  ) {
+    return "take";
+  }
 
   if (isFollowUp && history.length > 0) return "talk";
 

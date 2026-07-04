@@ -5,6 +5,7 @@ import {
   isUrTalkModeEnabled,
   resolveUrTakeDeliveryMode,
   isWcPlayerPropBettingQuestion,
+  isWcPriceSensitiveTalkBypass,
 } from "./urTakeDeliveryMode.js";
 import { WC_INTENT } from "./wcUrTakeIntent.js";
 
@@ -168,6 +169,42 @@ test("first goalscorer follow-up stays take when enabled", () => {
         { role: "user", content: "Brazil vs Japan — best bet?" },
         { role: "assistant", structured: { lean: "Lean: Brazil ML.", fixtureHome: "BRA", fixtureAway: "JPN" } },
       ],
+    }),
+    "take",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});
+
+test("price-sensitive follow-up bypasses talk when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  const q =
+    "money line is -525 on france... i might wait to see if 0-0 about 30 minutes in and evaluate the lines";
+  assert.equal(isWcPriceSensitiveTalkBypass(q), true);
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "worldcup",
+      wcIntent: WC_INTENT.MATCHUP,
+      question: q,
+      isConversationFollowUp: true,
+      history: [{ role: "user", content: "FRA vs PAR" }, { role: "assistant", structured: { lean: "FRA ML" } }],
+    }),
+    "take",
+  );
+  if (prev) process.env.UR_TALK_MODE = prev;
+  else delete process.env.UR_TALK_MODE;
+});
+
+test("sharp lean-with-line opener stays take when enabled", () => {
+  const prev = process.env.UR_TALK_MODE;
+  process.env.UR_TALK_MODE = "1";
+  assert.equal(
+    resolveUrTakeDeliveryMode({
+      sportHint: "worldcup",
+      wcIntent: WC_INTENT.MATCHUP,
+      question: "Who wins FRA vs PAR? Give me the sharpest pre-match lean with the line.",
+      isConversationFollowUp: false,
     }),
     "take",
   );

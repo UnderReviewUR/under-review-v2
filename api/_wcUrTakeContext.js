@@ -25,7 +25,7 @@ import {
   WC_INTENT,
   WC_STATIC_RULES_BLOCK,
 } from "../shared/wcUrTakeIntent.js";
-import { isWcOddsLineMovementQuestion } from "../shared/wcOddsLineMovement.js";
+import { isWcOddsLineMovementQuestion, buildWcLiveLineMechanicsPromptBlock } from "../shared/wcOddsLineMovement.js";
 import { buildWcOutrightsFreshnessPromptBlock, buildMatchOddsFreshnessPromptBlock } from "../shared/wcOddsFreshness.js";
 import { isWcPlayerMarketIntent, isWcFixturePlayerPropsQuestion, isGenericWcPlayerPropQuestion } from "../shared/wcUrTakePlayerMarket.js";
 import {
@@ -996,6 +996,11 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
         ? "  Knockout fixture — use Elo structure for regulation lean only; advancement may require ET/pens (see KNOCKOUT STAGE RULES)."
         : "  Use Elo win/draw/loss structure only — do not invent match prices.",
     );
+  }
+
+  const lineMechanicsBlock = buildWcLiveLineMechanicsPromptBlock(ctx.questionText || "");
+  if (lineMechanicsBlock) {
+    lines.push("", lineMechanicsBlock);
   }
 
   lines.push("");

@@ -15,7 +15,7 @@ export function isWcLiveDominanceQuestion(question) {
 }
 
 const LIVE_BET_TIMING_RE =
-  /\b(?:when(?:'s| is)?\s+(?:the\s+)?best\s+time\s+to\s+(?:place|bet|lock)|best\s+time\s+to\s+place|should\s+i\s+(?:bet|lock|wait)|wait\s+until|place\s+(?:the\s+)?bet\s+now|lock\s+(?:it\s+)?in\s+now|bet\s+now\s+or\s+wait|before\s+(?:they|spain|france|[a-z]{3})\s+score)\b/i;
+  /\b(?:when(?:'s| is)?\s+(?:the\s+)?best\s+time\s+to\s+(?:place|bet|lock)|best\s+time\s+to\s+place|should\s+i\s+(?:bet|lock|wait)|wait\s+until|wait\s+(?:to\s+see|for)|see\s+if\s+(?:it's|its)\s+0-0|evaluate\s+(?:the\s+)?lines?|place\s+(?:the\s+)?bet\s+now|lock\s+(?:it\s+)?in\s+now|bet\s+now\s+or\s+wait|before\s+(?:they|spain|france|[a-z]{3})\s+score)\b/i;
 
 /** "2 live bets", "best live angle", "in-play plays to consider" — not dominance/stats Qs. */
 export const LIVE_BETS_ASK_RE =

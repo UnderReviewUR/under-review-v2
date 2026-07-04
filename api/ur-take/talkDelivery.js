@@ -12,6 +12,10 @@ import {
   buildWcTalkVerifiedContextBlock,
   hasWcTalkGrounding,
 } from "../../shared/wcTalkGrounding.js";
+import {
+  buildWcLiveLineMechanicsPromptBlock,
+  repairWcTalkLineMovementProse,
+} from "../../shared/wcOddsLineMovement.js";
 
 export { buildWcTalkContextSnippet };
 
@@ -20,7 +24,7 @@ The user is in a follow-up or rules thread. Reply in 2–4 short sentences, plai
 No section headers. No "THE PLAY" block. No markdown lists unless listing 2–3 quick facts.
 If they are asking why on a prior lean, explain the mechanism (tempo, script, line value) without inventing new bets.
 If they ask whether a tactic or game state "flips" the lean, explain why it does or doesn't — never reverse a prior Over/Under unless the live score clearly changed the math.
-If they ask how odds or lines move (scoreless early, up/down, shorten to -575), explain direction using their cited price — never "no actionable line yet."
+If they ask how odds or lines move or when to enter live (0-0 at 30', evaluate lines), apply LIVE LINE MECHANICS in context: at 0-0 early favorite ML and Overs DRIFT OUT (e.g. -525 toward ~-380); NEVER say favorite ML goes to -650+ or Over shortens to -600+ at that checkpoint.
 If they ask rules, be factual and concise.
 If they doubt a starter or ask for lineup pivots, name ONLY players from CALLED-UP SQUAD or POSTED PROP LINES in context — never cite players who missed the World Cup squad.
 Never fabricate odds or player names not in the context below.`;
@@ -93,8 +97,11 @@ export async function tryDeliverUrTakeTalk(opts) {
     sportHint === "worldcup"
       ? buildWcTalkVerifiedContextBlock(wcContext, history, wcIntent)
       : "";
+  const mechanicsBlock =
+    sportHint === "worldcup" ? buildWcLiveLineMechanicsPromptBlock(q) : "";
   const contextBlock = [
     priorTake ? `PRIOR TAKE (do not repeat verbatim — explain or clarify):\n${priorTake}` : "",
+    mechanicsBlock ? mechanicsBlock : "",
     verifiedContext ? `VERIFIED CONTEXT (cite only facts below — never invent odds or players):\n${verifiedContext}` : "",
   ]
     .filter(Boolean)
@@ -127,8 +134,11 @@ export async function tryDeliverUrTakeTalk(opts) {
     return { handled: false };
   }
 
-  const text = extractAnthropicText(result.data).trim();
+  let text = extractAnthropicText(result.data).trim();
   if (!text) return { handled: false };
+  if (sportHint === "worldcup") {
+    text = repairWcTalkLineMovementProse(text, q);
+  }
 
   if (typeof setGateQuotaDelivered === "function") setGateQuotaDelivered(true);
 
