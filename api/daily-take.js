@@ -112,9 +112,12 @@ export default async function handler(req, res) {
           res.setHeader("Cache-Control", "public, max-age=60");
           return res.status(404).json({ ok: false, error: safe?.error || "preview_sanitized_empty" });
         }
+        const sport = String(safe.sportHint || safe.sport || "").toLowerCase();
         res.setHeader(
           "Cache-Control",
-          "public, s-maxage=3600, stale-while-revalidate=86400",
+          sport === "worldcup"
+            ? "public, s-maxage=120, stale-while-revalidate=600"
+            : "public, s-maxage=3600, stale-while-revalidate=86400",
         );
         return res.status(200).json(safe);
       }

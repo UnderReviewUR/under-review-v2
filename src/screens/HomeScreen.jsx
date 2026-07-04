@@ -12,8 +12,9 @@ import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
 import { buildWcXiConfirmedHomeStarter } from "../features/home/buildWcHomePromoCard.js";
+import { buildHomeDailyEdgeView } from "../features/home/buildHomeDailyEdgeView.js";
 import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
-import { isWcLiveMatchStatus } from "../../shared/wcFeaturedMatch.js";
+import { pickWcFeaturedMatch } from "../../shared/wcFeaturedMatch.js";
 
 const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
@@ -144,9 +145,15 @@ export default function HomeScreen({
     trackFunnelEvent("first_session_home_view", { surface: "stripped_home" });
   }, [strippedHomeSession]);
 
-  const wcHasLive = useMemo(
-    () => (wcMatches || []).some((m) => isWcLiveMatchStatus(m?.status)),
-    [wcMatches],
+  const wcFeaturedEventId = useMemo(() => {
+    if (!isWcHomePromoWindow()) return null;
+    const featured = pickWcFeaturedMatch({ matches: wcMatches });
+    return featured?.match?.id != null ? String(featured.match.id) : null;
+  }, [wcMatches]);
+
+  const homeDailyEdge = useMemo(
+    () => buildHomeDailyEdgeView(dailyPreview, wcMatches),
+    [dailyPreview, wcMatches],
   );
 
   useEffect(() => {
@@ -165,7 +172,7 @@ export default function HomeScreen({
     return () => {
       cancelled = true;
     };
-  }, [strippedHomeSession, wcHasLive]);
+  }, [strippedHomeSession, wcFeaturedEventId]);
 
   if (strippedHomeSession) {
     return (
@@ -283,10 +290,10 @@ export default function HomeScreen({
       </section>
 
       <HomeDailyEdgeCard
-        preview={dailyPreview}
+        preview={homeDailyEdge}
         onUnpack={() => {
-          if (!dailyPreview?.question) return;
-          prefillUrTakeQuestion?.(dailyPreview.question, dailyPreview.sportHint || null);
+          if (!homeDailyEdge?.question) return;
+          prefillUrTakeQuestion?.(homeDailyEdge.question, homeDailyEdge.sportHint || null);
         }}
       />
 

@@ -1240,6 +1240,11 @@ export const baseCss = `
     color:var(--wc-premium-muted);
     margin-bottom:6px;
   }
+  .home-daily-edge-card__score{
+    font-family:var(--mono-font);
+    font-weight:700;
+    color:var(--wc-premium-ink);
+  }
   .home-daily-edge-card__headline{
     font-family:'Playfair Display',Georgia,serif;
     font-size:18px;

@@ -104,11 +104,11 @@ export function pickWcFeaturedMatch(opts = {}) {
   const all = Array.isArray(opts.matches) ? opts.matches : [];
   const liveSrc = Array.isArray(opts.liveMatches) ? opts.liveMatches : [];
   const live = [...liveSrc]
-    .filter((m) => isWcLiveMatchStatus(m.status))
+    .filter((m) => isWcLiveMatchStatus(m.status) && !isWcStaleUnfinishedMatch(m, nowMs))
     .sort(sortByKickoff);
   if (!live.length) {
     for (const m of all) {
-      if (isWcLiveMatchStatus(m.status)) live.push(m);
+      if (isWcLiveMatchStatus(m.status) && !isWcStaleUnfinishedMatch(m, nowMs)) live.push(m);
     }
     live.sort(sortByKickoff);
   }

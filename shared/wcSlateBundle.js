@@ -9,6 +9,12 @@ import { WC_2026_TEAMS } from "../src/data/wc2026Teams.js";
 import { isWcHomePromoWindow } from "./wc2026Constants.js";
 import { wcTeamsWithStrengthTags } from "./wc2026Strength.js";
 import { resolveWcTournamentPhase } from "./wcPhaseUtils.js";
+import {
+  isWcLiveMatchStatus,
+  isWcScheduledMatchStatus,
+  isWcStaleUnfinishedMatch,
+  isWcUpcomingFeaturedCandidate,
+} from "./wcFeaturedMatch.js";
 
 /**
  * GOAT slate loaders: on payload failure, only accept KV when it is BDL-sourced.
@@ -84,10 +90,10 @@ export async function loadWorldCupSlateBoard(nowMs = Date.now()) {
   }
 
   const upcoming = matches
-    .filter((m) => {
-      const s = String(m?.status || "").toLowerCase();
-      return s === "ns" || s === "scheduled" || s === "upcoming";
-    })
+    .filter(
+      (m) =>
+        isWcScheduledMatchStatus(m?.status) && isWcUpcomingFeaturedCandidate(m, nowMs),
+    )
     .sort((a, b) => (Number(a.commenceTs) || 0) - (Number(b.commenceTs) || 0))
     .slice(0, 8)
     .map((m) => ({
@@ -104,7 +110,9 @@ export async function loadWorldCupSlateBoard(nowMs = Date.now()) {
     }));
 
   const live = matches
-    .filter((m) => ["live", "ht", "1h", "2h"].includes(String(m?.status || "").toLowerCase()))
+    .filter(
+      (m) => isWcLiveMatchStatus(m?.status) && !isWcStaleUnfinishedMatch(m, nowMs),
+    )
     .slice(0, 4)
     .map((m) => ({
       id: m.id,

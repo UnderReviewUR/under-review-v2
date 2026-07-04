@@ -12,13 +12,14 @@ import {
   isWcFinishedMatchStatus,
   isWcLiveMatchStatus,
   isWcScheduledMatchStatus,
+  isWcStaleUnfinishedMatch,
   isWcUpcomingFeaturedCandidate,
 } from "../shared/wcFeaturedMatch.js";
 import { isWc2026HostNation, parseWcMatchupLabelHomeAbbr } from "../shared/wcHostNationLanguage.js";
 import { readWcMatchesFromKv } from "./_wcData.js";
 
 /** Bumped when preview trim/sanitize logic changes — invalidates stale KV copies. */
-export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 6;
+export const DAILY_TAKE_PREVIEW_TRIM_VERSION = 7;
 const STORAGE_PREFIX = "daily_take:v2:";
 const PREVIEW_TRIM_VERSION = DAILY_TAKE_PREVIEW_TRIM_VERSION;
 
@@ -75,7 +76,11 @@ function scoreTennisRow(row) {
  */
 export function pickWcDailyTakeMatch(candidates, nowMs = Date.now()) {
   const playable = (candidates || []).filter(
-    (m) => m?.homeTeam && m?.awayTeam && !isWcFinishedMatchStatus(m?.status),
+    (m) =>
+      m?.homeTeam &&
+      m?.awayTeam &&
+      !isWcFinishedMatchStatus(m?.status) &&
+      !isWcStaleUnfinishedMatch(m, nowMs),
   );
   if (!playable.length) return null;
 
@@ -353,28 +358,43 @@ export async function dailyTakeSeriesFingerprintStale(cached) {
 export async function dailyTakeWcFeaturedStale(cached) {
   if (!cached?.ok || String(cached.sportHint || "").toLowerCase() !== "worldcup") return false;
   try {
+    const nowMs = Date.now();
     const kv = await readWcMatchesFromKv(Number.MAX_SAFE_INTEGER);
     const matches = Array.isArray(kv?.matches) ? kv.matches : [];
     const eventId = cached.wcEventId != null ? String(cached.wcEventId) : "";
+    const label = String(cached.matchupLabel || "").trim();
+    const currentPick = pickWcDailyTakeMatch(matches, nowMs);
+    const currentId = currentPick?.id != null ? String(currentPick.id) : "";
+    const currentLabel = currentPick ? wcMatchupLabel(currentPick) : "";
+
     if (eventId) {
       const match = matches.find((m) => String(m?.id) === eventId);
       if (!match) return true;
-      return isWcFinishedMatchStatus(match.status);
+      if (isWcFinishedMatchStatus(match.status)) return true;
+      if (isWcStaleUnfinishedMatch(match, nowMs)) return true;
+      if (currentId && currentId !== eventId) return true;
     }
 
-    const label = String(cached.matchupLabel || "").trim();
-    if (!label) return false;
-    const board = await loadWorldCupSlateBoard();
+    if (label) {
+      const labeled = matches.find((m) => wcMatchupLabel(m) === label);
+      if (labeled && isWcFinishedMatchStatus(labeled.status)) return true;
+      if (labeled && isWcStaleUnfinishedMatch(labeled, nowMs)) return true;
+      if (currentLabel && currentLabel !== label) return true;
+    }
+
+    if (!currentPick && (eventId || label)) return true;
+
+    const board = await loadWorldCupSlateBoard(nowMs);
     const slateRows = [
       ...(Array.isArray(board?.live) ? board.live : []),
       ...(Array.isArray(board?.upcoming) ? board.upcoming : []),
     ];
-    const onSlate = slateRows.find((m) => wcMatchupLabel(m) === label);
-    if (!onSlate) return true;
-    if (isWcFinishedMatchStatus(onSlate.status)) return true;
+    if (label) {
+      const onSlate = slateRows.find((m) => wcMatchupLabel(m) === label);
+      if (!onSlate) return true;
+    }
 
-    const currentPick = pickWcDailyTakeMatch(slateRows);
-    return Boolean(currentPick && wcMatchupLabel(currentPick) !== label);
+    return false;
   } catch (err) {
     console.warn("[daily-take] WC featured stale check failed:", err?.message || err);
     return false;

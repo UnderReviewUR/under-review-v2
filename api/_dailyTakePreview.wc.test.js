@@ -41,6 +41,19 @@ test("pickWcDailyTakeMatch — skips finished, prefers live", () => {
   assert.equal(pick?.id, "1");
 });
 
+const STALE_LIVE = {
+  id: "9",
+  homeTeam: "MAR",
+  awayTeam: "BRA",
+  status: "live",
+  commenceTs: NOW - 4 * 60 * 60 * 1000,
+};
+
+test("pickWcDailyTakeMatch — skips stale live stuck on feed", () => {
+  const pick = pickWcDailyTakeMatch([STALE_LIVE, NEXT, LIVE], NOW);
+  assert.equal(pick?.id, "1");
+});
+
 test("pickWcDailyTakeMatch — earliest upcoming when nothing live", () => {
   const pick = pickWcDailyTakeMatch([FINISHED, LATER, NEXT], NOW);
   assert.equal(pick?.id, "2");
