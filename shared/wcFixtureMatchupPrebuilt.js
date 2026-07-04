@@ -32,6 +32,7 @@ import {
 } from "./wcGroupComposition.js";
 import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
 import {
+  isWcBttsQuestion,
   isWcMatchupAltMarketFollowUp,
   isWcMatchupOtherSideFollowUp,
   isWcTotalsExplainFollowUp,
