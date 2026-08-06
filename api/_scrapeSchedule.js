@@ -518,11 +518,33 @@ export async function buildWcMatchScrapeTargetsFromMatches(matches, nowMs = Date
 }
 
 /**
- * NFL: no prop scrape pipeline yet — schedule hook reserved.
+ * NFL Action Network props — upcoming games today/tomorrow ET.
+ * @param {number} [nowMs]
  * @returns {Promise<ScrapeTarget[]>}
  */
-export async function collectNflScrapeTargets() {
-  return [];
+export async function collectNflScrapeTargets(nowMs = Date.now()) {
+  const { listUpcomingNflPropsScrapeGames } = await import("./_nflProps.js");
+  const games = await listUpcomingNflPropsScrapeGames(nowMs);
+  /** @type {ScrapeTarget[]} */
+  const out = [];
+  for (const g of games) {
+    const gameId = String(g.providerGameId);
+    const gameStartMs = Number.isFinite(g.tipoffMs) ? g.tipoffMs : nowMs + 6 * 3600_000;
+    out.push({
+      sport: "nfl_props",
+      gameId,
+      gameStartMs,
+      priority: 40,
+      meta: {
+        gameId: g.providerGameId,
+        homeAbbr: g.homeAbbr,
+        awayAbbr: g.awayAbbr,
+        tipoffMs: g.tipoffMs,
+        isLive: String(g.status || "").toLowerCase() === "inprogress",
+      },
+    });
+  }
+  return out;
 }
 
 /**

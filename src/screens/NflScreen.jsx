@@ -2,6 +2,8 @@ import AskBar from "../components/AskBar.jsx";
 import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
 import { ChatThread } from "../features/app/helpers.jsx";
 import { getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
+import { mapNflBoardPropLinesToGuide } from "../lib/mapNflBoardPropLines.js";
+import NflGameBoardSection from "../features/nfl/NflGameBoardSection.jsx";
 import NflPropGuideSection from "../features/nfl/NflPropGuideSection.jsx";
 import { NFL_POSITIONS, NFL_PROP_GUIDE } from "../features/app/constants.js";
 import { NflPlayerCard } from "../components/cards/NflPlayerCard.jsx";
@@ -25,9 +27,17 @@ export default function NflScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  nflGames = [],
+  nflPropLines = [],
+  nflBoardLoading = false,
+  nflBoardAsOf = null,
 }) {
   const nflQuickPrompts = getQuickPromptsForState("nfl", nflSeasonMode);
   const urDockedChat = hasDockedBar && nflMsgs.length > 0;
+  const liveGuide = mapNflBoardPropLinesToGuide(nflPropLines);
+  const propGuide = liveGuide.length ? liveGuide : NFL_PROP_GUIDE;
+  const usingLiveProps = liveGuide.length > 0;
+
   const chatThreadProps = {
     msgs: nflMsgs,
     urTakeTrackPlay,
@@ -36,19 +46,41 @@ export default function NflScreen({
     onUpgradePromptClick,
     hideFollowUpDock: true,
   };
+
   const nflBoardBelow = (
     <>
-      <div className="section-divider">{nflSeasonMode ? "Top Weekly Leans" : "Top Future Leans"}</div>
+      <NflGameBoardSection
+        games={nflGames}
+        loading={nflBoardLoading}
+        asOf={nflBoardAsOf}
+        onSelectGame={(g) => {
+          const away = g.awayAbbr || "Away";
+          const home = g.homeAbbr || "Home";
+          const tot = g.total?.line != null ? ` Total ${g.total.line}.` : "";
+          submitNfl(`Best prop or total angle for ${away} @ ${home}?${tot}`);
+        }}
+      />
+      <div className="section-divider">
+        {usingLiveProps ? "Live player props" : nflSeasonMode ? "Top Weekly Leans" : "Top Future Leans"}
+      </div>
       <NflPropGuideSection
-        guide={NFL_PROP_GUIDE}
+        guide={propGuide}
         onSelectProp={(prop) =>
-          submitNfl(`Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`)
+          submitNfl(
+            prop.live
+              ? `Tell me about ${prop.player} ${prop.propType} — line ${prop.line}${prop.game ? ` (${prop.game})` : ""}. Over ${prop.overOdds ?? "—"} / Under ${prop.underOdds ?? "—"}.`
+              : `Tell me about ${prop.player} ${prop.propType} prop — line is ${prop.line}`,
+          )
         }
       />
       <div className="section-divider">Player Database</div>
       <div className="pos-tabs">
         {NFL_POSITIONS.map((pos) => (
-          <button key={pos} className={`pos-tab${nflPosFilter === pos ? " active" : ""}`} onClick={() => setNflPosFilter(pos)}>
+          <button
+            key={pos}
+            className={`pos-tab${nflPosFilter === pos ? " active" : ""}`}
+            onClick={() => setNflPosFilter(pos)}
+          >
             {pos}
           </button>
         ))}
@@ -60,54 +92,85 @@ export default function NflScreen({
   );
 
   return (
-          <main ref={nflScreenRef} className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}>
-            <div className="nfl-banner">
-              <div className="banner-title">{nflSeasonMode?"NFL In-Season Board":"NFL Futures Board"}</div>
-              <div className="banner-sub">{nflSeasonMode?"WEEKLY PROPS · USAGE · PLAYER ANGLES":"FUTURES · PLAYER STATS · BETTING ANGLES"}</div>
-              <div className="banner-note">
-                {nflSeasonMode?"Current weekly props, role changes, usage shifts, and market edges.":"Skill positions database with per-game stats, TD rates, prop floors and ceilings."}
-                <span style={{marginLeft:8,fontFamily:"var(--mono-font)",fontSize:9,letterSpacing:1,color:"var(--muted)"}} title="Player database is hand-maintained — verify lines against your book">Est.</span>
-              </div>
-              <div style={{
+    <main
+      ref={nflScreenRef}
+      className={`screen${urDockedChat ? " has-msgs screen--ur-chat" : hasDockedBar ? " has-msgs" : ""}`}
+    >
+      <div className="nfl-banner">
+        <div className="banner-title">
+          {nflSeasonMode ? "NFL In-Season Board" : "NFL Live Board"}
+        </div>
+        <div className="banner-sub">
+          {usingLiveProps
+            ? "LIVE LINES · GAME O/U · PLAYER PROPS"
+            : nflSeasonMode
+              ? "WEEKLY PROPS · USAGE · PLAYER ANGLES"
+              : "FUTURES · PLAYER STATS · BETTING ANGLES"}
+        </div>
+        <div className="banner-note">
+          {usingLiveProps
+            ? "DraftKings-priority lines via Action Network — implied probs on totals and props."
+            : nflSeasonMode
+              ? "Current weekly props, role changes, usage shifts, and market edges."
+              : "Skill positions database with per-game stats, TD rates, prop floors and ceilings."}
+          {!usingLiveProps ? (
+            <span
+              style={{
+                marginLeft: 8,
                 fontFamily: "var(--mono-font)",
                 fontSize: 9,
-                letterSpacing: 2,
+                letterSpacing: 1,
                 color: "var(--muted)",
-                textTransform: "uppercase",
-                marginTop: 6,
-                padding: "0 20px",
-              }}>
-                Player props + live lines arriving with the 2026 season
-              </div>
-            </div>
-            {nflMsgs.length===0&&(
-              <div className="nfl-ask-shell" ref={nflBarRef}>
-              <AskBar inputRef={nflInputRef} value={nflInput} onChange={setNflInput} onSubmit={()=>submitNfl()} placeholder={nflSeasonMode?"Best WR prop this week? Biggest role change?":"Which RB leads TDs in 2026? Best future?"} btnColor="#4A90D9" {...askBarCommon} />
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {(nflQuickPrompts.length ? nflQuickPrompts : nflSeasonMode
-                  ? ["Best WR props this week?", "Biggest usage jump?", "Best TD scorer angle?", "Which line is stale?"]
-                  : ["Best WR future?", "Top TE by volume?", "Fade or take Kelce?", "Best RB rushing future?"]
-                ).map((q) => (
-                  <button key={q} className="quick-btn" onClick={() => submitNfl(q)} style={{ fontSize: 11 }}>
-                    {q}
-                  </button>
-                ))}
-              </div>
-              </div>
-            )}
-            {urDockedChat ? (
-              <div className="ur-chat-scroll">
-                <ChatThread {...chatThreadProps} variant="urChatDocked" />
-                {nflBoardBelow}
-                <UrChatDockScrollSpacer />
-              </div>
-            ) : (
-              <>
-                <ChatThread {...chatThreadProps} />
-                {nflBoardBelow}
-                <div className="page-spacer" />
-              </>
-            )}
-          </main>
+              }}
+              title="Player database is hand-maintained — verify lines against your book"
+            >
+              Est.
+            </span>
+          ) : null}
+        </div>
+      </div>
+      {nflMsgs.length === 0 && (
+        <div className="nfl-ask-shell" ref={nflBarRef}>
+          <AskBar
+            inputRef={nflInputRef}
+            value={nflInput}
+            onChange={setNflInput}
+            onSubmit={() => submitNfl()}
+            placeholder={
+              nflSeasonMode
+                ? "Best WR prop this week? Biggest role change?"
+                : "Which RB leads TDs in 2026? Best future?"
+            }
+            btnColor="#4A90D9"
+            {...askBarCommon}
+          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(nflQuickPrompts.length
+              ? nflQuickPrompts
+              : nflSeasonMode
+                ? ["Best WR props this week?", "Biggest usage jump?", "Best TD scorer angle?", "Which line is stale?"]
+                : ["Best WR future?", "Top TE by volume?", "Fade or take Kelce?", "Best RB rushing future?"]
+            ).map((q) => (
+              <button key={q} className="quick-btn" onClick={() => submitNfl(q)} style={{ fontSize: 11 }}>
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {urDockedChat ? (
+        <div className="ur-chat-scroll">
+          <ChatThread {...chatThreadProps} variant="urChatDocked" />
+          {nflBoardBelow}
+          <UrChatDockScrollSpacer />
+        </div>
+      ) : (
+        <>
+          <ChatThread {...chatThreadProps} />
+          {nflBoardBelow}
+          <div className="page-spacer" />
+        </>
+      )}
+    </main>
   );
 }

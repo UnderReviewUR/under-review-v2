@@ -114,13 +114,20 @@ function scheduleStrengthOffset(abbr, schedule, teams) {
   return sosAvg + peer;
 }
 
-/** @param {number} n */
-function clampProjectedWins(n) {
+/**
+ * Soft bounds for *partial* (still-projected) slates only.
+ * Keeps empty/mid-season projections away from exact 0 / 17 so SOS offsets
+ * can maintain unique sort keys. Fully picked seasons must use exact W-L.
+ * @param {number} n
+ */
+function clampPartialProjectedWins(n) {
   return Math.min(16.5, Math.max(0.5, n));
 }
 
 /**
  * Projected season record: user picks are exact; unpicked games use win-total priors.
+ * When every game is picked (`remaining === 0`), projected W-L equals the locked
+ * record (including true 0-17 / 17-0) — no soft clamp.
  * @param {string} abbr
  * @param {Record<string, { winner?: string, confidence?: number }>} picks
  * @param {readonly NflGame[]} schedule
@@ -153,16 +160,27 @@ export function getProjectedRecord(abbr, picks, schedule, teams) {
     else fracWins += awayProb;
   }
 
+  // Locked slate: seeding/standings must use the real record, not a projection clamp.
+  if (remaining === 0) {
+    return {
+      wins,
+      losses,
+      remaining,
+      projectedWins: wins,
+      projectedLosses: losses,
+    };
+  }
+
   const seasonWinTotal = winTotalFor(abbr, teams);
   const unpickedShare = remaining / 17;
   const sosOffset = scheduleStrengthOffset(abbr, schedule, teams) * unpickedShare;
-  if (remaining > 0 && fracWins > 0) {
+  if (fracWins > 0) {
     const unpickedTargetWins = Math.max(0, seasonWinTotal - wins);
     const scale = unpickedTargetWins / fracWins;
     fracWins *= scale;
   }
 
-  const rawWins = clampProjectedWins(wins + fracWins + sosOffset);
+  const rawWins = clampPartialProjectedWins(wins + fracWins + sosOffset);
   const rawLosses = 17 - rawWins;
 
   return {

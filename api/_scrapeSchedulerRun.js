@@ -10,6 +10,7 @@ import {
   writeLastRunToBundle,
 } from "./_scrapeLastRunStore.js";
 import { scrapeAndCacheNbaProps } from "./_nbaProps.js";
+import { scrapeAndCacheNflProps } from "./_nflProps.js";
 import { scrapeAndCachePgaChampionshipOdds } from "./_golfPgaChampionshipOdds.js";
 import { scrapeAndCacheF1Odds } from "./_f1Odds.js";
 import { resolveGameSpreadForSlateGame } from "./_gameOddsPipeline.js";
@@ -44,6 +45,19 @@ const SCRAPE_HANDLERS = {
       homeTeam: meta.homeAbbr,
       awayTeam: meta.awayAbbr,
       date: meta.dateYmd,
+      isLive: Boolean(meta.isLive),
+    });
+    return {
+      posted: props.hasPostedLines,
+      playerCount: props.playerCount,
+      fetchedAt: props.fetchedAt,
+    };
+  },
+  nfl_props: async (target) => {
+    const meta = target.meta || {};
+    const gameId = meta.gameId ?? target.gameId;
+    const props = await scrapeAndCacheNflProps(gameId, {
+      tipoffMs: meta.tipoffMs ?? target.gameStartMs ?? null,
       isLive: Boolean(meta.isLive),
     });
     return {

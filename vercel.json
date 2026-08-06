@@ -86,6 +86,12 @@
     "api/nba-props-scrape.js": {
       "maxDuration": 60
     },
+    "api/nfl-board.js": {
+      "maxDuration": 60
+    },
+    "api/nfl-props-scrape.js": {
+      "maxDuration": 60
+    },
     "api/game-odds-refresh.js": {
       "maxDuration": 120
     },

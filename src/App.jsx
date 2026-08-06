@@ -834,7 +834,15 @@ ${themeCss}
     dismissXiConfirmedNotice,
   } = useWorldCupData({ enabled: wcDataPollEnabled });
   const [wcScreenNav, setWcScreenNav] = useState(null);
-  const { nflContextData } = useNflData();
+  const {
+    nflContextData,
+    nflBoard,
+    nflBoardLoading,
+    nflGames,
+    nflPropLines,
+  } = useNflData({
+    enabled: isNavSportVisible("nfl"),
+  });
   const {
     performanceData,
     performanceLoading,
@@ -5015,6 +5023,10 @@ ${themeCss}
                   }}
                   onOpenWorldCup={goWorldCup}
                   onGoHome={goHome}
+                  nflGames={nflGames}
+                  nflPropLines={nflPropLines}
+                  nflBoardLoading={nflBoardLoading}
+                  nflBoardAsOf={nflBoard?.asOf || null}
                 />
               ) : (
                 <NflScreen
@@ -5036,6 +5048,10 @@ ${themeCss}
                 accessTier={accessTier}
                 onUrTakeFollowUpPick={urTakeFollowUpNfl}
                 onUpgradePromptClick={openUpgradeModal}
+                nflGames={nflGames}
+                nflPropLines={nflPropLines}
+                nflBoardLoading={nflBoardLoading}
+                nflBoardAsOf={nflBoard?.asOf || null}
                 />
               )
             ) : (

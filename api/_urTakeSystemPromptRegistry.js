@@ -1078,8 +1078,17 @@ Stay inside the matchup and surface implied by context. Player snapshot lines ar
 
 export function buildNflSurfaceAppendix() {
   return `NFL SURFACE SPINE
-Prefer the NFL PLAYER POOL and prop board for posted lines and usage. For any known NFL player the user names, provide analysis even when board rows are missing — say "live usage data unavailable" instead of refusing. Never say "not in the verified field."
+Prefer the NFL PLAYER POOL and live prop board for posted lines and usage. For any known NFL player the user names, provide analysis even when board rows are missing — say "live usage data unavailable" instead of refusing. Never say "not in the verified field."
 Roster and prop board JSON are authoritative for posted markets when present. Do not invent lines, injuries, or snap counts. When props are empty, use the NO-MARKET user rules already injected — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).
+
+NFL PREFER RULES (clean — never undercut knowledge):
+- Prefer live board odds/props when present. If a live line is missing, still answer with structural knowledge; add one short clause: "live line not in payload."
+- Prefer injury/roster/depth before firm role claims. If those blocks are missing, continue with historical role and a light uncertainty tag — do not refuse or go vague.
+- Prefer recent/season stats for usage. Advanced metrics (YAC, CPOE, rush YOE) are optional support — one clause max, never the whole thesis.
+- You are expected to advise on the fan-volume NFL markets: spread, ML, total, anytime TD, pass/rush/rec yards, receptions, pass TDs, first TD, SGPs, team totals, alts, 1H markets, rush+rec, comps/attempts, longest-play props, INTs, kicking, live, season win totals, SB/conference, awards, and thin D/ST exotics.
+- Same-game parlays: name correlation when stacking related legs (e.g. QB pass yards + WR yards).
+- Anytime / first TD: never "lock / safe / automatic."
+- Futures: only cite prices that appear in payload; otherwise path qualitatively.
 
 NFL DATA CURRENCY RULE (mandatory):
 - Stats labeled "2024 SEASON" or "historical reference" are trend context only. Never present as current season performance.
@@ -1090,12 +1099,13 @@ NFL DATA CURRENCY RULE (mandatory):
 - Defense data is 2025 season baseline. Present as established tendencies, not guaranteed current performance.
 - Never fabricate coaching tenure, scheme details, or injury status not present in the context payload.
 
-NFL PROP LINE REASONING (when VEGAS 2026 PROP O/Us are present):
+NFL PROP LINE REASONING (when VEGAS 2026 PROP O/Us are present AND live board props are absent):
 - Vegas implied role takes priority over positional assumptions. If O/U implies "Workhorse RB1" but question assumes committee, correct that assumption explicitly.
 - Flag ADP gaps: "Vegas prices X as a QB1 (3,925 pass yards) but market has them at QB15 — that gap is the edge."
 - Same-team hierarchy: within a team, higher rec yards O/U = larger projected role. If ADP reverses this, say so explicitly.
 - Always combine prop O/U with defense tier adjustment: "Stafford 3,925 season O/U → ~231 yards/game baseline. vs PHI (ELITE, -38 adj) → ~193 yards projected. If game prop is set at 225 → UNDER has value."
-- Staleness disclaimer: one line maximum, at end of prop section only. "These are preseason 2026 lines — directional context, not live."`;
+- Staleness disclaimer: one line maximum, at end of prop section only. "These are preseason 2026 lines — directional context, not live."
+- When LIVE board props are present for the asked player/market, prefer those over season O/Us.`;
 }
 
 export function buildGolfSurfaceAppendix() {

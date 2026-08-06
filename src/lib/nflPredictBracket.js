@@ -97,34 +97,79 @@ function setGameWinner(game, abbr) {
   game.winner = ok ? abbr : null;
 }
 
+/** @param {BracketGame} game */
+function invalidateWinnerIfAbsent(game) {
+  if (!game?.winner) return;
+  const ok = game.home?.team?.abbr === game.winner || game.away?.team?.abbr === game.winner;
+  if (!ok) game.winner = null;
+}
+
+/**
+ * Official NFL divisional reseeding after the Wild Card round.
+ *
+ * Rules:
+ * - #1 seed hosts the lowest remaining seed (highest seed number among WC winners).
+ * - The other two winners play each other; higher seed hosts.
+ * - Pairings are assigned only once all three Wild Card winners are known
+ *   (NFL reseeds after the full Wild Card slate, not game-by-game).
+ *
+ * @param {BracketSlot | null} seed1
+ * @param {Array<BracketSlot | null>} wcWinnerSlots
+ * @returns {{
+ *   div1Home: BracketSlot | null,
+ *   div1Away: BracketSlot | null,
+ *   div2Home: BracketSlot | null,
+ *   div2Away: BracketSlot | null,
+ * }}
+ */
+export function reseedDivisionalRound(seed1, wcWinnerSlots) {
+  const div1Home = seed1 ? { team: seed1.team, seed: seed1.seed } : null;
+  const winners = (wcWinnerSlots || []).filter((s) => s?.team && Number.isFinite(s.seed));
+
+  if (!div1Home || winners.length !== 3) {
+    return { div1Home, div1Away: null, div2Home: null, div2Away: null };
+  }
+
+  // Lowest remaining seed = worst among remaining = max seed number.
+  const rankedWorstFirst = winners.slice().sort((a, b) => b.seed - a.seed || a.team.abbr.localeCompare(b.team.abbr));
+  const lowestRemaining = rankedWorstFirst[0];
+  const others = rankedWorstFirst
+    .slice(1)
+    .sort((a, b) => a.seed - b.seed || a.team.abbr.localeCompare(b.team.abbr));
+
+  return {
+    div1Home,
+    div1Away: { team: lowestRemaining.team, seed: lowestRemaining.seed },
+    div2Home: { team: others[0].team, seed: others[0].seed },
+    div2Away: { team: others[1].team, seed: others[1].seed },
+  };
+}
+
+/** @param {ConferenceBracket} conf @param {import("../data/nfl2026Teams.js").Nfl2026Team} team */
+function slotForTeam(conf, team) {
+  const seed = conf.seeds.find((s) => s.team?.abbr === team.abbr)?.seed ?? 0;
+  return { team, seed };
+}
+
 /** @param {ConferenceBracket} conf */
 function fillConferenceAdvancement(conf) {
-  const seed1 = conf.seeds.find((s) => s.seed === 1);
-  const wc = conf.wildCard;
-  const w = wc.map((g) => (g.winner ? winnerTeam(g) : null));
+  const seed1Entry = conf.seeds.find((s) => s.seed === 1);
+  const seed1 = seed1Entry?.team ? { team: seed1Entry.team, seed: 1 } : null;
+  const wcWinnerSlots = conf.wildCard.map((g) => {
+    const t = g.winner ? winnerTeam(g) : null;
+    return t ? slotForTeam(conf, t) : null;
+  });
 
+  const reseeded = reseedDivisionalRound(seed1, wcWinnerSlots);
   const div1 = conf.divisional[0];
-  div1.home = seed1 ? { team: seed1.team, seed: 1 } : null;
-  div1.away = w[0] ? { team: w[0], seed: conf.seeds.find((s) => s.team.abbr === w[0].abbr)?.seed ?? 0 } : null;
-
   const div2 = conf.divisional[1];
-  if (w[1] && w[2]) {
-    const s1 = conf.seeds.find((s) => s.team.abbr === w[1].abbr)?.seed ?? 99;
-    const s2 = conf.seeds.find((s) => s.team.abbr === w[2].abbr)?.seed ?? 99;
-    const high = s1 <= s2 ? { team: w[1], seed: s1 } : { team: w[2], seed: s2 };
-    const low = s1 <= s2 ? { team: w[2], seed: s2 } : { team: w[1], seed: s1 };
-    div2.home = high;
-    div2.away = low;
-  } else if (w[1]) {
-    div2.home = { team: w[1], seed: conf.seeds.find((s) => s.team.abbr === w[1].abbr)?.seed ?? 0 };
-    div2.away = null;
-  } else if (w[2]) {
-    div2.home = { team: w[2], seed: conf.seeds.find((s) => s.team.abbr === w[2].abbr)?.seed ?? 0 };
-    div2.away = null;
-  } else {
-    div2.home = null;
-    div2.away = null;
-  }
+  div1.home = reseeded.div1Home;
+  div1.away = reseeded.div1Away;
+  div2.home = reseeded.div2Home;
+  div2.away = reseeded.div2Away;
+  // Reseed can move teams between divisional games; drop stale winners.
+  invalidateWinnerIfAbsent(div1);
+  invalidateWinnerIfAbsent(div2);
 
   const dWinners = conf.divisional.map((g) => (g.winner ? winnerTeam(g) : null));
   const champ = conf.championship;
@@ -145,6 +190,7 @@ function fillConferenceAdvancement(conf) {
     champ.home = null;
     champ.away = null;
   }
+  invalidateWinnerIfAbsent(champ);
 }
 
 /** @param {ConferenceBracket} conf */
@@ -166,20 +212,23 @@ function fillAdvancementSlots(bracket) {
   const nfcSlot = championshipWinnerSlot(bracket.nfc);
   sb.home = afcSlot ? { team: afcSlot.team, seed: afcSlot.seed } : null;
   sb.away = nfcSlot ? { team: nfcSlot.team, seed: nfcSlot.seed } : null;
+  invalidateWinnerIfAbsent(sb);
 
   return bracket;
 }
 
+// Any Wild Card result can reshuffle BOTH divisional games under NFL reseeding,
+// so WC changes must clear both divisional winners (not just one fixed slot).
 const DOWNSTREAM = {
-  "afc-wc-1": ["afc-div-1", "afc-champ", "super-bowl"],
-  "afc-wc-2": ["afc-div-2", "afc-champ", "super-bowl"],
-  "afc-wc-3": ["afc-div-2", "afc-champ", "super-bowl"],
+  "afc-wc-1": ["afc-div-1", "afc-div-2", "afc-champ", "super-bowl"],
+  "afc-wc-2": ["afc-div-1", "afc-div-2", "afc-champ", "super-bowl"],
+  "afc-wc-3": ["afc-div-1", "afc-div-2", "afc-champ", "super-bowl"],
   "afc-div-1": ["afc-champ", "super-bowl"],
   "afc-div-2": ["afc-champ", "super-bowl"],
   "afc-champ": ["super-bowl"],
-  "nfc-wc-1": ["nfc-div-1", "nfc-champ", "super-bowl"],
-  "nfc-wc-2": ["nfc-div-2", "nfc-champ", "super-bowl"],
-  "nfc-wc-3": ["nfc-div-2", "nfc-champ", "super-bowl"],
+  "nfc-wc-1": ["nfc-div-1", "nfc-div-2", "nfc-champ", "super-bowl"],
+  "nfc-wc-2": ["nfc-div-1", "nfc-div-2", "nfc-champ", "super-bowl"],
+  "nfc-wc-3": ["nfc-div-1", "nfc-div-2", "nfc-champ", "super-bowl"],
   "nfc-div-1": ["nfc-champ", "super-bowl"],
   "nfc-div-2": ["nfc-champ", "super-bowl"],
   "nfc-champ": ["super-bowl"],

@@ -1,22 +1,50 @@
 /**
- * Off-season NFL UR Take gate — Predictor remains the escape hatch.
+ * Off-season NFL UR Take gate — live board stays visible; Predictor remains the escape hatch.
  */
-export default function NflComingSoonScreen({ onOpenPredictor, onOpenWorldCup, onGoHome }) {
+import { mapNflBoardPropLinesToGuide } from "../lib/mapNflBoardPropLines.js";
+import NflGameBoardSection from "../features/nfl/NflGameBoardSection.jsx";
+import NflPropGuideSection from "../features/nfl/NflPropGuideSection.jsx";
+
+export default function NflComingSoonScreen({
+  onOpenPredictor,
+  onOpenWorldCup,
+  onGoHome,
+  nflGames = [],
+  nflPropLines = [],
+  nflBoardLoading = false,
+  nflBoardAsOf = null,
+}) {
+  const liveGuide = mapNflBoardPropLinesToGuide(nflPropLines, 16);
+
   return (
     <main
       className="screen nfl-coming-soon"
       style={{
-        padding: "24px 16px 32px",
-        maxWidth: 520,
+        padding: "16px 16px 32px",
+        maxWidth: 560,
         margin: "0 auto",
       }}
     >
+      <NflGameBoardSection
+        games={nflGames}
+        loading={nflBoardLoading}
+        asOf={nflBoardAsOf}
+        onSelectGame={null}
+      />
+      {liveGuide.length ? (
+        <>
+          <div className="section-divider">Live player props</div>
+          <NflPropGuideSection guide={liveGuide} onSelectProp={null} />
+        </>
+      ) : null}
+
       <div
         style={{
           borderRadius: 16,
           border: "1px solid rgba(74,144,217,.35)",
           background: "linear-gradient(180deg, rgba(74,144,217,.12), rgba(8,10,12,.6))",
           padding: "22px 18px 20px",
+          marginTop: liveGuide.length || nflGames.length ? 16 : 8,
         }}
       >
         <div
@@ -28,7 +56,7 @@ export default function NflComingSoonScreen({ onOpenPredictor, onOpenWorldCup, o
             marginBottom: 10,
           }}
         >
-          NFL · 2026 SEASON
+          NFL · UR TAKE
         </div>
         <h1
           style={{
@@ -39,7 +67,7 @@ export default function NflComingSoonScreen({ onOpenPredictor, onOpenWorldCup, o
             fontWeight: 700,
           }}
         >
-          NFL will be up and running for the 2026 season
+          Ask returns with the 2026 season
         </h1>
         <p
           style={{
@@ -49,8 +77,8 @@ export default function NflComingSoonScreen({ onOpenPredictor, onOpenWorldCup, o
             color: "var(--soft)",
           }}
         >
-          Weekly props, matchup reads, and live slate angles return when the season kicks off. Until
-          then, use the 2026 Predictor for draft and futures — or jump to World Cup and NBA coverage.
+          Live game lines and props are up above. Weekly UR Take angles unlock at kickoff — until
+          then, use the 2026 Predictor for season W/L boards, or jump to World Cup coverage.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button
