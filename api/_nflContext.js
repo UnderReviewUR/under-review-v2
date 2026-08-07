@@ -393,7 +393,7 @@ export async function buildCanonicalNflContext(options = {}) {
   const depthFiltered =
     depthData?.depth && scoped ? filterDepthByScope(depthData.depth, scope) : depthData?.depth;
 
-  if (depthFiltered && typeof depthFiltered === "object" && Object.keys(depthFiltered).length > 0) {
+  if (scoped && depthFiltered && typeof depthFiltered === "object" && Object.keys(depthFiltered).length > 0) {
     promptContext +=
       "\n\nDEPTH CHARTS (Ourlads, updated weekly):\n" +
       Object.entries(depthFiltered)

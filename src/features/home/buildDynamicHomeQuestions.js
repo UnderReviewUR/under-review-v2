@@ -623,7 +623,7 @@ export function buildDynamicHomeQuestions({
   const nflRankB = ranks.nflB;
   const nflRankC = ranks.nflC;
 
-  if (!nflUrTakeGated && isDraftMode) {
+  if (isDraftMode) {
     const band = resolveNflDraftPromoBand(promoNowMs, nflDraftMeta);
     const featuredTeam = dallasPriority
       ? "Dallas Cowboys"

@@ -44,10 +44,7 @@ export function useNflData({ enabled = true } = {}) {
     let active = true;
     async function loadBoard() {
       try {
-        const res = await fetch(`/api/nfl-board?includeProps=1&_ts=${Date.now()}`, {
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
-        });
+        const res = await fetch("/api/nfl-board?includeProps=1");
         if (!res.ok) throw new Error(`NFL board ${res.status}`);
         const data = await res.json();
         if (active) setNflBoard(data?.ok === false ? null : data);
