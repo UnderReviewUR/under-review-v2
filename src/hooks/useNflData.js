@@ -13,7 +13,6 @@ export function useNflData({ enabled = true } = {}) {
 
   useEffect(() => {
     if (!enabled) {
-      setNflContextData(null);
       return undefined;
     }
     let active = true;
@@ -37,13 +36,12 @@ export function useNflData({ enabled = true } = {}) {
 
   useEffect(() => {
     if (!enabled) {
-      setNflBoard(null);
-      setNflBoardLoading(false);
       return undefined;
     }
     let active = true;
     async function loadBoard() {
       try {
+        if (active) setNflBoardLoading(true);
         const res = await fetch("/api/nfl-board?includeProps=1");
         if (!res.ok) throw new Error(`NFL board ${res.status}`);
         const data = await res.json();
@@ -54,7 +52,6 @@ export function useNflData({ enabled = true } = {}) {
         if (active) setNflBoardLoading(false);
       }
     }
-    setNflBoardLoading(true);
     loadBoard();
     const poll = window.setInterval(loadBoard, BOARD_POLL_MS);
     return () => {
@@ -63,13 +60,18 @@ export function useNflData({ enabled = true } = {}) {
     };
   }, [enabled]);
 
-  const nflGames = Array.isArray(nflBoard?.games) ? nflBoard.games : [];
-  const nflPropLines = Array.isArray(nflBoard?.propLines) ? nflBoard.propLines : [];
+  const effectiveNflContextData = enabled ? nflContextData : null;
+  const effectiveNflBoard = enabled ? nflBoard : null;
+  const effectiveNflBoardLoading = enabled ? nflBoardLoading : false;
+  const nflGames = Array.isArray(effectiveNflBoard?.games) ? effectiveNflBoard.games : [];
+  const nflPropLines = Array.isArray(effectiveNflBoard?.propLines)
+    ? effectiveNflBoard.propLines
+    : [];
 
   return {
-    nflContextData,
-    nflBoard,
-    nflBoardLoading,
+    nflContextData: effectiveNflContextData,
+    nflBoard: effectiveNflBoard,
+    nflBoardLoading: effectiveNflBoardLoading,
     nflGames,
     nflPropLines,
   };
