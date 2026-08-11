@@ -18,6 +18,12 @@ console.log(
     skillStats: health.projections.playerStats2025ByPosition,
     defenseTeams: health.projections.defenseAllowed2025TeamCount,
     gameDayStatusLoaded: health.gameDayStatus.loaded,
+    fantasyRankingsLoaded: health.fantasyRankings.loaded,
+    fantasyRankingsStale: health.fantasyRankings.stale,
+    liveStatsLoaded: health.liveStats.loaded,
+    liveStatsSeason: health.liveStats.seasonYear,
+    liveStatsFallback: health.liveStats.usedPriorSeasonFallback,
+    liveStatsStale: health.liveStats.stale,
   }),
 );
 
@@ -36,7 +42,9 @@ for (const question of questions) {
         ctx.promptContext.includes("2025 TE stats (nflverse)"),
       hasWeatherSnapshot: ctx.promptContext.includes("NFL WEATHER SNAPSHOT ("),
       hasGameDayStatus: ctx.promptContext.includes("NFL GAME-DAY STATUS"),
-      hasFantasyContext: ctx.promptContext.includes("NFL FANTASY / CLAY"),
+      hasFantasyContext: ctx.promptContext.includes("NFL FANTASY / PROJECTION") || ctx.promptContext.includes("NFL FANTASY / CLAY"),
+      hasLiveRanks: ctx.promptContext.includes("ESPN live PPR"),
+      hasDeepForm: ctx.promptContext.includes("Deep form (nflverse)"),
     }),
   );
 }

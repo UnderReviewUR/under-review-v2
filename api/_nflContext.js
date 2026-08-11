@@ -747,7 +747,7 @@ export async function buildCanonicalNflContext(options = {}) {
   const nflRosterVerificationBanner = rosterAsOf
     ? `NOTE: Current team/status comes from ESPN roster refresh as of ${rosterAsOf}. Static stat baselines remain historical; use ESPN roster rows for current team, availability, cuts/signings/trades, and injury status.`
     : "NOTE: NFL roster data last verified May 2026. ESPN roster refresh has not populated KV yet; treat static team/status fields as stale until /api/nfl-roster-refresh runs.";
-  const fantasyContextBlock = buildNflFantasyContextBlock({
+  const fantasyContextBlock = await buildNflFantasyContextBlock({
     question,
     playerNames: scoped ? Object.keys(uiPlayers) : [],
     scopeTeamAbbrs: scoped ? [...scope] : [],

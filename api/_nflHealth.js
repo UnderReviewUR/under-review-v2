@@ -7,6 +7,9 @@ import { countNflPlayerStats2025ByPosition } from "./data/nfl-player-stats-2025.
 import { NFL_DEFENSE_ALLOWED_2025 } from "./data/nfl-defense-allowed-2025.js";
 import { NFL_2026_PLAYER_PROP_OUS } from "./_nflPropLineContext.js";
 import { readNflGameDayStatusSnapshot } from "./_nflEspnGameDayStatus.js";
+import { readNflFantasyRankingsSnapshot } from "./_nflEspnFantasyRankings.js";
+import { readNflverseLiveStatsSnapshot } from "./_nflverseLiveStats.js";
+import { isNflMonthInSeason } from "../shared/slateModulePriority.js";
 
 function ageMs(ts) {
   const n = Number(ts);
@@ -19,20 +22,38 @@ function hours(ms) {
   return Math.round((ms / 3600000) * 10) / 10;
 }
 
+/** Rankings stale if older than 72h (midweek injury/trade moves). */
+const RANKINGS_STALE_MS = 72 * 60 * 60 * 1000;
+/** Live week stats stale if older than 8 days in-season. */
+const LIVE_STATS_STALE_MS = 8 * 24 * 60 * 60 * 1000;
+
 export async function buildNflHealthSnapshot() {
-  const [roster, depth, gameDay] = await Promise.all([
+  const [roster, depth, gameDay, fantasyRanks, liveStats] = await Promise.all([
     getDurableJson("nfl_espn_roster").catch(() => null),
     getDurableJson("nfl_depth_chart").catch(() => null),
     readNflGameDayStatusSnapshot().catch(() => null),
+    readNflFantasyRankingsSnapshot().catch(() => null),
+    readNflverseLiveStatsSnapshot().catch(() => null),
   ]);
   const rosterAgeMs = ageMs(roster?.fetchedAt);
   const depthAgeMs = ageMs(depth?.fetchedAt || depth?.updatedAtMs || depth?.updatedAt);
   const gameDayAgeMs = ageMs(gameDay?.fetchedAt);
+  const ranksAgeMs = ageMs(fantasyRanks?.fetchedAt);
+  const liveStatsAgeMs = ageMs(liveStats?.fetchedAt);
   const breaking = String(getEnv("NFL_BREAKING") || "").trim();
   const playerCount = Array.isArray(roster?.players) ? roster.players.length : 0;
   const depthTeamCount =
     depth?.depth && typeof depth.depth === "object" ? Object.keys(depth.depth).length : 0;
   const playerStatsByPos = countNflPlayerStats2025ByPosition();
+  const inSeason = isNflMonthInSeason(new Date());
+
+  const rankingsStale =
+    Boolean(fantasyRanks?.fetchedAt) && ranksAgeMs != null && ranksAgeMs > RANKINGS_STALE_MS;
+  const liveStatsStale =
+    inSeason &&
+    Boolean(liveStats?.fetchedAt) &&
+    liveStatsAgeMs != null &&
+    liveStatsAgeMs > LIVE_STATS_STALE_MS;
 
   const ok = Boolean(playerCount >= 1500);
   return {
@@ -60,6 +81,30 @@ export async function buildNflHealthSnapshot() {
       ageHours: hours(gameDayAgeMs),
       eventCount: gameDay?.eventCount || 0,
       injuryRowCount: gameDay?.injuryRowCount || 0,
+    },
+    fantasyRankings: {
+      loaded: Boolean(fantasyRanks?.fetchedAt),
+      source: fantasyRanks?.source || "espn_fantasy_leaguedefaults",
+      seasonYear: fantasyRanks?.seasonYear || null,
+      playerCount: fantasyRanks?.playerCount || 0,
+      fetchedAt: fantasyRanks?.fetchedAt || null,
+      ageHours: hours(ranksAgeMs),
+      stale: rankingsStale,
+      slaHours: 72,
+    },
+    liveStats: {
+      loaded: Boolean(liveStats?.fetchedAt),
+      source: liveStats?.source || "nflverse_stats_player_week",
+      seasonYear: liveStats?.seasonYear || null,
+      preferredSeasonYear: liveStats?.preferredSeasonYear || null,
+      usedPriorSeasonFallback: Boolean(liveStats?.usedPriorSeasonFallback),
+      playerCount: liveStats?.playerCount || 0,
+      maxWeek: liveStats?.maxWeek || null,
+      fetchedAt: liveStats?.fetchedAt || null,
+      ageHours: hours(liveStatsAgeMs),
+      stale: liveStatsStale,
+      slaHoursInSeason: 192,
+      inSeason,
     },
     breaking: {
       active: Boolean(breaking),

@@ -10,8 +10,16 @@ import {
   getNflFantasyMarketPlayer,
   NFL_FANTASY_MARKET_2026,
 } from "./data/nfl-fantasy-market-2026.js";
-import { buildNflFantasyContextBlock } from "./_nflFantasyContext.js";
+import {
+  buildNflFantasyContextBlock,
+  buildNflFantasyContextBlockFromSnapshots,
+} from "./_nflFantasyContext.js";
 import { buildNflStaticPropsFallback } from "./_nflPropLineContext.js";
+import {
+  assignPositionalRanks,
+  normalizeEspnFantasyPlayerRow,
+} from "./_nflEspnFantasyRankings.js";
+import { parseCsv, formatLiveNflversePlayerStats } from "./_nflverseLiveStats.js";
 
 test("Clay 2026 seed covers full positional board and 32 teams", () => {
   assert.ok(NFL_CLAY_PROJECTIONS_2026.meta.playerCount >= 350);
@@ -34,12 +42,82 @@ test("Fantasy market seed includes PPR and Superflex ranks", () => {
   assert.ok(gibbs?.superflex?.overallRank >= 1);
 });
 
-test("Fantasy context injects Clay projection for named players", () => {
-  const block = buildNflFantasyContextBlock({
+test("Fantasy context injects Clay projection for named players", async () => {
+  const block = await buildNflFantasyContextBlock({
     question: "What is Brock Bowers PPR outlook?",
   });
   assert.match(block, /Brock Bowers/i);
   assert.match(block, /Clay projection/i);
+});
+
+test("Live ESPN ranks override static seed when snapshot present", () => {
+  const liveRankings = {
+    seasonYear: 2026,
+    fetchedAt: Date.now(),
+    byKey: {
+      brockbowers: {
+        name: "Brock Bowers",
+        pos: "TE",
+        team: "LV",
+        ppr: { overallRank: 18, posRank: "TE1", salary: 40 },
+        superflex: { overallRank: 24, posRank: "TE1", salary: 30 },
+        percentOwned: 99.1,
+        injuryStatus: "ACTIVE",
+      },
+    },
+    players: [{ name: "Brock Bowers" }],
+  };
+  const block = buildNflFantasyContextBlockFromSnapshots({
+    question: "Brock Bowers PPR rank?",
+    liveRankings,
+  });
+  assert.match(block, /ESPN live PPR/);
+  assert.match(block, /overall 18/);
+  assert.doesNotMatch(block, /ESPN PPR \(static seed\)/);
+});
+
+test("normalizeEspnFantasyPlayerRow + positional ranks", () => {
+  const row = normalizeEspnFantasyPlayerRow({
+    player: {
+      fullName: "Jahmyr Gibbs",
+      defaultPositionId: 2,
+      proTeamId: 8,
+      draftRanksByRankType: {
+        PPR: { rank: 1, auctionValue: 57 },
+        SUPERFLEX: { rank: 7, auctionValue: 57 },
+      },
+      ownership: { percentOwned: 99.8, averageDraftPosition: 1.5 },
+      injuryStatus: "ACTIVE",
+      id: 1,
+    },
+  });
+  assert.equal(row?.name, "Jahmyr Gibbs");
+  assert.equal(row?.team, "DET");
+  const ranked = assignPositionalRanks([row]);
+  assert.equal(ranked[0].ppr.posRank, "RB1");
+});
+
+test("parseCsv + format live nflverse stats", () => {
+  const rows = parseCsv('a,b\n1,"x,y"\n');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].b, "x,y");
+  const line = formatLiveNflversePlayerStats({
+    name: "Puka Nacua",
+    pos: "WR",
+    team: "LAR",
+    seasonYearLabel: "2025 prior-season baseline",
+    season: {
+      targetsPerGame: 10,
+      receptionsPerGame: 7,
+      receivingYardsPerGame: 100,
+      receivingTds: 8,
+      fantasyPointsPprPerGame: 20,
+    },
+    last3: { targetsPerGame: 12, receivingYardsPerGame: 120, fantasyPointsPprPerGame: 24 },
+    last1: { targets: 11, receivingYards: 76, fantasyPointsPpr: 26 },
+  });
+  assert.match(line, /Last 3/);
+  assert.match(line, /Puka Nacua/);
 });
 
 test("Static props fallback returns concrete baseline lines", () => {

@@ -95,6 +95,12 @@
     "api/nfl-inactives-refresh.js": {
       "maxDuration": 120
     },
+    "api/nfl-fantasy-rankings-refresh.js": {
+      "maxDuration": 60
+    },
+    "api/nfl-stats-refresh.js": {
+      "maxDuration": 120
+    },
     "api/nfl-props-scrape.js": {
       "maxDuration": 60
     },
@@ -128,6 +134,18 @@
     {
       "path": "/api/nfl-inactives-refresh?seasonal=1",
       "schedule": "0 13-22 * * 0"
+    },
+    {
+      "path": "/api/nfl-fantasy-rankings-refresh",
+      "schedule": "0 14 * * 1,3,5"
+    },
+    {
+      "path": "/api/nfl-stats-refresh",
+      "schedule": "0 15 * * 2"
+    },
+    {
+      "path": "/api/nfl-stats-refresh?seasonal=1",
+      "schedule": "0 16 * * 1,4"
     },
     {
       "path": "/api/nba?view=board&warmup=1",
