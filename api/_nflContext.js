@@ -333,6 +333,8 @@ function formatRosterChangesBlock(rosterData, scope, leagueCompact) {
 export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
   const set = new Set();
   const q = String(question || "").trim();
+  const directAlias = detectNflScopeAlias(q);
+  if (directAlias) return new Set([directAlias]);
 
   try {
     const hint = detectNflTeamHint(q) || detectNflScopeAlias(q);
