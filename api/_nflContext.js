@@ -6,6 +6,7 @@ import { getDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
 import { buildNflFantasyContextBlock } from "./_nflFantasyContext.js";
+import { getNflQbStats2025 } from "./data/nfl-qb-stats-2025.js";
 import {
   buildNflDraftBoardBlock,
   getActiveDraftBundle,
@@ -547,9 +548,13 @@ function mapRbToUi(name, player) {
 }
 
 function mapQbToUi(name, player) {
+  const qbStats2025 = getNflQbStats2025(name);
   const stats = player?.stats2024 || {};
-  const games = Math.max(1, toNumber(stats.games, 17));
-  const passYdsPg = Math.round((toNumber(stats.yds) / games) * 10) / 10;
+  const games = Math.max(1, toNumber(qbStats2025?.games ?? stats.games, 17));
+  const passYds = qbStats2025?.passingYards ?? toNumber(stats.yds);
+  const passTds = qbStats2025?.passingTds ?? toNumber(stats.td);
+  const ypa = qbStats2025?.yardsPerAttempt ?? toNumber(stats.ypa);
+  const passYdsPg = qbStats2025?.passingYardsPerGame ?? Math.round((passYds / games) * 10) / 10;
 
   return [
     name,
@@ -559,20 +564,25 @@ function mapQbToUi(name, player) {
       tier: player?.tier || "STARTER",
       ydsPg: passYdsPg,
       rec2025: {
-        g: toNumber(stats.games, 17),
-        td: toNumber(stats.td),
-        ypr: toNumber(stats.ypa),
+        g: games,
+        td: passTds,
+        ypr: ypa,
         tgt: null,
         recPg: null,
       },
+      qbStats2025,
       props: {
         recYds: {
           floor: Math.max(140, Math.round(passYdsPg - 35)),
           ceil: Math.round(passYdsPg + 45),
-          lean: "Use matchup + team script context for pass-yardage lean.",
+          lean: qbStats2025
+            ? `2025 nflverse baseline: ${passYdsPg} pass yds/g, ${qbStats2025.tdRate}% TD rate, ${qbStats2025.sackPct}% sack rate.`
+            : "Use matchup + team script context for pass-yardage lean.",
         },
         td: {
-          lean: `${toNumber(stats.td)} passing TD baseline sample.`,
+          lean: qbStats2025
+            ? `${passTds} pass TDs in ${games} games (${qbStats2025.tdRate}% TD rate) via nflverse 2025.`
+            : `${toNumber(stats.td)} passing TD baseline sample.`,
         },
       },
       situation: player?.situation2025 || "QB context unavailable.",
@@ -589,7 +599,10 @@ function buildPromptContext(uiPlayers) {
       const tdLean = p?.props?.td?.lean || "—";
       const yLean = p?.props?.recYds?.lean || p?.props?.rushYds?.lean || "—";
       const core = `${name} | ${p.pos} | ${p.team} | ${p.tier}`;
-      const statLine = `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
+      const statLine =
+        p.pos === "QB" && p.qbStats2025
+          ? `  2025 QB stats (nflverse): ${p.qbStats2025.passingYardsPerGame} pass yds/g, ${p.qbStats2025.passingTds} TD, ${p.qbStats2025.interceptions} INT, ${p.qbStats2025.sackPct}% sack rate, EPA/att ${p.qbStats2025.epaPerAttempt}, ${p.qbStats2025.rushingYardsPerGame} rush yds/g`
+          : `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
       const leanLine = `  Lean: ${yLean} | TD: ${tdLean}`;
       return [core, statLine, leanLine, formatRosterStatusLine(p)].filter(Boolean).join("\n");
     })
@@ -688,6 +701,8 @@ export async function buildCanonicalNflContext(options = {}) {
     ? `NOTE: Current team/status comes from ESPN roster refresh as of ${rosterAsOf}. Static stat baselines remain historical; use ESPN roster rows for current team, availability, cuts/signings/trades, and injury status.`
     : "NOTE: NFL roster data last verified May 2026. ESPN roster refresh has not populated KV yet; treat static team/status fields as stale until /api/nfl-roster-refresh runs.";
   let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  promptContext +=
+    "\n\nNFL RESPONSE DISCIPLINE: Do not mention weather, dome status, or 'no weather penalty' unless the user explicitly asks about weather or the NFL WEATHER SNAPSHOT says there is a potential weather factor. If no weather block is present, leave weather out entirely.";
   if (nflBreaking) {
     promptContext += `\n\nNFL BREAKING NEWS / MANUAL OVERRIDE:\n${nflBreaking}`;
   }

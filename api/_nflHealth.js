@@ -2,6 +2,7 @@ import { getDurableJson, getKvStoreHealth } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { NFL_CLAY_PROJECTIONS_2026 } from "./data/nfl-clay-projections-2026.js";
 import { NFL_FANTASY_MARKET_2026 } from "./data/nfl-fantasy-market-2026.js";
+import { NFL_QB_STATS_2025 } from "./data/nfl-qb-stats-2025.js";
 import { NFL_2026_PLAYER_PROP_OUS } from "./_nflPropLineContext.js";
 
 function ageMs(ts) {
@@ -58,6 +59,9 @@ export async function buildNflHealthSnapshot() {
       fantasyMarketLoaded: Object.keys(NFL_FANTASY_MARKET_2026.players || {}).length > 0,
       fantasyMarketPlayerCount: Object.keys(NFL_FANTASY_MARKET_2026.players || {}).length,
       fantasyMarketUpdatedAt: NFL_FANTASY_MARKET_2026.meta.updatedAt,
+      qbStats2025Loaded: Object.keys(NFL_QB_STATS_2025 || {}).length > 0,
+      qbStats2025PlayerCount: Object.keys(NFL_QB_STATS_2025 || {}).length,
+      qbStats2025Source: "nflverse stats_player_reg_2025.csv",
     },
     props: {
       actionNetworkPrimary: true,
