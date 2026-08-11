@@ -258,7 +258,10 @@ function resolveNflAliasToAbbr(value) {
 function detectHomeTeamFromQuestion(question) {
   const raw = String(question || "");
   const abbrPair = raw.toUpperCase().match(/\b([A-Z]{2,4})\s*(?:@|AT)\s*([A-Z]{2,4})\b/);
-  if (abbrPair) return resolveNflAliasToAbbr(abbrPair[2]);
+  if (abbrPair) {
+    const home = resolveNflAliasToAbbr(abbrPair[2]);
+    if (home) return home;
+  }
   const q = ` ${raw.toLowerCase().replace(/[^a-z0-9@]+/g, " ")} `;
   const aliases = Object.keys(NFL_SCOPE_ALIAS_TO_ABBR).sort((a, b) => b.length - a.length);
   for (const away of aliases) {
