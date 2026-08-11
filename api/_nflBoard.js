@@ -16,7 +16,7 @@ import {
 } from "./_nflPropsFetch.js";
 import { normalizeNflScoreboardGame } from "./_nflBoardNormalize.js";
 import { getNflPropsForBoard } from "./_nflProps.js";
-import { NFL_2026_PLAYER_PROP_OUS } from "./_nflPropLineContext.js";
+import { buildNflStaticPropsFallback } from "./_nflPropLineContext.js";
 
 export {
   normalizeNflMoneylineMarket,
@@ -204,12 +204,9 @@ export async function buildNflLiveBoard(opts = {}) {
     props: propsMeta,
     propsFallback:
       wantProps && propLines.length === 0
-        ? {
-            source: "static_2026_player_prop_ou_baselines",
-            playerCount: Object.keys(NFL_2026_PLAYER_PROP_OUS || {}).length,
-            note:
-              "No posted live NFL prop lines were available from the primary source; use static season O/U baselines only as fallback context, not as current book prices.",
-          }
+        ? buildNflStaticPropsFallback({
+            maxLines: 16,
+          })
         : null,
   };
 }

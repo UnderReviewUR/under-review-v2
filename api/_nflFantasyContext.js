@@ -29,11 +29,23 @@ function perGame(value, games) {
 function formatClayProjection(row) {
   if (!row) return "";
   const parts = [];
+  if (row.posRank != null) parts.push(`${row.pos || "POS"}${row.posRank}`);
   if (row.passYds != null) parts.push(`${row.passYds} pass yds (${perGame(row.passYds, row.games)}/g)`);
-  if (row.rushYds != null) parts.push(`${row.rushYds} rush yds (${perGame(row.rushYds, row.games)}/g)`);
-  if (row.targets != null) parts.push(`${row.targets} targets (${perGame(row.targets, row.games)}/g)`);
-  if (row.receptions != null) parts.push(`${row.receptions} rec`);
-  if (row.recYds != null) parts.push(`${row.recYds} rec yds (${perGame(row.recYds, row.games)}/g)`);
+  if (row.passTd != null) parts.push(`${row.passTd} pass TD`);
+  if (row.rushYds != null && Number(row.rushYds) > 0) {
+    parts.push(`${row.rushYds} rush yds (${perGame(row.rushYds, row.games)}/g)`);
+  }
+  if (row.rushTd != null && Number(row.rushTd) > 0) parts.push(`${row.rushTd} rush TD`);
+  if (row.targets != null && Number(row.targets) > 0) {
+    parts.push(`${row.targets} targets (${perGame(row.targets, row.games)}/g)`);
+  }
+  if (row.receptions != null && Number(row.receptions) > 0) parts.push(`${row.receptions} rec`);
+  if (row.recYds != null && Number(row.recYds) > 0) {
+    parts.push(`${row.recYds} rec yds (${perGame(row.recYds, row.games)}/g)`);
+  }
+  if (row.recTd != null && Number(row.recTd) > 0) parts.push(`${row.recTd} rec TD`);
+  if (row.targetShare != null && Number(row.targetShare) > 0) parts.push(`${row.targetShare}% tgt share`);
+  if (row.carryShare != null && Number(row.carryShare) > 0) parts.push(`${row.carryShare}% carry share`);
   if (row.pprPoints != null) parts.push(`${row.pprPoints} PPR pts`);
   return parts.join("; ");
 }
@@ -93,7 +105,10 @@ export function buildNflFantasyContextBlock({
     const row = getNflClayTeamProjection(team);
     if (!row) continue;
     teamLines.push(
-      `${team}: Clay projected wins ${row.projectedWins}, off rank ${row.offRank}, def rank ${row.defRank}, SOS rank ${row.sosRank}`,
+      `${team}: Clay projected wins ${row.projectedWins}` +
+        (row.projectedLosses != null ? `-${row.projectedLosses}` : "") +
+        `, off rank ${row.offRank}, def rank ${row.defRank}, SOS rank ${row.sosRank}` +
+        (row.nflRank != null ? `, overall rank ${row.nflRank}` : ""),
     );
   }
 

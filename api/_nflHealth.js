@@ -83,6 +83,11 @@ export async function buildNflHealthSnapshot() {
     },
     props: {
       actionNetworkPrimary: true,
+      bdlPrimaryFlag: ["1", "true", "yes"].includes(
+        String(getEnv("NFL_BDL_PRIMARY") || "")
+          .trim()
+          .toLowerCase(),
+      ),
       staticFallbackLoaded: Object.keys(NFL_2026_PLAYER_PROP_OUS || {}).length > 0,
       staticFallbackPlayerCount: Object.keys(NFL_2026_PLAYER_PROP_OUS || {}).length,
     },

@@ -708,6 +708,67 @@ export function formatPropContextForPlayers(playerNames, maxPlayers = 4) {
 }
 
 /**
+ * Build board-facing static prop fallback when live AN/BDL lines are empty.
+ * Optional playerNames filters to asked players; otherwise returns a compact sample.
+ * @param {{ playerNames?: string[], maxLines?: number }} [opts]
+ */
+export function buildNflStaticPropsFallback(opts = {}) {
+  const maxLines = Math.max(1, Math.min(Number(opts.maxLines) || 12, 40));
+  /** @type {Array<Record<string, unknown>>} */
+  const lines = [];
+  const seen = new Set();
+
+  const pushPlayer = (name) => {
+    const key = resolvePropPlayerKey(name);
+    if (!key || seen.has(key)) return;
+    const props = NFL_2026_PLAYER_PROP_OUS[key];
+    if (!props) return;
+    seen.add(key);
+    const markets = [
+      ["pass_yds", props.passYds],
+      ["pass_tds", props.passTds],
+      ["rush_yds", props.rushYds],
+      ["rec_yds", props.recYds],
+      ["recs", props.recs],
+      ["rec_tds", props.recTds],
+    ];
+    for (const [market, line] of markets) {
+      if (line == null || !Number.isFinite(Number(line))) continue;
+      lines.push({
+        player: key,
+        market,
+        line: Number(line),
+        book: props.source || "DraftKings",
+        asOf: props.asOf || null,
+        source: "static_2026_player_prop_ou_baselines",
+      });
+      if (lines.length >= maxLines) return;
+    }
+  };
+
+  for (const name of opts.playerNames || []) {
+    if (lines.length >= maxLines) break;
+    pushPlayer(name);
+  }
+
+  if (lines.length === 0) {
+    for (const name of Object.keys(NFL_2026_PLAYER_PROP_OUS)) {
+      if (lines.length >= maxLines) break;
+      pushPlayer(name);
+    }
+  }
+
+  return {
+    source: "static_2026_player_prop_ou_baselines",
+    playerCount: Object.keys(NFL_2026_PLAYER_PROP_OUS || {}).length,
+    lineCount: lines.length,
+    lines,
+    note:
+      "No posted live NFL prop lines were available from the primary source; use static season O/U baselines only as fallback context, not as current book prices.",
+  };
+}
+
+/**
  * Compare two players on the same team — identify target share leader.
  * @param {string} playerA
  * @param {string} playerB
