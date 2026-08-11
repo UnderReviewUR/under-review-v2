@@ -256,15 +256,17 @@ function resolveNflAliasToAbbr(value) {
 }
 
 function detectHomeTeamFromQuestion(question) {
-  const q = String(question || "");
-  const abbrPair = q.toUpperCase().match(/\b([A-Z]{2,4})\s*(?:@|AT)\s*([A-Z]{2,4})\b/);
+  const raw = String(question || "");
+  const abbrPair = raw.toUpperCase().match(/\b([A-Z]{2,4})\s*(?:@|AT)\s*([A-Z]{2,4})\b/);
   if (abbrPair) return resolveNflAliasToAbbr(abbrPair[2]);
+  const q = ` ${raw.toLowerCase().replace(/[^a-z0-9@]+/g, " ")} `;
   const aliases = Object.keys(NFL_SCOPE_ALIAS_TO_ABBR).sort((a, b) => b.length - a.length);
   for (const away of aliases) {
     for (const home of aliases) {
       if (away === home) continue;
-      const re = new RegExp(`\\b${away}\\b\\s+(?:at|@)\\s+\\b${home}\\b`, "i");
-      if (re.test(q)) return NFL_SCOPE_ALIAS_TO_ABBR[home];
+      if (q.includes(` ${away} at ${home} `) || q.includes(` ${away} @ ${home} `)) {
+        return NFL_SCOPE_ALIAS_TO_ABBR[home];
+      }
     }
   }
   return null;
