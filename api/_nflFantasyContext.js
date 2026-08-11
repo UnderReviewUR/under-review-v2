@@ -44,15 +44,30 @@ function questionWantsFantasyContext(question) {
   );
 }
 
+function knownPlayerNamesFromQuestion(question) {
+  const q = normalize(question);
+  if (!q) return [];
+  const names = new Set();
+  for (const name of Object.keys(NFL_FANTASY_MARKET_2026.players || {})) {
+    if (q.includes(normalize(name))) names.add(name);
+  }
+  for (const name of Object.keys(NFL_CLAY_PROJECTIONS_2026.players || {})) {
+    if (q.includes(normalize(name))) names.add(name);
+  }
+  return [...names];
+}
+
 export function buildNflFantasyContextBlock({
   question = "",
   playerNames = [],
   scopeTeamAbbrs = [],
 } = {}) {
-  if (!questionWantsFantasyContext(question) && !playerNames.length) return "";
+  const questionNames = knownPlayerNamesFromQuestion(question);
+  const namesToCheck = [...playerNames, ...questionNames];
+  if (!questionWantsFantasyContext(question) && !namesToCheck.length) return "";
   const seen = new Set();
   const lines = [];
-  for (const name of playerNames) {
+  for (const name of namesToCheck) {
     const k = normalize(name);
     if (!k || seen.has(k)) continue;
     seen.add(k);
