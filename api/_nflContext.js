@@ -747,7 +747,14 @@ export async function buildCanonicalNflContext(options = {}) {
   const nflRosterVerificationBanner = rosterAsOf
     ? `NOTE: Current team/status comes from ESPN roster refresh as of ${rosterAsOf}. Static stat baselines remain historical; use ESPN roster rows for current team, availability, cuts/signings/trades, and injury status.`
     : "NOTE: NFL roster data last verified May 2026. ESPN roster refresh has not populated KV yet; treat static team/status fields as stale until /api/nfl-roster-refresh runs.";
-  let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  const fantasyContextBlock = buildNflFantasyContextBlock({
+    question,
+    playerNames: scoped ? Object.keys(uiPlayers) : [],
+    scopeTeamAbbrs: scoped ? [...scope] : [],
+  });
+  let promptContext = [nflRosterVerificationBanner, fantasyContextBlock, buildPromptContext(uiPlayers), draftBlock]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
   promptContext +=
     "\n\nNFL RESPONSE DISCIPLINE: Do not mention weather, dome status, or 'no weather penalty' unless the user explicitly asks about weather or the NFL WEATHER SNAPSHOT says there is a potential weather factor. If no weather block is present, leave weather out entirely.";
   if (nflBreaking) {
@@ -756,11 +763,6 @@ export async function buildCanonicalNflContext(options = {}) {
   promptContext += formatCurrentRosterBlock(rosterData, scope, leagueCompact);
   promptContext += formatRosterChangesBlock(rosterData, scope, leagueCompact);
   promptContext += formatGameDayStatusBlock(gameDayStatus, scope, leagueCompact);
-  promptContext += buildNflFantasyContextBlock({
-    question,
-    playerNames: scoped ? Object.keys(uiPlayers) : [],
-    scopeTeamAbbrs: scoped ? [...scope] : [],
-  });
   promptContext += buildNflInactiveDisciplineBlock(question);
   if (scoped) {
     promptContext += await buildNflWeatherBlock(scope, question, matchupContext);
