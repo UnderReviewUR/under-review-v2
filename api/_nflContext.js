@@ -296,17 +296,19 @@ export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
     /* ignore */
   }
 
-  const focusFullName = resolveNflTeamFromQuestion(q);
-  if (focusFullName) {
-    const ab = getNflTeamAbbrFromName(focusFullName);
-    if (ab) set.add(ab);
-  }
-
   const qUpper = q.toUpperCase();
   const pair = qUpper.match(/\b([A-Z]{2,4})\s*(?:@|VS\.?|V\.?)\s*([A-Z]{2,4})\b/);
   if (pair) {
     set.add(pair[1]);
     set.add(pair[2]);
+  }
+
+  if (set.size > 0 && set.size <= 2) return set;
+
+  const focusFullName = resolveNflTeamFromQuestion(q);
+  if (focusFullName) {
+    const ab = getNflTeamAbbrFromName(focusFullName);
+    if (ab) set.add(ab);
   }
 
   const leagueStr = String(matchupContext?.league || "").toUpperCase();
