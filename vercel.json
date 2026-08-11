@@ -92,6 +92,9 @@
     "api/nfl-roster-refresh.js": {
       "maxDuration": 120
     },
+    "api/nfl-inactives-refresh.js": {
+      "maxDuration": 120
+    },
     "api/nfl-props-scrape.js": {
       "maxDuration": 60
     },
@@ -121,6 +124,10 @@
     {
       "path": "/api/nfl-roster-refresh?seasonal=1",
       "schedule": "0 15 * * 0"
+    },
+    {
+      "path": "/api/nfl-inactives-refresh?seasonal=1",
+      "schedule": "0 13-22 * * 0"
     },
     {
       "path": "/api/nba?view=board&warmup=1",

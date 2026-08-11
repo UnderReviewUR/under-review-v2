@@ -7,6 +7,9 @@ import { getEnv } from "./_env.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
 import { buildNflFantasyContextBlock } from "./_nflFantasyContext.js";
 import { getNflQbStats2025 } from "./data/nfl-qb-stats-2025.js";
+import { getNflPlayerStats2025 } from "./data/nfl-player-stats-2025.js";
+import { getNflDefenseAllowed2025 } from "./data/nfl-defense-allowed-2025.js";
+import { readNflGameDayStatusSnapshot } from "./_nflEspnGameDayStatus.js";
 import {
   buildNflDraftBoardBlock,
   getActiveDraftBundle,
@@ -403,6 +406,26 @@ function formatRosterChangesBlock(rosterData, scope, leagueCompact) {
   return `\n\nNFL ROSTER CHANGES SINCE LAST REFRESH:\n${lines.join("\n")}`;
 }
 
+function formatGameDayStatusBlock(snapshot, scope, leagueCompact) {
+  if (!snapshot?.events?.length) return "";
+  const events = snapshot.events.filter((event) =>
+    (event.teams || []).some((team) => scopeMatchesTeam(scope, team.abbr)),
+  );
+  const selected = (leagueCompact ? snapshot.events : events).slice(0, leagueCompact ? 5 : 8);
+  if (!selected.length) return "";
+  const lines = [];
+  for (const event of selected) {
+    const teams = (event.teams || []).map((team) => `${team.homeAway}:${team.abbr}`).join(" ");
+    lines.push(`${event.name || event.id} | ${event.status || "status n/a"} | ${teams}`);
+    for (const injury of (event.injuries || []).slice(0, 10)) {
+      if (!leagueCompact && injury.team && !scopeMatchesTeam(scope, injury.team)) continue;
+      const detail = [injury.status, injury.type, injury.detail].filter(Boolean).join(" — ");
+      if (injury.player || detail) lines.push(`  ${injury.team || "NFL"} ${injury.player || "status"}: ${detail || "listed"}`);
+    }
+  }
+  return `\n\nNFL GAME-DAY STATUS / INACTIVES SNAPSHOT (ESPN, as of ${new Date(snapshot.fetchedAt).toISOString()}):\n${lines.join("\n")}`;
+}
+
 /**
  * Resolve 1–2 NFL team abbreviations from question text + optional matchup card (NBA-style scope).
  * Empty set ⇒ league-wide prompts use compact injections (token budget).
@@ -490,21 +513,25 @@ function toNumber(value, fallback = 0) {
 }
 
 function mapWrTeToUi(name, player) {
+  const playerStats2025 = getNflPlayerStats2025(name);
   const rec = player?.rec2025 || {};
+  const ydsPg = playerStats2025?.receivingYardsPerGame ?? toNumber(rec.ydsPg);
+  const recPg = playerStats2025?.receptionsPerGame ?? (rec.recPg != null ? toNumber(rec.recPg) : null);
   return [
     name,
     {
       pos: player?.pos || "WR",
       team: player?.team || "UNK",
       tier: player?.tier || "STARTER",
-      ydsPg: toNumber(rec.ydsPg),
+      ydsPg,
       rec2025: {
-        g: toNumber(rec.g),
-        td: toNumber(rec.td),
-        ypr: toNumber(rec.ypr),
-        tgt: rec.tgt != null ? toNumber(rec.tgt) : null,
-        recPg: rec.recPg != null ? toNumber(rec.recPg) : null,
+        g: playerStats2025?.games ?? toNumber(rec.g),
+        td: playerStats2025?.receivingTds ?? toNumber(rec.td),
+        ypr: playerStats2025?.yardsPerReception ?? toNumber(rec.ypr),
+        tgt: playerStats2025?.targets ?? (rec.tgt != null ? toNumber(rec.tgt) : null),
+        recPg,
       },
+      playerStats2025,
       props: player?.props || {},
       situation: player?.situation2026 || player?.situation || "Role context unavailable.",
       bettingAngles: Array.isArray(player?.bettingAngles) ? player.bettingAngles : [],
@@ -514,22 +541,25 @@ function mapWrTeToUi(name, player) {
 }
 
 function mapRbToUi(name, player) {
+  const playerStats2025 = getNflPlayerStats2025(name);
   const rush = player?.rush2025 || {};
   const rushYds = player?.props?.rushYds || null;
+  const rushYdsPg = playerStats2025?.rushingYardsPerGame ?? toNumber(rush.ydsPg);
   return [
     name,
     {
       pos: "RB",
       team: player?.team || "UNK",
       tier: player?.tier || "STARTER",
-      ydsPg: toNumber(rush.ydsPg),
+      ydsPg: rushYdsPg,
       rec2025: {
-        g: toNumber(rush.g),
-        td: toNumber(rush.td),
+        g: playerStats2025?.games ?? toNumber(rush.g),
+        td: playerStats2025?.rushingTds ?? toNumber(rush.td),
         ypr: toNumber(rush.ypa), // Kept for existing UI slot.
         tgt: null,
         recPg: null,
       },
+      playerStats2025,
       props: {
         recYds: rushYds
           ? {
@@ -602,6 +632,10 @@ function buildPromptContext(uiPlayers) {
       const statLine =
         p.pos === "QB" && p.qbStats2025
           ? `  2025 QB stats (nflverse): ${p.qbStats2025.passingYardsPerGame} pass yds/g, ${p.qbStats2025.passingTds} TD, ${p.qbStats2025.interceptions} INT, ${p.qbStats2025.sackPct}% sack rate, EPA/att ${p.qbStats2025.epaPerAttempt}, ${p.qbStats2025.rushingYardsPerGame} rush yds/g`
+          : p.pos === "RB" && p.playerStats2025
+            ? `  2025 RB stats (nflverse): ${p.playerStats2025.rushingYardsPerGame} rush yds/g, ${p.playerStats2025.touchesPerGame} touches/g, ${p.playerStats2025.targetsPerGame} targets/g, ${p.playerStats2025.rushingTds} rush TD, ${p.playerStats2025.receivingYardsPerGame} rec yds/g`
+            : (p.pos === "WR" || p.pos === "TE") && p.playerStats2025
+              ? `  2025 ${p.pos} stats (nflverse): ${p.playerStats2025.targetsPerGame} targets/g, ${p.playerStats2025.receptionsPerGame} rec/g, ${p.playerStats2025.receivingYardsPerGame} rec yds/g, ${p.playerStats2025.receivingTds} TD, target share ${p.playerStats2025.targetShare}`
           : `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
       const leanLine = `  Lean: ${yLean} | TD: ${tdLean}`;
       return [core, statLine, leanLine, formatRosterStatusLine(p)].filter(Boolean).join("\n");
@@ -641,8 +675,13 @@ function formatWrTeDatabasePrompt(wrMap) {
 
 function formatDefensePrompt(defensesMap) {
   const lines = Object.entries(defensesMap || {}).map(
-    ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | Pass rank ${d.pass.rank} | Rush rank ${d.rush.rank} | ${d.propImpact.qb}`,
+    ([abbr, d]) => {
+      const allowed = getNflDefenseAllowed2025(abbr);
+      const allowedLine = allowed
+        ? ` | 2025 allowed: ${allowed.passYardsAllowedPerGame} pass yds/g, ${allowed.passTdsAllowedPerGame} pass TD/g, ${allowed.rushYardsAllowedPerGame} rush yds/g, sack ${allowed.sacksPerGame}/g`
+        : "";
+      return `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | Pass rank ${d.pass.rank} | Rush rank ${d.rush.rank}${allowedLine} | ${d.propImpact.qb}`;
+    },
   );
   return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams):\n" + lines.join("\n");
 }
@@ -650,8 +689,13 @@ function formatDefensePrompt(defensesMap) {
 /** Short defense lines — league-wide mode without long propImpact strings (token budget). */
 function formatDefensePromptCompact(defensesMap) {
   const lines = Object.entries(defensesMap || {}).map(
-    ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | pass rank ${d.pass.rank} | rush rank ${d.rush.rank}`,
+    ([abbr, d]) => {
+      const allowed = getNflDefenseAllowed2025(abbr);
+      const allowedLine = allowed
+        ? ` | allowed ${allowed.passYardsAllowedPerGame} pass yds/g, ${allowed.rushYardsAllowedPerGame} rush yds/g`
+        : "";
+      return `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | pass rank ${d.pass.rank} | rush rank ${d.rush.rank}${allowedLine}`;
+    },
   );
   return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams — compact):\n" + lines.join("\n");
 }
@@ -675,7 +719,10 @@ export async function buildCanonicalNflContext(options = {}) {
 
   const scoped = Boolean(scope && scope.size > 0 && scope.size <= 2);
   const leagueCompact = !scoped;
-  const rosterData = await getDurableJson("nfl_espn_roster");
+  const [rosterData, gameDayStatus] = await Promise.all([
+    getDurableJson("nfl_espn_roster"),
+    readNflGameDayStatusSnapshot().catch(() => null),
+  ]);
 
   let wrteEntries = Object.entries(WRsAndTEs || {}).map(([name, player]) => mapWrTeToUi(name, player));
   let rbEntries = Object.entries(RBs || {}).map(([name, player]) => mapRbToUi(name, player));
@@ -708,6 +755,7 @@ export async function buildCanonicalNflContext(options = {}) {
   }
   promptContext += formatCurrentRosterBlock(rosterData, scope, leagueCompact);
   promptContext += formatRosterChangesBlock(rosterData, scope, leagueCompact);
+  promptContext += formatGameDayStatusBlock(gameDayStatus, scope, leagueCompact);
   promptContext += buildNflFantasyContextBlock({
     question,
     playerNames: scoped ? Object.keys(uiPlayers) : [],
