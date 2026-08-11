@@ -129,14 +129,11 @@ function buildNflInactiveDisciplineBlock(question) {
   return "\n\nNFL ACTIVE/INACTIVE DISCIPLINE: ESPN roster refresh supplies current availability when posted. If official 90-minute inactives are not present in the roster/injury rows, do not claim a player is officially active/inactive; say status is unconfirmed and use the listed ESPN status as the latest signal.";
 }
 
-async function buildNflWeatherBlock(scope, question) {
+async function buildNflWeatherBlock(scope, question, matchupContext = null) {
   if (!questionNeedsNflWeather(question)) return "";
   const explicitWeatherAsk = questionExplicitlyAsksWeather(question);
-  const teams = [...(scope || [])]
-    .map((team) => String(team || "").toUpperCase())
-    .filter(Boolean);
-  const team = teams.find((abbr) => NFL_STADIUM_META[abbr] && !NFL_STADIUM_META[abbr].domed);
-  if (!team) return "";
+  const team = resolveWeatherVenueTeam(scope, question, matchupContext);
+  if (!team || NFL_STADIUM_META[team]?.domed) return "";
   const meta = NFL_STADIUM_META[team];
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${meta.lat}&longitude=${meta.lon}` +
@@ -248,6 +245,46 @@ function detectNflScopeAlias(question) {
     if (new RegExp(`\\b${alias}\\b`, "i").test(q)) return abbr;
   }
   return null;
+}
+
+function resolveNflAliasToAbbr(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  if (NFL_STADIUM_META[upper]) return upper;
+  return NFL_SCOPE_ALIAS_TO_ABBR[raw.toLowerCase()] || null;
+}
+
+function detectHomeTeamFromQuestion(question) {
+  const q = String(question || "");
+  const abbrPair = q.toUpperCase().match(/\b([A-Z]{2,4})\s*(?:@|AT)\s*([A-Z]{2,4})\b/);
+  if (abbrPair) return resolveNflAliasToAbbr(abbrPair[2]);
+  const aliases = Object.keys(NFL_SCOPE_ALIAS_TO_ABBR).sort((a, b) => b.length - a.length);
+  for (const away of aliases) {
+    for (const home of aliases) {
+      if (away === home) continue;
+      const re = new RegExp(`\\b${away}\\b\\s+(?:at|@)\\s+\\b${home}\\b`, "i");
+      if (re.test(q)) return NFL_SCOPE_ALIAS_TO_ABBR[home];
+    }
+  }
+  return null;
+}
+
+function resolveWeatherVenueTeam(scope, question, matchupContext) {
+  const leagueStr = String(matchupContext?.league || "").toUpperCase();
+  if (matchupContext && leagueStr.includes("NFL")) {
+    const raw = matchupContext.raw || {};
+    const home = resolveNflAliasToAbbr(
+      raw.homeTeam?.abbr || raw.home_abbr || raw.home || matchupContext.homeTeam || matchupContext.home,
+    );
+    if (home) return home;
+  }
+  const textHome = detectHomeTeamFromQuestion(question);
+  if (textHome) return textHome;
+  const teams = [...(scope || [])]
+    .map((team) => String(team || "").toUpperCase())
+    .filter((team) => NFL_STADIUM_META[team]);
+  return teams.length === 1 ? teams[0] : null;
 }
 
 function buildRosterByName(rosterData) {
@@ -658,7 +695,7 @@ export async function buildCanonicalNflContext(options = {}) {
   });
   promptContext += buildNflInactiveDisciplineBlock(question);
   if (scoped) {
-    promptContext += await buildNflWeatherBlock(scope, question);
+    promptContext += await buildNflWeatherBlock(scope, question, matchupContext);
   }
 
   const depthData = await getDurableJson("nfl_depth_chart");
