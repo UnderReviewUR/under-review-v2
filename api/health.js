@@ -3,6 +3,7 @@ import { applyCors, applyApiNoStoreHeaders } from "./_cors.js";
 import { isAccessTokenSecretConfigured } from "./_env.js";
 import { buildWcHealthSnapshot } from "./_wcHealth.js";
 import { buildNbaHealthSnapshot } from "./_nbaHealth.js";
+import { buildNflHealthSnapshot } from "./_nflHealth.js";
 
 export default async function handler(req, res) {
   if (!applyCors(req, res, { methods: "GET, OPTIONS" })) return;
@@ -14,8 +15,10 @@ export default async function handler(req, res) {
 
   const includeWc = String(req.query?.wc || "") === "1";
   const includeNba = String(req.query?.nba || "") === "1";
+  const includeNfl = String(req.query?.nfl || "") === "1";
   let wc = null;
   let nba = null;
+  let nfl = null;
   if (includeWc) {
     try {
       wc = await buildWcHealthSnapshot();
@@ -30,10 +33,18 @@ export default async function handler(req, res) {
       nba = { ok: false, error: err?.message || "nba_health_failed" };
     }
   }
+  if (includeNfl) {
+    try {
+      nfl = await buildNflHealthSnapshot();
+    } catch (err) {
+      nfl = { ok: false, error: err?.message || "nfl_health_failed" };
+    }
+  }
 
   let ok = true;
   if (wc && wc.ok === false) ok = false;
   if (nba && nba.ok === false) ok = false;
+  if (nfl && nfl.ok === false) ok = false;
 
   return res.status(200).json({
     ok,
@@ -41,5 +52,6 @@ export default async function handler(req, res) {
     accessTokenSecretConfigured: isAccessTokenSecretConfigured(),
     wc,
     nba,
+    nfl,
   });
 }

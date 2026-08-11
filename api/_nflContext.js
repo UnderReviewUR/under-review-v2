@@ -3,7 +3,9 @@ import WRsAndTEs from "./nfl-wr-te.js";
 import { QBs } from "./nfl-players.js";
 import { defenses } from "./nfl-defense.js";
 import { getDurableJson } from "./_durableStore.js";
+import { getEnv } from "./_env.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
+import { buildNflFantasyContextBlock } from "./_nflFantasyContext.js";
 import {
   buildNflDraftBoardBlock,
   getActiveDraftBundle,
@@ -81,6 +83,51 @@ export const NFL_STADIUM_META = {
   TEN: { lat: 36.1665, lon: -86.7713, domed: false, stadium: "Nissan Stadium" },
   WAS: { lat: 38.9076, lon: -76.8645, domed: false, stadium: "Northwest Stadium" },
 };
+
+function questionNeedsNflWeather(question) {
+  return /\b(weather|wind|rain|snow|cold|heat|outdoor|kicker|field goal|total|over|under|passing|receiving)\b/i.test(
+    String(question || ""),
+  );
+}
+
+function buildNflInactiveDisciplineBlock(question) {
+  if (!/\b(inactive|active|out|questionable|will .*play|playing|suit up|available|injur)/i.test(String(question || ""))) {
+    return "";
+  }
+  return "\n\nNFL ACTIVE/INACTIVE DISCIPLINE: ESPN roster refresh supplies current availability when posted. If official 90-minute inactives are not present in the roster/injury rows, do not claim a player is officially active/inactive; say status is unconfirmed and use the listed ESPN status as the latest signal.";
+}
+
+async function buildNflWeatherBlock(scope, question) {
+  if (!questionNeedsNflWeather(question)) return "";
+  const teams = [...(scope || [])]
+    .map((team) => String(team || "").toUpperCase())
+    .filter(Boolean);
+  const team = teams.find((abbr) => NFL_STADIUM_META[abbr] && !NFL_STADIUM_META[abbr].domed);
+  if (!team) {
+    const domed = teams.find((abbr) => NFL_STADIUM_META[abbr]?.domed);
+    if (!domed) return "";
+    return `\n\nNFL WEATHER: ${domed} plays in a dome/retractable-roof baseline for this check; downgrade weather impact unless roof/news says otherwise.`;
+  }
+  const meta = NFL_STADIUM_META[team];
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${meta.lat}&longitude=${meta.lon}` +
+    "&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m" +
+    "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch";
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) throw new Error(`weather HTTP ${res.status}`);
+    const json = await res.json();
+    const cur = json?.current || {};
+    const units = json?.current_units || {};
+    const temp = cur.temperature_2m != null ? `${cur.temperature_2m}${units.temperature_2m || "F"}` : "n/a";
+    const wind = cur.wind_speed_10m != null ? `${cur.wind_speed_10m} mph` : "n/a";
+    const gust = cur.wind_gusts_10m != null ? `${cur.wind_gusts_10m} mph gusts` : "gust n/a";
+    const precip = cur.precipitation != null ? `${cur.precipitation} in precip` : "precip n/a";
+    return `\n\nNFL WEATHER SNAPSHOT (${team}, ${meta.stadium}, current Open-Meteo): ${temp}, wind ${wind}, ${gust}, ${precip}. Treat as current weather only; confirm kickoff forecast for bets near game time.`;
+  } catch (err) {
+    return `\n\nNFL WEATHER SNAPSHOT: unavailable for ${team} (${err?.message || "fetch failed"}). Do not invent weather; ask user to verify kickoff forecast if weather matters.`;
+  }
+}
 
 /**
  * @param {string} abbr
@@ -507,12 +554,25 @@ export async function buildCanonicalNflContext(options = {}) {
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
   const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
   const rosterAsOf = rosterData?.fetchedAt ? new Date(rosterData.fetchedAt).toISOString() : null;
+  const nflBreaking = String(getEnv("NFL_BREAKING") || "").trim();
   const nflRosterVerificationBanner = rosterAsOf
     ? `NOTE: Current team/status comes from ESPN roster refresh as of ${rosterAsOf}. Static stat baselines remain historical; use ESPN roster rows for current team, availability, cuts/signings/trades, and injury status.`
     : "NOTE: NFL roster data last verified May 2026. ESPN roster refresh has not populated KV yet; treat static team/status fields as stale until /api/nfl-roster-refresh runs.";
   let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  if (nflBreaking) {
+    promptContext += `\n\nNFL BREAKING NEWS / MANUAL OVERRIDE:\n${nflBreaking}`;
+  }
   promptContext += formatCurrentRosterBlock(rosterData, scope, leagueCompact);
   promptContext += formatRosterChangesBlock(rosterData, scope, leagueCompact);
+  promptContext += buildNflFantasyContextBlock({
+    question,
+    playerNames: scoped ? Object.keys(uiPlayers) : [],
+    scopeTeamAbbrs: scoped ? [...scope] : [],
+  });
+  promptContext += buildNflInactiveDisciplineBlock(question);
+  if (scoped) {
+    promptContext += await buildNflWeatherBlock(scope, question);
+  }
 
   const depthData = await getDurableJson("nfl_depth_chart");
   const depthFiltered =
