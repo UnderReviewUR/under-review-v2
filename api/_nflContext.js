@@ -115,6 +115,122 @@ function scopeMatchesTeam(scope, teamFromRow) {
   return false;
 }
 
+function normalizeNflRosterNameKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function buildRosterByName(rosterData) {
+  const out = new Map();
+  for (const player of Array.isArray(rosterData?.players) ? rosterData.players : []) {
+    const key = normalizeNflRosterNameKey(player?.name);
+    if (key && !out.has(key)) out.set(key, player);
+  }
+  return out;
+}
+
+function overlayCurrentRosterOnEntries(entries, rosterData) {
+  const byName = buildRosterByName(rosterData);
+  if (!byName.size) return entries;
+  return entries.map(([name, player]) => {
+    const current = byName.get(normalizeNflRosterNameKey(name));
+    if (!current?.team) return [name, player];
+    const staticTeam = player?.team || "UNK";
+    return [
+      name,
+      {
+        ...player,
+        staticTeam,
+        team: current.team,
+        rosterStatus: current.rosterStatus || current.status || "",
+        availability: current.availability || "",
+        injuryStatus: current.injuryStatus || "",
+        injuryDetail: Array.isArray(current.injuries)
+          ? current.injuries.map((inj) => inj.summary).filter(Boolean).join(" | ")
+          : "",
+        currentRosterSource: "espn_roster",
+        currentRosterAsOf: rosterData?.fetchedAt || null,
+      },
+    ];
+  });
+}
+
+function formatRosterStatusLine(player) {
+  const parts = [];
+  const status = String(player?.rosterStatus || player?.availability || "").trim();
+  const injury = String(player?.injuryDetail || player?.injuryStatus || "").trim();
+  if (status && status !== "Active") parts.push(`status ${status}`);
+  if (injury && injury !== status) parts.push(injury);
+  if (player?.staticTeam && player.staticTeam !== player.team) {
+    parts.push(`static DB team was ${player.staticTeam}; ESPN roster says ${player.team}`);
+  }
+  return parts.length ? `  Roster: ${parts.join(" | ")}` : "";
+}
+
+function formatCurrentRosterBlock(rosterData, scope, leagueCompact) {
+  const players = Array.isArray(rosterData?.players) ? rosterData.players : [];
+  if (!players.length) return "";
+  const asOf = rosterData.fetchedAt ? new Date(rosterData.fetchedAt).toISOString() : "unknown";
+  if (leagueCompact) {
+    return `\n\nCURRENT NFL ROSTERS (ESPN): loaded ${players.length} players as of ${asOf}; omitted in league mode. Ask with a team or matchup for current roster/injury detail.`;
+  }
+  const posOrder = new Map([
+    ["QB", 1],
+    ["RB", 2],
+    ["FB", 3],
+    ["WR", 4],
+    ["TE", 5],
+  ]);
+  const scopedPlayers = players
+    .filter((p) => scopeMatchesTeam(scope, p?.team))
+    .filter((p) => posOrder.has(String(p?.position || "").toUpperCase()))
+    .sort((a, b) => {
+      const ap = posOrder.get(String(a?.position || "").toUpperCase()) || 99;
+      const bp = posOrder.get(String(b?.position || "").toUpperCase()) || 99;
+      if (ap !== bp) return ap - bp;
+      return String(a?.name || "").localeCompare(String(b?.name || ""));
+    })
+    .slice(0, 80);
+  if (!scopedPlayers.length) return "";
+  const lines = scopedPlayers.map((p) => {
+    const status = String(p.availability || p.rosterStatus || "").trim();
+    const injury = String(p.injuryStatus || "").trim();
+    const suffix = injury && injury !== status ? ` | ${injury}` : "";
+    return `${p.team} ${p.position} ${p.name}${status && status !== "active" ? ` | ${status}` : ""}${suffix}`;
+  });
+  return `\n\nCURRENT ROSTER SNAPSHOT (ESPN, as of ${asOf}):\n${lines.join("\n")}`;
+}
+
+function formatRosterChangesBlock(rosterData, scope, leagueCompact) {
+  const changes = Array.isArray(rosterData?.changesSinceLastRefresh)
+    ? rosterData.changesSinceLastRefresh
+    : [];
+  if (!changes.length) return "";
+  const scoped = changes.filter((change) => {
+    const teams = [change.team, change.fromTeam, change.toTeam].filter(Boolean);
+    return !teams.length || teams.some((team) => scopeMatchesTeam(scope, team));
+  });
+  const selected = (leagueCompact ? changes : scoped).slice(0, leagueCompact ? 10 : 25);
+  if (!selected.length) return "";
+  const lines = selected.map((change) => {
+    if (change.type === "team_changed") {
+      return `${change.player} (${change.pos}): team changed ${change.fromTeam} -> ${change.toTeam}`;
+    }
+    if (change.type === "injury_changed") {
+      return `${change.player} (${change.pos}, ${change.team}): injury/status changed to ${change.to || "clear"}`;
+    }
+    if (change.type === "status_changed") {
+      return `${change.player} (${change.pos}, ${change.team}): roster status ${change.fromStatus || "n/a"} -> ${change.toStatus || "n/a"}`;
+    }
+    if (change.type === "removed") {
+      return `${change.player} (${change.pos}): removed from ${change.fromTeam}`;
+    }
+    return `${change.player} (${change.pos}, ${change.team}): added to roster`;
+  });
+  return `\n\nNFL ROSTER CHANGES SINCE LAST REFRESH:\n${lines.join("\n")}`;
+}
+
 /**
  * Resolve 1–2 NFL team abbreviations from question text + optional matchup card (NBA-style scope).
  * Empty set ⇒ league-wide prompts use compact injections (token budget).
@@ -299,7 +415,7 @@ function buildPromptContext(uiPlayers) {
       const core = `${name} | ${p.pos} | ${p.team} | ${p.tier}`;
       const statLine = `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
       const leanLine = `  Lean: ${yLean} | TD: ${tdLean}`;
-      return [core, statLine, leanLine].join("\n");
+      return [core, statLine, leanLine, formatRosterStatusLine(p)].filter(Boolean).join("\n");
     })
     .join("\n\n");
 
@@ -370,10 +486,15 @@ export async function buildCanonicalNflContext(options = {}) {
 
   const scoped = Boolean(scope && scope.size > 0 && scope.size <= 2);
   const leagueCompact = !scoped;
+  const rosterData = await getDurableJson("nfl_espn_roster");
 
   let wrteEntries = Object.entries(WRsAndTEs || {}).map(([name, player]) => mapWrTeToUi(name, player));
   let rbEntries = Object.entries(RBs || {}).map(([name, player]) => mapRbToUi(name, player));
   let qbEntries = Object.entries(QBs || {}).map(([name, player]) => mapQbToUi(name, player));
+
+  wrteEntries = overlayCurrentRosterOnEntries(wrteEntries, rosterData);
+  rbEntries = overlayCurrentRosterOnEntries(rbEntries, rosterData);
+  qbEntries = overlayCurrentRosterOnEntries(qbEntries, rosterData);
 
   if (scoped) {
     wrteEntries = filterObjectEntriesByTeam(wrteEntries, scope);
@@ -385,9 +506,13 @@ export async function buildCanonicalNflContext(options = {}) {
   const draftBundle = getActiveDraftBundle();
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
   const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
-  const nflRosterVerificationBanner =
-    "NOTE: NFL roster data last verified May 2026. Rookie class from 2025 draft integrated via ESPN roster fetch. For 2025 draftees not in static database, use ESPN roster context only.";
+  const rosterAsOf = rosterData?.fetchedAt ? new Date(rosterData.fetchedAt).toISOString() : null;
+  const nflRosterVerificationBanner = rosterAsOf
+    ? `NOTE: Current team/status comes from ESPN roster refresh as of ${rosterAsOf}. Static stat baselines remain historical; use ESPN roster rows for current team, availability, cuts/signings/trades, and injury status.`
+    : "NOTE: NFL roster data last verified May 2026. ESPN roster refresh has not populated KV yet; treat static team/status fields as stale until /api/nfl-roster-refresh runs.";
   let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  promptContext += formatCurrentRosterBlock(rosterData, scope, leagueCompact);
+  promptContext += formatRosterChangesBlock(rosterData, scope, leagueCompact);
 
   const depthData = await getDurableJson("nfl_depth_chart");
   const depthFiltered =
@@ -416,7 +541,6 @@ export async function buildCanonicalNflContext(options = {}) {
     promptContext += formatDefensePromptCompact(defenses);
   }
 
-  const rosterData = await getDurableJson("nfl_espn_roster");
   if (!leagueCompact && rosterData?.coaches && typeof rosterData.coaches === "object") {
     let coachEntries = Object.entries(rosterData.coaches);
     if (scoped) {
@@ -446,9 +570,16 @@ export async function buildCanonicalNflContext(options = {}) {
       pool = pool.filter((p) => scopeMatchesTeam(scope, p.team));
     }
     const injCap = leagueCompact ? 12 : 40;
-    const injured = pool.map((p) => `${p.name} (${p.team}, ${p.position}): ${p.injuryStatus}`).slice(0, injCap);
+    const injured = pool
+      .map((p) => {
+        const detail = Array.isArray(p.injuries)
+          ? p.injuries.map((inj) => inj.summary).filter(Boolean).join(" | ")
+          : "";
+        return `${p.name} (${p.team}, ${p.position}): ${detail || p.injuryStatus || p.availability}`;
+      })
+      .slice(0, injCap);
     if (injured.length) {
-      promptContext += "\n\nNFL INJURY REPORT (ESPN, updated every 6hrs):\n" + injured.join("\n");
+      promptContext += "\n\nNFL INJURY / AVAILABILITY REPORT (ESPN roster refresh):\n" + injured.join("\n");
     }
   }
 
@@ -491,10 +622,14 @@ export async function buildCanonicalNflContext(options = {}) {
       qbDataSeason: "2024",
       rbDataSeason: "2025",
       wrTeDataSeason: "2025",
-      lastVerified: "2026-03-30",
-      isCurrentSeason: false,
+      lastVerified: rosterAsOf || "2026-03-30",
+      rosterSource: rosterAsOf ? "espn_site_api" : "static_fallback",
+      rosterFetchedAt: rosterData?.fetchedAt || null,
+      rosterPreviousFetchedAt: rosterData?.previousFetchedAt || null,
+      rosterChangeSummary: rosterData?.changeSummary || { total: 0 },
+      isCurrentSeason: Boolean(rosterAsOf),
       warning:
-        "QB baseline stats are 2024. Roster situations reflect March 2026 Ourlads. 2026 in-season data not yet integrated.",
+        "Historical stat baselines remain prior-season data. Current team, active roster, and injury/availability context should come from ESPN roster refresh plus Ourlads depth where available.",
       nflDraft: {
         phase: draftMeta.phase,
         draftClassYear: draftMeta.draftYear,

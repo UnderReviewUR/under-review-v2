@@ -10,11 +10,20 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const snap = await fetchNflRosterSnapshot();
+    const q = req.query || {};
+    const force = q.cache !== "1" && q.cached !== "1";
+    const snap = await fetchNflRosterSnapshot({ force });
     return res.status(200).json({
       ok: true,
+      source: snap.source || "espn_site_api",
+      force,
       playerCount: Array.isArray(snap.players) ? snap.players.length : 0,
       fetchedAt: snap.fetchedAt,
+      previousFetchedAt: snap.previousFetchedAt || null,
+      changeSummary: snap.changeSummary || { total: 0 },
+      changes: Array.isArray(snap.changesSinceLastRefresh)
+        ? snap.changesSinceLastRefresh.slice(0, 50)
+        : [],
     });
   } catch (err) {
     console.error("[nfl-roster-refresh]", err);

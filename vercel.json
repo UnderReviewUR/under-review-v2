@@ -89,6 +89,9 @@
     "api/nfl-board.js": {
       "maxDuration": 60
     },
+    "api/nfl-roster-refresh.js": {
+      "maxDuration": 120
+    },
     "api/nfl-props-scrape.js": {
       "maxDuration": 60
     },
@@ -113,7 +116,7 @@
     },
     {
       "path": "/api/nfl-roster-refresh",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 14 * * 1,4"
     },
     {
       "path": "/api/nba?view=board&warmup=1",
