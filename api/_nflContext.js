@@ -85,9 +85,41 @@ export const NFL_STADIUM_META = {
 };
 
 function questionNeedsNflWeather(question) {
-  return /\b(weather|wind|rain|snow|cold|heat|outdoor|kicker|field goal|total|over|under|passing|receiving)\b/i.test(
+  return /\b(weather|wind|rain|snow|storm|cold|heat|outdoor|kicker|field goal|total|over|under|passing|receiving)\b/i.test(
     String(question || ""),
   );
+}
+
+function questionExplicitlyAsksWeather(question) {
+  return /\b(weather|wind|rain|snow|storm|cold|heat|outdoor)\b/i.test(String(question || ""));
+}
+
+function weatherCodeLooksImpactful(code) {
+  const n = Number(code);
+  return (
+    n === 45 ||
+    n === 48 ||
+    (n >= 51 && n <= 67) ||
+    (n >= 71 && n <= 77) ||
+    (n >= 80 && n <= 86) ||
+    (n >= 95 && n <= 99)
+  );
+}
+
+function describeWeatherImpact(cur = {}) {
+  const temp = Number(cur.temperature_2m);
+  const wind = Number(cur.wind_speed_10m);
+  const gust = Number(cur.wind_gusts_10m);
+  const precip = Number(cur.precipitation);
+  const code = Number(cur.weather_code);
+  const factors = [];
+  if (Number.isFinite(wind) && wind >= 15) factors.push(`sustained wind ${wind} mph`);
+  if (Number.isFinite(gust) && gust >= 25) factors.push(`gusts ${gust} mph`);
+  if (Number.isFinite(precip) && precip >= 0.02) factors.push(`precipitation ${precip} in`);
+  if (weatherCodeLooksImpactful(code)) factors.push(`weather code ${code}`);
+  if (Number.isFinite(temp) && temp <= 25) factors.push(`cold ${temp}F`);
+  if (Number.isFinite(temp) && temp >= 95) factors.push(`heat ${temp}F`);
+  return factors;
 }
 
 function buildNflInactiveDisciplineBlock(question) {
@@ -99,33 +131,38 @@ function buildNflInactiveDisciplineBlock(question) {
 
 async function buildNflWeatherBlock(scope, question) {
   if (!questionNeedsNflWeather(question)) return "";
+  const explicitWeatherAsk = questionExplicitlyAsksWeather(question);
   const teams = [...(scope || [])]
     .map((team) => String(team || "").toUpperCase())
     .filter(Boolean);
   const team = teams.find((abbr) => NFL_STADIUM_META[abbr] && !NFL_STADIUM_META[abbr].domed);
-  if (!team) {
-    const domed = teams.find((abbr) => NFL_STADIUM_META[abbr]?.domed);
-    if (!domed) return "";
-    return `\n\nNFL WEATHER: ${domed} plays in a dome/retractable-roof baseline for this check; downgrade weather impact unless roof/news says otherwise.`;
-  }
+  if (!team) return "";
   const meta = NFL_STADIUM_META[team];
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${meta.lat}&longitude=${meta.lon}` +
-    "&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m" +
+    "&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,weather_code" +
     "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch";
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
     if (!res.ok) throw new Error(`weather HTTP ${res.status}`);
     const json = await res.json();
     const cur = json?.current || {};
+    const impactFactors = describeWeatherImpact(cur);
+    if (!impactFactors.length && !explicitWeatherAsk) return "";
     const units = json?.current_units || {};
     const temp = cur.temperature_2m != null ? `${cur.temperature_2m}${units.temperature_2m || "F"}` : "n/a";
     const wind = cur.wind_speed_10m != null ? `${cur.wind_speed_10m} mph` : "n/a";
     const gust = cur.wind_gusts_10m != null ? `${cur.wind_gusts_10m} mph gusts` : "gust n/a";
     const precip = cur.precipitation != null ? `${cur.precipitation} in precip` : "precip n/a";
-    return `\n\nNFL WEATHER SNAPSHOT (${team}, ${meta.stadium}, current Open-Meteo): ${temp}, wind ${wind}, ${gust}, ${precip}. Treat as current weather only; confirm kickoff forecast for bets near game time.`;
+    const impact =
+      impactFactors.length > 0
+        ? `Potential weather factor: ${impactFactors.join(", ")}.`
+        : "No material weather factor in the current snapshot.";
+    return `\n\nNFL WEATHER SNAPSHOT (${team}, ${meta.stadium}, current Open-Meteo): ${temp}, wind ${wind}, ${gust}, ${precip}. ${impact} Treat as current weather only; confirm kickoff forecast for bets near game time.`;
   } catch (err) {
-    return `\n\nNFL WEATHER SNAPSHOT: unavailable for ${team} (${err?.message || "fetch failed"}). Do not invent weather; ask user to verify kickoff forecast if weather matters.`;
+    return explicitWeatherAsk
+      ? `\n\nNFL WEATHER SNAPSHOT: unavailable for ${team} (${err?.message || "fetch failed"}). Do not invent weather; ask user to verify kickoff forecast if weather matters.`
+      : "";
   }
 }
 
