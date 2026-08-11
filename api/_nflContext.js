@@ -168,6 +168,51 @@ function normalizeNflRosterNameKey(value) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+const NFL_SCOPE_ALIAS_TO_ABBR = {
+  ravens: "BAL",
+  bengals: "CIN",
+  browns: "CLE",
+  steelers: "PIT",
+  bills: "BUF",
+  dolphins: "MIA",
+  patriots: "NE",
+  jets: "NYJ",
+  texans: "HOU",
+  colts: "IND",
+  jaguars: "JAX",
+  titans: "TEN",
+  broncos: "DEN",
+  chiefs: "KC",
+  raiders: "LV",
+  chargers: "LAC",
+  cowboys: "DAL",
+  eagles: "PHI",
+  giants: "NYG",
+  commanders: "WAS",
+  bears: "CHI",
+  lions: "DET",
+  packers: "GB",
+  vikings: "MIN",
+  falcons: "ATL",
+  panthers: "CAR",
+  saints: "NO",
+  buccaneers: "TB",
+  bucs: "TB",
+  cardinals: "ARI",
+  rams: "LAR",
+  "49ers": "SF",
+  niners: "SF",
+  seahawks: "SEA",
+};
+
+function detectNflScopeAlias(question) {
+  const q = String(question || "").toLowerCase();
+  for (const [alias, abbr] of Object.entries(NFL_SCOPE_ALIAS_TO_ABBR)) {
+    if (new RegExp(`\\b${alias}\\b`, "i").test(q)) return abbr;
+  }
+  return null;
+}
+
 function buildRosterByName(rosterData) {
   const out = new Map();
   for (const player of Array.isArray(rosterData?.players) ? rosterData.players : []) {
@@ -290,10 +335,11 @@ export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
   const q = String(question || "").trim();
 
   try {
-    const hint = detectNflTeamHint(q);
+    const hint = detectNflTeamHint(q) || detectNflScopeAlias(q);
     if (hint) set.add(String(hint).toUpperCase());
   } catch {
-    /* ignore */
+    const hint = detectNflScopeAlias(q);
+    if (hint) set.add(String(hint).toUpperCase());
   }
 
   const qUpper = q.toUpperCase();
