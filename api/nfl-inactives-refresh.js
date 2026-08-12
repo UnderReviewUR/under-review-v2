@@ -1,5 +1,5 @@
 import { applyCors } from "./_cors.js";
-import { fetchNflRosterSnapshot } from "./_nflEspnRoster.js";
+import { fetchNflGameDayStatusSnapshot } from "./_nflEspnGameDayStatus.js";
 import { isNflMonthInSeason } from "../shared/slateModulePriority.js";
 
 export const config = {
@@ -23,23 +23,17 @@ export default async function handler(req, res) {
         checkedAt: seasonalNow.toISOString(),
       });
     }
-    const force = q.cache !== "1" && q.cached !== "1";
-    const snap = await fetchNflRosterSnapshot({ force });
+    const snap = await fetchNflGameDayStatusSnapshot({ force: q.cache !== "1" });
     return res.status(200).json({
       ok: true,
-      source: snap.source || "espn_site_api",
-      force,
-      seasonal,
-      playerCount: Array.isArray(snap.players) ? snap.players.length : 0,
+      source: snap.source,
       fetchedAt: snap.fetchedAt,
-      previousFetchedAt: snap.previousFetchedAt || null,
-      changeSummary: snap.changeSummary || { total: 0 },
-      changes: Array.isArray(snap.changesSinceLastRefresh)
-        ? snap.changesSinceLastRefresh.slice(0, 50)
-        : [],
+      eventCount: snap.eventCount,
+      injuryRowCount: snap.injuryRowCount,
+      events: Array.isArray(snap.events) ? snap.events.slice(0, 20) : [],
     });
   } catch (err) {
-    console.error("[nfl-roster-refresh]", err);
-    return res.status(500).json({ ok: false, error: err?.message || "refresh failed" });
+    console.error("[nfl-inactives-refresh]", err);
+    return res.status(500).json({ ok: false, error: err?.message || "inactives refresh failed" });
   }
 }

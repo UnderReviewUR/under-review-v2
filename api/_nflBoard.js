@@ -16,6 +16,7 @@ import {
 } from "./_nflPropsFetch.js";
 import { normalizeNflScoreboardGame } from "./_nflBoardNormalize.js";
 import { getNflPropsForBoard } from "./_nflProps.js";
+import { buildNflStaticPropsFallback } from "./_nflPropLineContext.js";
 
 export {
   normalizeNflMoneylineMarket,
@@ -151,30 +152,38 @@ export async function buildNflLiveBoard(opts = {}) {
         .slice(0, maxGames);
     }
 
-    for (const g of targets) {
-      try {
-        const props = await getNflPropsForBoard(g.providerGameId, {
-          tipoffMs: g.tipoffMs,
-          isLive: String(g.status || "").toLowerCase() === "inprogress",
-        });
-        propLines = propLines.concat(nflPropsPayloadToPropLines(props, g));
-        if (!propsMeta) {
-          propsMeta = {
-            source: props.source,
-            fetchedAt: props.fetchedAt,
-            freshness: props.freshness,
-            playerCount: props.playerCount,
-            hasPostedLines: props.hasPostedLines,
-          };
+    const propResults = await Promise.all(
+      targets.map(async (g) => {
+        try {
+          const props = await getNflPropsForBoard(g.providerGameId, {
+            tipoffMs: g.tipoffMs,
+            isLive: String(g.status || "").toLowerCase() === "inprogress",
+          });
+          return { game: g, props, propLines: nflPropsPayloadToPropLines(props, g) };
+        } catch (err) {
+          console.warn(
+            JSON.stringify({
+              event: "nfl_board_props_failed",
+              gameId: g.providerGameId,
+              error: err?.message || String(err),
+            }),
+          );
+          return null;
         }
-      } catch (err) {
-        console.warn(
-          JSON.stringify({
-            event: "nfl_board_props_failed",
-            gameId: g.providerGameId,
-            error: err?.message || String(err),
-          }),
-        );
+      }),
+    );
+
+    for (const result of propResults) {
+      if (!result) continue;
+      propLines = propLines.concat(result.propLines);
+      if (!propsMeta) {
+        propsMeta = {
+          source: result.props.source,
+          fetchedAt: result.props.fetchedAt,
+          freshness: result.props.freshness,
+          playerCount: result.props.playerCount,
+          hasPostedLines: result.props.hasPostedLines,
+        };
       }
     }
   }
@@ -193,5 +202,11 @@ export async function buildNflLiveBoard(opts = {}) {
     propLines,
     propLineCount: propLines.length,
     props: propsMeta,
+    propsFallback:
+      wantProps && propLines.length === 0
+        ? buildNflStaticPropsFallback({
+            maxLines: 16,
+          })
+        : null,
   };
 }

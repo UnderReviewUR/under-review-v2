@@ -3,7 +3,13 @@ import WRsAndTEs from "./nfl-wr-te.js";
 import { QBs } from "./nfl-players.js";
 import { defenses } from "./nfl-defense.js";
 import { getDurableJson } from "./_durableStore.js";
+import { getEnv } from "./_env.js";
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
+import { buildNflFantasyContextBlock } from "./_nflFantasyContext.js";
+import { getNflQbStats2025 } from "./data/nfl-qb-stats-2025.js";
+import { getNflPlayerStats2025 } from "./data/nfl-player-stats-2025.js";
+import { getNflDefenseAllowed2025 } from "./data/nfl-defense-allowed-2025.js";
+import { readNflGameDayStatusSnapshot } from "./_nflEspnGameDayStatus.js";
 import {
   buildNflDraftBoardBlock,
   getActiveDraftBundle,
@@ -82,6 +88,85 @@ export const NFL_STADIUM_META = {
   WAS: { lat: 38.9076, lon: -76.8645, domed: false, stadium: "Northwest Stadium" },
 };
 
+function questionNeedsNflWeather(question) {
+  return /\b(weather|wind|rain|snow|storm|cold|heat|outdoor|kicker|field goal|total|over|under|passing|receiving)\b/i.test(
+    String(question || ""),
+  );
+}
+
+function questionExplicitlyAsksWeather(question) {
+  return /\b(weather|wind|rain|snow|storm|cold|heat|outdoor)\b/i.test(String(question || ""));
+}
+
+function weatherCodeLooksImpactful(code) {
+  const n = Number(code);
+  return (
+    n === 45 ||
+    n === 48 ||
+    (n >= 51 && n <= 67) ||
+    (n >= 71 && n <= 77) ||
+    (n >= 80 && n <= 86) ||
+    (n >= 95 && n <= 99)
+  );
+}
+
+function describeWeatherImpact(cur = {}) {
+  const temp = Number(cur.temperature_2m);
+  const wind = Number(cur.wind_speed_10m);
+  const gust = Number(cur.wind_gusts_10m);
+  const precip = Number(cur.precipitation);
+  const code = Number(cur.weather_code);
+  const factors = [];
+  if (Number.isFinite(wind) && wind >= 15) factors.push(`sustained wind ${wind} mph`);
+  if (Number.isFinite(gust) && gust >= 25) factors.push(`gusts ${gust} mph`);
+  if (Number.isFinite(precip) && precip >= 0.02) factors.push(`precipitation ${precip} in`);
+  if (weatherCodeLooksImpactful(code)) factors.push(`weather code ${code}`);
+  if (Number.isFinite(temp) && temp <= 25) factors.push(`cold ${temp}F`);
+  if (Number.isFinite(temp) && temp >= 95) factors.push(`heat ${temp}F`);
+  return factors;
+}
+
+function buildNflInactiveDisciplineBlock(question) {
+  if (!/\b(inactive|active|out|questionable|will .*play|playing|suit up|available|injur)/i.test(String(question || ""))) {
+    return "";
+  }
+  return "\n\nNFL ACTIVE/INACTIVE DISCIPLINE: ESPN roster refresh supplies current availability when posted. If official 90-minute inactives are not present in the roster/injury rows, do not claim a player is officially active/inactive; say status is unconfirmed and use the listed ESPN status as the latest signal.";
+}
+
+async function buildNflWeatherBlock(scope, question, matchupContext = null) {
+  if (!questionNeedsNflWeather(question)) return "";
+  const explicitWeatherAsk = questionExplicitlyAsksWeather(question);
+  const team = resolveWeatherVenueTeam(scope, question, matchupContext);
+  if (!team || NFL_STADIUM_META[team]?.domed) return "";
+  const meta = NFL_STADIUM_META[team];
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${meta.lat}&longitude=${meta.lon}` +
+    "&current=temperature_2m,precipitation,wind_speed_10m,wind_gusts_10m,weather_code" +
+    "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch";
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) throw new Error(`weather HTTP ${res.status}`);
+    const json = await res.json();
+    const cur = json?.current || {};
+    const impactFactors = describeWeatherImpact(cur);
+    if (!impactFactors.length && !explicitWeatherAsk) return "";
+    const units = json?.current_units || {};
+    const temp = cur.temperature_2m != null ? `${cur.temperature_2m}${units.temperature_2m || "F"}` : "n/a";
+    const wind = cur.wind_speed_10m != null ? `${cur.wind_speed_10m} mph` : "n/a";
+    const gust = cur.wind_gusts_10m != null ? `${cur.wind_gusts_10m} mph gusts` : "gust n/a";
+    const precip = cur.precipitation != null ? `${cur.precipitation} in precip` : "precip n/a";
+    const impact =
+      impactFactors.length > 0
+        ? `Potential weather factor: ${impactFactors.join(", ")}.`
+        : "No material weather factor in the current snapshot.";
+    return `\n\nNFL WEATHER SNAPSHOT (${team}, ${meta.stadium}, current Open-Meteo): ${temp}, wind ${wind}, ${gust}, ${precip}. ${impact} Treat as current weather only; confirm kickoff forecast for bets near game time.`;
+  } catch (err) {
+    return explicitWeatherAsk
+      ? `\n\nNFL WEATHER SNAPSHOT: unavailable for ${team} (${err?.message || "fetch failed"}). Do not invent weather; ask user to verify kickoff forecast if weather matters.`
+      : "";
+  }
+}
+
 /**
  * @param {string} abbr
  * @returns {string[]}
@@ -115,6 +200,232 @@ function scopeMatchesTeam(scope, teamFromRow) {
   return false;
 }
 
+function normalizeNflRosterNameKey(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+const NFL_SCOPE_ALIAS_TO_ABBR = {
+  ravens: "BAL",
+  bengals: "CIN",
+  browns: "CLE",
+  steelers: "PIT",
+  bills: "BUF",
+  dolphins: "MIA",
+  patriots: "NE",
+  jets: "NYJ",
+  texans: "HOU",
+  colts: "IND",
+  jaguars: "JAX",
+  titans: "TEN",
+  broncos: "DEN",
+  chiefs: "KC",
+  raiders: "LV",
+  chargers: "LAC",
+  cowboys: "DAL",
+  eagles: "PHI",
+  giants: "NYG",
+  commanders: "WAS",
+  bears: "CHI",
+  lions: "DET",
+  packers: "GB",
+  vikings: "MIN",
+  falcons: "ATL",
+  panthers: "CAR",
+  saints: "NO",
+  buccaneers: "TB",
+  bucs: "TB",
+  cardinals: "ARI",
+  rams: "LAR",
+  "49ers": "SF",
+  niners: "SF",
+  seahawks: "SEA",
+};
+
+function detectNflScopeAlias(question) {
+  const q = String(question || "").toLowerCase();
+  for (const [alias, abbr] of Object.entries(NFL_SCOPE_ALIAS_TO_ABBR)) {
+    if (new RegExp(`\\b${alias}\\b`, "i").test(q)) return abbr;
+  }
+  return null;
+}
+
+function resolveNflAliasToAbbr(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const upper = raw.toUpperCase();
+  if (NFL_STADIUM_META[upper]) return upper;
+  return NFL_SCOPE_ALIAS_TO_ABBR[raw.toLowerCase()] || null;
+}
+
+function detectHomeTeamFromQuestion(question) {
+  const raw = String(question || "");
+  const abbrPair = raw.toUpperCase().match(/\b([A-Z]{2,4})\s*(?:@|AT)\s*([A-Z]{2,4})\b/);
+  if (abbrPair) {
+    const home = resolveNflAliasToAbbr(abbrPair[2]);
+    if (home) return home;
+  }
+  const q = ` ${raw.toLowerCase().replace(/[^a-z0-9@]+/g, " ")} `;
+  const aliases = Object.keys(NFL_SCOPE_ALIAS_TO_ABBR).sort((a, b) => b.length - a.length);
+  for (const away of aliases) {
+    for (const home of aliases) {
+      if (away === home) continue;
+      if (q.includes(` ${away} at ${home} `) || q.includes(` ${away} @ ${home} `)) {
+        return NFL_SCOPE_ALIAS_TO_ABBR[home];
+      }
+    }
+  }
+  return null;
+}
+
+function resolveWeatherVenueTeam(scope, question, matchupContext) {
+  const leagueStr = String(matchupContext?.league || "").toUpperCase();
+  if (matchupContext && leagueStr.includes("NFL")) {
+    const raw = matchupContext.raw || {};
+    const home = resolveNflAliasToAbbr(
+      raw.homeTeam?.abbr || raw.home_abbr || raw.home || matchupContext.homeTeam || matchupContext.home,
+    );
+    if (home) return home;
+  }
+  const textHome = detectHomeTeamFromQuestion(question);
+  if (textHome) return textHome;
+  const teams = [...(scope || [])]
+    .map((team) => String(team || "").toUpperCase())
+    .filter((team) => NFL_STADIUM_META[team]);
+  return teams.length === 1 ? teams[0] : null;
+}
+
+function buildRosterByName(rosterData) {
+  const out = new Map();
+  for (const player of Array.isArray(rosterData?.players) ? rosterData.players : []) {
+    const key = normalizeNflRosterNameKey(player?.name);
+    if (key && !out.has(key)) out.set(key, player);
+  }
+  return out;
+}
+
+function overlayCurrentRosterOnEntries(entries, rosterData) {
+  const byName = buildRosterByName(rosterData);
+  if (!byName.size) return entries;
+  return entries.map(([name, player]) => {
+    const current = byName.get(normalizeNflRosterNameKey(name));
+    if (!current?.team) return [name, player];
+    const staticTeam = player?.team || "UNK";
+    return [
+      name,
+      {
+        ...player,
+        staticTeam,
+        team: current.team,
+        rosterStatus: current.rosterStatus || current.status || "",
+        availability: current.availability || "",
+        injuryStatus: current.injuryStatus || "",
+        injuryDetail: Array.isArray(current.injuries)
+          ? current.injuries.map((inj) => inj.summary).filter(Boolean).join(" | ")
+          : "",
+        currentRosterSource: "espn_roster",
+        currentRosterAsOf: rosterData?.fetchedAt || null,
+      },
+    ];
+  });
+}
+
+function formatRosterStatusLine(player) {
+  const parts = [];
+  const status = String(player?.rosterStatus || player?.availability || "").trim();
+  const injury = String(player?.injuryDetail || player?.injuryStatus || "").trim();
+  if (status && status !== "Active") parts.push(`status ${status}`);
+  if (injury && injury !== status) parts.push(injury);
+  if (player?.staticTeam && player.staticTeam !== player.team) {
+    parts.push(`static DB team was ${player.staticTeam}; ESPN roster says ${player.team}`);
+  }
+  return parts.length ? `  Roster: ${parts.join(" | ")}` : "";
+}
+
+function formatCurrentRosterBlock(rosterData, scope, leagueCompact) {
+  const players = Array.isArray(rosterData?.players) ? rosterData.players : [];
+  if (!players.length) return "";
+  const asOf = rosterData.fetchedAt ? new Date(rosterData.fetchedAt).toISOString() : "unknown";
+  if (leagueCompact) {
+    return `\n\nCURRENT NFL ROSTERS (ESPN): loaded ${players.length} players as of ${asOf}; omitted in league mode. Ask with a team or matchup for current roster/injury detail.`;
+  }
+  const posOrder = new Map([
+    ["QB", 1],
+    ["RB", 2],
+    ["FB", 3],
+    ["WR", 4],
+    ["TE", 5],
+  ]);
+  const scopedPlayers = players
+    .filter((p) => scopeMatchesTeam(scope, p?.team))
+    .filter((p) => posOrder.has(String(p?.position || "").toUpperCase()))
+    .sort((a, b) => {
+      const ap = posOrder.get(String(a?.position || "").toUpperCase()) || 99;
+      const bp = posOrder.get(String(b?.position || "").toUpperCase()) || 99;
+      if (ap !== bp) return ap - bp;
+      return String(a?.name || "").localeCompare(String(b?.name || ""));
+    })
+    .slice(0, 80);
+  if (!scopedPlayers.length) return "";
+  const lines = scopedPlayers.map((p) => {
+    const status = String(p.availability || p.rosterStatus || "").trim();
+    const injury = String(p.injuryStatus || "").trim();
+    const suffix = injury && injury !== status ? ` | ${injury}` : "";
+    return `${p.team} ${p.position} ${p.name}${status && status !== "active" ? ` | ${status}` : ""}${suffix}`;
+  });
+  return `\n\nCURRENT ROSTER SNAPSHOT (ESPN, as of ${asOf}):\n${lines.join("\n")}`;
+}
+
+function formatRosterChangesBlock(rosterData, scope, leagueCompact) {
+  const changes = Array.isArray(rosterData?.changesSinceLastRefresh)
+    ? rosterData.changesSinceLastRefresh
+    : [];
+  if (!changes.length) return "";
+  const scoped = changes.filter((change) => {
+    const teams = [change.team, change.fromTeam, change.toTeam].filter(Boolean);
+    return !teams.length || teams.some((team) => scopeMatchesTeam(scope, team));
+  });
+  const selected = (leagueCompact ? changes : scoped).slice(0, leagueCompact ? 10 : 25);
+  if (!selected.length) return "";
+  const lines = selected.map((change) => {
+    if (change.type === "team_changed") {
+      return `${change.player} (${change.pos}): team changed ${change.fromTeam} -> ${change.toTeam}`;
+    }
+    if (change.type === "injury_changed") {
+      return `${change.player} (${change.pos}, ${change.team}): injury/status changed to ${change.to || "clear"}`;
+    }
+    if (change.type === "status_changed") {
+      return `${change.player} (${change.pos}, ${change.team}): roster status ${change.fromStatus || "n/a"} -> ${change.toStatus || "n/a"}`;
+    }
+    if (change.type === "removed") {
+      return `${change.player} (${change.pos}): removed from ${change.fromTeam}`;
+    }
+    return `${change.player} (${change.pos}, ${change.team}): added to roster`;
+  });
+  return `\n\nNFL ROSTER CHANGES SINCE LAST REFRESH:\n${lines.join("\n")}`;
+}
+
+function formatGameDayStatusBlock(snapshot, scope, leagueCompact) {
+  if (!snapshot?.events?.length) return "";
+  const events = snapshot.events.filter((event) =>
+    (event.teams || []).some((team) => scopeMatchesTeam(scope, team.abbr)),
+  );
+  const selected = (leagueCompact ? snapshot.events : events).slice(0, leagueCompact ? 5 : 8);
+  if (!selected.length) return "";
+  const lines = [];
+  for (const event of selected) {
+    const teams = (event.teams || []).map((team) => `${team.homeAway}:${team.abbr}`).join(" ");
+    lines.push(`${event.name || event.id} | ${event.status || "status n/a"} | ${teams}`);
+    for (const injury of (event.injuries || []).slice(0, 10)) {
+      if (!leagueCompact && injury.team && !scopeMatchesTeam(scope, injury.team)) continue;
+      const detail = [injury.status, injury.type, injury.detail].filter(Boolean).join(" — ");
+      if (injury.player || detail) lines.push(`  ${injury.team || "NFL"} ${injury.player || "status"}: ${detail || "listed"}`);
+    }
+  }
+  return `\n\nNFL GAME-DAY STATUS / INACTIVES SNAPSHOT (ESPN, as of ${new Date(snapshot.fetchedAt).toISOString()}):\n${lines.join("\n")}`;
+}
+
 /**
  * Resolve 1–2 NFL team abbreviations from question text + optional matchup card (NBA-style scope).
  * Empty set ⇒ league-wide prompts use compact injections (token budget).
@@ -125,18 +436,15 @@ function scopeMatchesTeam(scope, teamFromRow) {
 export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
   const set = new Set();
   const q = String(question || "").trim();
+  const directAlias = detectNflScopeAlias(q);
+  if (directAlias) return new Set([directAlias]);
 
   try {
-    const hint = detectNflTeamHint(q);
+    const hint = detectNflTeamHint(q) || detectNflScopeAlias(q);
     if (hint) set.add(String(hint).toUpperCase());
   } catch {
-    /* ignore */
-  }
-
-  const focusFullName = resolveNflTeamFromQuestion(q);
-  if (focusFullName) {
-    const ab = getNflTeamAbbrFromName(focusFullName);
-    if (ab) set.add(ab);
+    const hint = detectNflScopeAlias(q);
+    if (hint) set.add(String(hint).toUpperCase());
   }
 
   const qUpper = q.toUpperCase();
@@ -144,6 +452,14 @@ export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
   if (pair) {
     set.add(pair[1]);
     set.add(pair[2]);
+  }
+
+  if (set.size > 0 && set.size <= 2) return set;
+
+  const focusFullName = resolveNflTeamFromQuestion(q);
+  if (focusFullName) {
+    const ab = getNflTeamAbbrFromName(focusFullName);
+    if (ab) set.add(ab);
   }
 
   const leagueStr = String(matchupContext?.league || "").toUpperCase();
@@ -197,21 +513,25 @@ function toNumber(value, fallback = 0) {
 }
 
 function mapWrTeToUi(name, player) {
+  const playerStats2025 = getNflPlayerStats2025(name);
   const rec = player?.rec2025 || {};
+  const ydsPg = playerStats2025?.receivingYardsPerGame ?? toNumber(rec.ydsPg);
+  const recPg = playerStats2025?.receptionsPerGame ?? (rec.recPg != null ? toNumber(rec.recPg) : null);
   return [
     name,
     {
       pos: player?.pos || "WR",
       team: player?.team || "UNK",
       tier: player?.tier || "STARTER",
-      ydsPg: toNumber(rec.ydsPg),
+      ydsPg,
       rec2025: {
-        g: toNumber(rec.g),
-        td: toNumber(rec.td),
-        ypr: toNumber(rec.ypr),
-        tgt: rec.tgt != null ? toNumber(rec.tgt) : null,
-        recPg: rec.recPg != null ? toNumber(rec.recPg) : null,
+        g: playerStats2025?.games ?? toNumber(rec.g),
+        td: playerStats2025?.receivingTds ?? toNumber(rec.td),
+        ypr: playerStats2025?.yardsPerReception ?? toNumber(rec.ypr),
+        tgt: playerStats2025?.targets ?? (rec.tgt != null ? toNumber(rec.tgt) : null),
+        recPg,
       },
+      playerStats2025,
       props: player?.props || {},
       situation: player?.situation2026 || player?.situation || "Role context unavailable.",
       bettingAngles: Array.isArray(player?.bettingAngles) ? player.bettingAngles : [],
@@ -221,22 +541,25 @@ function mapWrTeToUi(name, player) {
 }
 
 function mapRbToUi(name, player) {
+  const playerStats2025 = getNflPlayerStats2025(name);
   const rush = player?.rush2025 || {};
   const rushYds = player?.props?.rushYds || null;
+  const rushYdsPg = playerStats2025?.rushingYardsPerGame ?? toNumber(rush.ydsPg);
   return [
     name,
     {
       pos: "RB",
       team: player?.team || "UNK",
       tier: player?.tier || "STARTER",
-      ydsPg: toNumber(rush.ydsPg),
+      ydsPg: rushYdsPg,
       rec2025: {
-        g: toNumber(rush.g),
-        td: toNumber(rush.td),
+        g: playerStats2025?.games ?? toNumber(rush.g),
+        td: playerStats2025?.rushingTds ?? toNumber(rush.td),
         ypr: toNumber(rush.ypa), // Kept for existing UI slot.
         tgt: null,
         recPg: null,
       },
+      playerStats2025,
       props: {
         recYds: rushYds
           ? {
@@ -255,9 +578,13 @@ function mapRbToUi(name, player) {
 }
 
 function mapQbToUi(name, player) {
+  const qbStats2025 = getNflQbStats2025(name);
   const stats = player?.stats2024 || {};
-  const games = Math.max(1, toNumber(stats.games, 17));
-  const passYdsPg = Math.round((toNumber(stats.yds) / games) * 10) / 10;
+  const games = Math.max(1, toNumber(qbStats2025?.games ?? stats.games, 17));
+  const passYds = qbStats2025?.passingYards ?? toNumber(stats.yds);
+  const passTds = qbStats2025?.passingTds ?? toNumber(stats.td);
+  const ypa = qbStats2025?.yardsPerAttempt ?? toNumber(stats.ypa);
+  const passYdsPg = qbStats2025?.passingYardsPerGame ?? Math.round((passYds / games) * 10) / 10;
 
   return [
     name,
@@ -267,20 +594,25 @@ function mapQbToUi(name, player) {
       tier: player?.tier || "STARTER",
       ydsPg: passYdsPg,
       rec2025: {
-        g: toNumber(stats.games, 17),
-        td: toNumber(stats.td),
-        ypr: toNumber(stats.ypa),
+        g: games,
+        td: passTds,
+        ypr: ypa,
         tgt: null,
         recPg: null,
       },
+      qbStats2025,
       props: {
         recYds: {
           floor: Math.max(140, Math.round(passYdsPg - 35)),
           ceil: Math.round(passYdsPg + 45),
-          lean: "Use matchup + team script context for pass-yardage lean.",
+          lean: qbStats2025
+            ? `2025 nflverse baseline: ${passYdsPg} pass yds/g, ${qbStats2025.tdRate}% TD rate, ${qbStats2025.sackPct}% sack rate.`
+            : "Use matchup + team script context for pass-yardage lean.",
         },
         td: {
-          lean: `${toNumber(stats.td)} passing TD baseline sample.`,
+          lean: qbStats2025
+            ? `${passTds} pass TDs in ${games} games (${qbStats2025.tdRate}% TD rate) via nflverse 2025.`
+            : `${toNumber(stats.td)} passing TD baseline sample.`,
         },
       },
       situation: player?.situation2025 || "QB context unavailable.",
@@ -297,9 +629,16 @@ function buildPromptContext(uiPlayers) {
       const tdLean = p?.props?.td?.lean || "—";
       const yLean = p?.props?.recYds?.lean || p?.props?.rushYds?.lean || "—";
       const core = `${name} | ${p.pos} | ${p.team} | ${p.tier}`;
-      const statLine = `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
+      const statLine =
+        p.pos === "QB" && p.qbStats2025
+          ? `  2025 QB stats (nflverse): ${p.qbStats2025.passingYardsPerGame} pass yds/g, ${p.qbStats2025.passingTds} TD, ${p.qbStats2025.interceptions} INT, ${p.qbStats2025.sackPct}% sack rate, EPA/att ${p.qbStats2025.epaPerAttempt}, ${p.qbStats2025.rushingYardsPerGame} rush yds/g`
+          : p.pos === "RB" && p.playerStats2025
+            ? `  2025 RB stats (nflverse): ${p.playerStats2025.rushingYardsPerGame} rush yds/g, ${p.playerStats2025.touchesPerGame} touches/g, ${p.playerStats2025.targetsPerGame} targets/g, ${p.playerStats2025.rushingTds} rush TD, ${p.playerStats2025.receivingYardsPerGame} rec yds/g`
+            : (p.pos === "WR" || p.pos === "TE") && p.playerStats2025
+              ? `  2025 ${p.pos} stats (nflverse): ${p.playerStats2025.targetsPerGame} targets/g, ${p.playerStats2025.receptionsPerGame} rec/g, ${p.playerStats2025.receivingYardsPerGame} rec yds/g, ${p.playerStats2025.receivingTds} TD, target share ${p.playerStats2025.targetShare}`
+          : `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
       const leanLine = `  Lean: ${yLean} | TD: ${tdLean}`;
-      return [core, statLine, leanLine].join("\n");
+      return [core, statLine, leanLine, formatRosterStatusLine(p)].filter(Boolean).join("\n");
     })
     .join("\n\n");
 
@@ -336,8 +675,13 @@ function formatWrTeDatabasePrompt(wrMap) {
 
 function formatDefensePrompt(defensesMap) {
   const lines = Object.entries(defensesMap || {}).map(
-    ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | Pass rank ${d.pass.rank} | Rush rank ${d.rush.rank} | ${d.propImpact.qb}`,
+    ([abbr, d]) => {
+      const allowed = getNflDefenseAllowed2025(abbr);
+      const allowedLine = allowed
+        ? ` | 2025 allowed: ${allowed.passYardsAllowedPerGame} pass yds/g, ${allowed.passTdsAllowedPerGame} pass TD/g, ${allowed.rushYardsAllowedPerGame} rush yds/g, sack ${allowed.sacksPerGame}/g`
+        : "";
+      return `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | Pass rank ${d.pass.rank} | Rush rank ${d.rush.rank}${allowedLine} | ${d.propImpact.qb}`;
+    },
   );
   return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams):\n" + lines.join("\n");
 }
@@ -345,8 +689,13 @@ function formatDefensePrompt(defensesMap) {
 /** Short defense lines — league-wide mode without long propImpact strings (token budget). */
 function formatDefensePromptCompact(defensesMap) {
   const lines = Object.entries(defensesMap || {}).map(
-    ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | pass rank ${d.pass.rank} | rush rank ${d.rush.rank}`,
+    ([abbr, d]) => {
+      const allowed = getNflDefenseAllowed2025(abbr);
+      const allowedLine = allowed
+        ? ` | allowed ${allowed.passYardsAllowedPerGame} pass yds/g, ${allowed.rushYardsAllowedPerGame} rush yds/g`
+        : "";
+      return `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | pass rank ${d.pass.rank} | rush rank ${d.rush.rank}${allowedLine}`;
+    },
   );
   return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams — compact):\n" + lines.join("\n");
 }
@@ -370,10 +719,18 @@ export async function buildCanonicalNflContext(options = {}) {
 
   const scoped = Boolean(scope && scope.size > 0 && scope.size <= 2);
   const leagueCompact = !scoped;
+  const [rosterData, gameDayStatus] = await Promise.all([
+    getDurableJson("nfl_espn_roster"),
+    readNflGameDayStatusSnapshot().catch(() => null),
+  ]);
 
   let wrteEntries = Object.entries(WRsAndTEs || {}).map(([name, player]) => mapWrTeToUi(name, player));
   let rbEntries = Object.entries(RBs || {}).map(([name, player]) => mapRbToUi(name, player));
   let qbEntries = Object.entries(QBs || {}).map(([name, player]) => mapQbToUi(name, player));
+
+  wrteEntries = overlayCurrentRosterOnEntries(wrteEntries, rosterData);
+  rbEntries = overlayCurrentRosterOnEntries(rbEntries, rosterData);
+  qbEntries = overlayCurrentRosterOnEntries(qbEntries, rosterData);
 
   if (scoped) {
     wrteEntries = filterObjectEntriesByTeam(wrteEntries, scope);
@@ -385,15 +742,37 @@ export async function buildCanonicalNflContext(options = {}) {
   const draftBundle = getActiveDraftBundle();
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
   const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
-  const nflRosterVerificationBanner =
-    "NOTE: NFL roster data last verified May 2026. Rookie class from 2025 draft integrated via ESPN roster fetch. For 2025 draftees not in static database, use ESPN roster context only.";
-  let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  const rosterAsOf = rosterData?.fetchedAt ? new Date(rosterData.fetchedAt).toISOString() : null;
+  const nflBreaking = String(getEnv("NFL_BREAKING") || "").trim();
+  const nflRosterVerificationBanner = rosterAsOf
+    ? `NOTE: Current team/status comes from ESPN roster refresh as of ${rosterAsOf}. Static stat baselines remain historical; use ESPN roster rows for current team, availability, cuts/signings/trades, and injury status.`
+    : "NOTE: NFL roster data last verified May 2026. ESPN roster refresh has not populated KV yet; treat static team/status fields as stale until /api/nfl-roster-refresh runs.";
+  const fantasyContextBlock = await buildNflFantasyContextBlock({
+    question,
+    playerNames: scoped ? Object.keys(uiPlayers) : [],
+    scopeTeamAbbrs: scoped ? [...scope] : [],
+  });
+  let promptContext = [nflRosterVerificationBanner, fantasyContextBlock, buildPromptContext(uiPlayers), draftBlock]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+  promptContext +=
+    "\n\nNFL RESPONSE DISCIPLINE: Do not mention weather, dome status, or 'no weather penalty' unless the user explicitly asks about weather or the NFL WEATHER SNAPSHOT says there is a potential weather factor. If no weather block is present, leave weather out entirely.";
+  if (nflBreaking) {
+    promptContext += `\n\nNFL BREAKING NEWS / MANUAL OVERRIDE:\n${nflBreaking}`;
+  }
+  promptContext += formatCurrentRosterBlock(rosterData, scope, leagueCompact);
+  promptContext += formatRosterChangesBlock(rosterData, scope, leagueCompact);
+  promptContext += formatGameDayStatusBlock(gameDayStatus, scope, leagueCompact);
+  promptContext += buildNflInactiveDisciplineBlock(question);
+  if (scoped) {
+    promptContext += await buildNflWeatherBlock(scope, question, matchupContext);
+  }
 
   const depthData = await getDurableJson("nfl_depth_chart");
   const depthFiltered =
     depthData?.depth && scoped ? filterDepthByScope(depthData.depth, scope) : depthData?.depth;
 
-  if (depthFiltered && typeof depthFiltered === "object" && Object.keys(depthFiltered).length > 0) {
+  if (scoped && depthFiltered && typeof depthFiltered === "object" && Object.keys(depthFiltered).length > 0) {
     promptContext +=
       "\n\nDEPTH CHARTS (Ourlads, updated weekly):\n" +
       Object.entries(depthFiltered)
@@ -416,7 +795,6 @@ export async function buildCanonicalNflContext(options = {}) {
     promptContext += formatDefensePromptCompact(defenses);
   }
 
-  const rosterData = await getDurableJson("nfl_espn_roster");
   if (!leagueCompact && rosterData?.coaches && typeof rosterData.coaches === "object") {
     let coachEntries = Object.entries(rosterData.coaches);
     if (scoped) {
@@ -446,9 +824,16 @@ export async function buildCanonicalNflContext(options = {}) {
       pool = pool.filter((p) => scopeMatchesTeam(scope, p.team));
     }
     const injCap = leagueCompact ? 12 : 40;
-    const injured = pool.map((p) => `${p.name} (${p.team}, ${p.position}): ${p.injuryStatus}`).slice(0, injCap);
+    const injured = pool
+      .map((p) => {
+        const detail = Array.isArray(p.injuries)
+          ? p.injuries.map((inj) => inj.summary).filter(Boolean).join(" | ")
+          : "";
+        return `${p.name} (${p.team}, ${p.position}): ${detail || p.injuryStatus || p.availability}`;
+      })
+      .slice(0, injCap);
     if (injured.length) {
-      promptContext += "\n\nNFL INJURY REPORT (ESPN, updated every 6hrs):\n" + injured.join("\n");
+      promptContext += "\n\nNFL INJURY / AVAILABILITY REPORT (ESPN roster refresh):\n" + injured.join("\n");
     }
   }
 
@@ -491,10 +876,14 @@ export async function buildCanonicalNflContext(options = {}) {
       qbDataSeason: "2024",
       rbDataSeason: "2025",
       wrTeDataSeason: "2025",
-      lastVerified: "2026-03-30",
-      isCurrentSeason: false,
+      lastVerified: rosterAsOf || "2026-03-30",
+      rosterSource: rosterAsOf ? "espn_site_api" : "static_fallback",
+      rosterFetchedAt: rosterData?.fetchedAt || null,
+      rosterPreviousFetchedAt: rosterData?.previousFetchedAt || null,
+      rosterChangeSummary: rosterData?.changeSummary || { total: 0 },
+      isCurrentSeason: Boolean(rosterAsOf),
       warning:
-        "QB baseline stats are 2024. Roster situations reflect March 2026 Ourlads. 2026 in-season data not yet integrated.",
+        "Historical stat baselines remain prior-season data. Current team, active roster, and injury/availability context should come from ESPN roster refresh plus Ourlads depth where available.",
       nflDraft: {
         phase: draftMeta.phase,
         draftClassYear: draftMeta.draftYear,
