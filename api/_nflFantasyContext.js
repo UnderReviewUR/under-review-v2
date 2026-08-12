@@ -8,6 +8,10 @@ import {
   NFL_FANTASY_MARKET_2026,
 } from "./data/nfl-fantasy-market-2026.js";
 import {
+  buildNflClayFormatTipsBlock,
+  detectNflClayFormats,
+} from "./data/nfl-clay-format-tips-2026.js";
+import {
   getLiveFantasyRankPlayer,
   readNflFantasyRankingsSnapshot,
 } from "./_nflEspnFantasyRankings.js";
@@ -61,8 +65,10 @@ function formatClayProjection(row) {
 }
 
 function questionWantsFantasyContext(question) {
-  return /\b(fantasy|ppr|superflex|draft|adp|rank|salary|auction|dfs|draftkings|dk|projection|projected|targets?|receptions?|carries|usage|volume|prop|yards?|td|stats?|form)\b/i.test(
-    String(question || ""),
+  return (
+    /\b(fantasy|ppr|superflex|draft|adp|rank|salary|auction|dfs|draftkings|dk|projection|projected|targets?|receptions?|carries|usage|volume|prop|yards?|td|stats?|form)\b/i.test(
+      String(question || ""),
+    ) || detectNflClayFormats(question).length > 0
   );
 }
 
@@ -95,6 +101,7 @@ export function buildNflFantasyContextBlockFromSnapshots({
   liveRankings = null,
   liveStats = null,
 } = {}) {
+  const formatTipsBlock = buildNflClayFormatTipsBlock(question);
   const questionNames = knownPlayerNamesFromQuestion(question, liveRankings, liveStats);
   const namesToCheck = [...playerNames, ...questionNames];
   if (!questionWantsFantasyContext(question) && !namesToCheck.length) return "";
@@ -167,7 +174,7 @@ export function buildNflFantasyContextBlockFromSnapshots({
     );
   }
 
-  if (!lines.length && !teamLines.length && !liveStatLines.length) return "";
+  if (!lines.length && !teamLines.length && !liveStatLines.length && !formatTipsBlock) return "";
 
   const liveRankAsOf = liveRankings?.fetchedAt
     ? new Date(liveRankings.fetchedAt).toISOString()
@@ -187,6 +194,9 @@ export function buildNflFantasyContextBlockFromSnapshots({
   sources.push(
     `${NFL_CLAY_PROJECTIONS_2026.meta.source} (${NFL_CLAY_PROJECTIONS_2026.meta.updatedAt})`,
   );
+  if (formatTipsBlock) {
+    sources.push("Mike Clay Playbook Part 2 format tips (2026-08)");
+  }
   if (liveStatsAsOf) {
     sources.push(
       `nflverse week aggregates season ${liveStats.seasonYear}` +
@@ -206,7 +216,9 @@ export function buildNflFantasyContextBlockFromSnapshots({
     parts.push(`Deep form (nflverse):\n${liveStatLines.join("\n")}`);
   }
   if (teamLines.length) parts.push(`Team projection context:\n${teamLines.join("\n")}`);
-  return `\n\n${parts.join("\n")}`;
+  let block = `\n\n${parts.join("\n")}`;
+  if (formatTipsBlock) block += formatTipsBlock;
+  return block;
 }
 
 /**

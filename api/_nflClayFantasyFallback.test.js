@@ -20,6 +20,10 @@ import {
   normalizeEspnFantasyPlayerRow,
 } from "./_nflEspnFantasyRankings.js";
 import { parseCsv, formatLiveNflversePlayerStats } from "./_nflverseLiveStats.js";
+import {
+  detectNflClayFormats,
+  buildNflClayFormatTipsBlock,
+} from "./data/nfl-clay-format-tips-2026.js";
 
 test("Clay 2026 seed covers full positional board and 32 teams", () => {
   assert.ok(NFL_CLAY_PROJECTIONS_2026.meta.playerCount >= 350);
@@ -129,4 +133,25 @@ test("Static props fallback returns concrete baseline lines", () => {
   assert.ok(fallback.playerCount > 20);
   assert.ok(fallback.lines.length >= 2);
   assert.ok(fallback.lines.every((l) => l.line != null && l.player));
+});
+
+test("detectNflClayFormats catches superflex and TE premium", () => {
+  assert.deepEqual(detectNflClayFormats("superflex draft tips"), ["superflex"]);
+  assert.ok(detectNflClayFormats("TE premium and knockout league").includes("tePremium"));
+  assert.ok(detectNflClayFormats("TE premium and knockout league").includes("knockout"));
+  assert.equal(detectNflClayFormats("Dak Prescott over 250.5").length, 0);
+});
+
+test("format-only fantasy questions get Clay format tips without player rows", () => {
+  const block = buildNflFantasyContextBlockFromSnapshots({
+    question: "How should I draft a superflex league?",
+  });
+  assert.match(block, /CLAY FORMAT STRATEGY TIPS/);
+  assert.match(block, /Superflex/);
+  assert.match(block, /two QBs/i);
+});
+
+test("format tips stay off for plain prop questions", () => {
+  const tips = buildNflClayFormatTipsBlock("Cowboys Dak Prescott over 1 passing touchdown today");
+  assert.equal(tips, "");
 });

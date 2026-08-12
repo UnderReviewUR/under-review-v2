@@ -49,6 +49,7 @@ Offseason note: if the current season week CSV is unpublished (e.g. Aug 2026 bef
 | Layer | Module | Regen |
 | --- | --- | --- |
 | Clay 2026 projections | `api/data/nfl-clay-projections-2026.js` | `python3 scripts/gen-nfl-clay-projections-2026.py <Clay.pdf>` |
+| Clay format strategy tips | `api/data/nfl-clay-format-tips-2026.js` | Injected only for dynasty/keeper/superflex/best ball/knockout/TE premium/etc. questions |
 | ESPN fantasy market seed | `api/data/nfl-fantasy-market-2026.js` | Fallback only when live ranks KV empty |
 | nflverse 2025 baselines | `api/data/nfl-*-stats-2025.js` | Ship-time; live week hydrate supersedes for form |
 | Static prop O/Us | `api/_nflPropLineContext.js` | Preseason baselines |
