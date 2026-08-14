@@ -164,6 +164,11 @@ export function normalizeNflScoreboardGame(game) {
   const bookId = picked?.bookId ?? null;
   const startTime = game?.start_time ? String(game.start_time) : null;
   const tipoffMs = startTime ? Date.parse(startTime) : null;
+  const box = game?.boxscore && typeof game.boxscore === "object" ? game.boxscore : null;
+  const awayScore = Number(box?.total_away_points);
+  const homeScore = Number(box?.total_home_points);
+  const period = Number(box?.period);
+  const clock = box?.clock != null ? String(box.clock) : null;
 
   return {
     providerGameId: Number(game?.id) || null,
@@ -174,10 +179,15 @@ export function normalizeNflScoreboardGame(game) {
     startTime,
     tipoffMs: Number.isFinite(tipoffMs) ? tipoffMs : null,
     status: String(game?.status || game?.real_status || "scheduled"),
+    statusDisplay: game?.status_display ? String(game.status_display) : null,
     seasonType: String(game?.type || ""),
     week: Number.isFinite(Number(game?.week)) ? Number(game.week) : null,
     season: Number.isFinite(Number(game?.season)) ? Number(game.season) : null,
     network: game?.broadcast?.network_short || game?.broadcast?.network || null,
+    awayScore: Number.isFinite(awayScore) ? awayScore : null,
+    homeScore: Number.isFinite(homeScore) ? homeScore : null,
+    period: Number.isFinite(period) && period > 0 ? period : null,
+    clock,
     total: normalizeNflTotalMarket(event?.total, bookId),
     spread: normalizeNflSpreadMarket(event?.spread, bookId, homeAbbr, awayAbbr),
     moneyline: normalizeNflMoneylineMarket(event?.moneyline, bookId, homeAbbr, awayAbbr),

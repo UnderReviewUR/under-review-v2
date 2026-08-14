@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import HomeCompactTicker from "../components/HomeCompactTicker.jsx";
 import HomeDailyEdgeCard from "../components/HomeDailyEdgeCard.jsx";
+import NflHomeScoreStrip from "../components/NflHomeScoreStrip.jsx";
 import NflSlateTakesCard from "../components/NflSlateTakesCard.jsx";
 import HomeSpotlightRow from "../components/HomeSpotlightRow.jsx";
 import AskBar from "../components/AskBar.jsx";
@@ -292,6 +293,18 @@ export default function HomeScreen({
           />
         </div>
       </section>
+
+      <NflHomeScoreStrip
+        games={nflGames}
+        onSelectRow={(row) => {
+          if (!row?.question) return;
+          if (!nflUrTakeGated && typeof prefillUrTakeQuestion === "function") {
+            prefillUrTakeQuestion(row.question, "nfl");
+            return;
+          }
+          goNfl?.();
+        }}
+      />
 
       <HomeDailyEdgeCard
         preview={homeDailyEdge}

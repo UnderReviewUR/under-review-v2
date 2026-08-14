@@ -4,6 +4,7 @@ export const NFL_PROPS_NEAR_TIP_WINDOW_MS = 2 * 60 * 60 * 1000;
 export const NFL_PROPS_LIVE_TTL_MS = 8 * 60 * 1000;
 export const NFL_PROPS_LIVE_STALE_MS = 25 * 60 * 1000;
 export const NFL_BOARD_TTL_MS = 5 * 60 * 1000;
+export const NFL_BOARD_LIVE_TTL_MS = 30 * 1000;
 
 /**
  * @param {number} [nowMs]

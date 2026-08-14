@@ -1421,6 +1421,81 @@ export const baseCss = `
     color:var(--muted);
     text-decoration:none;
   }
+  .nfl-home-scores{
+    margin:0 0 16px;
+  }
+  .nfl-home-scores__kicker{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#4A90D9;
+    margin-bottom:8px;
+    font-weight:600;
+  }
+  .nfl-home-scores__list{
+    list-style:none;
+    margin:0;
+    padding:0;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.08);
+    background:rgba(8,10,12,0.55);
+    overflow:hidden;
+  }
+  .nfl-home-scores__list li + li{
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .nfl-home-scores__row{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    width:100%;
+    box-sizing:border-box;
+    padding:11px 12px;
+    border:none;
+    background:transparent;
+    color:inherit;
+    text-align:left;
+    font:inherit;
+  }
+  .nfl-home-scores__row--btn{
+    cursor:pointer;
+  }
+  .nfl-home-scores__row--btn:hover{
+    background:rgba(255,255,255,0.04);
+  }
+  .nfl-home-scores__live,
+  .nfl-home-scores__phase{
+    flex:0 0 32px;
+    width:32px;
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    font-weight:700;
+    color:#00F5E9;
+  }
+  .nfl-home-scores__matchup{
+    flex:1;
+    min-width:0;
+    font-family:var(--mono-font);
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    color:#fff;
+    font-variant-numeric:tabular-nums;
+  }
+  .nfl-home-scores__meta{
+    flex-shrink:0;
+    font-family:var(--mono-font);
+    font-size:11px;
+    color:var(--soft);
+    white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .nfl-home-scores__row--live .nfl-home-scores__meta{
+    color:#00F5E9;
+  }
   .home-spotlight-row{
     display:grid;
     grid-template-columns:1fr 1fr;

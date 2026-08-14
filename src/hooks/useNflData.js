@@ -1,6 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+import { nflScoreboardNeedsFastPoll } from "../../shared/nflGameState.js";
 
 const BOARD_POLL_MS = 3 * 60 * 1000;
+const BOARD_LIVE_POLL_MS = 45 * 1000;
 const CONTEXT_POLL_MS = 15 * 60 * 1000;
 
 /**
@@ -10,6 +13,7 @@ export function useNflData({ enabled = true } = {}) {
   const [nflContextData, setNflContextData] = useState(null);
   const [nflBoard, setNflBoard] = useState(null);
   const [nflBoardLoading, setNflBoardLoading] = useState(false);
+  const hasNflBoardRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -35,8 +39,11 @@ export function useNflData({ enabled = true } = {}) {
     };
   }, [enabled]);
 
+  const fastBoardPoll = nflScoreboardNeedsFastPoll(nflBoard?.games);
+
   useEffect(() => {
     if (!enabled) {
+      hasNflBoardRef.current = false;
       setNflBoard(null);
       setNflBoardLoading(false);
       return undefined;
@@ -50,21 +57,28 @@ export function useNflData({ enabled = true } = {}) {
         });
         if (!res.ok) throw new Error(`NFL board ${res.status}`);
         const data = await res.json();
-        if (active) setNflBoard(data?.ok === false ? null : data);
+        if (active) {
+          const next = data?.ok === false ? null : data;
+          hasNflBoardRef.current = Boolean(next);
+          setNflBoard(next);
+        }
       } catch {
-        if (active) setNflBoard(null);
+        if (active) {
+          hasNflBoardRef.current = false;
+          setNflBoard(null);
+        }
       } finally {
         if (active) setNflBoardLoading(false);
       }
     }
-    setNflBoardLoading(true);
+    if (!hasNflBoardRef.current) setNflBoardLoading(true);
     loadBoard();
-    const poll = window.setInterval(loadBoard, BOARD_POLL_MS);
+    const poll = window.setInterval(loadBoard, fastBoardPoll ? BOARD_LIVE_POLL_MS : BOARD_POLL_MS);
     return () => {
       active = false;
       window.clearInterval(poll);
     };
-  }, [enabled]);
+  }, [enabled, fastBoardPoll]);
 
   const nflGames = Array.isArray(nflBoard?.games) ? nflBoard.games : [];
   const nflPropLines = Array.isArray(nflBoard?.propLines) ? nflBoard.propLines : [];

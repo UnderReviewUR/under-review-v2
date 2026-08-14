@@ -9,7 +9,8 @@ import {
   nflBoardCacheKey,
   nflPropsBookLabel,
 } from "../shared/nflPropsConstants.js";
-import { NFL_BOARD_TTL_MS } from "../shared/nflPropsCachePolicy.js";
+import { NFL_BOARD_TTL_MS, NFL_BOARD_LIVE_TTL_MS } from "../shared/nflPropsCachePolicy.js";
+import { nflScoreboardNeedsFastPoll } from "../shared/nflGameState.js";
 import {
   fetchActionNetworkNflScoreboard,
   nflEtDateYmd,
@@ -27,6 +28,11 @@ export {
 
 /** @type {Map<string, { fetchedAtMs: number, payload: Record<string, unknown> }>} */
 const boardMem = new Map();
+
+function nflBoardTtlMs(payload, nowMs = Date.now()) {
+  if (nflScoreboardNeedsFastPoll(payload?.games, nowMs)) return NFL_BOARD_LIVE_TTL_MS;
+  return NFL_BOARD_TTL_MS;
+}
 
 /**
  * @param {{ dateYmd?: string, week?: number | string, season?: number | string }} [opts]
@@ -55,7 +61,7 @@ export async function getNflBoardCached(opts = {}) {
       : String(opts.dateYmd || nflEtDateYmd()).replace(/-/g, "");
   const cacheKey = nflBoardCacheKey(keyPart);
   const hit = boardMem.get(cacheKey);
-  if (hit && Date.now() - hit.fetchedAtMs < NFL_BOARD_TTL_MS) {
+  if (hit && Date.now() - hit.fetchedAtMs < nflBoardTtlMs(hit.payload)) {
     return { ...hit.payload, cache: "memory" };
   }
 

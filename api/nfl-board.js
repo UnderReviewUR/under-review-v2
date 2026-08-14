@@ -7,6 +7,7 @@
  */
 import { applyCors } from "./_cors.js";
 import { buildNflLiveBoard } from "./_nflBoard.js";
+import { nflScoreboardNeedsFastPoll } from "../shared/nflGameState.js";
 
 export const config = {
   maxDuration: 60,
@@ -36,7 +37,12 @@ export default async function handler(req, res) {
       maxPropGames: q.maxPropGames ?? q.max_props ?? undefined,
     });
 
-    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=120");
+    res.setHeader(
+      "Cache-Control",
+      nflScoreboardNeedsFastPoll(board.games)
+        ? "private, no-store, max-age=0"
+        : "s-maxage=60, stale-while-revalidate=120",
+    );
     return res.status(200).json(board);
   } catch (err) {
     console.error("[nfl-board]", err);

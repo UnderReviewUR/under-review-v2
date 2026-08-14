@@ -1,4 +1,9 @@
 import { formatNflBoardTipoff } from "../../lib/mapNflBoardPropLines.js";
+import {
+  classifyNflGamePhase,
+  formatNflLiveClockLine,
+  formatNflPregameMeta,
+} from "../../../shared/nflGameState.js";
 
 /**
  * @param {{
@@ -44,8 +49,20 @@ export default function NflGameBoardSection({ games = [], loading = false, asOf 
         const total = g.total;
         const spread = g.spread;
         const ml = g.moneyline;
-        const status = String(g.status || "").toLowerCase();
-        const isLive = status === "inprogress" || status === "in";
+        const phase = classifyNflGamePhase(g);
+        const awayScore = Number.isFinite(Number(g.awayScore)) ? Number(g.awayScore) : null;
+        const homeScore = Number.isFinite(Number(g.homeScore)) ? Number(g.homeScore) : null;
+        const hasScore = awayScore != null && homeScore != null;
+        const matchup =
+          (phase === "live" || phase === "final") && hasScore
+            ? `${away} ${awayScore}–${homeScore} ${home}`
+            : `${away} @ ${home}`;
+        const statusLine =
+          phase === "live"
+            ? formatNflLiveClockLine(g)
+            : phase === "final"
+              ? "Final"
+              : formatNflPregameMeta(g) || formatNflBoardTipoff(g.tipoffMs) || "Scheduled";
         return (
           <div
             key={key}
@@ -54,14 +71,12 @@ export default function NflGameBoardSection({ games = [], loading = false, asOf 
             style={clickable ? undefined : { cursor: "default" }}
           >
             <div className="nba-game-top">
-              <div className="nba-game-teams">
-                {away} @ {home}
-              </div>
+              <div className="nba-game-teams">{matchup}</div>
               <div>
-                {isLive ? (
-                  <span className="nba-live-badge">● LIVE</span>
+                {phase === "live" ? (
+                  <span className="nba-live-badge">● {statusLine}</span>
                 ) : (
-                  <span className="nba-game-status">{formatNflBoardTipoff(g.tipoffMs) || g.network || "Scheduled"}</span>
+                  <span className="nba-game-status">{statusLine}</span>
                 )}
               </div>
             </div>
