@@ -60,6 +60,9 @@ const FULL_TO_ABBR = {
 
 const ABBR_TO_FULL = Object.fromEntries(Object.entries(FULL_TO_ABBR).map(([k, v]) => [v, k]));
 
+/** Only verified draft class currently shipped in-repo. */
+export const VERIFIED_NFL_DRAFT_CLASS_YEAR = 2026;
+
 export function inferActiveDraftClassYear(now = new Date()) {
   const env = process.env.NFL_DRAFT_CLASS_YEAR;
   if (env && /^\d{4}$/.test(String(env).trim())) return Number(String(env).trim());
@@ -84,17 +87,24 @@ export function getNflTeamAbbrFromName(name) {
   return FULL_TO_ABBR[String(name || "").trim()] || null;
 }
 
+/**
+ * Active board is always the verified class we ship.
+ * Calendar "next" year (e.g. Aug 2026 → 2027) is noted as pending — never advertised as the live class.
+ */
 export function getActiveDraftBundle(now = new Date()) {
-  const inferred = inferActiveDraftClassYear(now);
-  const classYear = inferred === 2026 ? 2026 : 2026;
-  const bundleWarning =
-    inferred !== 2026
-      ? `No verified ${inferred} draft dataset loaded yet — using 2026 verified pool and order as fallback.`
-      : null;
+  const calendarClassYear = inferActiveDraftClassYear(now);
+  const classYear = VERIFIED_NFL_DRAFT_CLASS_YEAR;
+  const nextClassPending =
+    calendarClassYear !== classYear ? calendarClassYear : null;
+  const bundleWarning = nextClassPending
+    ? `${nextClassPending} draft class is not loaded. Active board stays on verified ${classYear} (post-draft). Do not invent a ${nextClassPending} big board or treat this as a live ${nextClassPending} war room.`
+    : null;
 
   return {
     year: classYear,
-    inferredYear: inferred,
+    /** Verified class on this board — not calendar-inferred next year. */
+    inferredYear: classYear,
+    nextClassYearPending: nextClassPending,
     bundleWarning,
     draftWindowStartUtc: `${classYear}-04-23T00:00:00.000Z`,
     draftWindowEndUtc: `${classYear}-04-26T08:00:00.000Z`,
@@ -149,7 +159,8 @@ export function getNflDraftMeta(now = new Date(), bundle = getActiveDraftBundle(
   const phase = getNflDraftPhase(now, bundle);
   return {
     phase,
-    draftYear: bundle.inferredYear,
+    draftYear: bundle.year,
+    nextClassYearPending: bundle.nextClassYearPending || null,
     event: bundle.event,
     roundOneBoardSource: bundle.boardSourceAttribution,
     officialRoundOneCount: bundle.officialRoundOne?.length ?? 0,
@@ -202,13 +213,21 @@ export function buildNflDraftBoardBlock(meta = getNflDraftMeta(), bundle = getAc
 
   const warn = meta.bundleWarning ? `BUNDLE WARNING: ${meta.bundleWarning}\n` : "";
 
+  const nextPending =
+    meta.nextClassYearPending || bundle.nextClassYearPending
+      ? `Next class pending (not loaded): ${meta.nextClassYearPending || bundle.nextClassYearPending}`
+      : null;
+
   return [
     warn + "NFL DRAFT BOARD (Under Review bundle — not a live war room feed)",
-    `Active draft class year: ${bundle.inferredYear} (data file year ${bundle.year})`,
+    `Active draft class year: ${bundle.year} (verified pool)`,
+    nextPending,
     `Phase: ${phaseLabel}`,
     `Meta: ${JSON.stringify({
       event: meta.event,
       phase: meta.phase,
+      draftYear: meta.draftYear,
+      nextClassYearPending: meta.nextClassYearPending || null,
       roundOneBoardSource: meta.roundOneBoardSource,
       officialRoundOneCount: meta.officialRoundOneCount,
       officialRoundOneLastVerified: meta.officialRoundOneLastVerified,

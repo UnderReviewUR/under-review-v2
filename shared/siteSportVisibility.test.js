@@ -44,7 +44,7 @@ test("daily take uses nba and worldcup only", () => {
   assert.ok(!isDailyTakeSportVisible("tennis"));
 });
 
-test("isNflUrTakeGated when off-season", () => {
-  assert.ok(isNflUrTakeGated({ nflSeasonMode: false }));
+test("isNflUrTakeGated is off while NFL nav is on", () => {
+  assert.ok(!isNflUrTakeGated({ nflSeasonMode: false }));
   assert.ok(!isNflUrTakeGated({ nflSeasonMode: true }));
 });

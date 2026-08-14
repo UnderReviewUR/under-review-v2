@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   NFL_TOP_25_BET_MARKETS,
+  NFL_EXTENDED_PROP_CATALOG,
+  NFL_BRIEFCASE_POCKETS,
   NFL_GOAT_CONTRACT_FIELDS,
   createEmptyNflGoatBriefcase,
   auditNflGoatBriefcaseCoverage,
+  auditBriefcasePropCatalogCoverage,
+  detectNflAskMarket,
+  evaluateBriefcaseForInteraction,
   buildNflTop25ExpertisePromptBlock,
 } from "./nflGoatExtractionContract.js";
 import { normalizeNflBdlPlayerPropRows } from "../api/_nflBdl.js";
+import { resolveNflPropsWireMarket } from "./nflPropsConstants.js";
 
 test("top 25 markets are unique and ranked 1–25", () => {
   assert.equal(NFL_TOP_25_BET_MARKETS.length, 25);
@@ -43,7 +49,111 @@ test("expertise prompt prefers live without refusing", () => {
   assert.match(block, /Anytime touchdown/i);
   assert.match(block, /still give the structural lean/i);
   assert.match(block, /live line not in payload/i);
+  assert.match(block, /Targets/i);
+  assert.match(block, /Half sacks/i);
   assert.doesNotMatch(block, /refuse to answer/i);
+});
+
+test("extended prop catalog covers defense and volume markets", () => {
+  const ids = new Set(NFL_EXTENDED_PROP_CATALOG.map((p) => p.id));
+  for (const need of [
+    "targets",
+    "drops",
+    "sacks",
+    "half_sacks",
+    "tackles",
+    "forced_fumbles",
+    "fumbles",
+    "def_ints",
+  ]) {
+    assert.ok(ids.has(need), `missing ${need}`);
+  }
+  assert.ok(NFL_BRIEFCASE_POCKETS.some((p) => p.alwaysLoad && p.path === "slate.playerProps"));
+});
+
+test("detectNflAskMarket routes tackles and sacks", () => {
+  assert.equal(detectNflAskMarket("Micah Parsons over on sacks?").marketId, "sacks");
+  assert.equal(detectNflAskMarket("solo tackles for Roquan").marketId, "tackles");
+  assert.equal(detectNflAskMarket("Mahomes interceptions thrown").marketId, "pass_ints");
+  assert.equal(detectNflAskMarket("how many targets for Amon-Ra").marketId, "targets");
+});
+
+test("detectNflAskMarket keeps SGP primary when yards also mentioned", () => {
+  assert.equal(
+    detectNflAskMarket("SGP Mahomes pass yards and Kelce receiving yards").marketId,
+    "sgp",
+  );
+});
+
+test("evaluateBriefcaseForInteraction grades empty suitcase red", () => {
+  const empty = createEmptyNflGoatBriefcase();
+  const ev = evaluateBriefcaseForInteraction(empty, "spread on KC?");
+  assert.equal(ev.grade, "red");
+  assert.equal(ev.smooth, false);
+  assert.equal(ev.forcePass, true);
+  assert.ok(ev.alwaysMissing.length >= 1);
+});
+
+test("evaluateBriefcaseForInteraction does not PASS a posted spread when only props/rosters are empty", () => {
+  const b = createEmptyNflGoatBriefcase();
+  b.slate.games = [{ id: 1, awayAbbr: "DET", homeAbbr: "CIN" }];
+  b.slate.odds = [{ game_id: 1, spread: "CIN -6.5", total: 37.5 }];
+  b.league.injuries = [{ player: "Y" }];
+  const ev = evaluateBriefcaseForInteraction(b, "DET @ CIN — CIN -6.5 · total 37.5. Side or total?");
+  assert.equal(ev.detected.marketId, "total");
+  assert.ok(ev.alwaysMissing.includes("slate.playerProps"));
+  assert.equal(ev.forcePass, false);
+  assert.notEqual(ev.grade, "red");
+  assert.match(ev.guidance, /Game prices are posted/);
+  assert.doesNotMatch(ev.guidance, /Priced market missing/);
+});
+
+test("evaluateBriefcaseForInteraction PASSes a prop ask with no live row", () => {
+  const b = createEmptyNflGoatBriefcase();
+  b.slate.games = [{ id: 1 }];
+  b.slate.odds = [{ game_id: 1 }];
+  b.slate.playerProps = [{ player: "X", propRaw: "passing_yards", line: 250 }];
+  b.league.injuries = [{ player: "Y" }];
+  b.league.rostersByTeam = { DET: [] };
+  const ev = evaluateBriefcaseForInteraction(b, "Parsons sacks over?");
+  assert.equal(ev.detected.marketId, "sacks");
+  assert.equal(ev.noLiveProp, true);
+  assert.equal(ev.forcePass, true);
+});
+
+test("evaluateBriefcaseForInteraction is green when pockets match ask", () => {
+  const b = createEmptyNflGoatBriefcase();
+  b.slate.games = [{ id: 1 }];
+  b.slate.odds = [{ game_id: 1 }];
+  b.slate.playerProps = [{ player: "X", propRaw: "sacks", line: 0.5 }];
+  b.league.injuries = [{ player: "Y" }];
+  b.league.rostersByTeam = { DET: [] };
+  b.players.recentStats = [{}];
+  const ev = evaluateBriefcaseForInteraction(b, "Parsons sacks over?");
+  assert.equal(ev.detected.marketId, "sacks");
+  assert.equal(ev.grade, "green");
+  assert.equal(ev.smooth, true);
+  assert.ok(ev.propMatch.matched >= 1);
+  assert.equal(ev.forcePass, false);
+});
+
+test("auditBriefcasePropCatalogCoverage counts extended hits", () => {
+  const b = createEmptyNflGoatBriefcase();
+  b.slate.playerProps = [
+    { propRaw: "targets" },
+    { propRaw: "sacks" },
+    { propRaw: "passing_yards" },
+  ];
+  const cov = auditBriefcasePropCatalogCoverage(b);
+  assert.equal(cov.totalPropRows, 3);
+  assert.ok(cov.extendedPresent >= 2);
+});
+
+test("resolveNflPropsWireMarket passes through unknown AN keys", () => {
+  assert.equal(resolveNflPropsWireMarket("core_bet_type_9_passing_yards"), "pass_yds");
+  assert.equal(resolveNflPropsWireMarket("core_bet_type_99_solo_tackles"), "solo_tackles");
+  assert.equal(resolveNflPropsWireMarket("core_bet_type_12_forced_fumbles"), "forced_fumbles");
+  assert.equal(resolveNflPropsWireMarket("garbage"), null);
 });
 
 test("normalizeNflBdlPlayerPropRows maps over_under + milestone", () => {

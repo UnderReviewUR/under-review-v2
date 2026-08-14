@@ -82,7 +82,7 @@ export function deriveF1EventState(f1Data) {
 
 /**
  * @param {"golf"|"mlb"|"nba"|"nfl"|"tennis"|"f1"} sport
- * @param {BoardEventState | boolean} eventState — NFL passes boolean season mode: true = in-season
+ * @param {BoardEventState | boolean} eventState — NFL may pass boolean season mode: true = in-season, or "pre" / "live" / "futures"
  * @returns {string[]}
  */
 export function getQuickPromptsForState(sport, eventState) {
@@ -134,6 +134,14 @@ export function getQuickPromptsForState(sport, eventState) {
   if (sport === "nfl") {
     if (st === "live") {
       return ["Best WR props this week?", "Biggest usage jump?", "Best TD scorer angle?", "Which line is stale?"];
+    }
+    if (st === "pre") {
+      return [
+        "Side, total, or pass tonight?",
+        "Any real number on this board?",
+        "Pass until inactives?",
+        "Which favorite is a trap?",
+      ];
     }
     return ["Best WR future?", "Top TE by volume?", "Fade or take Kelce?", "Best RB rushing future?"];
   }

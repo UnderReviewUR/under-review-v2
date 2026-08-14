@@ -22,8 +22,8 @@ export const RBs = {
       best: "Rushing yards OVER. True workhorse now -- 309 attempts confirms volume."
     },
     situation2026: "Locked in as Bills RB1 with Josh Allen as QB. Dual threat offense creates space. Elite volume guaranteed.",
-    bettingAngles: ["Rushing yards OVER every week -- 95.4 base is elite", "TD scorer when Bills in red zone", "Fumble concern (6 in 2025) -- fumble prop when available"],
-    fantasy: { pprRank: "RB1-3", note: "Elite RB1 with Allen offense. Draft early." }
+    bettingAngles: ["Rushing yards OVER every week -- 95.4 base is elite", "TD scorer when Bills in red zone", "Fumble concern (6 in 2025) -- fumble prop when available"]
+
   },
 
   "Jonathan Taylor": {
@@ -37,8 +37,8 @@ export const RBs = {
       best: "TD scorer OVER -- 1.06 TDs/game is best rate among pure RBs."
     },
     situation2026: "Colts RB1, red zone king. QB situation (Jones vs Richardson) affects passing game, not Taylor's role.",
-    bettingAngles: ["TD scorer prop OVER every week", "Rushing yards OVER in run-heavy game scripts", "Low fumble rate (2) means no fade based on ball security"],
-    fantasy: { pprRank: "RB1-3", note: "TD volume makes him elite. Draft as RB1." }
+    bettingAngles: ["TD scorer prop OVER every week", "Rushing yards OVER in run-heavy game scripts", "Low fumble rate (2) means no fade based on ball security"]
+
   },
 
   "Derrick Henry": {
@@ -52,8 +52,8 @@ export const RBs = {
       best: "Rushing yards OVER when Ravens game script favors run."
     },
     situation2026: "Age 31 entering 2026. Henry-Lamar duo is the most dangerous 1-2 rushing punch in football. Lamar health is the key variable.",
-    bettingAngles: ["Rushing yards OVER when Lamar healthy (creates space)", "TD scorer OVER every healthy week", "Age watch -- monitor snap counts as season progresses"],
-    fantasy: { pprRank: "RB1-5", note: "Elite when healthy. Monitor age-related decline risk." }
+    bettingAngles: ["Rushing yards OVER when Lamar healthy (creates space)", "TD scorer OVER every healthy week", "Age watch -- monitor snap counts as season progresses"]
+
   },
 
   "Bijan Robinson": {
@@ -67,8 +67,8 @@ export const RBs = {
       best: "Rushing yards OVER. Most consistent RB prop in football -- 85+ yds/g two straight years."
     },
     situation2026: "Falcons RB1. Michael Penix at QB. Elite receiving back adds floor. Most consistent RB prop in the NFC.",
-    bettingAngles: ["Rushing yards OVER is the safest weekly prop", "TD rate underperforms volume -- target total yards not TD", "Receiving adds 20-30 extra yards weekly"],
-    fantasy: { pprRank: "RB1-4", note: "Elite consistency. Never has a zero week." }
+    bettingAngles: ["Rushing yards OVER is the safest weekly prop", "TD rate underperforms volume -- target total yards not TD", "Receiving adds 20-30 extra yards weekly"]
+
   },
 
   "De'Von Achane": {
@@ -82,8 +82,8 @@ export const RBs = {
       best: "Rushing yards OVER. 5.7 YPA means every carry is a threat. Market prices him conservatively."
     },
     situation2026: "QB situation volatile (Tua health, Willis situation). Achane's value partly depends on passing game keeping defense honest.",
-    bettingAngles: ["Rushing yards OVER when healthy", "Health monitor every week -- missed time each of last 3 seasons", "OVER 60 yards is the sweet spot line"],
-    fantasy: { pprRank: "RB1-5 healthy", note: "Elite ceiling, injury risk the only concern." }
+    bettingAngles: ["Rushing yards OVER when healthy", "Health monitor every week -- missed time each of last 3 seasons", "OVER 60 yards is the sweet spot line"]
+
   },
 
   // -- TIER 2: STRONG STARTERS (65-90 yards/game) ----------------------------
@@ -99,8 +99,8 @@ export const RBs = {
       best: "TD scorer prop OVER. 0.76 TDs/game is elite. The most reliable Gibbs prop."
     },
     situation2026: "Shares touches with David Montgomery. Gibbs is the TD and receiving back, Montgomery is the grinder.",
-    bettingAngles: ["TD scorer OVER is the primary angle", "Receiving yards adds floor beyond rushing", "Under total rushes in committee situations"],
-    fantasy: { pprRank: "RB1-8", note: "TD and receiving floor make him RB1 despite volume sharing." }
+    bettingAngles: ["TD scorer OVER is the primary angle", "Receiving yards adds floor beyond rushing", "Under total rushes in committee situations"]
+
   },
 
   "Kyren Williams": {
@@ -114,8 +114,8 @@ export const RBs = {
       best: "Success rate (62.9%) means he rarely has a truly bad game. Rushing yards OVER is reliable."
     },
     situation2026: "McVay's workhorse. Stafford play-action creates best running lanes in NFL. Most scheme-assisted rushing yards.",
-    bettingAngles: ["Rushing yards OVER -- scheme guarantees lanes", "TD scorer when Rams near red zone", "1502 Stafford PA yards (league best) directly benefits run game"],
-    fantasy: { pprRank: "RB1-10", note: "Stafford PA scheme makes him more efficient than raw stats show." }
+    bettingAngles: ["Rushing yards OVER -- scheme guarantees lanes", "TD scorer when Rams near red zone", "1502 Stafford PA yards (league best) directly benefits run game"]
+
   },
 
   "Javonte Williams": {
@@ -129,8 +129,8 @@ export const RBs = {
       best: "Rushing yards OVER. First full featured role delivered -- scheme and volume both there."
     },
     situation2026: "Cowboys RB1 with Prescott and Lamb. Dallas offense gives him volume and scoring opportunities.",
-    bettingAngles: ["Rushing yards OVER is the primary lean", "TD scorer in Cowboys red zone offense", "Fumble rate manageable (2) -- no fade needed"],
-    fantasy: { pprRank: "RB1-12", note: "Established RB1 now. Draft as such." }
+    bettingAngles: ["Rushing yards OVER is the primary lean", "TD scorer in Cowboys red zone offense", "Fumble rate manageable (2) -- no fade needed"]
+
   },
 
   "Travis Etienne": {
@@ -142,8 +142,8 @@ export const RBs = {
       rushYds: { floor: 50, ceil: 90, lean: "OVER in run-heavy scripts when Lawrence healthy" },
       best: "Rushing yards OVER -- full season confirmed he holds up as RB1."
     },
-    situation2026: "Jaguars RB1 with Lawrence. Trevor Lawrence rushing adds different dimension. ETN is the featured back.",
-    fantasy: { pprRank: "RB2-15", note: "Solid RB2 with weekly upside." }
+    situation2026: "Jaguars RB1 with Lawrence. Trevor Lawrence rushing adds different dimension. ETN is the featured back."
+
   },
 
   "Breece Hall": {
@@ -157,8 +157,8 @@ export const RBs = {
       best: "Rushing yards OVER. Fade his TD props -- Jets offense doesn't score enough."
     },
     situation2026: "Jets RB1. QB situation (Fields, Darnold, whoever) affects his ceiling but floor is volume-protected.",
-    bettingAngles: ["Rushing yards OVER is reliable", "FADE TD scorer -- Jets red zone is broken", "Volume carries the prop regardless of offense quality"],
-    fantasy: { pprRank: "RB2-15", note: "Volume RB2. TD upside capped by Jets offense." }
+    bettingAngles: ["Rushing yards OVER is reliable", "FADE TD scorer -- Jets red zone is broken", "Volume carries the prop regardless of offense quality"]
+
   },
 
   "Josh Jacobs": {
@@ -171,8 +171,8 @@ export const RBs = {
       rushYds: { floor: 45, ceil: 85, lean: "Neutral -- 61.9 base shows decline from peak" },
       best: "TD scorer OVER. Volume is fading but red zone role keeps TD rate elite."
     },
-    situation2026: "Packers RB1 with Jordan Love. Green Bay system protects his role but age (27) and trend are concerns.",
-    fantasy: { pprRank: "RB2-20", note: "TD-dependent. Draft as RB2 with TD upside." }
+    situation2026: "Packers RB1 with Jordan Love. Green Bay system protects his role but age (27) and trend are concerns."
+
   },
 
   "Tony Pollard": {
@@ -184,8 +184,8 @@ export const RBs = {
       rushYds: { floor: 45, ceil: 85, lean: "OVER in favorable matchups" },
       best: "Rushing yards OVER when Titans feeding him 14+ carries."
     },
-    situation2026: "Titans RB1 with Cam Ward. Limited ceiling due to team quality.",
-    fantasy: { pprRank: "RB2-22", note: "Solid RB2 with volume but limited upside." }
+    situation2026: "Titans RB1 with Cam Ward. Limited ceiling due to team quality."
+
   },
 
   "D'Andre Swift": {
@@ -197,8 +197,8 @@ export const RBs = {
       rushYds: { floor: 55, ceil: 95, lean: "OVER -- improving efficiency + Caleb Williams improving offense" },
       best: "Rushing yards OVER. Caleb Williams' improvement directly benefits Swift's lanes."
     },
-    situation2026: "Bears RB1 with Caleb Williams. New weapons for Williams should open run lanes further.",
-    fantasy: { pprRank: "RB2-18", note: "OVER on projected use if Bears offense improves." }
+    situation2026: "Bears RB1 with Caleb Williams. New weapons for Williams should open run lanes further."
+
   },
 
   "Kenneth Walker III": {
@@ -210,8 +210,8 @@ export const RBs = {
       rushYds: { floor: 45, ceil: 85, lean: "OVER in run-heavy scripts" },
       best: "Rushing yards OVER when Seattle leans on ground game."
     },
-    situation2026: "Seahawks RB1 with Darnold. Volume-dependent RB2.",
-    fantasy: { pprRank: "RB2-22", note: "Solid RB2." }
+    situation2026: "Seahawks RB1 with Darnold. Volume-dependent RB2."
+
   },
 
   "Rico Dowdle": {
@@ -223,8 +223,8 @@ export const RBs = {
       rushYds: { floor: 50, ceil: 85, lean: "OVER in run-heavy weeks" },
       best: "Volume carrier on rebuilding Panthers. OVER when getting 14+ carries."
     },
-    situation2026: "Panthers RB1, now on CAR after 2025. Bryce Young improving with McMillan changes dynamic.",
-    fantasy: { pprRank: "RB2-24", note: "Volume RB2. Limited upside." }
+    situation2026: "Panthers RB1, now on CAR after 2025. Bryce Young improving with McMillan changes dynamic."
+
   },
 
   "Saquon Barkley": {
@@ -237,8 +237,8 @@ export const RBs = {
       best: "Rushing yards OVER when Eagles lean on run. Jalen Hurts QB rush adds dimension that benefits Barkley."
     },
     situation2026: "Eagles RB1 with Hurts. Volume managed but scheme guarantees opportunities. 2024 was historically outlier.",
-    bettingAngles: ["Rushing yards OVER is the lean -- 71 yds/g base is still strong", "Don't expect 2024 repeat -- that was historically outlier", "Eagle scheme with Hurts designed runs creates lanes"],
-    fantasy: { pprRank: "RB1-8", note: "Still elite. 2024 was outlier high, 2025 is the real floor." }
+    bettingAngles: ["Rushing yards OVER is the lean -- 71 yds/g base is still strong", "Don't expect 2024 repeat -- that was historically outlier", "Eagle scheme with Hurts designed runs creates lanes"]
+
   },
 
   "Chase Brown": {
@@ -250,8 +250,8 @@ export const RBs = {
       rushYds: { floor: 45, ceil: 80, lean: "OVER when Burrow healthy and spreading ball" },
       best: "Rushing yards OVER in run-heavy scripts."
     },
-    situation2026: "Bengals RB1 with healthy Burrow. Perine committee limits ceiling.",
-    fantasy: { pprRank: "RB2-25", note: "Committee RB2." }
+    situation2026: "Bengals RB1 with healthy Burrow. Perine committee limits ceiling."
+
   },
 
   // -- KEY BACKUP / HANDCUFF SITUATIONS -------------------------------------
@@ -263,8 +263,8 @@ export const RBs = {
       rushYds: { lean: "OVER in run-heavy scripts when Steelers lean on ground game" },
       best: "High success rate (54.5%) means efficient yards even in limited game scripts."
     },
-    situation2026: "Steelers RB1 with Rudolph (or whoever wins QB). Run game will carry offense.",
-    fantasy: { pprRank: "RB2-25", note: "Volume RB2 on run-dependent team." }
+    situation2026: "Steelers RB1. PIT passer is unsettled — do not assume Rudolph starts. Run game still the structural core."
+
   },
 
   "J.K. Dobbins": {
@@ -274,8 +274,8 @@ export const RBs = {
       rushYds: { lean: "OVER when healthy -- 77.2 yds/g in 10 games is elite efficiency" },
       best: "Health is everything. When active, OVER is automatic. When Q/D, fade."
     },
-    situation2026: "Broncos RB1 when healthy. RJ Harvey shares load. Health risk is extreme.",
-    fantasy: { pprRank: "RB2 healthy, RB4 otherwise", note: "Handcuff RJ Harvey. Dobbins injury history is disqualifying as a high pick." }
+    situation2026: "Broncos RB1 when healthy. RJ Harvey shares load. Health risk is extreme."
+
   },
 
   "TreVeyon Henderson": {
@@ -285,8 +285,8 @@ export const RBs = {
       td: { lean: "OVER 0.5 -- 9 TDs in 17 games is real red zone usage" },
       best: "TD scorer prop OVER. Patriots using him in goal line role."
     },
-    situation2026: "Patriots RB1 with Drake Maye. Henderson and Stevenson split. Maye's mobility changes dynamic.",
-    fantasy: { pprRank: "RB3 with upside", note: "Drake Maye rushing limits his ceiling but goal line role real." }
+    situation2026: "Patriots RB1 with Drake Maye. Henderson and Stevenson split. Maye's mobility changes dynamic."
+
   },
 
   "Ashton Jeanty": {
@@ -297,8 +297,8 @@ export const RBs = {
       best: "Volume OVER props. Efficiency (3.7 YPA, 41% success) is the concern -- market may overrate ceiling."
     },
     situation2026: "Raiders RB1. Heisman finalist from Boise State. First full NFL season. Efficiency must improve.",
-    bettingAngles: ["Volume protects rushing yards OVER", "YPA (3.7) below average -- fade explosive game props", "TD upside lower than volume suggests"],
-    fantasy: { pprRank: "RB2-18", note: "Volume is real but efficiency below average. Manageable RB2." }
+    bettingAngles: ["Volume protects rushing yards OVER", "YPA (3.7) below average -- fade explosive game props", "TD upside lower than volume suggests"]
+
   },
 
   // -- NOTABLE SITUATIONAL BACKS ---------------------------------------------
@@ -313,8 +313,8 @@ export const RBs = {
       best: "Total yards (rush + receive) OVER is the better play. Pure rushing OVER is tighter."
     },
     situation2026: "49ers RB1. Purdy health and Shanahan scheme are the two variables that determine his ceiling.",
-    bettingAngles: ["Total yards OVER includes receiving floor", "Rush OVER is moderate lean -- 3.9 YPA limits ceiling", "Health monitor every week -- missed 8+ games each of last 2 seasons"],
-    fantasy: { pprRank: "RB1-5 healthy", note: "Elite when healthy. Health risk is real." }
+    bettingAngles: ["Total yards OVER includes receiving floor", "Rush OVER is moderate lean -- 3.9 YPA limits ceiling", "Health monitor every week -- missed 8+ games each of last 2 seasons"]
+
   },
 
   "Zach Charbonnet": {
@@ -324,9 +324,9 @@ export const RBs = {
       td: { lean: "OVER 0.5 -- 12 TDs in 16 games as backup is elite red zone usage" },
       best: "TD scorer prop OVER when touching ball near goal line."
     },
-    situation2026: "Walker's backup and goal line finisher. 12 TDs as secondary back is remarkable.",
-    fantasy: { pprRank: "RB3 with TD upside", note: "Charbonnet is the Walker handcuff AND a standalone TD prop." }
-  },
+    situation2026: "Walker's backup and goal line finisher. 12 TDs as secondary back is remarkable."
+
+  }
 
 };
 

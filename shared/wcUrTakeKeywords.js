@@ -125,7 +125,8 @@ const WC_GROUP_STAGE_RE = /\bgroup\s+([a-l])\b/i;
 const WC_GROUP_STAGE_PHASE_RE = /\bgroup[\s-]*stage\b/i;
 const WC_SOCCER_FOOTBALL_RE =
   /\b(football|soccer)\b/i;
-const WC_NFL_EXCLUDE_RE = /\b(nfl|touchdown|quarterback|super bowl)\b/i;
+const WC_NFL_EXCLUDE_RE =
+  /\b(nfl|touchdown|quarterback|super bowl|preseason|backup football|burrow|packers|steelers|raiders|bengals|chargers|titans|49ers)\b/i;
 
 /** FanDuel/DK-style soccer prop phrasing without "world cup" or nation names (e.g. "Jimenez 2+ shots?", "Son 2.5 shots?"). */
 const WC_SOCCER_PROP_LINE_RE =

@@ -1,6 +1,7 @@
 import AskBar from "../components/AskBar.jsx";
+import NflSlateTakesCard from "../components/NflSlateTakesCard.jsx";
 import UrChatDockScrollSpacer from "../components/UrChatDockScrollSpacer.jsx";
-import { ChatThread } from "../features/app/helpers.jsx";
+import { ChatThread, isNflRampMode } from "../features/app/helpers.jsx";
 import { getQuickPromptsForState } from "../lib/getQuickPromptsForState.js";
 import { mapNflBoardPropLinesToGuide } from "../lib/mapNflBoardPropLines.js";
 import NflGameBoardSection from "../features/nfl/NflGameBoardSection.jsx";
@@ -32,7 +33,11 @@ export default function NflScreen({
   nflBoardLoading = false,
   nflBoardAsOf = null,
 }) {
-  const nflQuickPrompts = getQuickPromptsForState("nfl", nflSeasonMode);
+  const nflQuickPrompts = getQuickPromptsForState(
+    "nfl",
+    nflSeasonMode ? "live" : isNflRampMode() ? "pre" : "futures",
+  );
+  const nflRamp = !nflSeasonMode && isNflRampMode();
   const urDockedChat = hasDockedBar && nflMsgs.length > 0;
   const liveGuide = mapNflBoardPropLinesToGuide(nflPropLines);
   const propGuide = liveGuide.length ? liveGuide : NFL_PROP_GUIDE;
@@ -47,8 +52,22 @@ export default function NflScreen({
     hideFollowUpDock: true,
   };
 
+  const isUnlimited =
+    accessTier === "owner" || accessTier === "friend" || accessTier === "pro";
+
   const nflBoardBelow = (
     <>
+      <NflSlateTakesCard
+        games={nflGames}
+        asOf={nflBoardAsOf}
+        isUnlimited={isUnlimited}
+        askLive
+        onOpenUpgrade={onUpgradePromptClick}
+        onSelectLane={(lane) => {
+          if (!lane?.question) return;
+          submitNfl(lane.question);
+        }}
+      />
       <NflGameBoardSection
         games={nflGames}
         loading={nflBoardLoading}
@@ -105,14 +124,18 @@ export default function NflScreen({
             ? "LIVE LINES · GAME O/U · PLAYER PROPS"
             : nflSeasonMode
               ? "WEEKLY PROPS · USAGE · PLAYER ANGLES"
-              : "FUTURES · PLAYER STATS · BETTING ANGLES"}
+              : nflRamp
+                ? "PRESEASON BOARD · SIDES · TOTALS"
+                : "FUTURES · PLAYER STATS · BETTING ANGLES"}
         </div>
         <div className="banner-note">
           {usingLiveProps
             ? "DraftKings-priority lines via Action Network — implied probs on totals and props."
             : nflSeasonMode
               ? "Current weekly props, role changes, usage shifts, and market edges."
-              : "Skill positions database with per-game stats, TD rates, prop floors and ceilings."}
+              : nflRamp
+                ? "Posted sides and totals. Ask the board. Pass is a take until inactives."
+                : "Skill positions database with per-game stats, TD rates, prop floors and ceilings."}
           {!usingLiveProps ? (
             <span
               style={{
@@ -139,7 +162,9 @@ export default function NflScreen({
             placeholder={
               nflSeasonMode
                 ? "Best WR prop this week? Biggest role change?"
-                : "Which RB leads TDs in 2026? Best future?"
+                : nflRamp
+                  ? "Side, total, or pass on tonight's slate?"
+                  : "Which RB leads TDs in 2026? Best future?"
             }
             btnColor="#4A90D9"
             {...askBarCommon}
@@ -149,7 +174,14 @@ export default function NflScreen({
               ? nflQuickPrompts
               : nflSeasonMode
                 ? ["Best WR props this week?", "Biggest usage jump?", "Best TD scorer angle?", "Which line is stale?"]
-                : ["Best WR future?", "Top TE by volume?", "Fade or take Kelce?", "Best RB rushing future?"]
+                : nflRamp
+                  ? [
+                      "Side, total, or pass tonight?",
+                      "Any real number on this board?",
+                      "Pass until inactives?",
+                      "Which favorite is a trap?",
+                    ]
+                  : ["Best WR future?", "Top TE by volume?", "Fade or take Kelce?", "Best RB rushing future?"]
             ).map((q) => (
               <button key={q} className="quick-btn" onClick={() => submitNfl(q)} style={{ fontSize: 11 }}>
                 {q}

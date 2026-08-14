@@ -97,6 +97,7 @@ export {
 } from "./nba/index.js";
 export { resolveMlbDecisionMode } from "./mlb/decisionMode.js";
 import { getDurableJson } from "../_durableStore.js";
+import { detectLiveGameSignals, resolveNflAskLiveSignals } from "../../shared/urTakeLiveSignals.js";
 import { getEnv } from "../_env.js";
 import { shouldRequireUrTakeAuth, verifyBearerForUrTake } from "../_urTakeAuth.js";
 import { sanitizeUrTakeBody } from "../_sanitizeUrTakeBody.js";
@@ -383,11 +384,13 @@ import {
   shouldLockWorldCupThreadSport,
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
+  hasStrongNbaOnlyLexicon,
 } from "../../shared/urTakeSportRouting.js";
 import { autocorrectUrTakeQuestion } from "../../shared/urTakeQuestionAutocorrect.js";
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "../_takeLedger.js";
 import { buildCanonicalNflContext } from "../_nflContext.js";
+import { applyNflAskGuard, buildNflPassStructuredTake } from "../../shared/nflAskGuard.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
   extractMentionedPersonFromQuestion,
@@ -437,6 +440,7 @@ import {
   resolveGolfPrimaryEvent,
   stripMisalignedGolfCourseArtifacts,
 } from "../../shared/golfHomeEventSelection.js";
+import { isGolfTournamentFinal } from "../../shared/eventValidity.js";
 import { augmentNbaRosterGroundingWithUi } from "../../src/lib/nbaUiSurface.js";
 import { getNbaPropsForBoard, hydrateNbaPropsOdds } from "../_nbaProps.js";
 import {
@@ -459,6 +463,7 @@ import {
   buildMlbParlayResponseRule,
   buildTakeTrustUiMetadata,
   composeRegisteredUrTakeSystemPrompt,
+  appendLiveModeSystemPrompt,
   detectParlayIntent,
   detectUrTakeLongFormIntent,
   resolveEvidenceSparsityProfile,
@@ -975,44 +980,6 @@ function getNflDraftQuestionRoute(question, focusTeamAbbr) {
   if (teamSim) return "TYPE_A";
 
   return "TYPE_B";
-}
-
-function detectLiveGameSignals(question, hasImage) {
-  const q = normalizeText(question);
-  const liveKeywords = [
-    "left in",
-    "minutes left",
-    "seconds left",
-    "time left",
-    "right now",
-    "currently",
-    "just happened",
-    "live",
-    "this quarter",
-    "this inning",
-    "this half",
-    "this set",
-    "bottom of",
-    "top of",
-    "end of",
-    "q1",
-    "q2",
-    "q3",
-    "q4",
-    "1st half",
-    "2nd half",
-    "overtime",
-    "ot",
-    "needs",
-    "has to",
-    "on pace",
-  ];
-  const hasLiveKeyword = liveKeywords.some((kw) => q.includes(kw));
-  return {
-    isLive: hasImage || hasLiveKeyword,
-    hasImage,
-    hasLiveKeyword,
-  };
 }
 
 function hasRecentLiveScreenshotContext(history) {
@@ -2881,6 +2848,14 @@ export default async function handler(req, res) {
     sportHint = "worldcup";
   }
 
+  if (
+    uiSportHintForRouting === "nfl" &&
+    sportHint === "nba" &&
+    !hasStrongNbaOnlyLexicon(routingQuestion)
+  ) {
+    sportHint = "nfl";
+  }
+
   const sportSwitched = sportsContextSwitched(uiSportHintForRouting, sportHint);
   if (sportSwitched) {
     console.log(
@@ -4490,7 +4465,11 @@ export default async function handler(req, res) {
   const liveSignals = {
     ...liveKeywordSignals,
     isBoardLive,
-    isEffectivelyLive: Boolean(liveKeywordSignals.hasLiveKeyword) || isBoardLive,
+    // NFL: board fills after canonical context. Do not flip live-mode on "this half" / "right now".
+    isEffectivelyLive:
+      sportHint === "nfl"
+        ? false
+        : Boolean(liveKeywordSignals.hasLiveKeyword) || isBoardLive,
   };
 
   const baseDerivedConfidence = deriveConfidenceLabel({
@@ -4564,7 +4543,7 @@ export default async function handler(req, res) {
 
   const longFormRequested = detectUrTakeLongFormIntent(String(question || ""));
 
-  const systemPrompt = composeRegisteredUrTakeSystemPrompt({
+  let systemPrompt = composeRegisteredUrTakeSystemPrompt({
     contextQuality,
     sportHint,
     chaseSignals,
@@ -4741,6 +4720,20 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
     includeNbaShortcuts: !isConversationFollowUp,
   });
   if (nbaShortcutEarly.handled) return;
+
+  /** @type {string|null} */
+  let nflMatchupThesisOut = null;
+  /** @type {Record<string, unknown>|null} */
+  let nflMatchupMetaOut = null;
+  /** @type {Array<Record<string, unknown>>} */
+  let nflAskGuardGames = [];
+  /** @type {Array<Record<string, unknown>>} */
+  let nflAskGuardPropLines = [];
+  /** @type {Record<string, unknown>|null} */
+  let nflAskGuardBriefcase = null;
+  let nflAskIsCurrentSeason = false;
+  /** @type {Record<string, unknown>|null} */
+  let nflAskGuardInactives = null;
 
   let userPrompt = question;
   /** Scoped for Anthropic token budget — NFL TYPE_A draft simulation uses a higher max_tokens ceiling. */
@@ -5162,8 +5155,8 @@ SCOPE — Under Review is deepest on ATP markets; this WTA read uses tour-level 
   } else if (sportHint === "golf") {
     // DATA FRESHNESS: this sport reads from live APIs — no staleness injection needed.
     // If you ever add hardcoded fallbacks, add dataFreshness to the payload.
-    const golfState = String(golfContextEffective?.currentEvent?.state || "").toLowerCase();
-    const golfIsFinal = golfState === "post" || golfState === "final";
+    // Do not trust raw ESPN post/final overnight — Thru F after R1 is not tournament over.
+    const golfIsFinal = isGolfTournamentFinal(golfContextEffective?.currentEvent);
     const golfVerifiedBlock = buildGolfVerifiedPlayerListBlock(golfContextEffective);
     const golfHasVerifiedNames = collectGolfVerifiedNames(golfContextEffective).size > 0;
     const golfBetStructure = classifyGolfBetStructure(question, "golf");
@@ -5584,6 +5577,42 @@ Never open with "no odds yet." Give them a monitoring plan and a priced band
 in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`;
   } else if (sportHint === "nfl") {
     const canonicalNfl = await buildCanonicalNflContext({ question, matchupContext });
+    nflAskGuardGames = Array.isArray(canonicalNfl?.games) ? canonicalNfl.games : [];
+    nflAskGuardPropLines = Array.isArray(canonicalNfl?.propLines) ? canonicalNfl.propLines : [];
+    nflAskGuardBriefcase =
+      canonicalNfl?.briefcase && typeof canonicalNfl.briefcase === "object"
+        ? canonicalNfl.briefcase
+        : null;
+    nflAskIsCurrentSeason = Boolean(canonicalNfl?.dataFreshness?.isCurrentSeason);
+    nflAskGuardInactives =
+      canonicalNfl?.inactives && typeof canonicalNfl.inactives === "object"
+        ? canonicalNfl.inactives
+        : null;
+    const nflLive = resolveNflAskLiveSignals({
+      question,
+      hasImage,
+      games: nflAskGuardGames,
+    });
+    liveSignals.isBoardLive = nflLive.isBoardLive;
+    liveSignals.isEffectivelyLive = nflLive.isEffectivelyLive;
+    if (nflLive.isEffectivelyLive) {
+      systemPrompt = appendLiveModeSystemPrompt(systemPrompt);
+    }
+    nflMatchupThesisOut = String(canonicalNfl?.matchup?.thesis || "").trim() || null;
+    nflMatchupMetaOut =
+      canonicalNfl?.matchup && typeof canonicalNfl.matchup === "object"
+        ? {
+            thesis: canonicalNfl.matchup.thesis || null,
+            player: canonicalNfl.matchup.player || null,
+            opponent: canonicalNfl.matchup.opponent || null,
+            homeAbbr: canonicalNfl.matchup.homeAbbr || null,
+            defenseTier: canonicalNfl.matchup.defenseTier || null,
+            liveLine: canonicalNfl.matchup.liveLine || null,
+            injuryFlag: Boolean(canonicalNfl.matchup.injuryFlag),
+          }
+        : null;
+    const briefcaseHealthBlock = String(canonicalNfl?.briefcase?.promptBlock || "").trim();
+    const matchupCardBlock = String(canonicalNfl?.matchup?.promptBlock || "").trim();
     const nflContextEffective =
       nflContext && String(nflContext).trim()
         ? nflContext
@@ -5594,7 +5623,11 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       nflContext !== null &&
       !Array.isArray(nflContext) &&
       nflContext.dataFreshness
-        ? nflContext.dataFreshness
+        ? {
+            ...nflContext.dataFreshness,
+            briefcase: canonicalNfl.dataFreshness?.briefcase || null,
+            matchupThesis: nflMatchupThesisOut,
+          }
         : canonicalNfl.dataFreshness;
 
     const availableNflPlayers = extractNflPlayersFromContext(nflContextEffective);
@@ -5657,10 +5690,18 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       nflDraftAngle && focusTeam
         ? buildTeamDraftFocusBlock(focusTeam, draftBundleForPrompt)
         : "";
-    const nflContextForPrompt =
-      (typeof nflContextEffective === "string"
+    const nflContextBase =
+      typeof nflContextEffective === "string"
         ? nflContextEffective
-        : contextJsonForModel(nflContextEffective)) +
+        : contextJsonForModel(nflContextEffective);
+    const nflContextNeedsHealth =
+      briefcaseHealthBlock && !String(nflContextBase).includes("NFL SUITCASE HEALTH");
+    const nflContextNeedsMatchup =
+      matchupCardBlock && !String(nflContextBase).includes("NFL MATCHUP CARD");
+    const nflContextForPrompt =
+      nflContextBase +
+      (nflContextNeedsMatchup ? `\n\n${matchupCardBlock}` : "") +
+      (nflContextNeedsHealth ? `\n\n${briefcaseHealthBlock}` : "") +
       (teamCapitalBlock ? `\n\n---\n\n${teamCapitalBlock}` : "");
     const nflVerifiedBlock = buildNflVerifiedPlayerListBlock(nflContextEffective, question);
 
@@ -5876,41 +5917,46 @@ ${
     : nflDraftAngle && nflDraftWindowActive
     ? ""
     : nflDraftAngle
-    ? `NO-MARKET / DRAFT ANGLE (when the question is draft-centric, not a priced prop, and you are outside the pre/during-draft windowed analysis above):
-You are NOT allowed to stall with "wait until the draft" as the whole answer.
+    ? `POST-DRAFT / DRAFT ANGLE (outside the live war-room window):
+The active class is already drafted. Do not invent a next-year big board or run a mock as if the draft is upcoming.
 
-Instead:
-1. Open with board truth: their Round 1 slot(s) from NFL DRAFT BOARD and any trade-note capital.
-2. Map roster need → 2–3 realistic target buckets (position/archetype), without claiming a player "will" go at a specific pick unless clearly hypothetical.
-3. Name one trade-up or trade-back lever that fits their slot + needs.
-4. End with a live trigger: what combine / medical / pro-day / smoke-screen signal would flip the lean.
+Answer in this order, then stop:
+1. One sentence: draft is over / post_draft — no live simulation.
+2. Verified capital slots + needs from NFL DRAFT BOARD (if a team is named).
+3. Optional: grade known official Round 1 picks ONLY if that list is populated; otherwise say official picks are not loaded.
 
-Skip the generic "two active NFL players from the prop board" requirement when this block applies.`
-    : `NO-MARKET FALLBACK RULE (mandatory when prop boards or weekly lines are empty in context but games or usage data imply an upcoming slate)
+Do NOT close with a numbered menu ("If you want to: 1. Paste… 2. Run a what-if…"). Do NOT ask "What's your play here?" One optional clarifying question max, or none.`
+    : `NO-MARKET FALLBACK RULE (mandatory when prop boards or weekly lines are empty)
 
-You are NOT allowed to respond with "wait for lines" or "come back when props drop"
-as the primary answer.
+Do not invent a posted number. Do not open with a fake over/under to look decisive.
 
-Instead, do ALL of the following:
+1. Close PASS (or WATCH only if a live game number exists to shop).
+2. One structural note from role / defense / script in payload — no fabricated line.
+3. One next step: wait for the live prop, inactives, or a posted spread.
 
-1. Open with a confident pre-market call: anytime TD, passing yards, rushing
-   yards, or receptions — anchored to defense tier data and player role from
-   nflContext.
-
-${NO_MARKET_VERIFIED_PLAYER_STEP_2}
-
-3. For each player (when at least two names exist on the NFL PLAYER POOL above), state:
-   - The prop type to watch
-   - A pre-market band in words ("fade yards if the line opens above 275")
-   - Reasoning from matchup defense tiers, red-zone role, or snap context in the payload
-
-4. Tie offense to opposing defense tiers and game environment when those fields exist.
-
-5. End with a live trigger: quarter or script cue that would confirm the lean
-   (e.g. "If they're trailing early, check live pass attempts over").
-
-Never open with "props aren't out." Give named players and monitoring hooks.`
+Never open with "props aren't out" as the whole answer. Never satisfy the closer by inventing 72.5.`
 }`;
+
+    if (structuredModeRequested) {
+      nflUserPromptBody += `
+
+NFL STRUCTURED JSON (mandatory this turn)
+Respond with ONLY a JSON object. First character must be {. No markdown, no headers.
+- sport: "NFL"
+- If PLAYER ID is ambiguous: lean "Lean: Pass.", call "PASS", analysis.matchupAnalysis lists the candidate names and asks which player. Do not assume one.
+- If SLATE GAP is present: do not invent a spread, home, or script. Defense tier only.
+- If NFL SLATE lists a posted spread: quote that favorite and number. Fade the favorite as the dog + same number (CIN -6.5 too big → DET +6.5). Never invert into the other team as favorite. Never invent open→close movement.
+- Obey GAME STATE on each slate row. Pregame write-up for pregame. LIVE = still on it / what changed. Do not mix tenses. Live-mode follows GAME STATE, not phrases like "this half" / "first half" / "right now".
+- If FORCE PASS is set: call MUST be "PASS". Do not invent a number.
+- If SUITCASE HEALTH is RED but FORCE PASS is not set: game prices are still playable. Missing props/rosters are a gap clause, not a ticket killer. Call the posted spread/total or PASS on script.
+- If no live line in payload: call "PASS". Structural note + "line not in payload". Never fabricate a posted number.
+- Never claim line stable / sharp movement / CLV unless openingOdds exist in the payload.
+- If DATA FRESHNESS isCurrentSeason is false: yds/g and similar counting stats are a prior. Label them 2024/2025 tape — do not write them as tonight's form.
+- Allowed closers: PLAY / PASS / WATCH + a posted number from context. Do not use "Look for X over Y" when suitcase is yellow/red or the band is soft/lottery.
+- If a QB situation is placeholder / in flux / UNCONFIRMED: do not treat that QB as the locked starter for script.
+- Futures without a posted win total: do not invent the number. Give a structural band only and PASS if you cannot name the book's number from context.
+- Placeholder QBs (e.g. PIT passer unsettled): say starter is unsettled — do not build the thesis around Rudolph or any unconfirmed QB1.`;
+    }
 
     userPrompt = questionPropSlice
       ? `${questionPropSlice}\n\n${nflUserPromptBody}`
@@ -7363,6 +7409,18 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               nbaContext,
             });
           }
+          if (sportHint === "nfl" && structuredResponse) {
+            const guarded = applyNflAskGuard({
+              question,
+              structured: structuredResponse,
+              games: nflAskGuardGames,
+              propLines: nflAskGuardPropLines,
+              briefcase: nflAskGuardBriefcase,
+              inactives: nflAskGuardInactives,
+              isCurrentSeason: nflAskIsCurrentSeason,
+            });
+            structuredResponse = guarded.structured;
+          }
 
           // Validate
           const validation = validateStructuredURTakeResponse(structuredResponse);
@@ -7395,8 +7453,11 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               // Sentry error, skip
             }
 
-            // Invalid structured response — fall back to prose for this attempt (QA may retry)
-            structuredResponse = null;
+            // Invalid structured response — NFL ships PASS, other sports may fall back to prose.
+            structuredResponse =
+              sportHint === "nfl"
+                ? buildNflPassStructuredTake("structured_parse_failed")
+                : null;
           }
         } catch (parseError) {
           console.error("[STRUCTURED_UR_TAKE_PARSE_ERROR]", {
@@ -7425,7 +7486,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             // Sentry error, skip
           }
 
-          structuredResponse = null;
+          structuredResponse =
+            sportHint === "nfl"
+              ? buildNflPassStructuredTake("structured_parse_failed")
+              : null;
         }
       }
 
@@ -8505,6 +8569,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       responseBody.nbaRelevance = nbaRelevanceLog;
     }
 
+    if (sportHint === "nfl" && nflMatchupThesisOut) {
+      responseBody.nflMatchupThesis = nflMatchupThesisOut;
+      if (nflMatchupMetaOut) responseBody.nflMatchup = nflMatchupMetaOut;
+    }
     if (sportHint === "worldcup" && wcContext?.dataConfidence) {
       responseBody.dataConfidence = wcContext.dataConfidence;
     }

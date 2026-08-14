@@ -26,8 +26,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Most targets in the NFL (166). Volume is the entire story."
     },
     situation2026: "Rams WR1 with Stafford. Play-action offense creates elite separation. TD regression is the wildcard -- he should score more.",
-    bettingAngles: ["Receiving yards OVER every week -- 107 base is elite", "FADE TD scorer until proven otherwise", "Catches OVER is reliable -- 8+ rec/g is consistent"],
-    fantasy: { pprRank: "WR1-5", note: "Elite PPR back. TD regression will come. Draft as WR1." }
+    bettingAngles: ["Receiving yards OVER every week -- 107 base is elite", "FADE TD scorer until proven otherwise", "Catches OVER is reliable -- 8+ rec/g is consistent"]
+
   },
 
   "Ja'Marr Chase": {
@@ -42,8 +42,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when Burrow plays. He's the most talented WR in football."
     },
     situation2026: "Bengals WR1 locked in. Burrow health is the only variable. When Burrow plays, Chase is a WR1 every week.",
-    bettingAngles: ["Receiving yards OVER when Burrow active", "TD scorer OVER in red zone games", "Monitor Burrow health weekly -- Chase props tank without him"],
-    fantasy: { pprRank: "WR1-3", note: "Elite ceiling. Burrow health is the only risk." }
+    bettingAngles: ["Receiving yards OVER when Burrow active", "TD scorer OVER in red zone games", "Monitor Burrow health weekly -- Chase props tank without him"]
+
   },
 
   "Jaxon Smith-Njigba": {
@@ -58,8 +58,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Most receiving yards in the NFL in 2025. Full WR1 ascension confirmed."
     },
     situation2026: "Seahawks WR1 with Darnold. JSN is the offense. Volume is locked in regardless of QB.",
-    bettingAngles: ["Receiving yards OVER is the primary lean every week", "Total yards led the NFL -- market may still underrate him", "Catches OVER is reliable secondary prop"],
-    fantasy: { pprRank: "WR1-4", note: "Top-3 WR in football now. Draft accordingly." }
+    bettingAngles: ["Receiving yards OVER is the primary lean every week", "Total yards led the NFL -- market may still underrate him", "Catches OVER is reliable secondary prop"]
+
   },
 
   "Amon-Ra St. Brown": {
@@ -74,8 +74,8 @@ export const WRsAndTEs = {
       best: "TD scorer OVER. 0.71 TDs/game combined with volume makes him the safest weekly prop."
     },
     situation2026: "Lions WR1 with Goff. Gibbs and Montgomery in backfield create play-action that benefits ARSB. Most reliable Detroit prop.",
-    bettingAngles: ["TD scorer OVER every week -- 12 TDs is elite", "Receiving yards OVER is consistent", "Drop rate (10) is the fade angle in tough matchups"],
-    fantasy: { pprRank: "WR1-5", note: "Volume + TDs = elite WR1. Never misses." }
+    bettingAngles: ["TD scorer OVER every week -- 12 TDs is elite", "Receiving yards OVER is consistent", "Drop rate (10) is the fade angle in tough matchups"]
+
   },
 
   // -- TIER 2: STRONG WR1 (75-100 rec or 1000+ yds) -----------------------
@@ -91,8 +91,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when healthy. Elite talent, health is the variable."
     },
     situation2026: "Cowboys WR1 with Prescott and Pickens. Top-3 WR talent but injury history is real concern.",
-    bettingAngles: ["Health monitor every week", "OVER when active -- talent guarantees production", "FADE in short weeks or injury reports"],
-    fantasy: { pprRank: "WR1-6", note: "Elite when healthy. ADP risk due to injury history." }
+    bettingAngles: ["Health monitor every week", "OVER when active -- talent guarantees production", "FADE in short weeks or injury reports"]
+
   },
 
   "Justin Jefferson": {
@@ -106,8 +106,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when Vikings game script is pass-heavy."
     },
     situation2026: "Vikings WR1 but QB situation (Darnold) caps ceiling. Jefferson's talent is unquestioned but context limits him.",
-    bettingAngles: ["Receiving yards OVER when Vikings trailing (pass-heavy script)", "FADE in run-heavy game scripts", "Monitor QB situation -- key variable"],
-    fantasy: { pprRank: "WR1-8", note: "Elite talent, scheme-limited. Draft with caution." }
+    bettingAngles: ["Receiving yards OVER when Vikings trailing (pass-heavy script)", "FADE in run-heavy game scripts", "Monitor QB situation -- key variable"]
+
   },
 
   "George Pickens": {
@@ -121,8 +121,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Deep threat efficiency (15.4 YPR) means every catch is a big gain."
     },
     situation2026: "Cowboys WR2/1 depending on Lamb health. Prescott targets him downfield. Elite big-play prop every week.",
-    bettingAngles: ["Receiving yards OVER -- big-play ability inflates totals", "TD scorer when Dallas in red zone", "OVER 80 yards is the sweet spot line"],
-    fantasy: { pprRank: "WR1-9", note: "Elite in standard scoring. Big-play machine." }
+    bettingAngles: ["Receiving yards OVER -- big-play ability inflates totals", "TD scorer when Dallas in red zone", "OVER 80 yards is the sweet spot line"]
+
   },
 
   "A.J. Brown": {
@@ -136,8 +136,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Near-zero drop rate means every target counts."
     },
     situation2026: "Eagles WR1 with Hurts. Barkley rushing opens lanes. AJB is the primary vertical threat.",
-    bettingAngles: ["Receiving yards OVER is the lean", "Health monitor -- missed games in 2025", "Zero drops makes him hyper-reliable when active"],
-    fantasy: { pprRank: "WR1-10", note: "Elite efficiency. Health is the only risk." }
+    bettingAngles: ["Receiving yards OVER is the lean", "Health monitor -- missed games in 2025", "Zero drops makes him hyper-reliable when active"]
+
   },
 
   "Chris Olave": {
@@ -151,8 +151,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Volume (156 tgt) is elite even if TD rate is low."
     },
     situation2026: "Saints WR1. Rattler situation is the QB variable. Olave's role is locked in regardless.",
-    bettingAngles: ["Receiving yards OVER is reliable", "FADE TD scorer -- Saints red zone doesn't use him enough", "Catches OVER is strong -- 6.3 rec/g"],
-    fantasy: { pprRank: "WR2-14", note: "Volume WR2 with WR1 ceiling. TD-limited." }
+    bettingAngles: ["Receiving yards OVER is reliable", "FADE TD scorer -- Saints red zone doesn't use him enough", "Catches OVER is strong -- 6.3 rec/g"]
+
   },
 
   "Zay Flowers": {
@@ -166,8 +166,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when Lamar healthy. The big-play threat in Baltimore's offense."
     },
     situation2026: "Ravens WR1 with Lamar. Henry and Andrews share targets but Flowers is the downfield threat.",
-    bettingAngles: ["Receiving yards OVER when Lamar active", "FADE TD scorer -- Henry and Andrews own red zone", "Drop rate (7) is a fade angle in crucial game situations"],
-    fantasy: { pprRank: "WR2-16", note: "Good WR2 but TD rate caps ceiling." }
+    bettingAngles: ["Receiving yards OVER when Lamar active", "FADE TD scorer -- Henry and Andrews own red zone", "Drop rate (7) is a fade angle in crucial game situations"]
+
   },
 
   "Stefon Diggs": {
@@ -181,8 +181,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. 5.0 rec/g with elite catch rate -- the floor prop."
     },
     situation2026: "Patriots WR1 with Drake Maye. Maye's improvement directly correlates with Diggs' ceiling.",
-    bettingAngles: ["Catches OVER is the safest prop", "Receiving yards moderate lean OVER", "TD fade -- Patriots red zone is broken"],
-    fantasy: { pprRank: "WR2-20", note: "Age concern but still reliable. PPR floor back." }
+    bettingAngles: ["Catches OVER is the safest prop", "Receiving yards moderate lean OVER", "TD fade -- Patriots red zone is broken"]
+
   },
 
   "Nico Collins": {
@@ -196,8 +196,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Elite YPR (15.7) means fewer catches can still hit big yardage totals."
     },
     situation2026: "Texans WR1 with Stroud. Health is the only risk -- missed time in both 2024 and 2025.",
-    bettingAngles: ["Receiving yards OVER -- YPR inflates totals", "Health monitor every week", "OVER 70 yards is the reliable line"],
-    fantasy: { pprRank: "WR1-11", note: "Elite when healthy. ADP risk due to injury history." }
+    bettingAngles: ["Receiving yards OVER -- YPR inflates totals", "Health monitor every week", "OVER 70 yards is the reliable line"]
+
   },
 
   "Tetairoa McMillan": {
@@ -211,8 +211,8 @@ export const WRsAndTEs = {
       best: "TD scorer OVER. 8 TDs as a rookie is real red zone usage. This will only grow."
     },
     situation2026: "Panthers WR1. Bryce Young improving. McMillan's role locked in and growing.",
-    bettingAngles: ["TD scorer OVER -- red zone role real", "Receiving yards OVER in pass-heavy scripts", "Drop rate (8) is the fade concern"],
-    fantasy: { pprRank: "WR1-12", note: "Year 2 breakout candidate. Draft as WR1." }
+    bettingAngles: ["TD scorer OVER -- red zone role real", "Receiving yards OVER in pass-heavy scripts", "Drop rate (8) is the fade concern"]
+
   },
 
   "Terry McLaurin": {
@@ -226,8 +226,8 @@ export const WRsAndTEs = {
       best: "TD scorer OVER when healthy. 0.8 TDs/game is among the best rates at the position."
     },
     situation2026: "Commanders WR1 with Daniels. Health is the question -- missed 7 games in 2025.",
-    bettingAngles: ["TD scorer OVER when active", "Health monitor is the weekly priority", "FADE when injury report shows anything"],
-    fantasy: { pprRank: "WR1-13 healthy", note: "Elite TD upside but injury risk is real." }
+    bettingAngles: ["TD scorer OVER when active", "Health monitor is the weekly priority", "FADE when injury report shows anything"]
+
   },
 
   "Courtland Sutton": {
@@ -241,8 +241,8 @@ export const WRsAndTEs = {
       best: "TD scorer OVER. Red zone role is established and Nix targets him there."
     },
     situation2026: "Broncos WR1 with Nix. Nix year-2 leap directly benefits Sutton.",
-    bettingAngles: ["TD scorer OVER is the best angle", "Receiving yards OVER in pass-heavy scripts", "Drop rate fade in crucial game situations"],
-    fantasy: { pprRank: "WR2-15", note: "Reliable WR2 with TD upside." }
+    bettingAngles: ["TD scorer OVER is the best angle", "Receiving yards OVER in pass-heavy scripts", "Drop rate fade in crucial game situations"]
+
   },
 
   "Wan'Dale Robinson": {
@@ -254,11 +254,11 @@ export const WRsAndTEs = {
       recYds: { floor: 50, ceil: 95, lean: "OVER -- 63 base is reliable" },
       rec: { floor: 4, ceil: 9, lean: "OVER catches -- 5.8 rec/g is elite" },
       td: { pg: 0.19, lean: "FADE TD -- only 3 TDs on 92 catches" },
-      best: "Catches OVER. 5.8 rec/g makes him a top PPR prop target."
+      best: "Catches OVER. 5.8 rec/g makes him a top reception prop target."
     },
     situation2026: "Giants WR1 by default. Volume is guaranteed regardless of QB situation.",
-    bettingAngles: ["Catches OVER is the most reliable prop", "Receiving yards OVER is consistent", "FADE TD scorer completely"],
-    fantasy: { pprRank: "WR2-16", note: "Elite PPR value. TD-capped." }
+    bettingAngles: ["Catches OVER is the most reliable prop", "Receiving yards OVER is consistent", "FADE TD scorer completely"]
+
   },
 
   "Michael Pittman Jr.": {
@@ -272,8 +272,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. He's a volume slot receiver. Total yards are the better prop than receiving yards alone."
     },
     situation2026: "Colts WR1 with Richardson or Jones. Role is secure but ceiling is capped.",
-    bettingAngles: ["Catches OVER is the only real angle", "FADE receiving yards OVER -- 46 base is too low", "No TD prop value"],
-    fantasy: { pprRank: "WR3-25", note: "PPR floor back only. Low upside." }
+    bettingAngles: ["Catches OVER is the only real angle", "FADE receiving yards OVER -- 46 base is too low", "No TD prop value"]
+
   },
 
   "Khalil Shakir": {
@@ -287,8 +287,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. Allen short game feeds him weekly."
     },
     situation2026: "Bills slot WR with Josh Allen. Cook's usage limits his ceiling but floor is always there.",
-    bettingAngles: ["Catches OVER when Bills pass-heavy", "Receiving yards are volatile -- low ADOT means big games are random", "PPR floor back"],
-    fantasy: { pprRank: "WR3-28", note: "PPR value only. Low upside." }
+    bettingAngles: ["Catches OVER when Bills pass-heavy", "Receiving yards are volatile -- low ADOT means big games are random", "Catch-volume floor"]
+
   },
 
   "DeVonta Smith": {
@@ -302,8 +302,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when Eagles pass-heavy. AJB and Smith split targets evenly."
     },
     situation2026: "Eagles WR2 with Hurts. Shares targets with AJB. Volume is there but TDs go elsewhere.",
-    bettingAngles: ["Receiving yards OVER when Hurts is passing", "FADE TD props completely", "Reliable WR2 prop overall"],
-    fantasy: { pprRank: "WR2-18", note: "Solid WR2. TD-capped by scheme." }
+    bettingAngles: ["Receiving yards OVER when Hurts is passing", "FADE TD props completely", "Reliable WR2 prop overall"]
+
   },
 
   "Jameson Williams": {
@@ -317,8 +317,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. High variance prop -- when he connects it's always a big game."
     },
     situation2026: "Lions WR2 with Goff. ARSB gets the volume but Williams gets the splash plays.",
-    bettingAngles: ["Receiving yards OVER -- explosion ability makes OVER more likely than base suggests", "Drop rate (12) is the fade angle", "TD scorer OVER in favorable matchups"],
-    fantasy: { pprRank: "WR2-19", note: "Big-play WR2. Volatile but ceiling is real." }
+    bettingAngles: ["Receiving yards OVER -- explosion ability makes OVER more likely than base suggests", "Drop rate (12) is the fade angle", "TD scorer OVER in favorable matchups"]
+
   },
 
   "Ladd McConkey": {
@@ -332,8 +332,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when Herbert plays. Fade props when Herbert is out."
     },
     situation2026: "Chargers WR1 with Herbert. Herbert health is everything for this prop.",
-    bettingAngles: ["Monitor Herbert health weekly -- hard fade when out", "OVER when Herbert active", "2024 was the ceiling, 2025 is the floor"],
-    fantasy: { pprRank: "WR2-20", note: "Herbert-dependent. Draft as WR2 with WR1 upside." }
+    bettingAngles: ["Monitor Herbert health weekly -- hard fade when out", "OVER when Herbert active", "2024 was the ceiling, 2025 is the floor"]
+
   },
 
   "Jaylen Waddle": {
@@ -347,8 +347,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when Miami is passing."
     },
     situation2026: "Dolphins WR2 behind Hill/Achane in target priority. Tua health is the QB variable.",
-    bettingAngles: ["FADE TD props completely", "Receiving yards OVER in games where Miami passes a lot", "Reliable WR2 volume when healthy"],
-    fantasy: { pprRank: "WR3-26", note: "Volume WR2 but zero TD upside. PPR only." }
+    bettingAngles: ["FADE TD props completely", "Receiving yards OVER in games where Miami passes a lot", "Reliable WR2 volume when healthy"]
+
   },
 
   "D.J. Moore": {
@@ -362,8 +362,8 @@ export const WRsAndTEs = {
       best: "No strong lean. Caleb Williams improvement is the key variable for his 2026 props."
     },
     situation2026: "Bears WR1 but role is now contested with Burden and Odunze. Caleb Williams year 2 is the X-factor.",
-    bettingAngles: ["Monitor target share -- Burden emergence is real", "Receiving yards lean OVER if Caleb Williams improves", "No reliable prop angle currently"],
-    fantasy: { pprRank: "WR3-28", note: "Target share at risk. Downgrade until role clarified." }
+    bettingAngles: ["Monitor target share -- Burden emergence is real", "Receiving yards lean OVER if Caleb Williams improves", "No reliable prop angle currently"]
+
   },
 
   // -- TIER 3: STARTER WR (reliable weekly production) ---------------------
@@ -378,8 +378,8 @@ export const WRsAndTEs = {
       td: { pg: 0.33, lean: "OVER 0.5 when Burrow in rhythm" },
       best: "Receiving yards OVER. Efficient WR2 in Bengals offense when active."
     },
-    situation2026: "Bengals WR2 behind Chase. Chase/Higgins is still one of the best WR duos when Burrow healthy.",
-    fantasy: { pprRank: "WR2-22", note: "Reliable WR2 but Chase-dependent for target share." }
+    situation2026: "Bengals WR2 behind Chase. Chase/Higgins is still one of the best WR duos when Burrow healthy."
+
   },
 
   "D.K. Metcalf": {
@@ -392,8 +392,8 @@ export const WRsAndTEs = {
       td: { pg: 0.20, lean: "Low -- only 3 TDs in 15 games" },
       best: "Receiving yards OVER. Physical talent is elite but QB situation caps production."
     },
-    situation2026: "Steelers WR1. QB situation improvement is the key variable for his 2026 numbers.",
-    fantasy: { pprRank: "WR2-24", note: "Talent WR2 but QB-limited." }
+    situation2026: "Steelers WR1. QB situation improvement is the key variable for his 2026 numbers."
+
   },
 
   "Mike Evans": {
@@ -407,8 +407,8 @@ export const WRsAndTEs = {
       best: "TD scorer OVER when healthy. Half-game rate of 0.5 TDs/game is still elite."
     },
     situation2026: "Buccaneers WR1 but age/health make him unreliable. Egbuka emergence adds pressure.",
-    bettingAngles: ["TD scorer OVER when active", "Hard fade when any injury report designation", "Age 33 in 2026 -- treat as game-to-game"],
-    fantasy: { pprRank: "WR3 healthy", note: "Age and health make him undraftable in high ADP spots." }
+    bettingAngles: ["TD scorer OVER when active", "Hard fade when any injury report designation", "Age 33 in 2026 -- treat as game-to-game"]
+
   },
 
   "Emeka Egbuka": {
@@ -421,8 +421,8 @@ export const WRsAndTEs = {
       td: { pg: 0.53, lean: "OVER 0.5 TD -- 9 TDs as a rookie is the real story" },
       best: "TD scorer OVER. 9 TDs as a rookie with Evans declining is the trend to follow."
     },
-    situation2026: "Buccaneers WR1 as Evans ages. TD role will only grow.",
-    fantasy: { pprRank: "WR2-20", note: "Year 2 TD regression risk but talent is real." }
+    situation2026: "Buccaneers WR1 as Evans ages. TD role will only grow."
+
   },
 
   "Davante Adams": {
@@ -435,8 +435,8 @@ export const WRsAndTEs = {
       td: { pg: 0.57, lean: "OVER 0.5 TD -- 8 TDs in 14 games is elite rate" },
       best: "TD scorer OVER. Red zone role is established and Stafford trusts him there."
     },
-    situation2026: "Rams WR2 behind Nacua. TD specialist role likely continues.",
-    fantasy: { pprRank: "WR2-22", note: "Age concern but TD rate keeps him relevant." }
+    situation2026: "Rams WR2 behind Nacua. TD specialist role likely continues."
+
   },
 
   "Jordan Addison": {
@@ -449,8 +449,8 @@ export const WRsAndTEs = {
       recYds: { floor: 35, ceil: 75, lean: "Neutral" },
       best: "TD scorer OVER. Red zone role is his best prop angle."
     },
-    situation2026: "Vikings WR2 behind Jefferson. TD prop is the only reliable play.",
-    fantasy: { pprRank: "WR3-28", note: "TD-dependent WR3." }
+    situation2026: "Vikings WR2 behind Jefferson. TD prop is the only reliable play."
+
   },
 
   "Marvin Harrison Jr.": {
@@ -463,8 +463,8 @@ export const WRsAndTEs = {
       td: { pg: 0.50, lean: "OVER 0.5 -- 6 TDs in 12 games is elite rate" },
       best: "TD scorer OVER when active. 0.5 TDs/game is elite when he plays."
     },
-    situation2026: "Cardinals WR1 with Murray. Health is the primary concern -- missed 5+ games each of first 2 seasons.",
-    fantasy: { pprRank: "WR2 healthy", note: "Injury risk is real. Draft with caution." }
+    situation2026: "Cardinals WR1 with Murray. Health is the primary concern -- missed 5+ games each of first 2 seasons."
+
   },
 
   "Brian Thomas Jr.": {
@@ -477,8 +477,8 @@ export const WRsAndTEs = {
       td: { pg: 0.36, lean: "OVER 0.5 in favorable matchups" },
       best: "Receiving yards OVER when Lawrence plays. Drop rate fade in crucial moments."
     },
-    situation2026: "Jaguars WR1 with Lawrence. 2024 was the ceiling, 2025 is the floor.",
-    fantasy: { pprRank: "WR2-24", note: "Regression from rookie year. WR2 with upside." }
+    situation2026: "Jaguars WR1 with Lawrence. 2024 was the ceiling, 2025 is the floor."
+
   },
 
   "Cooper Kupp": {
@@ -490,8 +490,8 @@ export const WRsAndTEs = {
       recYds: { floor: 25, ceil: 65, lean: "Neutral -- 37 base is too low for reliable OVER" },
       best: "No strong prop angle. Role is limited behind JSN."
     },
-    situation2026: "Seahawks WR2 behind JSN. Limited ceiling.",
-    fantasy: { pprRank: "WR4", note: "Role and age limit him. Avoid." }
+    situation2026: "Seahawks WR2 behind JSN. Limited ceiling."
+
   },
 
   "Drake London": {
@@ -505,8 +505,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER when active. Health is the only concern."
     },
     situation2026: "Falcons WR1 with Penix. Health record (missed 5+ games) is the risk.",
-    bettingAngles: ["Health monitor every week", "OVER when active -- elite per-game numbers", "Zero drops means every target counts"],
-    fantasy: { pprRank: "WR1-12 healthy", note: "Elite when healthy. Health is the ADP risk." }
+    bettingAngles: ["Health monitor every week", "OVER when active -- elite per-game numbers", "Zero drops means every target counts"]
+
   },
 
   // -- NOTABLE SITUATIONAL WRs ---------------------------------------------
@@ -520,8 +520,8 @@ export const WRsAndTEs = {
       rec: { lean: "OVER catches -- elite catch rate makes him reliable in slot" },
       best: "Catches OVER. Year 2 breakout candidate with Caleb Williams improving."
     },
-    situation2026: "Bears emerging WR2/1. Role growing as Caleb Williams develops.",
-    fantasy: { pprRank: "WR3 with WR2 upside", note: "Year 2 breakout watch. Buy low." }
+    situation2026: "Bears emerging WR2/1. Role growing as Caleb Williams develops."
+
   },
 
   "Rome Odunze": {
@@ -533,8 +533,8 @@ export const WRsAndTEs = {
       recYds: { lean: "OVER when Williams is accurate and Chicago is passing" },
       best: "Receiving yards OVER in pass-heavy scripts. High variance prop."
     },
-    situation2026: "Bears WR1 by design but Moore and Burden create crowded room.",
-    fantasy: { pprRank: "WR3", note: "Year 3 with better QB could unlock him." }
+    situation2026: "Bears WR1 by design but Moore and Burden create crowded room."
+
   },
 
   "Rashee Rice": {
@@ -548,8 +548,8 @@ export const WRsAndTEs = {
       best: "Catches OVER when active. Health is everything."
     },
     situation2026: "Chiefs WR1 when healthy. Mahomes makes any healthy WR a WR1 prop.",
-    bettingAngles: ["Hard fade when any injury designation", "OVER immediately when active", "Health is the entire prop"],
-    fantasy: { pprRank: "WR1-8 healthy", note: "Elite when healthy. Injury risk is severe." }
+    bettingAngles: ["Hard fade when any injury designation", "OVER immediately when active", "Health is the entire prop"]
+
   },
 
   "Xavier Worthy": {
@@ -561,8 +561,8 @@ export const WRsAndTEs = {
       td: { pg: 0.43, lean: "OVER 0.5 in favorable matchups -- 6 TDs shows Mahomes trusts him in red zone" },
       best: "TD scorer OVER. Low volume but red zone role is real."
     },
-    situation2026: "Chiefs WR2/3 behind Rice. TD prop is the only reliable play.",
-    fantasy: { pprRank: "WR3", note: "TD prop play only. Low volume limits PPR value." }
+    situation2026: "Chiefs WR2/3 behind Rice. TD prop is the only reliable play."
+
   },
 
   "Alec Pierce": {
@@ -576,8 +576,8 @@ export const WRsAndTEs = {
       best: "Receiving yards OVER. Highest YPR in the NFL makes him uniquely reliable even with low catches."
     },
     situation2026: "Colts WR1 with Richardson. Deep threat role is elite when Richardson is healthy.",
-    bettingAngles: ["Receiving yards OVER -- YPR inflates totals dramatically", "TD scorer OVER in favorable matchups", "Monitor Richardson health -- key dependency"],
-    fantasy: { pprRank: "WR2-20", note: "Standard league elite, PPR limited. Best in 0.5 PPR." }
+    bettingAngles: ["Receiving yards OVER -- YPR inflates totals dramatically", "TD scorer OVER in favorable matchups", "Monitor Richardson health -- key dependency"]
+
   },
 
   // ============================================================
@@ -598,8 +598,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. 7.4 rec/g is historically elite for a TE. Most reliable TE prop in the NFL."
     },
     situation2026: "Cardinals TE1 with Murray. This is the best TE situation in football. 150+ targets likely again.",
-    bettingAngles: ["Catches OVER every week -- 7.4/g is the floor", "Receiving yards OVER is reliable", "TD scorer is the only weak prop angle"],
-    fantasy: { pprRank: "TE1-1", note: "Best TE in football. Draft as top-5 overall pick in PPR." }
+    bettingAngles: ["Catches OVER every week -- 7.4/g is the floor", "Receiving yards OVER is reliable", "TD scorer is the only weak prop angle"]
+
   },
 
   "Brock Bowers": {
@@ -613,8 +613,8 @@ export const WRsAndTEs = {
       best: "Catches OVER when active. Health is everything."
     },
     situation2026: "Raiders TE1. QB situation is the concern but Bowers gets targets regardless.",
-    bettingAngles: ["Health monitor -- missed 5 games in 2025", "OVER immediately when active", "Fade when injury report lists him"],
-    fantasy: { pprRank: "TE1-2", note: "Elite talent. Health is the only risk." }
+    bettingAngles: ["Health monitor -- missed 5 games in 2025", "OVER immediately when active", "Fade when injury report lists him"]
+
   },
 
   "George Kittle": {
@@ -628,8 +628,8 @@ export const WRsAndTEs = {
       best: "Catches OVER when active. Elite catch rate means almost every target converts."
     },
     situation2026: "49ers TE1 with Purdy. Shanahan scheme is tailor-made for Kittle. Health is the entire question.",
-    bettingAngles: ["Hard fade when any injury designation", "OVER immediately when active", "Age 32 in 2026 -- monitor snap counts"],
-    fantasy: { pprRank: "TE1-3 healthy", note: "Elite when healthy. Injury history is severe." }
+    bettingAngles: ["Hard fade when any injury designation", "OVER immediately when active", "Age 32 in 2026 -- monitor snap counts"]
+
   },
 
   "Travis Kelce": {
@@ -644,8 +644,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. Mahomes connection keeps volume alive even as efficiency declines."
     },
     situation2026: "Chiefs TE1 but age 37. Declining production is real. May be his last season.",
-    bettingAngles: ["Catches OVER when Mahomes is playing well", "FADE receiving yards -- 50 base is too modest", "Monitor usage as season progresses"],
-    fantasy: { pprRank: "TE1-5", note: "Still elite by TE standards but decline is real." }
+    bettingAngles: ["Catches OVER when Mahomes is playing well", "FADE receiving yards -- 50 base is too modest", "Monitor usage as season progresses"]
+
   },
 
   "Tyler Warren": {
@@ -660,8 +660,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. Year 2 with Richardson should be a full WR1-level TE season."
     },
     situation2026: "Colts TE1. Richardson health is the key variable. When healthy, Warren is TE1-2.",
-    bettingAngles: ["Catches OVER every week -- target share is elite", "Receiving yards OVER as Richardson improves", "Richardson health monitor"],
-    fantasy: { pprRank: "TE1-3", note: "Year 2 breakout. Draft as TE1." }
+    bettingAngles: ["Catches OVER every week -- target share is elite", "Receiving yards OVER as Richardson improves", "Richardson health monitor"]
+
   },
 
   "Sam LaPorta": {
@@ -673,8 +673,8 @@ export const WRsAndTEs = {
       rec: { lean: "OVER when healthy -- 4.4/g is elite" },
       best: "Catches OVER when active. Zero drops + Goff = extremely reliable target."
     },
-    situation2026: "Lions TE1. Health record (missed 8 games) is the significant concern.",
-    fantasy: { pprRank: "TE1-5 healthy", note: "Elite when healthy. Huge injury risk." }
+    situation2026: "Lions TE1. Health record (missed 8 games) is the significant concern."
+
   },
 
   "Kyle Pitts": {
@@ -689,8 +689,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. Volume (118 targets) is elite for a TE."
     },
     situation2026: "Falcons TE1 with Penix. Full health makes him a TE1 every week.",
-    bettingAngles: ["Catches OVER is the primary angle", "Receiving yards OVER in pass-heavy scripts", "FADE TD scorer"],
-    fantasy: { pprRank: "TE1-6", note: "TE1 finally healthy. Draft as such." }
+    bettingAngles: ["Catches OVER is the primary angle", "Receiving yards OVER in pass-heavy scripts", "FADE TD scorer"]
+
   },
 
   "Mark Andrews": {
@@ -703,8 +703,8 @@ export const WRsAndTEs = {
       td: { lean: "Moderate -- still the red zone presence when healthy" },
       best: "No reliable prop angle. Role has been significantly reduced."
     },
-    situation2026: "Ravens TE1 but role is diminished. Age 30 and reduced targets make him a TE2.",
-    fantasy: { pprRank: "TE2-15", note: "Role significantly reduced. Downgrade from peak." }
+    situation2026: "Ravens TE1 but role is diminished. Age 30 and reduced targets make him a TE2."
+
   },
 
   "T.J. Hockenson": {
@@ -716,8 +716,8 @@ export const WRsAndTEs = {
       rec: { lean: "OVER 3 catches -- catch rate is elite" },
       best: "Catches OVER. Reliable but modest production."
     },
-    situation2026: "Vikings TE1. Role is secondary to Jefferson in target priority.",
-    fantasy: { pprRank: "TE2-18", note: "Reliable TE2 but ceiling is capped by Jefferson." }
+    situation2026: "Vikings TE1. Role is secondary to Jefferson in target priority."
+
   },
 
   "Dalton Schultz": {
@@ -732,8 +732,8 @@ export const WRsAndTEs = {
       best: "Catches OVER. Most receptions for a non-McBride TE."
     },
     situation2026: "Texans TE1 with Stroud. Volume is locked in. TD is the only missing piece.",
-    bettingAngles: ["Catches OVER is the primary prop", "FADE TD scorer completely", "Receiving yards OVER is reliable secondary"],
-    fantasy: { pprRank: "TE1-7", note: "Elite volume but TD-capped. PPR league monster." }
+    bettingAngles: ["Catches OVER is the primary prop", "FADE TD scorer completely", "Receiving yards OVER is reliable secondary"]
+
   },
 
   "Pat Freiermuth": {
@@ -745,8 +745,8 @@ export const WRsAndTEs = {
       rec: { lean: "OVER 2 catches -- reliable floor" },
       best: "No strong prop angle. Limited ceiling."
     },
-    situation2026: "Steelers TE1. QB situation improvement could unlock him.",
-    fantasy: { pprRank: "TE2-20", note: "Modest TE2. QB-dependent upside." }
+    situation2026: "Steelers TE1. QB situation improvement could unlock him."
+
   },
 
   "Evan Engram": {
@@ -757,8 +757,8 @@ export const WRsAndTEs = {
     props: {
       best: "No reliable prop angle. Too many drops, too low volume."
     },
-    situation2026: "Broncos TE1 with Nix. Drop rate makes him unreliable.",
-    fantasy: { pprRank: "TE3", note: "Avoid. Drop rate and low production." }
+    situation2026: "Broncos TE1 with Nix. Drop rate makes him unreliable."
+
   },
 
   "Dallas Goedert": {
@@ -770,8 +770,8 @@ export const WRsAndTEs = {
       rec: { lean: "OVER 3 catches -- 4.0/g is reliable" },
       best: "Catches OVER. Reliable floor in Eagles offense."
     },
-    situation2026: "Eagles TE1 with Hurts. AJB and Smith share targets but Goedert gets his.",
-    fantasy: { pprRank: "TE1-8", note: "Reliable TE1 but ceiling is limited by Eagles target distribution." }
+    situation2026: "Eagles TE1 with Hurts. AJB and Smith share targets but Goedert gets his."
+
   },
 
   "Tucker Kraft": {
@@ -785,8 +785,8 @@ export const WRsAndTEs = {
       best: "TD scorer OVER when active. Most dominant TD prop angle at TE."
     },
     situation2026: "Packers TE1 with Jordan Love. Health is everything -- missed more than half of 2025.",
-    bettingAngles: ["TD scorer OVER when active -- elite rate", "Hard fade when any injury designation", "Health monitor is weekly priority"],
-    fantasy: { pprRank: "TE1-4 healthy", note: "Elite TD rate but injury risk is severe." }
+    bettingAngles: ["TD scorer OVER when active -- elite rate", "Hard fade when any injury designation", "Health monitor is weekly priority"]
+
   },
 
   "Harold Fannin Jr.": {
@@ -800,8 +800,8 @@ export const WRsAndTEs = {
       td: { lean: "FADE -- Browns offense doesn't score enough" },
       best: "Catches OVER. Volume is real regardless of QB situation."
     },
-    situation2026: "Browns TE1. Year 2 with better QB could make him a true TE1.",
-    fantasy: { pprRank: "TE1-7", note: "Volume TE1 but TD-capped by Browns offense." }
+    situation2026: "Browns TE1. Year 2 with better QB could make him a true TE1."
+
   },
 
   "Colston Loveland": {
@@ -814,8 +814,8 @@ export const WRsAndTEs = {
       recYds: { lean: "OVER in pass-heavy scripts" },
       best: "Catches OVER. Year 2 breakout if Caleb Williams improves."
     },
-    situation2026: "Bears TE1 with Williams. Elite sleeper if Chicago offense develops.",
-    fantasy: { pprRank: "TE1-9 with upside", note: "Year 2 breakout candidate. Buy low." }
+    situation2026: "Bears TE1 with Williams. Elite sleeper if Chicago offense develops."
+
   },
 
   "Zach Ertz": {
@@ -828,8 +828,8 @@ export const WRsAndTEs = {
       td: { lean: "OVER 0.5 in favorable matchups" },
       best: "Catches OVER. Reliable TE2 in Washington's emerging offense."
     },
-    situation2026: "Commanders TE1 with Daniels. Age 35 but Daniels keeps him viable.",
-    fantasy: { pprRank: "TE2-14", note: "Reliable TE2 with TD upside." }
+    situation2026: "Commanders TE1 with Daniels. Age 35 but Daniels keeps him viable."
+
   },
 
   "Isaiah Likely": {
@@ -840,8 +840,8 @@ export const WRsAndTEs = {
     props: {
       best: "Monitor Andrews health -- Likely is the handcuff play."
     },
-    situation2026: "Ravens TE2. Best prop only when Andrews is out.",
-    fantasy: { pprRank: "TE2 when Andrews out", note: "Handcuff Andrews. Has standalone upside if Andrews misses time." }
+    situation2026: "Ravens TE2. Best prop only when Andrews is out."
+
   },
 
   "Mason Taylor": {
@@ -852,8 +852,8 @@ export const WRsAndTEs = {
     props: {
       best: "No reliable prop angle. Drop rate and QB situation make him unpredictable."
     },
-    situation2026: "Jets TE1. Better QB situation in 2026 could unlock him.",
-    fantasy: { pprRank: "TE2-20", note: "Year 2 with better QB is the upside scenario." }
+    situation2026: "Jets TE1. Better QB situation in 2026 could unlock him."
+
   },
 
   "Juwan Johnson": {
@@ -866,8 +866,8 @@ export const WRsAndTEs = {
       recYds: { lean: "OVER -- 52.3 base is strong" },
       best: "Catches OVER. Volume in Saints offense is elite."
     },
-    situation2026: "Saints TE1. Rattler situation is the QB variable. Volume protected regardless.",
-    fantasy: { pprRank: "TE1-9", note: "Under-the-radar TE1 with elite volume." }
+    situation2026: "Saints TE1. Rattler situation is the QB variable. Volume protected regardless."
+
   },
 
   "Oronde Gadsden II": {
@@ -880,8 +880,8 @@ export const WRsAndTEs = {
       td: { lean: "OVER 0.5 in favorable matchups" },
       best: "Receiving yards OVER when Herbert active. Year 2 upside is real."
     },
-    situation2026: "Chargers TE1 with Herbert. Herbert health is everything.",
-    fantasy: { pprRank: "TE1-10 with upside", note: "Year 2 breakout if Herbert stays healthy." }
+    situation2026: "Chargers TE1 with Herbert. Herbert health is everything."
+
   },
 
   "Brenton Strange": {
@@ -893,8 +893,8 @@ export const WRsAndTEs = {
       rec: { lean: "OVER catches when active" },
       best: "Catches OVER when healthy and Lawrence active."
     },
-    situation2026: "Jaguars TE1. Lawrence health is the key variable.",
-    fantasy: { pprRank: "TE2-18", note: "Reliable TE2 when healthy." }
+    situation2026: "Jaguars TE1. Lawrence health is the key variable."
+
   },
 
   "Dawson Knox": {
@@ -905,8 +905,8 @@ export const WRsAndTEs = {
     props: {
       best: "No reliable prop angle. Too low volume."
     },
-    situation2026: "Bills TE1 but secondary role behind Cook. Limited prop value.",
-    fantasy: { pprRank: "TE2-22", note: "Streaming TE2 at best." }
+    situation2026: "Bills TE1 but secondary role behind Cook. Limited prop value."
+
   },
 
   "Dalton Kincaid": {
@@ -918,9 +918,9 @@ export const WRsAndTEs = {
       recYds: { lean: "OVER when healthy -- 47.6 pg is strong" },
       best: "Receiving yards OVER when active. High efficiency makes him a solid spot play."
     },
-    situation2026: "Bills TE2 behind Knox but role could expand. Health is the concern.",
-    fantasy: { pprRank: "TE2-19", note: "Streaming option with upside when healthy." }
-  },
+    situation2026: "Bills TE2 behind Knox but role could expand. Health is the concern."
+
+  }
 
 };
 

@@ -1,7 +1,7 @@
 import {
   NFL_PROPS_BOOK_IDS,
-  NFL_PROPS_MARKET_TYPE_MAP,
   NFL_PROPS_WIRE_MARKETS,
+  resolveNflPropsWireMarket,
 } from "../shared/nflPropsConstants.js";
 
 /**
@@ -159,7 +159,7 @@ export function parseActionNetworkNflGameProps(playerProps, playersById, gameId)
   const byPlayer = new Map();
 
   for (const [marketKey, rows] of Object.entries(playerProps || {})) {
-    const market = NFL_PROPS_MARKET_TYPE_MAP[marketKey];
+    const market = resolveNflPropsWireMarket(marketKey);
     if (!market) continue;
     if (!Array.isArray(rows)) continue;
 
@@ -190,12 +190,15 @@ export function parseActionNetworkNflGameProps(playerProps, playersById, gameId)
     gameId,
     players,
     playerCount: players.length,
-    hasPostedLines: players.some((p) =>
-      NFL_PROPS_WIRE_MARKETS.some((m) => {
-        const block = p.props?.[m];
+    hasPostedLines: players.some((p) => {
+      const props = p.props || {};
+      return Object.keys(props).some((m) => {
+        const block = props[m];
         return block && (block.over || block.under);
-      }),
-    ),
+      });
+    }),
+    /** Headline markets still listed for UI defaults; extended markets may also be present. */
+    headlineMarkets: NFL_PROPS_WIRE_MARKETS,
     source: "action_network",
   };
 }

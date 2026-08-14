@@ -111,10 +111,10 @@ export function isDailyTakeSportVisible(slug) {
 }
 
 /**
- * NFL UR Take chat is off-season gated; 2026 Predictor stays available.
- * @param {{ nflSeasonMode?: boolean }} [opts]
+ * NFL UR Take chat. On whenever NFL is a visible sport (preseason + regular).
+ * Hidden only if NFL nav is off.
+ * @param {{ nflSeasonMode?: boolean }} [_opts]
  */
-export function isNflUrTakeGated(opts = {}) {
-  if (!isNavSportVisible("nfl")) return true;
-  return !opts.nflSeasonMode;
+export function isNflUrTakeGated(_opts = {}) {
+  return !isNavSportVisible("nfl");
 }

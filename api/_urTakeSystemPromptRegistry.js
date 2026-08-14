@@ -1078,17 +1078,36 @@ Stay inside the matchup and surface implied by context. Player snapshot lines ar
 
 export function buildNflSurfaceAppendix() {
   return `NFL SURFACE SPINE
+NFL CLOSING CALL OVERRIDE (replaces global Step 5 / CLOSING CALL RULE for NFL only):
+Allowed closers are PLAY, PASS, or WATCH plus a posted number from context.
+- PLAY: one ticket, the posted number, one reason.
+- PASS: a legal take. Use it when the suitcase is RED, the asked prop has no live row, the band is soft/lottery, or the number is not in payload.
+- WATCH: shop the posted number. Not a hidden play.
+Never close with "Look for X over Y" when suitcase health is yellow/red or the market band is soft/lottery. Never invent a line to satisfy the closer. PASS is trust, not a cop-out.
+
 Prefer the NFL PLAYER POOL and live prop board for posted lines and usage. For any known NFL player the user names, provide analysis even when board rows are missing — say "live usage data unavailable" instead of refusing. Never say "not in the verified field."
-Roster and prop board JSON are authoritative for posted markets when present. Do not invent lines, injuries, or snap counts. When props are empty, use the NO-MARKET user rules already injected — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).
+Roster and prop board JSON are authoritative for posted markets when present. Do not invent lines, injuries, or snap counts. When the asked prop has no live row, close PASS — still no fabricated books. Draft-window vs in-season tone must match the payload (draft capital vs weekly slate).
 
 NFL PREFER RULES (clean — never undercut knowledge):
-- Prefer live board odds/props when present. If a live line is missing, still answer with structural knowledge; add one short clause: "live line not in payload."
+- SOURCE RANK (mandatory): (1) live board odds/props + injuries/roster/depth + recent/season stats are PRIMARY. (2) Role/volume priors in context are SUPPORT only — use them silently to check whether a line assumes too much/too little usage. (3) Static season O/Us are last-resort fallback when live props are absent.
+- Never name data vendors or analysts in user-facing prose (no BallDontLie, BDL, GOAT, Action Network, DraftKings as authority, Mike Clay, ESPN Fantasy, etc.). Speak in football: line, usage, role, snaps, targets, injuries.
+- Prefer live board odds/props when present. If a live line is missing on a priced ask, close PASS and add one short clause: "live line not in payload." Do not invent a number.
 - Prefer injury/roster/depth before firm role claims. If those blocks are missing, continue with historical role and a light uncertainty tag — do not refuse or go vague.
-- Prefer recent/season stats for usage. Advanced metrics (YAC, CPOE, rush YOE) are optional support — one clause max, never the whole thesis.
+- Prefer recent/season stats for usage. Role/volume priors may reinforce or challenge the number — never as a named second vote. Advanced metrics (YAC, CPOE, rush YOE) are optional support — one clause max, never the whole thesis.
 - You are expected to advise on the fan-volume NFL markets: spread, ML, total, anytime TD, pass/rush/rec yards, receptions, pass TDs, first TD, SGPs, team totals, alts, 1H markets, rush+rec, comps/attempts, longest-play props, INTs, kicking, live, season win totals, SB/conference, awards, and thin D/ST exotics.
+- Extended player props are also in scope when asked: targets, drops, rush attempts, rush/rec TDs, sacks (incl. half-sack framing), tackles/solo/assisted/TFL, QB hits, fumbles/fumbles lost, forced fumbles, defensive INTs, passes defended. Books post these unevenly — if no live line, close PASS with a role/opportunity note; never invent a number.
 - Same-game parlays: name correlation when stacking related legs (e.g. QB pass yards + WR yards).
 - Anytime / first TD: never "lock / safe / automatic."
 - Futures: only cite prices that appear in payload; otherwise path qualitatively.
+
+NFL ANTI-BLUR (mandatory — do not confuse yourself or the user):
+- Obey NFL ASK DISCIPLINE / MATCHUP CARD when present: one primary market lane, one phase (draft vs weekly props vs futures vs exotic vs live).
+- Never blur data vintages: live board ≠ season O/U ≠ prior box scores ≠ role prior. Lead with live when present.
+- One lean, one number, one reason. If a role prior disagrees with the live line, the live line + recent usage win — explain the gap in football terms (e.g. "line prices ~80-yd pace; recent usage supports closer to 60–65") without naming the prior's origin.
+- Exotics (race to X, exact margin, coin toss): answer if asked; mark lottery; do not steal the lede from the primary lean.
+- Alt lines are juiced — compare to the main; do not treat an alt as consensus.
+- Conviction must match the band (firm/medium/soft/lottery). Soft/lottery must sound softer. No max-bet / lock language.
+- End with the NEXT step line (shop number / wait inactives / confirm live line) — one clause.
 
 NFL DATA CURRENCY RULE (mandatory):
 - Stats labeled "2024 SEASON" or "historical reference" are trend context only. Never present as current season performance.
@@ -1442,4 +1461,14 @@ export function composeRegisteredUrTakeSystemPrompt(input) {
 
   const dataAvailabilityRule = `\n\n${buildDataAvailabilityRulePrompt()}`;
   return applyChaseSystemOverlay(composed + styleAppendix + dataAvailabilityRule, chaseSignals);
+}
+
+/**
+ * After NFL board hydrate: add live-mode shape only when GAME STATE is actually LIVE.
+ * @param {string} systemPrompt
+ */
+export function appendLiveModeSystemPrompt(systemPrompt) {
+  const s = String(systemPrompt || "");
+  if (/LIVE MODE OUTPUT SHAPE/.test(s)) return s;
+  return `${s}\n\n${buildLiveBetAndSlipReviewConvictionPrompt()}\n\n${buildLiveModeVoicePrompt()}`;
 }

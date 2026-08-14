@@ -225,8 +225,18 @@ export const NFL_TOP_25_BET_MARKETS = Object.freeze([
     rank: 24,
     label: "Defense / ST props (sacks, INT, etc.)",
     bucket: "props",
+    bdlPropTypes: [
+      "sacks",
+      "tackles",
+      "solo_tackles",
+      "assisted_tackles",
+      "interceptions",
+      "forced_fumbles",
+      "fumbles",
+      "fumbles_lost",
+    ],
     bdlEndpoints: ["odds/player_props", "stats", "team_stats"],
-    askMustCover: "Opportunity + opponent OL/QB; thinner markets.",
+    askMustCover: "Opportunity + opponent OL/QB; thinner markets — speculative if no line.",
   },
   {
     id: "method_exact",
@@ -239,34 +249,144 @@ export const NFL_TOP_25_BET_MARKETS = Object.freeze([
 ]);
 
 /**
+ * Extended player-prop catalog beyond the top-25 headline list.
+ * `posting`: how often major US books usually post the market.
+ * @type {readonly Array<{ id: string, label: string, propTypes: string[], posting: 'common'|'sometimes'|'rare', group: string }>}
+ */
+export const NFL_EXTENDED_PROP_CATALOG = Object.freeze([
+  // Offense volume
+  { id: "targets", label: "Targets", propTypes: ["targets", "receiving_targets"], posting: "sometimes", group: "pass_catcher" },
+  { id: "drops", label: "Drops", propTypes: ["drops"], posting: "rare", group: "pass_catcher" },
+  { id: "rush_attempts", label: "Rush attempts", propTypes: ["rushing_attempts"], posting: "common", group: "rusher" },
+  { id: "rush_tds", label: "Rushing TDs", propTypes: ["rushing_tds"], posting: "sometimes", group: "rusher" },
+  { id: "rec_tds", label: "Receiving TDs", propTypes: ["receiving_tds"], posting: "sometimes", group: "pass_catcher" },
+  // QB volume extras (completions/attempts already in top 25)
+  { id: "pass_ints", label: "Interceptions thrown", propTypes: ["interceptions"], posting: "common", group: "qb" },
+  // Ball security
+  { id: "fumbles", label: "Fumbles", propTypes: ["fumbles"], posting: "rare", group: "ball_security" },
+  { id: "fumbles_lost", label: "Fumbles lost", propTypes: ["fumbles_lost"], posting: "rare", group: "ball_security" },
+  // Defense
+  { id: "sacks", label: "Sacks", propTypes: ["sacks", "defensive_sacks"], posting: "common", group: "defense" },
+  { id: "half_sacks", label: "Half sacks / sack fractions", propTypes: ["sacks", "half_sacks"], posting: "rare", group: "defense" },
+  { id: "tackles", label: "Tackles (total)", propTypes: ["tackles", "total_tackles"], posting: "common", group: "defense" },
+  { id: "solo_tackles", label: "Solo tackles", propTypes: ["solo_tackles"], posting: "sometimes", group: "defense" },
+  { id: "assisted_tackles", label: "Assisted tackles", propTypes: ["assisted_tackles", "assist_tackles"], posting: "sometimes", group: "defense" },
+  { id: "tfl", label: "Tackles for loss", propTypes: ["tackles_for_loss"], posting: "rare", group: "defense" },
+  { id: "qb_hits", label: "QB hits", propTypes: ["qb_hits"], posting: "rare", group: "defense" },
+  { id: "forced_fumbles", label: "Forced fumbles", propTypes: ["forced_fumbles"], posting: "sometimes", group: "defense" },
+  { id: "def_ints", label: "Defensive interceptions", propTypes: ["defensive_interceptions", "interceptions"], posting: "sometimes", group: "defense" },
+  { id: "passes_defended", label: "Passes defended", propTypes: ["passes_defended"], posting: "rare", group: "defense" },
+]);
+
+/**
+ * Briefcase pockets — how the suitcase stays organized.
+ * Every Ask turn only needs the pockets relevant to the question.
+ */
+export const NFL_BRIEFCASE_POCKETS = Object.freeze([
+  {
+    id: "matchups",
+    path: "slate.games",
+    label: "Matchups",
+    alwaysLoad: true,
+    note: "Who plays whom, when, status",
+  },
+  {
+    id: "game_prices",
+    path: "slate.odds",
+    label: "Game prices",
+    alwaysLoad: true,
+    note: "Spread / ML / total",
+  },
+  {
+    id: "player_prices",
+    path: "slate.playerProps",
+    label: "Player prices",
+    alwaysLoad: true,
+    note: "All posted props for the slate (offense + defense)",
+  },
+  {
+    id: "availability",
+    path: "league.injuries",
+    label: "Availability",
+    alwaysLoad: true,
+    note: "Injuries before role claims",
+  },
+  {
+    id: "roles",
+    path: "league.rosters",
+    label: "Roles / depth",
+    alwaysLoad: true,
+    note: "Who is QB1 / RB1 / nickel, etc.",
+  },
+  {
+    id: "form",
+    path: "players.recentStats",
+    label: "Recent form",
+    alwaysLoad: false,
+    note: "Load when a player or prop is named",
+  },
+  {
+    id: "season_baselines",
+    path: "players.seasonStats",
+    label: "Season baselines",
+    alwaysLoad: false,
+    note: "Load when a player or prop is named",
+  },
+  {
+    id: "advanced",
+    path: "players.advanced",
+    label: "Advanced support",
+    alwaysLoad: false,
+    note: "Optional seasoning only",
+  },
+  {
+    id: "openers",
+    path: "slate.openingOdds",
+    label: "Opening lines",
+    alwaysLoad: false,
+    note: "Line-move questions",
+  },
+  {
+    id: "live_tape",
+    path: "live.plays",
+    label: "Live tape",
+    alwaysLoad: false,
+    note: "In-game only",
+  },
+]);
+
+/**
  * Fields that must be fillable on the weekly briefcase (GOAT day-1).
  * `requiredForElite` = we measure coverage; empty is OK early but logged.
  */
 export const NFL_GOAT_CONTRACT_FIELDS = Object.freeze([
-  { key: "slate.games", requiredForElite: true, source: "games", note: "This week’s matchups + status" },
-  { key: "slate.odds", requiredForElite: true, source: "odds", note: "Spread / ML / total by book" },
-  { key: "slate.playerProps", requiredForElite: true, source: "odds/player_props", note: "Cross-position props" },
-  { key: "league.injuries", requiredForElite: true, source: "player_injuries", note: "Before any lean" },
-  { key: "league.rosters", requiredForElite: true, source: "teams/{id}/roster", note: "Depth / roles" },
-  { key: "players.recentStats", requiredForElite: true, source: "stats", note: "L5 / recent games" },
-  { key: "players.seasonStats", requiredForElite: true, source: "season_stats", note: "Season baselines" },
+  { key: "slate.games", requiredForElite: true, source: "games", note: "This week’s matchups + status", pocket: "matchups" },
+  { key: "slate.odds", requiredForElite: true, source: "odds", note: "Spread / ML / total by book", pocket: "game_prices" },
+  { key: "slate.playerProps", requiredForElite: true, source: "odds/player_props", note: "Cross-position props", pocket: "player_prices" },
+  { key: "league.injuries", requiredForElite: true, source: "player_injuries", note: "Before any lean", pocket: "availability" },
+  { key: "league.rosters", requiredForElite: true, source: "teams/{id}/roster", note: "Depth / roles", pocket: "roles" },
+  { key: "players.recentStats", requiredForElite: true, source: "stats", note: "L5 / recent games", pocket: "form" },
+  { key: "players.seasonStats", requiredForElite: true, source: "season_stats", note: "Season baselines", pocket: "season_baselines" },
   {
     key: "players.advanced",
     requiredForElite: false,
     source: "advanced_stats/*",
     note: "Support only — never the whole thesis",
+    pocket: "advanced",
   },
   {
     key: "slate.openingOdds",
     requiredForElite: false,
     source: "odds/opening",
     note: "Line-move / CLV phase 2",
+    pocket: "openers",
   },
   {
     key: "live.plays",
     requiredForElite: false,
     source: "plays",
     note: "In-game only when asked",
+    pocket: "live_tape",
   },
 ]);
 
@@ -308,6 +428,9 @@ export function createEmptyNflGoatBriefcase(meta = {}) {
       injuries: [],
       rostersByTeam: {},
       standings: [],
+      /** Live defense map from BDL team_season_stats when NFL_BDL_PRIMARY=1 */
+      teamDefense: {},
+      defenseSource: null,
     },
     players: {
       recentStats: [],
@@ -321,17 +444,17 @@ export function createEmptyNflGoatBriefcase(meta = {}) {
       /** @type {Record<string, boolean>} */
       fields: Object.fromEntries(NFL_GOAT_CONTRACT_FIELDS.map((f) => [f.key, false])),
       top25Supported: NFL_TOP_25_BET_MARKETS.map((m) => m.id),
+      extendedPropIds: NFL_EXTENDED_PROP_CATALOG.map((p) => p.id),
     },
   };
 }
 
 /**
- * Mark which contract fields have data (for audits / logging).
  * @param {ReturnType<typeof createEmptyNflGoatBriefcase>} briefcase
  */
-export function auditNflGoatBriefcaseCoverage(briefcase) {
+function fieldPresenceMap(briefcase) {
   const b = briefcase || createEmptyNflGoatBriefcase();
-  const fields = {
+  return {
     "slate.games": Array.isArray(b.slate?.games) && b.slate.games.length > 0,
     "slate.odds": Array.isArray(b.slate?.odds) && b.slate.odds.length > 0,
     "slate.playerProps": Array.isArray(b.slate?.playerProps) && b.slate.playerProps.length > 0,
@@ -349,7 +472,14 @@ export function auditNflGoatBriefcaseCoverage(briefcase) {
     "live.plays":
       b.live?.playsByGameId && Object.keys(b.live.playsByGameId).length > 0,
   };
+}
 
+/**
+ * Mark which contract fields have data (for audits / logging).
+ * @param {ReturnType<typeof createEmptyNflGoatBriefcase>} briefcase
+ */
+export function auditNflGoatBriefcaseCoverage(briefcase) {
+  const fields = fieldPresenceMap(briefcase);
   const required = NFL_GOAT_CONTRACT_FIELDS.filter((f) => f.requiredForElite);
   const requiredHit = required.filter((f) => fields[f.key]).length;
   return {
@@ -362,16 +492,200 @@ export function auditNflGoatBriefcaseCoverage(briefcase) {
 }
 
 /**
+ * Infer which market family the user is asking about.
+ * @param {string} question
+ * @returns {{ marketId: string, label: string, neededPaths: string[], propTypeHints: string[] }}
+ */
+export function detectNflAskMarket(question) {
+  const q = String(question || "").toLowerCase();
+  /** @type {Array<{ id: string, label: string, re: RegExp, paths: string[], props?: string[] }>} */
+  const rules = [
+    // SGP first so "SGP + pass yards" does not collapse to a single prop lane.
+    { id: "sgp", label: "Same-game parlay", re: /\bsgp\b|\bsame[-\s]?game\s+parlay\b|\bparlay\b/, paths: ["slate.odds", "slate.playerProps", "league.injuries"], props: [] },
+    { id: "targets", label: "Targets", re: /\btargets?\b/, paths: ["slate.playerProps", "players.recentStats", "league.injuries"], props: ["targets"] },
+    { id: "drops", label: "Drops", re: /\bdrops?\b/, paths: ["slate.playerProps", "players.recentStats"], props: ["drops"] },
+    { id: "sacks", label: "Sacks", re: /\b(?:half[-\s]?sacks?|sacks?)\b/, paths: ["slate.playerProps", "players.recentStats", "league.injuries"], props: ["sacks"] },
+    { id: "tackles", label: "Tackles", re: /\b(?:solo\s+)?tackles?\b|\btfl\b/, paths: ["slate.playerProps", "players.recentStats"], props: ["tackles", "solo_tackles"] },
+    { id: "forced_fumbles", label: "Forced fumbles", re: /\bforced\s+fumbles?\b/, paths: ["slate.playerProps", "players.recentStats"], props: ["forced_fumbles"] },
+    { id: "fumbles", label: "Fumbles", re: /\bfumbles?(?:\s+lost)?\b/, paths: ["slate.playerProps", "players.recentStats"], props: ["fumbles", "fumbles_lost"] },
+    { id: "pass_ints", label: "INTs thrown", re: /\b(?:ints?|interceptions?)\s+thrown\b|\bthrow(?:s|ing)?\s+(?:an?\s+)?int/, paths: ["slate.playerProps", "players.recentStats", "slate.odds"], props: ["interceptions", "pass_ints"] },
+    { id: "def_ints", label: "Defensive INTs", re: /\bdefensive\s+interceptions?\b|\bpicks?\b|\binterceptions?\b/, paths: ["slate.playerProps", "players.recentStats"], props: ["defensive_interceptions", "def_ints", "interceptions"] },
+    { id: "anytime_td", label: "Anytime TD", re: /\banytime\s+td\b|\btouchdown\s+scorer\b|\bto\s+score\b/, paths: ["slate.playerProps", "league.injuries", "league.rosters", "players.recentStats"], props: ["anytime_td"] },
+    { id: "pass_yds", label: "Passing yards", re: /\bpass(?:ing)?\s+yards?\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats", "slate.odds"], props: ["passing_yards"] },
+    { id: "rush_yds", label: "Rushing yards", re: /\brush(?:ing)?\s+yards?\b/, paths: ["slate.playerProps", "league.injuries", "league.rosters", "players.recentStats"], props: ["rushing_yards"] },
+    { id: "rec_yds", label: "Receiving yards", re: /\breceiv(?:ing|er)?\s+yards?\b|\brec\s+yards?\b|\breceiving\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats"], props: ["receiving_yards"] },
+    { id: "receptions", label: "Receptions", re: /\breceptions?\b|\brec(?:eptions)?\b(?!\s+yards?\b)/, paths: ["slate.playerProps", "players.recentStats"], props: ["receptions"] },
+    { id: "spread", label: "Spread", re: /\bspread\b|\bats\b|\bcover\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
+    { id: "total", label: "Game total", re: /\b(?:game\s+)?total\b|\bover\/under\b|\bo\/u\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
+    { id: "moneyline", label: "Moneyline", re: /\bmoneyline\b|\bml\b/, paths: ["slate.odds", "slate.games"], props: [] },
+  ];
+
+  for (const rule of rules) {
+    if (rule.re.test(q)) {
+      return {
+        marketId: rule.id,
+        label: rule.label,
+        neededPaths: rule.paths,
+        propTypeHints: rule.props || [],
+      };
+    }
+  }
+
+  return {
+    marketId: "general",
+    label: "General NFL",
+    neededPaths: ["slate.games", "slate.odds", "slate.playerProps", "league.injuries"],
+    propTypeHints: [],
+  };
+}
+
+/**
+ * Count props in briefcase matching type hints (loose).
+ * @param {ReturnType<typeof createEmptyNflGoatBriefcase>} briefcase
+ * @param {string[]} propTypeHints
+ */
+export function countBriefcasePropsMatching(briefcase, propTypeHints) {
+  const hints = (propTypeHints || []).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
+  if (!hints.length) return { matched: 0, sampleTypes: [] };
+  const rows = Array.isArray(briefcase?.slate?.playerProps) ? briefcase.slate.playerProps : [];
+  /** @type {Set<string>} */
+  const sample = new Set();
+  let matched = 0;
+  for (const row of rows) {
+    const raw = String(row.propRaw || row.prop_type || row.prop || "")
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    if (hints.some((h) => raw.includes(h) || h.includes(raw))) {
+      matched += 1;
+      if (raw) sample.add(raw);
+    }
+  }
+  return { matched, sampleTypes: [...sample].slice(0, 8) };
+}
+
+/**
+ * Per-interaction suitcase health — are the right pockets filled for THIS question?
+ * Smooth ops = alwaysLoad pockets full weekly + needed paths present for the ask.
+ *
+ * @param {ReturnType<typeof createEmptyNflGoatBriefcase>} briefcase
+ * @param {string} [question]
+ */
+export function evaluateBriefcaseForInteraction(briefcase, question = "") {
+  const audit = auditNflGoatBriefcaseCoverage(briefcase);
+  const detected = detectNflAskMarket(question);
+  const presence = audit.fields;
+  const missingNeeded = detected.neededPaths.filter((p) => !presence[p]);
+  const propMatch = countBriefcasePropsMatching(briefcase, detected.propTypeHints);
+
+  const alwaysPaths = NFL_BRIEFCASE_POCKETS.filter((p) => p.alwaysLoad).map((p) => p.path);
+  const alwaysMissing = alwaysPaths.filter((p) => !presence[p]);
+
+  const noLiveProp = Boolean(detected.propTypeHints.length && propMatch.matched === 0);
+  const priced =
+    detected.propTypeHints.length > 0 ||
+    detected.marketId === "spread" ||
+    detected.marketId === "total" ||
+    detected.marketId === "moneyline" ||
+    detected.marketId === "sgp";
+  const isGamePriceAsk = Boolean(priced && detected.propTypeHints.length === 0);
+  const GAME_PRICE_GAP_POCKETS = new Set(["slate.playerProps", "league.rosters"]);
+  const alwaysMissingForGrade = isGamePriceAsk
+    ? alwaysMissing.filter((p) => !GAME_PRICE_GAP_POCKETS.has(p))
+    : alwaysMissing;
+
+  let grade = "green";
+  if (alwaysMissingForGrade.length || missingNeeded.length >= 2) grade = "red";
+  else if (missingNeeded.length === 1 || (detected.propTypeHints.length && propMatch.matched === 0))
+    grade = "yellow";
+
+  const corePriceMissing = missingNeeded.some(
+    (p) => p === "slate.odds" || p === "slate.games" || p === "slate.playerProps",
+  );
+  const forcePass = Boolean(priced && (noLiveProp || (detected.propTypeHints.length === 0 && corePriceMissing)));
+
+  let guidance;
+  if (forcePass) {
+    guidance =
+      "Priced market missing — close with PASS. Do not invent a number. Structural notes only.";
+  } else if (isGamePriceAsk) {
+    guidance =
+      "Game prices are posted. Empty player-prop or roster pockets do not force PASS. Lean the posted spread/total or pass on script — never invent a prop number.";
+  } else if (grade === "green") {
+    guidance = "Suitcase organized for this ask — prefer live pockets, answer fully.";
+  } else if (grade === "yellow") {
+    guidance = "One pocket thin — answer with a gap clause; cap conviction at Medium.";
+  } else {
+    guidance = "Core pockets empty — structural notes only; do not invent a posted number.";
+  }
+
+  return {
+    grade,
+    /** Smooth enough to answer without stalling */
+    smooth: grade !== "red",
+    detected,
+    missingNeeded,
+    alwaysMissing,
+    propMatch,
+    forcePass,
+    noLiveProp,
+    eliteReady: audit.eliteReady,
+    requiredPct: audit.requiredPct,
+    guidance,
+  };
+}
+
+/**
+ * Weekly prop-mix audit: which catalog markets appear in the suitcase.
+ * @param {ReturnType<typeof createEmptyNflGoatBriefcase>} briefcase
+ */
+export function auditBriefcasePropCatalogCoverage(briefcase) {
+  const rows = Array.isArray(briefcase?.slate?.playerProps) ? briefcase.slate.playerProps : [];
+  /** @type {Map<string, number>} */
+  const byType = new Map();
+  for (const row of rows) {
+    const raw = String(row.propRaw || row.prop_type || row.prop || "")
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    if (!raw) continue;
+    byType.set(raw, (byType.get(raw) || 0) + 1);
+  }
+  const postedTypes = [...byType.keys()];
+  const catalog = NFL_EXTENDED_PROP_CATALOG.map((p) => {
+    const hit = p.propTypes.some((t) =>
+      postedTypes.some((pt) => pt.includes(t) || t.includes(pt)),
+    );
+    return { id: p.id, label: p.label, posting: p.posting, present: hit };
+  });
+  const present = catalog.filter((c) => c.present).length;
+  return {
+    totalPropRows: rows.length,
+    distinctPropTypes: postedTypes.length,
+    sampleTypes: postedTypes.slice(0, 24),
+    extendedPresent: present,
+    extendedTotal: catalog.length,
+    extendedPct: catalog.length ? Math.round((present / catalog.length) * 100) : 0,
+    catalog,
+  };
+}
+
+/**
  * Prompt block: expert on top markets without thinning answers.
  */
 export function buildNflTop25ExpertisePromptBlock() {
   const lines = NFL_TOP_25_BET_MARKETS.map(
     (m) => `${m.rank}. ${m.label} — ${m.askMustCover}`,
   );
+  const extended = NFL_EXTENDED_PROP_CATALOG.map(
+    (p) => `- ${p.label} (${p.posting})`,
+  ).join("\n");
   return `NFL TOP-25 MARKET EXPERTISE (fan volume + SGP reality)
 You are expected to advise confidently on these bet types. Missing a live line is not a reason to refuse — state what is missing in one short clause, then still give the structural lean.
 
 ${lines.join("\n")}
+
+EXTENDED PLAYER PROPS (also in scope when asked — books post unevenly):
+${extended}
+For rare/thin props (drops, half-sacks, PD, etc.): if no live line, still give a role/opportunity read and mark it speculative — never invent a number.
 
 PREFER RULES (clean — do not undercut knowledge):
 - Prefer live board odds/props in the payload when present; if absent, use structural knowledge + any season/static props and say "live line not in payload."

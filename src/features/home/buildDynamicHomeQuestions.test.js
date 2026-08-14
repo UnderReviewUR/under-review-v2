@@ -229,3 +229,25 @@ test("Rounds 2–3 calendar day swaps NFL draft prompt rail", () => {
   assert.ok(texts.some((t) => /Rounds 2/i.test(t) || /Day 2/i.test(t)));
 });
 
+test("preseason ramp surfaces slate Ask prompts, not futures", () => {
+  const prompts = buildDynamicHomeQuestions({
+    activeTournamentMatches: [],
+    tennisLiveMatches: [],
+    tennisUpcomingMatches: [],
+    nflSeasonMode: false,
+    nflDraftMeta: { phase: "post_draft" },
+    userCity: "",
+    context: null,
+    golfData: null,
+    nbaGames: [],
+    f1Data: null,
+    promoNowMs: Date.parse("2026-08-14T17:00:00.000Z"),
+  });
+  const nfl = prompts.filter((p) => p.sportHint === "nfl");
+  assert.ok(nfl.length >= 1);
+  assert.ok(
+    nfl.some((p) => /side, total, or pass|preseason board/i.test(`${p.text} ${p.prompt}`)),
+  );
+  assert.ok(!nfl.some((p) => /future/i.test(p.text)));
+});
+

@@ -27,7 +27,6 @@ import DivisionStandings from "../components/nfl-predict/DivisionStandings.jsx";
 import GameCard from "../components/nfl-predict/GameCard.jsx";
 import PlayoffPicture from "../components/nfl-predict/PlayoffPicture.jsx";
 import NflPredictPlayoffFooter from "../components/nfl-predict/NflPredictPlayoffFooter.jsx";
-import NflProSampleTakeCard from "../components/nfl-predict/NflProSampleTakeCard.jsx";
 import SeasonCompleteOverlay from "../components/nfl-predict/SeasonCompleteOverlay.jsx";
 import ShareModal from "../components/nfl-predict/ShareModal.jsx";
 import TeamSelector from "../components/nfl-predict/TeamSelector.jsx";
@@ -494,10 +493,6 @@ export default function NflPredictScreen({
           <PlayoffPicture bracket={bracket} onPickGame={handleBracketPick} showSbConfetti={showSbConfetti} />
           <NflPredictPlayoffFooter
             picks={picks}
-            isPro={isPro}
-            restoreProEntitlement={restoreProEntitlement}
-            setUserEmail={setUserEmail}
-            onSubscribePro={onSubscribePro}
             onContinuePicking={() => goToView("playoffs")}
             bracketComplete={Boolean(bracket?.superBowl?.winner)}
             bracketWinner={bracket?.superBowl?.winner ?? null}
@@ -755,13 +750,6 @@ export default function NflPredictScreen({
             >
               See your full picks →
             </button>
-            <NflProSampleTakeCard
-              isPro={isPro}
-              restoreProEntitlement={restoreProEntitlement}
-              setUserEmail={setUserEmail}
-              onSubscribePro={onSubscribePro}
-              showDivider
-            />
           </div>
         </div>
       ) : null}

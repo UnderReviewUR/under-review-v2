@@ -81,7 +81,13 @@ export function nflPropsPayloadToPropLines(propsPayload, game = {}) {
   for (const p of propsPayload?.players || []) {
     const player = String(p.fullName || p.playerAbbr || "").trim();
     if (!player) continue;
-    for (const market of NFL_PROPS_WIRE_MARKETS) {
+    const propKeys = Object.keys(p.props || {});
+    // Prefer known headline order, then any extended markets ingested via pass-through.
+    const markets = [
+      ...NFL_PROPS_WIRE_MARKETS.filter((m) => propKeys.includes(m)),
+      ...propKeys.filter((m) => !NFL_PROPS_WIRE_MARKETS.includes(m)),
+    ];
+    for (const market of markets) {
       const block = p.props?.[market];
       if (!block || (!block.over && !block.under)) continue;
       const overOdds = block.over?.odds ?? null;
@@ -93,7 +99,7 @@ export function nflPropsPayloadToPropLines(propsPayload, game = {}) {
         game: matchup,
         player,
         playerAbbr: p.playerAbbr || null,
-        prop: NFL_PROPS_MARKET_LABELS[market] || market,
+        prop: NFL_PROPS_MARKET_LABELS[market] || market.replace(/_/g, " "),
         propRaw: market,
         line,
         overOdds,

@@ -2887,6 +2887,7 @@ export function ChatThread({
         }
         if (docked && m.role === "ai") {
           const anchorLast = i === msgs.length - 1;
+          const nflThesis = String(m.nflMatchupThesis || "").trim();
           return (
             <div
               key={rowKey(m, i)}
@@ -2898,18 +2899,76 @@ export function ChatThread({
                 className={`bubble ai bubble--imessage-ai${aiBubbleHostClass}`}
                 data-role="assistant"
               >
+                {nflThesis ? (
+                  <div
+                    className="nfl-matchup-thesis"
+                    style={{
+                      marginBottom: 10,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: "rgba(255,255,255,0.04)",
+                      fontSize: 12,
+                      lineHeight: 1.35,
+                      letterSpacing: 0.2,
+                      color: "rgba(255,255,255,0.78)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 9,
+                        letterSpacing: 1.1,
+                        textTransform: "uppercase",
+                        opacity: 0.65,
+                        marginBottom: 4,
+                      }}
+                    >
+                      Matchup thesis
+                    </div>
+                    {nflThesis}
+                  </div>
+                ) : null}
                 {bubbleInner}
               </div>
             </div>
           );
         }
 
+        const nflThesisLoose = String(m.nflMatchupThesis || "").trim();
         return (
           <div
             key={rowKey(m, i)}
             className={`bubble ai${aiBubbleHostClass}`}
             data-role="assistant"
           >
+            {nflThesisLoose ? (
+              <div
+                className="nfl-matchup-thesis"
+                style={{
+                  marginBottom: 10,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.04)",
+                  fontSize: 12,
+                  lineHeight: 1.35,
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    letterSpacing: 1.1,
+                    textTransform: "uppercase",
+                    opacity: 0.65,
+                    marginBottom: 4,
+                  }}
+                >
+                  Matchup thesis
+                </div>
+                {nflThesisLoose}
+              </div>
+            ) : null}
             {bubbleInner}
           </div>
         );

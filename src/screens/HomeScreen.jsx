@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import HomeCompactTicker from "../components/HomeCompactTicker.jsx";
 import HomeDailyEdgeCard from "../components/HomeDailyEdgeCard.jsx";
+import NflSlateTakesCard from "../components/NflSlateTakesCard.jsx";
 import HomeSpotlightRow from "../components/HomeSpotlightRow.jsx";
 import AskBar from "../components/AskBar.jsx";
 import HomeLastLeanCard from "../components/HomeLastLeanCard.jsx";
@@ -37,7 +38,7 @@ export default function HomeScreen({
   askInputRef,
   askBarCommon,
   goTennis: _goTennis,
-  goNfl: _goNfl,
+  goNfl,
   goF1: _goF1,
   goNba: _goNba,
   goMlb: _goMlb,
@@ -61,6 +62,9 @@ export default function HomeScreen({
   lastLeanRevision = 0,
   onOpenUpgrade,
   isNflSlateActive,
+  nflGames = [],
+  nflBoardAsOf = null,
+  nflUrTakeGated = true,
   tickerNbaGames,
   getSeriesLabel,
   tennisTickerMatches,
@@ -248,7 +252,7 @@ export default function HomeScreen({
         _goF1?.();
         break;
       case "nfl":
-        _goNfl?.();
+        goNfl?.();
         break;
       default:
         break;
@@ -295,6 +299,19 @@ export default function HomeScreen({
           if (!homeDailyEdge?.question) return;
           prefillUrTakeQuestion?.(homeDailyEdge.question, homeDailyEdge.sportHint || null);
         }}
+      />
+
+      <NflSlateTakesCard
+        games={nflGames}
+        asOf={nflBoardAsOf}
+        isUnlimited={isUnlimited}
+        askLive={!nflUrTakeGated}
+        onOpenUpgrade={onOpenUpgrade}
+        onSelectLane={(lane) => {
+          if (!lane?.question) return;
+          prefillUrTakeQuestion?.(lane.question, "nfl");
+        }}
+        onSeeBoard={goNfl}
       />
 
       <HomeSpotlightRow
@@ -391,7 +408,7 @@ export default function HomeScreen({
       <TickerRail
         collapsible
         isNflSlateActive={isNflSlateActive}
-        goNfl={_goNfl}
+        goNfl={goNfl}
         goNba={_goNba}
         goGolf={_goGolf}
         goMlb={_goMlb}

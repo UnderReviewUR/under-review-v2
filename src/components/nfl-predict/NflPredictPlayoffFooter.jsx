@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 
 import { encodePicks } from "../../lib/nflPredictState.js";
-import NflProSampleTakeCard from "./NflProSampleTakeCard.jsx";
 
 function pickedCount(picks) {
   return Object.keys(picks || {}).filter((id) => picks[id]?.winner).length;
@@ -10,10 +9,6 @@ function pickedCount(picks) {
 export default function NflPredictPlayoffFooter({
   picks,
   onContinuePicking,
-  onSubscribePro,
-  restoreProEntitlement,
-  setUserEmail,
-  isPro = false,
   bracketComplete = false,
   bracketWinner = null,
 }) {
@@ -202,13 +197,6 @@ export default function NflPredictPlayoffFooter({
           <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--nfl-predict-accent)" }}>{shareToast}</p>
         ) : null}
       </section>
-
-      <NflProSampleTakeCard
-        isPro={isPro}
-        restoreProEntitlement={restoreProEntitlement}
-        setUserEmail={setUserEmail}
-        onSubscribePro={onSubscribePro}
-      />
     </div>
   );
 }

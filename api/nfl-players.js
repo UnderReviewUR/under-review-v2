@@ -3,7 +3,6 @@
 // Next update needed: August 2026 (training camp roster cuts)
 // NFL Player Database for UR TAKE
 // QB data: 2024 PFR stats as baseline, 2025/2026 roster situations from Ourlads (March 2026)
-// Auto-updated weekly via api/nfl-sync.js
 // Aggregate staleness for prompts: see dataFreshness on buildCanonicalNflContext() in api/_nflContext.js
 
 import { applyCors } from "./_cors.js";
@@ -21,10 +20,10 @@ const QBs = {
     style: ["dual threat", "power runner", "fourth quarter closer", "improviser"],
     stats2024: { games: 17, record: "12-5", cmp: 69.3, yds: 3668, td: 25, int: 10, ypa: 8.0, aya: 8.1, rate: 102.2, qbr: 65.4, skPct: 8.0 },
     situation2025: "Locked in as Bills franchise QB. DJ Moore added (traded from CHI). Full health expected. Line intact.",
-    strengths: ["QBR 65.4 — elite by any measure", "Rushing floor (500+ yards annually) creates weekly fantasy floor", "4 fourth-quarter comebacks in 2024", "69.3% completion — career accuracy peak"],
+    strengths: ["QBR 65.4 — elite by any measure", "Rushing floor (500+ yards annually) creates weekly rushing floor", "4 fourth-quarter comebacks in 2024", "69.3% completion — career accuracy peak"],
     weaknesses: ["Sack rate 8.0% — takes hits, durability concern long-term", "10 INTs in 2024", "DJ Moore upgrade needed to test — new chemistry"],
-    bettingAngles: ["Bills team total OVER in domes — Allen ceiling is real", "Allen rushing yards OVER every week — 40+ yards is baseline", "Lean Bills in late-season games — clutch factor is proven"],
-    fantasyProfile: { pprRank: "QB1-2", nonPprRank: "QB1-2", upside: "QB1 overall — rushing floor is unmatched at the position", risk: "Contact injury from rushing style", note: "Draft him, roster a backup. His floor in a bad passing game is still 25+ rushing yards." }
+    bettingAngles: ["Bills team total OVER in domes — Allen ceiling is real", "Allen rushing yards OVER every week — 40+ yards is baseline", "Lean Bills in late-season games — clutch factor is proven"]
+
   },
 
   "Malik Willis": {
@@ -34,8 +33,8 @@ const QBs = {
     situation2025: "Tua Tagovailoa cut — Willis inherits the job. Tiny NFL sample (35 career attempts) but flashed elite metrics. Tyreek Hill and Jaylen Waddle are elite weapons if he can access them.",
     strengths: ["145.5 passer rating in 4-game sample — elite small sample", "Rushing upside is massive — 400+ yards possible", "Arm talent is legitimate deep ball threat", "Hill and Waddle are top-5 WRs when healthy"],
     weaknesses: ["35 career NFL passing attempts — essentially no sample", "Accuracy history in college/preseason is concerning", "No proven ability to sustain drives against NFL defenses", "Could lose job by Week 6 if accuracy doesn't show"],
-    bettingAngles: ["Fade Dolphins team total in early season until we see real sample", "Willis rushing yards OVER — build in 30-50 per game", "Lean UNDER on Dolphins passing yards props — major uncertainty"],
-    fantasyProfile: { pprRank: "QB22-28 until proven", nonPprRank: "QB22-28", upside: "Lamar-lite if it clicks — rushing floor makes ceiling real", risk: "Extreme — could lose job by Week 4 if accuracy fails", note: "Streaming only. Monitor camp and preseason completion rate heavily." }
+    bettingAngles: ["Fade Dolphins team total in early season until we see real sample", "Willis rushing yards OVER — build in 30-50 per game", "Lean UNDER on Dolphins passing yards props — major uncertainty"]
+
   },
 
   "Drake Maye": {
@@ -45,8 +44,8 @@ const QBs = {
     situation2025: "Locked in as Patriots franchise QB. Full offseason to address 8.72% sack rate. Weapons still developing around him.",
     strengths: ["QBR 77.1 — highest among all starters in 2024", "AY/A 9.5 — most efficient passer in the league", "72.0% completion at volume — historically rare rookie accuracy", "14-3 record as a rookie"],
     weaknesses: ["Sack rate 8.72% — holds ball too long", "Weapons still developing around him", "Second-year regression always possible"],
-    bettingAngles: ["Patriots team total OVER — Maye's efficiency creates real scoring", "Maye sacks OVER vs elite pass rushes — holds ball waiting for big plays", "Lean Patriots ML as underdogs — he wins games he shouldn't"],
-    fantasyProfile: { pprRank: "QB3-5", nonPprRank: "QB3-5", upside: "QB1 ceiling — metrics say he's already there", risk: "Sack exposure, weapon development pace", note: "Year 2 leap with improved line could push him to QB1 overall." }
+    bettingAngles: ["Patriots team total OVER — Maye's efficiency creates real scoring", "Maye sacks OVER vs elite pass rushes — holds ball waiting for big plays", "Lean Patriots ML as underdogs — he wins games he shouldn't"]
+
   },
 
   "Geno Smith": {
@@ -56,8 +55,8 @@ const QBs = {
     situation2025: "Released by Las Vegas, signed by NYJ. Jets in full rebuild. 17 INTs and 10.93% sack rate in 2024 are alarming at age 35.",
     strengths: ["Veteran presence", "67.4% completion when protected", "Experience in late-game situations"],
     weaknesses: ["17 INTs in 2024 — worst in the league", "10.93% sack rate — worst among starters by wide margin", "QBR 34.1 — below replacement level", "Age 35, declining trajectory"],
-    bettingAngles: ["Jets team total UNDER — turnover rate kills drives", "Geno INT prop OVER — 17 in 2024, Jets situation no better", "Fade Jets as favorites — Geno cannot protect leads"],
-    fantasyProfile: { pprRank: "QB28-32", nonPprRank: "QB28-32", upside: "Streamable only in desperation", risk: "Extreme", note: "Do not roster in any format." }
+    bettingAngles: ["Jets team total UNDER — turnover rate kills drives", "Geno INT prop OVER — 17 in 2024, Jets situation no better", "Fade Jets as favorites — Geno cannot protect leads"]
+
   },
 
   // AFC NORTH
@@ -68,8 +67,8 @@ const QBs = {
     situation2025: "Fully healthy entering 2025. Derrick Henry retained. Trey Hendrickson added at ROLB — defense elite again. Mark Andrews healthy returning. Supporting cast is among the best in the AFC.",
     strengths: ["8.8 AY/A and 103.8 rate — elite when passing", "Rushing production incomparable — 600-800 yards on ground annually", "21 TDs in only 13 games — scoring rate exceptional", "Mark Andrews healthy returning"],
     weaknesses: ["10.65% sack rate — highest among starters, takes dangerous hits", "Missed 4 games in 2024 — durability concern", "6-7 record when he played — defense had issues in spots"],
-    bettingAngles: ["Lamar rushing yards OVER every game — 50+ yards is baseline", "Ravens team total OVER when Lamar confirmed starting", "Lamar anytime TD scorer — scores 20+ TDs almost every season"],
-    fantasyProfile: { pprRank: "QB1-3 when healthy", nonPprRank: "QB1-3 when healthy", upside: "QB1 overall when healthy — rushing floor is unique in the game", risk: "Durability — rushing style guarantees some missed games", note: "The highest upside QB in fantasy. Draft him, roster a handcuff." }
+    bettingAngles: ["Lamar rushing yards OVER every game — 50+ yards is baseline", "Ravens team total OVER when Lamar confirmed starting", "Lamar anytime TD scorer — scores 20+ TDs almost every season"]
+
   },
 
   "Joe Burrow": {
@@ -79,8 +78,8 @@ const QBs = {
     situation2025: "Fully healthy after wrist injury. Ja'Marr Chase re-signed on massive extension. Tee Higgins retained. Orlando Brown Jr. signed at LT — line finally upgraded. This is a top-3 offense when healthy.",
     strengths: ["17 TDs in 8 games — 30+ TD pace over full season", "Ja'Marr Chase is arguably the best WR in football", "QBR 63.0 in limited sample", "Orlando Brown Jr. at LT is a significant line upgrade"],
     weaknesses: ["Missed games in 3 of last 4 seasons — injury history is real", "Bengals line still below elite despite upgrades", "Needs full season sample to confirm trajectory"],
-    bettingAngles: ["Bengals team total OVER — Chase + Higgins + healthy Burrow is top-3 offense", "Burrow passing yards OVER — volume is real with this receiving corps", "Chase receiving yards OVER — primary connection"],
-    fantasyProfile: { pprRank: "QB4-6 if healthy", nonPprRank: "QB4-6", upside: "QB1 ceiling — talent and weapons both top-3", risk: "Injury history — has missed significant time in multiple seasons", note: "Full healthy season projects to 4500+ yards, 35+ TDs. Draft him in rounds 4-5." }
+    bettingAngles: ["Bengals team total OVER — Chase + Higgins + healthy Burrow is top-3 offense", "Burrow passing yards OVER — volume is real with this receiving corps", "Chase receiving yards OVER — primary connection"]
+
   },
 
   "Shedeur Sanders": {
@@ -90,19 +89,19 @@ const QBs = {
     situation2025: "Drafted #1 overall by Tennessee Titans (April 2026). Most NFL-ready QB in the 2026 class. 74% completion rate at Colorado. Titans supporting cast is bottom-5.",
     strengths: ["Football IQ and pre-snap reads are advanced for his age", "Accuracy in clean pockets confirmed by college tape", "Leadership and composure are proven traits", "Most NFL-ready passer in the 2026 draft class"],
     weaknesses: ["Titans O-line is bottom-5 — will take punishment early", "Supporting cast is thin", "Year 1 expected to be rough regardless of talent"],
-    bettingAngles: ["Titans team total UNDER — market overvalues rookie QBs", "Fade Titans early-season totals", "Sanders sack taken OVER — Tennessee line is a problem"],
-    fantasyProfile: { pprRank: "QB28-32 in 2026", nonPprRank: "QB28-32", upside: "Dynasty asset — ceiling is real if Tennessee builds properly", risk: "Extreme in 2026 — bad OL, thin weapons, massive learning curve", note: "Redraft: do not touch. Dynasty: buy low now, patience required." }
+    bettingAngles: ["Titans team total UNDER — market overvalues rookie QBs", "Fade Titans early-season totals", "Sanders sack taken OVER — Tennessee line is a problem"]
+
   },
 
   "Mason Rudolph": {
-    team: "PIT", backup: "Will Howard", age: 30, tier: "BELOW_AVG",
+    team: "PIT", backup: "Will Howard", age: 30, tier: "UNCONFIRMED",
     style: ["game manager", "conservative", "check-down reliant"],
     stats2024: { games: 5, record: "0-1", cmp: 73.1, yds: 310, td: 2, int: 2, ypa: 6.0, aya: 5.0, rate: 84.6, qbr: 34.1, skPct: 3.70 },
-    situation2025: "Aaron Rodgers not on roster. Rudolph inherits starting job by default. Pittsburgh likely adds a QB via draft. This situation is in flux — treat as placeholder.",
+    situation2025: "UNCONFIRMED starter. Aaron Rodgers not on roster; Rudolph is a placeholder, not a locked 2026 QB1. Do not write game scripts that assume Rudolph starts — say PIT passer is unsettled unless a live depth chart names someone else.",
     strengths: ["Conservative game manager — won't lose games on his own", "Pittsburgh defense keeps them competitive regardless", "Low sack rate (3.70%) — gets ball out quickly"],
     weaknesses: ["No upside — cannot win games with his arm", "Will Howard as backup signals Pittsburgh knows this is temporary", "Najee Harris and run game must carry the offense"],
-    bettingAngles: ["Steelers team total UNDER — offense will be run-heavy and conservative", "Fade Pittsburgh in must-score situations — passing ceiling extremely low", "Steelers ML value as underdogs — defense keeps them in games Rudolph can't win"],
-    fantasyProfile: { pprRank: "QB30-32", nonPprRank: "QB30-32", upside: "Handcuff only if Pittsburgh adds a real starter", risk: "Extreme — this situation almost certainly changes before Week 1", note: "Do not draft. Monitor Pittsburgh QB moves through the draft heavily." }
+    bettingAngles: ["PIT passer is UNSETTLED — do not fade or script Rudolph as the locked starter", "Steelers team total UNDER only if live depth chart confirms a limited passer", "Defense keeps PIT competitive regardless of who starts"]
+
   },
 
   // AFC SOUTH
@@ -113,8 +112,8 @@ const QBs = {
     situation2025: "Fully healthy. Tank Dell returning. Nico Collins retained. Texans have built one of the best skill position groups in the AFC. Full season expected to confirm trajectory.",
     strengths: ["QBR 61.7 in only 14 games", "Elite pre-snap processing for a year-2 QB", "Tank Dell + Nico Collins premier WR duo when healthy", "Texans scheme maximizes his processing"],
     weaknesses: ["Missed games in both NFL seasons — injury concern", "19 TDs in 14 games — needs full season volume", "Nico Collins health is the primary upside variable"],
-    bettingAngles: ["Texans team total OVER when fully healthy — top-5 offense", "Stroud passing yards OVER vs weak secondaries", "Collins target share OVER — primary connection"],
-    fantasyProfile: { pprRank: "QB7-10", nonPprRank: "QB7-10", upside: "Top-5 QB if healthy full season", risk: "Injury — missed games both seasons", note: "Full healthy season projects to 4500+ yards, 30+ TDs. Health is the only gate." }
+    bettingAngles: ["Texans team total OVER when fully healthy — top-5 offense", "Stroud passing yards OVER vs weak secondaries", "Collins target share OVER — primary connection"]
+
   },
 
   "Daniel Jones": {
@@ -124,8 +123,8 @@ const QBs = {
     situation2025: "Listed QB1 on Ourlads depth chart with Anthony Richardson as backup — the opposite of most expectations. Richardson's injury history has put Jones ahead in the depth chart. Major story to monitor through camp.",
     strengths: ["68.0% completion and QBR 63.0 — best statistical season of his career", "8-5 record as a starter", "Jonathan Taylor and Tyler Warren TE are legitimate weapons"],
     weaknesses: ["Injury history himself", "Richardson looming — depth chart could flip if Jones struggles early", "Colts may shift back to Richardson at any point"],
-    bettingAngles: ["Monitor this situation weekly — could flip by training camp", "Jones OVER if confirmed starter — he can produce in this system", "Fade Colts team total if Richardson takes over — AR passing is unreliable"],
-    fantasyProfile: { pprRank: "QB12-16 if starting", nonPprRank: "QB12-16", upside: "Legitimate QB2 ceiling if he keeps the job", risk: "High — Richardson looming, injury history, fluid situation", note: "Do not invest heavily until camp confirms Jones. Monitor daily." }
+    bettingAngles: ["Monitor this situation weekly — could flip by training camp", "Jones OVER if confirmed starter — he can produce in this system", "Fade Colts team total if Richardson takes over — AR passing is unreliable"]
+
   },
 
   "Trevor Lawrence": {
@@ -135,8 +134,8 @@ const QBs = {
     situation2025: "13-4 record showed real winning ability. Needs receiver corps upgrade — Christian Kirk situation unclear. Year 5 is when accuracy needs to take the leap.",
     strengths: ["13-4 record — best in franchise history", "29 TDs, elite arm talent", "3 fourth-quarter comebacks — improved clutch performance"],
     weaknesses: ["60.9% completion — accuracy is the primary flaw", "12 INTs — forces throws into coverage", "Receiving corps needs improvement"],
-    bettingAngles: ["Lawrence OVER in high-total games vs weak secondaries", "Jaguars home ML — home record with Lawrence is strong", "Fade Lawrence in bad weather road games — completion rate drops"],
-    fantasyProfile: { pprRank: "QB10-14", nonPprRank: "QB10-14", upside: "QB1 ceiling in right matchup — arm talent is genuine", risk: "Accuracy inconsistency, turnover rate", note: "High-variance QB2. Target in favorable matchups." }
+    bettingAngles: ["Lawrence OVER in high-total games vs weak secondaries", "Jaguars home ML — home record with Lawrence is strong", "Fade Lawrence in bad weather road games — completion rate drops"]
+
   },
 
   "Cam Ward": {
@@ -146,8 +145,8 @@ const QBs = {
     situation2025: "Year 2. Will Levis also listed as third QB. Tennessee has cap space to add weapons. Ward needs receivers and a rebuilt line to show his ceiling. 7 INTs on a 3-14 team showed genuine composure.",
     strengths: ["7 INTs in 17 games on a historically bad team — real ball security", "Arm talent is legitimate", "23 years old — ceiling undefined"],
     weaknesses: ["3-14 record — extreme context", "59.8% completion, 5.9 Y/A — very limited production", "9.24% sack rate — terrible line created impossible conditions"],
-    bettingAngles: ["Titans team total UNDER until weapons and line improve", "Ward sack OVER in early season — OL still a problem", "Fade Titans vs playoff-caliber defenses"],
-    fantasyProfile: { pprRank: "QB26-32", nonPprRank: "QB26-32", upside: "Dynasty stash — ceiling is real if Tennessee builds around him", risk: "No supporting cast, Tennessee rebuild ongoing", note: "Redraft: skip. Dynasty: low-cost stash for year 3-4 potential." }
+    bettingAngles: ["Titans team total UNDER until weapons and line improve", "Ward sack OVER in early season — OL still a problem", "Fade Titans vs playoff-caliber defenses"]
+
   },
 
   // AFC WEST
@@ -158,8 +157,8 @@ const QBs = {
     situation2025: "Year 2 in Payton system. Continuity is the plan. Ceiling is defined by the scheme, not Nix individually. The running backs (Javonte Williams, RJ Harvey) are the real offensive assets.",
     strengths: ["14-3 rookie record — system maximized his strengths", "3.47% sack rate — gets ball out fastest among starters", "5 fourth-quarter comebacks"],
     weaknesses: ["6.4 Y/A — most conservative passing attack among starters", "Ceiling is Payton's system", "11 INTs on modest attempts"],
-    bettingAngles: ["Broncos UNDER in pass-heavy game scripts — scheme won't allow it", "Broncos RB props OVER — run-first offense means RBs are the assets", "Fade Nix passing yards OVER — scheme deliberately suppresses volume"],
-    fantasyProfile: { pprRank: "QB18-24", nonPprRank: "QB18-24", upside: "Streaming option with right game script", risk: "System-bound, low ceiling", note: "Javonte Williams and RJ Harvey are the fantasy assets on this offense." }
+    bettingAngles: ["Broncos UNDER in pass-heavy game scripts — scheme won't allow it", "Broncos RB props OVER — run-first offense means RBs are the assets", "Fade Nix passing yards OVER — scheme deliberately suppresses volume"]
+
   },
 
   "Patrick Mahomes": {
@@ -169,8 +168,8 @@ const QBs = {
     situation2025: "Justin Fields added as backup — pressure and insurance. Chiefs need receiver room upgrade. QBR 68.5 despite 6-8 record confirms Mahomes is not the problem.",
     strengths: ["QBR 68.5 despite worst season — individual talent unchanged", "Three Super Bowl titles", "Off-platform improvisation unmatched in NFL history", "Two-minute drill efficiency is elite career-long"],
     weaknesses: ["6-8 record — needs better weapons", "62.7% completion — below his standard", "11 INTs — more than typical Mahomes season"],
-    bettingAngles: ["Chiefs ML in playoff spots — January Mahomes is a different player", "Fade Chiefs -7+ in regular season without elite WR help", "Mahomes UNDER when Reid runs the ball to manage game"],
-    fantasyProfile: { pprRank: "QB5-8", nonPprRank: "QB5-8", upside: "QB1 when weapons healthy and scheme firing", risk: "Supporting cast dependent — 2024 proved ceiling without elite targets", note: "Watch the draft. If KC takes a WR early, Mahomes shoots back to QB1-2 territory." }
+    bettingAngles: ["Chiefs ML in playoff spots — January Mahomes is a different player", "Fade Chiefs -7+ in regular season without elite WR help", "Mahomes UNDER when Reid runs the ball to manage game"]
+
   },
 
   "Aidan O'Connell": {
@@ -180,8 +179,8 @@ const QBs = {
     situation2025: "Only QB listed on Raiders depth chart — full rebuild. Placeholder, not a solution. Raiders almost certain to draft a QB.",
     strengths: ["Placeholder starter in a rebuild", "Low sack rate in tiny sample"],
     weaknesses: ["Insufficient sample", "No backup listed — team in complete rebuild", "No meaningful weapons on roster"],
-    bettingAngles: ["Raiders team total UNDER until QB situation resolved", "Fade Raiders as favorites in any game"],
-    fantasyProfile: { pprRank: "Do not draft", nonPprRank: "Do not draft", upside: "None in current form", risk: "Extreme", note: "Watch the draft. Raiders are a prime candidate to take a QB early." }
+    bettingAngles: ["Raiders team total UNDER until QB situation resolved", "Fade Raiders as favorites in any game"]
+
   },
 
   "Justin Herbert": {
@@ -191,8 +190,8 @@ const QBs = {
     situation2025: "Harbaugh year 2. Trey Lance as backup adds interesting dimension. Line needs to fix Herbert's 9.54% sack rate — that is the entire development story heading into 2025.",
     strengths: ["Elite arm talent — strongest and most accurate deep ball among starters", "11-5 record — first winning season, Harbaugh effect real", "66.4% completion at solid efficiency"],
     weaknesses: ["9.54% sack rate — worst among starters, holds ball too long", "13 INTs — forces deep throws under pressure", "Processing delay costs drives and games"],
-    bettingAngles: ["Herbert OVER in shootout game scripts — arm will produce", "Chargers sack allowed OVER vs elite pass rushes", "Herbert deep TD props OVER vs weak CBs"],
-    fantasyProfile: { pprRank: "QB9-13", nonPprRank: "QB9-13", upside: "QB1 ceiling in right matchup — arm talent is genuine", risk: "Sack exposure kills drives, inconsistent floor", note: "If Harbaugh fixes the sack rate in year 2, Herbert jumps to QB5-7 territory." }
+    bettingAngles: ["Herbert OVER in shootout game scripts — arm will produce", "Chargers sack allowed OVER vs elite pass rushes", "Herbert deep TD props OVER vs weak CBs"]
+
   },
 
   // NFC EAST
@@ -203,8 +202,8 @@ const QBs = {
     situation2025: "CeeDee Lamb retained. New HC — McCarthy fired. New system creates early-season uncertainty but individual talent is top-6 in the league.",
     strengths: ["QBR 70.2 — top-6 QB by metrics", "4552 yards, 30 TDs on a .500 team", "67.3% completion, 4.91% sack rate", "CeeDee Lamb is top-3 WR in the league"],
     weaknesses: ["7-9-1 record — team context poor", "10 INTs", "New coaching system uncertainty in early 2025"],
-    bettingAngles: ["Prescott OVER vs weak secondaries — volume consistent", "Lamb OVER correlates with Dak efficiency", "Fade Cowboys early season while new system installs"],
-    fantasyProfile: { pprRank: "QB6-9", nonPprRank: "QB6-9", upside: "QB1 in shootouts", risk: "New coaching system, team dysfunction", note: "Lamb correlation is the best in NFC. Target together." }
+    bettingAngles: ["Prescott OVER vs weak secondaries — volume consistent", "Lamb OVER correlates with Dak efficiency", "Fade Cowboys early season while new system installs"]
+
   },
 
   "Jaxson Dart": {
@@ -214,19 +213,19 @@ const QBs = {
     situation2025: "Giants franchise QB of the future. Malik Nabers WR1 is a genuine elite weapon. Jameis Winston veteran presence as backup. Dart showed promising metrics in limited sample.",
     strengths: ["Only 5 INTs in 12 starts", "QBR 57.5 — solid for young starter", "Malik Nabers connection is elite — best young WR pairing in NFC"],
     weaknesses: ["9.36% sack rate — needs to get ball out faster", "4-8 record, team context poor", "Small sample, full learning curve ahead"],
-    bettingAngles: ["Giants UNDER until Dart shows consistency", "Nabers receiving yards OVER — gets targets regardless", "Fade Giants as favorites until proven"],
-    fantasyProfile: { pprRank: "QB18-24 in 2025", nonPprRank: "QB18-24", upside: "Potential breakout year 2 with Nabers development", risk: "OL still thin, supporting cast developing", note: "Dynasty asset. Redraft streaming option only." }
+    bettingAngles: ["Giants UNDER until Dart shows consistency", "Nabers receiving yards OVER — gets targets regardless", "Fade Giants as favorites until proven"]
+
   },
 
   "Jalen Hurts": {
     team: "PHI", backup: "Andy Dalton", age: 27, tier: "STARTER",
     style: ["dual threat", "power runner", "play-action", "option QB"],
     stats2024: { games: 16, record: "11-5", cmp: 64.8, yds: 3224, td: 25, int: 6, ypa: 7.1, aya: 7.6, rate: 98.5, qbr: 55.2, skPct: 6.58 },
-    situation2025: "AJ Brown retained. DeVonta Smith back. Elite line intact. Sirianni fired — new HC creates early scheme uncertainty. Rushing floor makes him fantasy-relevant regardless.",
+    situation2025: "AJ Brown retained. DeVonta Smith back. Elite line intact. Sirianni fired — new HC creates early scheme uncertainty. Rushing floor keeps his prop floor alive regardless.",
     strengths: ["Only 6 INTs — exceptional ball security", "11-5 record", "Rushing volume (500+ yards annually) creates weekly floor", "AJ Brown + DeVonta Smith premier receiving duo"],
     weaknesses: ["New HC — rushing usage could change", "3224 passing yards — scheme suppresses volume", "QBR 55.2 — system elevates him on passing side"],
-    bettingAngles: ["Eagles team total OVER when Hurts is healthy", "Hurts rushing yards OVER — Eagles design runs regardless of HC", "Fade Hurts passing OVER — new HC may run even more"],
-    fantasyProfile: { pprRank: "QB3-5", nonPprRank: "QB3-5", upside: "QB1 — rushing floor makes him elite every healthy week", risk: "New HC could alter rushing usage", note: "Lock in the rushing floor. He stays top-5 unless scheme radically changes." }
+    bettingAngles: ["Eagles team total OVER when Hurts is healthy", "Hurts rushing yards OVER — Eagles design runs regardless of HC", "Fade Hurts passing OVER — new HC may run even more"]
+
   },
 
   "Jayden Daniels": {
@@ -236,8 +235,8 @@ const QBs = {
     situation2025: "Confirmed Year 2 starter. Terry McLaurin retained. Zach Ertz at TE. Rushing ability (400+ yards projected) makes him a legitimate weekly dual-threat asset even with passing questions.",
     strengths: ["Rushing upside is elite — 60+ yards per game ceiling on ground", "Only 3 INTs in 7 games", "Washington's OL improved significantly in 2024"],
     weaknesses: ["7-game sample — very limited", "60.6% completion needs improvement", "8.74% sack rate — needs to trust checkdowns"],
-    bettingAngles: ["Daniels rushing yards OVER — scheme designs runs for him weekly", "Commanders team total OVER when healthy", "Fade Daniels passing OVER — dual-threat scheme caps aerial volume"],
-    fantasyProfile: { pprRank: "QB8-12", nonPprRank: "QB8-12", upside: "QB1 ceiling — rushing projection makes him weekly viable", risk: "Small sample, Year 2 regression possible", note: "Rushing projection is the buy. If he throws 3500+ he's a top-5 overall QB." }
+    bettingAngles: ["Daniels rushing yards OVER — scheme designs runs for him weekly", "Commanders team total OVER when healthy", "Fade Daniels passing OVER — dual-threat scheme caps aerial volume"]
+
   },
 
   // NFC NORTH
@@ -248,8 +247,8 @@ const QBs = {
     situation2025: "Year 2. Bears added Joe Thuney (LG) and Garrett Bradbury (C) — line upgraded. DJ Moore departed to Buffalo — receiving corps thinner. Rome Odunze must step up. Luther Burden drafted.",
     strengths: ["Only 7 INTs — exceptional for an improviser", "27 TDs as a rookie", "Off-platform arm talent is genuinely special", "4.05% sack rate — good pocket awareness"],
     weaknesses: ["58.1% completion — accuracy on standard throws needs work", "DJ Moore gone — receiving corps downgraded", "6.9 Y/A — modest efficiency"],
-    bettingAngles: ["Bears UNDER until new weapons establish chemistry with Williams", "Williams rushing yards OVER — scrambles add consistent value", "Fade Bears in must-pass situations — passing ceiling still developing"],
-    fantasyProfile: { pprRank: "QB11-15", nonPprRank: "QB11-15", upside: "QB1 potential by year 3 — talent is clear", risk: "Weapon downgrade, consistency development", note: "Buy low. If Bears draft a WR early, his value jumps immediately." }
+    bettingAngles: ["Bears UNDER until new weapons establish chemistry with Williams", "Williams rushing yards OVER — scrambles add consistent value", "Fade Bears in must-pass situations — passing ceiling still developing"]
+
   },
 
   "Jared Goff": {
@@ -259,8 +258,8 @@ const QBs = {
     situation2025: "ARSB, Gibbs, Montgomery, LaPorta all back. System intact. Goff is the best game manager in the league in this specific scheme. No major changes.",
     strengths: ["34 TDs, 8 INTs — elite ratio", "68.0% completion in system", "Elite supporting cast", "Ford Field dome maximizes production"],
     weaknesses: ["QBR 57.3 — scheme-dependent", "Weather sensitivity — outdoor cold games are risky", "9-8 record — team declined from prior year"],
-    bettingAngles: ["Goff OVER in dome games — Ford Field conditions are ideal", "Fade Goff in adverse weather road games", "Lions team total OVER at home"],
-    fantasyProfile: { pprRank: "QB8-12", nonPprRank: "QB8-12", upside: "QB1 at home with full cast", risk: "Weather-dependent, cast-dependent", note: "Home/dome splits are extreme. Target in favorable matchups only." }
+    bettingAngles: ["Goff OVER in dome games — Ford Field conditions are ideal", "Fade Goff in adverse weather road games", "Lions team total OVER at home"]
+
   },
 
   "Jordan Love": {
@@ -270,8 +269,8 @@ const QBs = {
     situation2025: "Young receiver room entering year 3 together — chemistry building. Love's QBR (72.7) was among the best in the league. Contract extension imminent. Legitimate top-5 QB situation.",
     strengths: ["QBR 72.7 — elite", "Only 6 INTs", "AY/A 8.1, 4.57% sack rate", "Young receiver room (Doubs, Watson, Reed) developing"],
     weaknesses: ["Run-balanced scheme suppresses volume ceiling", "3381 yards — below peers in counting stats", "Receivers are young and inconsistent"],
-    bettingAngles: ["Love OVER in negative game scripts — throws more when trailing", "Packers team total OVER at Lambeau", "Love TD OVER vs weak secondaries"],
-    fantasyProfile: { pprRank: "QB5-8", nonPprRank: "QB5-8", upside: "QB1 ceiling — metrics confirm he's already elite", risk: "Volume ceiling from run-balance", note: "Underrated every preseason. Target in rounds 4-5." }
+    bettingAngles: ["Love OVER in negative game scripts — throws more when trailing", "Packers team total OVER at Lambeau", "Love TD OVER vs weak secondaries"]
+
   },
 
   "Kyler Murray": {
@@ -281,8 +280,8 @@ const QBs = {
     situation2025: "Traded from Arizona to Minnesota. J.J. McCarthy now his backup — significant development setback for McCarthy. Kyler inherits Justin Jefferson and a premier supporting cast. Health is everything.",
     strengths: ["Justin Jefferson is the best WR in football — instant upgrade over Arizona cast", "Kyler's rushing adds dimension Minnesota hasn't had", "Kevin O'Connell's scheme is elite for QBs — see Darnold 2024"],
     weaknesses: ["Injury history — has never played a full 17-game season", "5-game sample in 2024 — tiny", "9.04% sack rate — takes too many hits"],
-    bettingAngles: ["Vikings team total OVER — Jefferson + Kyler rushing is a premier offense", "Kyler rushing yards OVER — adds 40-60 yards weekly when healthy", "Fade Vikings when Kyler is even questionable — McCarthy is a significant downgrade"],
-    fantasyProfile: { pprRank: "QB6-10 when healthy", nonPprRank: "QB6-10", upside: "Top-5 QB if stays healthy — Jefferson + rushing is elite combination", risk: "Injury — has never played a full season", note: "Highest upside play in the NFC if healthy. Draft with a late handcuff." }
+    bettingAngles: ["Vikings team total OVER — Jefferson + Kyler rushing is a premier offense", "Kyler rushing yards OVER — adds 40-60 yards weekly when healthy", "Fade Vikings when Kyler is even questionable — McCarthy is a significant downgrade"]
+
   },
 
   // NFC SOUTH
@@ -293,8 +292,8 @@ const QBs = {
     situation2025: "Kirk Cousins cut. Penix is unquestioned QB1. Tua Tagovailoa signed as backup veteran presence. Bijan Robinson and Drake London are elite weapons. Kyle Pitts at TE if healthy. Strong cast around him.",
     strengths: ["Only 3 INTs in 9 games", "QBR 57.9 in difficult situation", "Drake London top-15 WR, Bijan Robinson top-5 RB", "Kyle Pitts at TE when healthy"],
     weaknesses: ["60.1% completion — needs refinement", "3-6 record with limited sample", "Unproven starter with high expectations"],
-    bettingAngles: ["Falcons team total OVER — weapons make this offense viable regardless", "Bijan Robinson OVER rushing yards — carries offense when passing struggles", "Monitor Penix preseason closely before investing"],
-    fantasyProfile: { pprRank: "QB14-20 in 2025", nonPprRank: "QB14-20", upside: "Breakout candidate — weapons are elite around him", risk: "Unproven starter", note: "The weapons (Robinson, London, Pitts) make Atlanta's offense viable. Penix is the unknown." }
+    bettingAngles: ["Falcons team total OVER — weapons make this offense viable regardless", "Bijan Robinson OVER rushing yards — carries offense when passing struggles", "Monitor Penix preseason closely before investing"]
+
   },
 
   "Bryce Young": {
@@ -304,8 +303,8 @@ const QBs = {
     situation2025: "Tetairoa McMillan drafted WR1 — real weapon addition. Jonathon Brooks RB returning. Carolina genuinely building around him after 8-8 rebound.",
     strengths: ["Real improvement from 2-15 to 8-8", "McMillan adds a legitimate WR1", "23 TDs shows red zone improvement", "Off-platform improvisation is elite for his frame"],
     weaknesses: ["QBR 47.6 — below average", "6.3 Y/A — conservative production", "11 INTs", "Frame (5-10, 204 lbs) — injury risk ongoing"],
-    bettingAngles: ["Panthers UNDER until McMillan chemistry establishes", "Young rushing yards OVER — scrambles undervalued", "Fade Panthers vs top-10 defenses"],
-    fantasyProfile: { pprRank: "QB18-24", nonPprRank: "QB18-24", upside: "Year 3 leap possible with McMillan — buy low", risk: "Frame, turnover rate, ceiling unproven", note: "McMillan addition is real. If chemistry develops, Young becomes a low-end starter by midseason." }
+    bettingAngles: ["Panthers UNDER until McMillan chemistry establishes", "Young rushing yards OVER — scrambles undervalued", "Fade Panthers vs top-10 defenses"]
+
   },
 
   "Tyler Shough": {
@@ -315,8 +314,8 @@ const QBs = {
     situation2025: "Wins Saints starting job after solid 2024 finish. Chris Olave WR1 when healthy. Saints rebuilding with two young QBs — both Shough and Rattler are options.",
     strengths: ["67.6% completion — accurate in rhythm", "5-4 record as a starter", "Olave connection when healthy"],
     weaknesses: ["8.66% sack rate — needs better pocket presence", "Limited weapons beyond Olave", "Saints still rebuilding supporting cast"],
-    bettingAngles: ["Saints UNDER — offense still developing", "Shough sack OVER vs elite pass rushes", "Fade Saints as road favorites"],
-    fantasyProfile: { pprRank: "QB22-28", nonPprRank: "QB22-28", upside: "Streaming option in good matchups", risk: "Limited weapons, developing passer", note: "Olave healthy is the trigger for Saints fantasy relevance." }
+    bettingAngles: ["Saints UNDER — offense still developing", "Shough sack OVER vs elite pass rushes", "Fade Saints as road favorites"]
+
   },
 
   "Baker Mayfield": {
@@ -326,8 +325,8 @@ const QBs = {
     situation2025: "Mike Evans age-32 season. Chris Godwin health is key variable. Liam Coen stays as OC — scheme continuity helps. Career revival is real but ceiling is defined.",
     strengths: ["QBR 61.3 — legitimately solid", "26 TDs, good red zone efficiency", "Evans in red zone is elite trusted connection"],
     weaknesses: ["8-9 record — team declining around him", "11 INTs", "Evans, Godwin aging — weapons eroding"],
-    bettingAngles: ["Evans TD OVER when Mayfield starting — reliable red zone target", "Fade Buccaneers when both Evans and Godwin compromised", "Mayfield UNDER in cold outdoor away games"],
-    fantasyProfile: { pprRank: "QB14-18", nonPprRank: "QB14-18", upside: "Matchup streamer in shootout scripts", risk: "Supporting cast health, weapons aging", note: "Evans in the red zone is his primary value driver. Correlate their props." }
+    bettingAngles: ["Evans TD OVER when Mayfield starting — reliable red zone target", "Fade Buccaneers when both Evans and Godwin compromised", "Mayfield UNDER in cold outdoor away games"]
+
   },
 
   // NFC WEST
@@ -338,8 +337,8 @@ const QBs = {
     situation2025: "Kyler Murray traded to Minnesota. Brissett is Arizona's QB1 with Marvin Harrison Jr. and Trey McBride as weapons. Cardinals rebuilding but have real skill talent.",
     strengths: ["23 TDs, 8 INTs on a 1-11 team", "64.9% completion — accurate", "Marvin Harrison Jr. WR1 is elite — real target"],
     weaknesses: ["QBR 41.2 — below average", "1-11 record — brutal team context", "8.14% sack rate — needs better line", "Veteran caretaker, not a franchise solution"],
-    bettingAngles: ["Fade Cardinals as favorites until line improves", "Harrison Jr. target share OVER — Brissett leans on his WR1", "Cardinals UNDER — offense rebuilding without Kyler"],
-    fantasyProfile: { pprRank: "QB22-28", nonPprRank: "QB22-28", upside: "Harrison Jr. is the real fantasy asset, not Brissett", risk: "Terrible team context", note: "Harrison Jr. in dynasty leagues regardless of QB situation." }
+    bettingAngles: ["Fade Cardinals as favorites until line improves", "Harrison Jr. target share OVER — Brissett leans on his WR1", "Cardinals UNDER — offense rebuilding without Kyler"]
+
   },
 
   "Matthew Stafford": {
@@ -349,8 +348,8 @@ const QBs = {
     situation2025: "Best season of career at age 37 — 46 TDs. Cooper Kupp returning healthy. Puka Nacua development is real. McVay scheme perfectly built for his skillset. Contract situation to monitor.",
     strengths: ["46 TDs in 2024 — led the NFL", "QBR 71.2, AY/A 8.8 — genuinely elite", "3.71% sack rate — lowest among elite QBs", "McVay scheme creates pre-snap clean looks"],
     weaknesses: ["Age 37 — durability is the primary risk every week", "Scheme-dependent", "Kupp health is key supporting cast concern"],
-    bettingAngles: ["Rams team total OVER at home — SoFi ideal conditions", "Stafford passing yards OVER — scheme guarantees volume", "Kupp OVER correlates with Stafford efficiency"],
-    fantasyProfile: { pprRank: "QB4-7", nonPprRank: "QB4-7", upside: "Another 40+ TD season if healthy — scheme and weapons intact", risk: "Age — one more year of Father Time", note: "Last year to get elite Stafford value. Draft confidently if healthy entering camp." }
+    bettingAngles: ["Rams team total OVER at home — SoFi ideal conditions", "Stafford passing yards OVER — scheme guarantees volume", "Kupp OVER correlates with Stafford efficiency"]
+
   },
 
   "Brock Purdy": {
@@ -360,8 +359,8 @@ const QBs = {
     situation2025: "McCaffrey health is the entire 49ers offense. Deebo Samuel and Aiyuk both back. Shanahan system is the great equalizer. Purdy's 9-game QBR (72.8) was highest of any QB in 2024.",
     strengths: ["QBR 72.8 in 9 games — highest of any QB in 2024", "69.4% completion — elite accuracy in Shanahan scheme", "20 TDs in 9 games", "3.73% sack rate — lowest among starters"],
     weaknesses: ["Missed 8 games in 2024 — injury concern", "10 INTs in 9 games — more than ideal", "Shanahan system is the star"],
-    bettingAngles: ["49ers team total OVER when McCaffrey healthy", "Purdy OVER when fully healthy cast confirmed", "Fade 49ers when Purdy is questionable — Mac Jones is a significant downgrade"],
-    fantasyProfile: { pprRank: "QB7-10 when healthy", nonPprRank: "QB7-10", upside: "Top-5 QB ceiling — 9-game pace projects to 35+ TDs over 17 games", risk: "Injury — missed 8 games in 2024", note: "Draft him, roster Mac Jones as handcuff. Floor in Shanahan system is elite." }
+    bettingAngles: ["49ers team total OVER when McCaffrey healthy", "Purdy OVER when fully healthy cast confirmed", "Fade 49ers when Purdy is questionable — Mac Jones is a significant downgrade"]
+
   },
 
   "Sam Darnold": {
@@ -371,9 +370,9 @@ const QBs = {
     situation2025: "Left Minnesota (14-3 system) for Seattle. New scheme, new weapons. DK Metcalf and Tyler Lockett are real targets. Regression from 2024 is the base case — the Minnesota system was the star.",
     strengths: ["14-3 record experience", "67.7% completion — best of career in O'Connell system", "DK Metcalf and Lockett are legitimate weapons"],
     weaknesses: ["14 INTs — turnover problem persists", "QBR 55.6 — system product, not franchise-level talent", "Leaving elite Minnesota system for unknown Seattle scheme"],
-    bettingAngles: ["Fade Seahawks team total until scheme revealed in camp", "Darnold turnover props — INT is in play every game", "Monitor early season before committing to Seattle props"],
-    fantasyProfile: { pprRank: "QB14-18", nonPprRank: "QB14-18", upside: "If Seattle scheme mirrors Minnesota, he can replicate 2024", risk: "High — leaving elite system, INT rate is alarming", note: "2024 was likely his career peak. Buy low on Seattle skill players, not Darnold." }
-  },
+    bettingAngles: ["Fade Seahawks team total until scheme revealed in camp", "Darnold turnover props — INT is in play every game", "Monitor early season before committing to Seattle props"]
+
+  }
 
 };
 

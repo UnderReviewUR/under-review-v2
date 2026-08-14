@@ -272,7 +272,7 @@ export function buildCurrentEventFromScheduleRow(row, preserveFrom = null) {
 
   const status = String(row.status || row.rawStatus || "").toLowerCase();
   const isLive = status.includes("live") || status.includes("progress") || status === "in";
-  const isFinal = status.includes("final") || status.includes("complete") || status === "post";
+  let isFinal = status.includes("final") || status.includes("complete") || status === "post";
 
   const sameEvent =
     preserveFrom &&
@@ -285,6 +285,34 @@ export function buildCurrentEventFromScheduleRow(row, preserveFrom = null) {
       ? preserveFrom.leaderboard
       : [];
 
+  const startDate = row.startDate || preserveFrom?.startDate || null;
+  const endDate =
+    row.endDate != null && row.endDate !== "" ? row.endDate : preserveFrom?.endDate ?? null;
+
+  // Schedule "final/complete" mid-week is usually end-of-round, not trophy ceremony.
+  if (isFinal) {
+    const startMs = Number.isFinite(row.startTs) ? Number(row.startTs) : Date.parse(String(startDate || ""));
+    const endMs = Number.isFinite(row.endTs)
+      ? Number(row.endTs)
+      : Date.parse(String(endDate || ""));
+    const nowMs = Date.now();
+    const weekOpen =
+      (Number.isFinite(endMs) && nowMs <= endMs) ||
+      (Number.isFinite(startMs) && nowMs <= startMs + 4 * 24 * 60 * 60 * 1000);
+    if (weekOpen) isFinal = false;
+  }
+
+  let state = "pre";
+  let round = "Upcoming";
+  if (isFinal) {
+    state = "post";
+    round = "Final";
+  } else if (isLive || status.includes("final") || status.includes("complete") || status === "post") {
+    // Mid-week feed "final" coerced above → still in play (overnight / between rounds).
+    state = "in";
+    round = row.round || preserveFrom?.round || "Live";
+  }
+
   return {
     id: row.id ?? preserveFrom?.id ?? null,
     name: row.name || row.shortName || preserveFrom?.name || "PGA Tour Event",
@@ -295,11 +323,11 @@ export function buildCurrentEventFromScheduleRow(row, preserveFrom = null) {
       preserveFrom?.course ||
       "TBD",
     location: row.location || preserveFrom?.location || "",
-    round: isLive ? row.round || preserveFrom?.round || "Live" : isFinal ? "Final" : "Upcoming",
-    state: isLive ? "in" : isFinal ? "post" : "pre",
+    round,
+    state,
     par: preserveFrom?.par ?? null,
-    startDate: row.startDate || preserveFrom?.startDate || null,
-    endDate: row.endDate != null && row.endDate !== "" ? row.endDate : preserveFrom?.endDate ?? null,
+    startDate,
+    endDate,
     displayDate: row.displayDate || preserveFrom?.displayDate || null,
     leaderboard,
   };

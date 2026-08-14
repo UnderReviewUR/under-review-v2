@@ -103,6 +103,7 @@ test("detectWtaFromQuestion true for explicit wta", () => {
 test("detectNflTeamHint captures city/team names for draft asks", () => {
   assert.equal(detectNflTeamHint("Simulate Eagles first 3 rounds"), "PHI");
   assert.equal(detectNflTeamHint("Most chaotic realistic scenario for Chiefs"), "KC");
+  assert.equal(detectNflTeamHint("James Cook rush yards vs PHI"), "PHI");
 });
 
 test("detectNflTeamHint resolves cowboys / punctuation / simulate phrasing", () => {

@@ -1,11 +1,92 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { describe, it, test } from "node:test";
 import {
+  hasNflAskLexicon,
+  hasStrongNbaOnlyLexicon,
   inferSportFromQuestionText,
   isCasualMoneyBucksPhrase,
   resolveSportHint,
   shouldLockWorldCupThreadSport,
 } from "./urTakeSportRouting.js";
+
+test("James Cook rush yards vs PHI is NFL, not NBA james/PHI", () => {
+  const q = "James Cook rush yards vs PHI — over or under 72.5?";
+  assert.equal(hasNflAskLexicon(q), true);
+  assert.equal(hasStrongNbaOnlyLexicon(q), false);
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "nfl", question: q }),
+    "nfl",
+  );
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "generic", question: q }),
+    "nfl",
+  );
+});
+
+test("DET @ CIN spread stays NFL when tab is nfl", () => {
+  const q = "DET @ CIN — CIN -6.5 · total 37.5. Side or total?";
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "nfl", question: q }),
+    "nfl",
+  );
+});
+
+test("DET @ CIN stays NFL even if the ask says don't route to NBA", () => {
+  const q = "DET @ CIN — CIN -6.5. Don't route this to NBA.";
+  assert.equal(hasNflAskLexicon(q), true);
+  assert.equal(hasStrongNbaOnlyLexicon(q), false);
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "nfl", question: q }),
+    "nfl",
+  );
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "generic", question: q }),
+    "nfl",
+  );
+});
+
+test("GB @ PIT -2.5 without the word spread still routes NFL", () => {
+  const q = "GB @ PIT — GB -2.5";
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+});
+
+test("backup football + CIN -6.5 is NFL, not World Cup football", () => {
+  const q = "Is Joe Burrow even dressing tonight vs Detroit or is CIN -6.5 just backup football?";
+  assert.equal(hasNflAskLexicon(q), true);
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "nfl", question: q }),
+    "nfl",
+  );
+});
+
+test("Cardinals at Raiders total stays NFL, not MLB Cardinals", () => {
+  const q =
+    "Why is Cardinals at Raiders sitting at 42.5 when every other game tonight is 36–39?";
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+  assert.equal(
+    resolveSportHint({ incomingSportHint: "nfl", question: q }),
+    "nfl",
+  );
+});
+
+test("explicit Lakers ask can still pivot off NFL tab", () => {
+  assert.equal(
+    resolveSportHint({
+      incomingSportHint: "nfl",
+      question: "Lakers ML tonight?",
+    }),
+    "nba",
+  );
+});
+
+test("LeBron / 76ers remain NBA", () => {
+  assert.equal(inferSportFromQuestionText("LeBron points prop tonight"), "nba");
+  assert.equal(inferSportFromQuestionText("76ers vs Celtics spread"), "nba");
+});
 
 describe("isCasualMoneyBucksPhrase", () => {
   it("detects recreational money talk", () => {
@@ -84,8 +165,6 @@ describe("resolveSportHint WC thread lock", () => {
 });
 
 describe("resolveSportHint cross-tab WC guarantee (entry point must not matter)", () => {
-  // A genuine World Cup question must reach the WC pipeline regardless of which
-  // tab/sport hint the client sends.
   const wcQuestions = [
     "best bets for the Netherlands match?",
     "Who wins the World Cup final?",

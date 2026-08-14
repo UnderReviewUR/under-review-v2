@@ -49,6 +49,12 @@ function isNbaSeasonMonthEt(etNow) {
   return m >= 9 || m <= 5;
 }
 
+/** Jul–Aug preseason / ramp (0-index: Jun–Jul). */
+function isNflRampMonthsEt(etNow) {
+  const m = etNow.getMonth();
+  return m === 6 || m === 7;
+}
+
 /** Sep–Jan NFL priority window (0-index: Aug–Dec + Jan). */
 function isNflPriorityMonthsEt(etNow) {
   const m = etNow.getMonth();
@@ -735,6 +741,29 @@ export function buildDynamicHomeQuestions({
       sportHint: "nfl",
       sortRank: ranks.nflSolo,
       ...nflSeasonPrompt,
+    });
+  } else if (!nflUrTakeGated && isNflRampMonthsEt(etNow)) {
+    const nflRampPrompt = rotate(
+      [
+        {
+          text: "Tonight's slate — side, total, or pass?",
+          prompt:
+            "On tonight's NFL preseason slate: side, total, or pass? Don't talk like this is live if it's still pregame.",
+        },
+        {
+          text: "Any real number on this preseason board?",
+          prompt:
+            "Is there a real side on tonight's NFL preseason board, or is it pass until inactives?",
+        },
+      ],
+      7,
+    );
+    push({
+      id: "q6",
+      color: "#E11D48",
+      sportHint: "nfl",
+      sortRank: ranks.nflSolo,
+      ...nflRampPrompt,
     });
   } else if (!nflUrTakeGated && !golfActive) {
     const nflFuturePrompt = rotate(

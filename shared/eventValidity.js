@@ -6,6 +6,7 @@ import {
 import { getHomeSlateHorizonMs } from "./homeSlateHorizon.js";
 import { NBA_TIP_FEED_LAG_GRACE_MS } from "./liveSnapshotFilters.js";
 import { isNbaFinalsGame } from "./nbaFinalsUtils.js";
+import { etLocalTimeToUtcMs } from "./scrapeCadencePolicy.js";
 
 /** Finals off-nights can be 2–3 days between games — keep next leg on Home. */
 const NBA_FINALS_HOME_SLATE_HORIZON_MS = 7 * 24 * 60 * 60 * 1000;
@@ -74,17 +75,61 @@ function golfEventStartMsForValidity(event) {
 
 function golfEventEndMsForValidity(event, startMs) {
   if (Number.isFinite(event?.endTs) && event.endTs > 0) return event.endTs;
+
+  const endRaw = String(event?.endDate || "").trim();
+  const ymd = endRaw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1];
+  if (ymd) {
+    // Date-only end → end of that ET calendar day (Sunday finish), not midnight UTC.
+    const eod = etLocalTimeToUtcMs(ymd, 23, 59);
+    if (Number.isFinite(eod)) return eod;
+  }
+
   let endMs = parseEventStartMs(event?.endDate);
   if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
+    // PGA field events are generally Thu–Sun.
     endMs = startMs + 4 * 24 * 60 * 60 * 1000;
   }
   return endMs;
 }
 
+/**
+ * True while the tournament week is still open (start → end / Thu–Sun window).
+ * ESPN often marks end-of-round overnight as post/final — that is NOT tournament over.
+ */
+export function isGolfTournamentWeekStillOpen(event, nowMs = Date.now()) {
+  if (!event || typeof event !== "object") return false;
+  const startMs = golfEventStartMsForValidity(event);
+  const endMs = golfEventEndMsForValidity(event, startMs);
+  if (Number.isFinite(endMs) && nowMs <= endMs) return true;
+  if (!Number.isFinite(endMs) && Number.isFinite(startMs)) {
+    return nowMs <= startMs + 4 * 24 * 60 * 60 * 1000;
+  }
+  return false;
+}
+
+/**
+ * Coerce ESPN/BDL end-of-round `post`/`final` to in-play while the week is still open.
+ * @param {string} state
+ * @param {Record<string, unknown> | null | undefined} event
+ * @param {number} [nowMs]
+ */
+export function coerceGolfInWeekFeedState(state, event, nowMs = Date.now()) {
+  const s = String(state || "").trim().toLowerCase();
+  if ((s === "post" || s === "final") && isGolfTournamentWeekStillOpen(event, nowMs)) {
+    return "in";
+  }
+  return s;
+}
+
+/** Tournament truly over for Ask / board — not overnight between rounds. */
+export function isGolfTournamentFinal(event, nowMs = Date.now()) {
+  return classifyGolfEvent(event, nowMs) === EVENT_VALIDITY.FINISHED;
+}
+
 export function classifyGolfEvent(event, nowMs = Date.now()) {
   if (!event || typeof event !== "object") return EVENT_VALIDITY.UNKNOWN;
-  const state = normalizeGolfFeedStateToken(event);
-  if (state === "post" || state === "final") return EVENT_VALIDITY.FINISHED;
+  const rawState = normalizeGolfFeedStateToken(event);
+  const state = coerceGolfInWeekFeedState(rawState, event, nowMs);
 
   const hasIdentity =
     Boolean(String(event.id || "").trim()) &&
@@ -93,6 +138,8 @@ export function classifyGolfEvent(event, nowMs = Date.now()) {
 
   const startMs = golfEventStartMsForValidity(event);
   let endMs = golfEventEndMsForValidity(event, startMs);
+
+  if (state === "post" || state === "final") return EVENT_VALIDITY.FINISHED;
   if (hasEndedByEndDate(endMs, nowMs)) return EVENT_VALIDITY.FINISHED;
   if (state === "in" || state === "live") return EVENT_VALIDITY.ACTIVE;
   if (state === "pre") {

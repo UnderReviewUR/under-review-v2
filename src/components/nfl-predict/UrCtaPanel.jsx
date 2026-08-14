@@ -75,16 +75,16 @@ export default function UrCtaPanel({ dismissible = true }) {
       <div style={{ fontSize: 14, lineHeight: 1.55, color: "var(--nfl-predict-text)", whiteSpace: "pre-line" }}>
         {`${countdownLine}
 
-While you're locking in your predictions, the sharpest bettors are already building their edge.
+Lock your 2026 W/L board now — UR Take is live on the preseason slate.
 
-Under Review is live right now — NBA playoffs, MLB, tennis, F1, and golf. Real analysis. Real angles. No noise.
+Under Review is live right now for NFL, World Cup, Golf, and F1. Real analysis. Real angles. No noise.
 
-When September hits, we'll have every NFL week covered. Props, spreads, angles, injury impact, live takes mid-game.
+Week 1 still adds weekly props and in-season volume. Until then, Ask the board: side, total, or pass.
 
-The people subbing now are the ones ready when it matters.`}
+The people building boards now are the ones ready when it matters.`}
       </div>
       <a
-        href="https://under-review.app"
+        href="https://www.under-review.app"
         target="_blank"
         rel="noreferrer"
         style={{

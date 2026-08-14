@@ -1629,6 +1629,29 @@ ${themeCss}
           : scr
         : null;
 
+  // NFL Ask is live on Home / NFL tab / draft cards whenever the sport is on.
+  const earlyTextSport = inferSportFromQuestionText(text, matchup || null, !!imgToSend);
+  const earlyLooksNfl =
+    explicitHint === "nfl" ||
+    screenSport === "nfl" ||
+    detected === "nfl" ||
+    earlyTextSport === "nfl" ||
+    Boolean(detectNflTeamHint(text));
+  if (nflUrTakeGated && earlyLooksNfl) {
+    urTakeInFlightRef.current = false;
+    setIsAsking(false);
+    if (screen !== "nfl" || tab !== "nfl") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("nfl");
+    setScreen("nfl");
+    setNflUrView("take");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+    return;
+  }
+
   let priorSnapshot = [];
   /** Filled synchronously inside the `setMsgs` updater (same turn as user + loading rows). */
   let effectiveSportHint = null;
@@ -1731,6 +1754,23 @@ ${themeCss}
       },
     ];
   });
+
+  // Safety net: history/thread routing can still resolve NFL after early heuristics miss.
+  if (nflUrTakeGated && effectiveSportHint === "nfl") {
+    setMsgs(priorSnapshot);
+    urTakeInFlightRef.current = false;
+    setIsAsking(false);
+    if (screen !== "nfl" || tab !== "nfl") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("nfl");
+    setScreen("nfl");
+    setNflUrView("take");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+    return;
+  }
 
   clearImage();
 
@@ -2481,6 +2521,14 @@ ${themeCss}
       ...(data.estimatedEdge && typeof data.estimatedEdge === "object"
         ? { estimatedEdge: data.estimatedEdge }
         : {}),
+      ...(data.nflMatchupThesis
+        ? {
+            nflMatchupThesis: String(data.nflMatchupThesis).trim(),
+            ...(data.nflMatchup && typeof data.nflMatchup === "object"
+              ? { nflMatchup: data.nflMatchup }
+              : {}),
+          }
+        : {}),
       followUps: Array.isArray(data.followUps) ? data.followUps : undefined,
       ...(data.nbaRelevance && typeof data.nbaRelevance === "object"
         ? { nbaRelevance: data.nbaRelevance }
@@ -2664,6 +2712,7 @@ ${themeCss}
   getTakeAuthHeaders,
   screen,
   nbaUrTakeFocusGameKey,
+  nflUrTakeGated,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -3876,6 +3925,17 @@ ${themeCss}
             "Which team has the most interesting draft situation?",
         ).trim();
         if (!prompt || isAsking) return;
+        // Draft home cards go to NFL Ask when it is on; otherwise the Predictor.
+        if (nflUrTakeGated) {
+          if (screen !== "nfl" || tab !== "nfl") {
+            setNavHistory((h) => [...h, { screen, tab }]);
+          }
+          setTab("nfl");
+          setScreen("nfl");
+          setNflUrView("predict");
+          syncNflSubViewQuery("predict");
+          return;
+        }
         if (screen !== "ask" || tab !== "ask") {
           setNavHistory((h) => [...h, { screen, tab }]);
         }
@@ -3960,7 +4020,7 @@ ${themeCss}
       setScreen("matchup");
       setTab(m?.league?.includes("NFL") ? "nfl" : "tennis");
     },
-    [screen, tab, askUrTake, isAsking],
+    [screen, tab, askUrTake, isAsking, nflUrTakeGated, syncNflSubViewQuery],
   );
 
   useEffect(() => {
@@ -4570,7 +4630,15 @@ ${themeCss}
   const headerPill = (
     <>
       {screen==="tennis"&&<span className="pill-tennis">{context?.currentTournament?.name?context.currentTournament.name.toUpperCase():"TENNIS"}</span>}
-      {screen==="nfl"&&<span className="pill-nfl">{nflSeasonMode?"NFL IN-SEASON":"NFL FUTURES"}</span>}
+      {screen==="nfl"&&(
+        <span className="pill-nfl">
+          {nflUrView === "predict"
+            ? "2026 PREDICTOR"
+            : nflSeasonMode
+              ? "NFL IN-SEASON"
+              : "NFL PRESEASON"}
+        </span>
+      )}
       {screen==="nflplayer"&&nflPd&&<span className="pill-nfl">{selectedNflPlayer?.toUpperCase()}</span>}
       {screen==="f1"&&<span className="pill-f1">F1 2026</span>}
       {screen==="nba"&&<span className="pill-nba">NBA PROPS</span>}
@@ -4891,6 +4959,9 @@ ${themeCss}
             lastLeanRevision={lastLeanRevision}
             onOpenUpgrade={() => setShowUpgradeModal(true)}
             isNflSlateActive={isNflSlateActive}
+            nflGames={nflGames}
+            nflBoardAsOf={nflBoard?.asOf || null}
+            nflUrTakeGated={nflUrTakeGated}
             tickerNbaGames={tickerNbaGames}
             getSeriesLabel={getSeriesLabel}
             tennisTickerMatches={tennisTickerMatches}
@@ -4959,7 +5030,6 @@ ${themeCss}
         {/* ══ NFL ══ */}
         {screen==="nfl"&&(
           <>
-            {(!nflUrTakeGated || nflUrView === "predict") ? (
             <div
               className="nfl-ur-subtabs"
               style={{
@@ -5013,7 +5083,6 @@ ${themeCss}
                 2026 Predictor
               </button>
             </div>
-            ) : null}
             {nflUrView === "take" ? (
               nflUrTakeGated ? (
                 <NflComingSoonScreen
@@ -5027,6 +5096,8 @@ ${themeCss}
                   nflPropLines={nflPropLines}
                   nflBoardLoading={nflBoardLoading}
                   nflBoardAsOf={nflBoard?.asOf || null}
+                  isUnlimited={isUnlimited}
+                  onOpenUpgrade={() => setShowUpgradeModal(true)}
                 />
               ) : (
                 <NflScreen
@@ -6652,24 +6723,14 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
           </div>
         )}
 
-        <NbaChampionsBanner />
+        <NbaChampionsBanner enabled={screen === "home" || screen === "nba"} />
 
-        {/* ══ NAV ══ */}
-        <nav className="bottom-nav bottom-nav--six" aria-label="Primary">
+        {/* ══ NAV ══ Aug cadence: Home · NFL · Golf · F1 · PRO (WC off tab; NBA when in season) */}
+        <nav className="bottom-nav bottom-nav--five" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
-          <button
-            className={`nav-btn nav-btn--wc-spotlight${tab === "worldcup" ? " wc-active" : ""}`}
-            onClick={goWorldCup}
-            aria-label="World Cup"
-          >
-            <span className="nav-btn__stack">
-              <span className="nav-btn__stack-line">World</span>
-              <span className="nav-btn__stack-line">Cup</span>
-            </span>
-          </button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
-          <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1} aria-label="Formula 1"><span>F1</span></button>
           <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
+          <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1} aria-label="Formula 1"><span>F1</span></button>
           <button
             className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
             onClick={goPro}

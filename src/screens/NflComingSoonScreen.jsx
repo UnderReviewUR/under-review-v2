@@ -1,6 +1,7 @@
 /**
  * Off-season NFL UR Take gate — live board stays visible; Predictor remains the escape hatch.
  */
+import NflSlateTakesCard from "../components/NflSlateTakesCard.jsx";
 import { mapNflBoardPropLinesToGuide } from "../lib/mapNflBoardPropLines.js";
 import NflGameBoardSection from "../features/nfl/NflGameBoardSection.jsx";
 import NflPropGuideSection from "../features/nfl/NflPropGuideSection.jsx";
@@ -13,6 +14,8 @@ export default function NflComingSoonScreen({
   nflPropLines = [],
   nflBoardLoading = false,
   nflBoardAsOf = null,
+  isUnlimited = false,
+  onOpenUpgrade = null,
 }) {
   const liveGuide = mapNflBoardPropLinesToGuide(nflPropLines, 16);
 
@@ -25,6 +28,13 @@ export default function NflComingSoonScreen({
         margin: "0 auto",
       }}
     >
+      <NflSlateTakesCard
+        games={nflGames}
+        asOf={nflBoardAsOf}
+        isUnlimited={isUnlimited}
+        askLive={false}
+        onOpenUpgrade={onOpenUpgrade}
+      />
       <NflGameBoardSection
         games={nflGames}
         loading={nflBoardLoading}
@@ -77,8 +87,9 @@ export default function NflComingSoonScreen({
             color: "var(--soft)",
           }}
         >
-          Live game lines and props are up above. Weekly UR Take angles unlock at kickoff — until
-          then, use the 2026 Predictor for season W/L boards, or jump to World Cup coverage.
+          Slate takes and live lines are up above. Weekly UR Take unlocks with Week 1 of the
+          regular season. Until then, use the 2026 Predictor for season W/L boards, or jump to World
+          Cup coverage.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button

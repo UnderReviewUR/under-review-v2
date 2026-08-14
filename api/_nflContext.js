@@ -12,6 +12,24 @@ import {
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
 import { formatPropContextForPlayers } from "./_nflPropLineContext.js";
+import { buildNflClayPromptSlice } from "./_nflClayProjections.js";
+import { buildNflAskBriefcaseHealth } from "./_nflAskBriefcase.js";
+import { buildNflMatchupCard } from "./_nflMatchupCard.js";
+import {
+  fetchNflEspnInjurySnapshot,
+  formatNflAvailabilityPromptBlock,
+  pickNflAvailabilityForQuestion,
+} from "./_nflEspnInjuries.js";
+import { fetchNflEspnInactivesSnapshot } from "./_nflEspnInactives.js";
+import { formatNflInactivesPromptBlock } from "../shared/nflEspnInactives.js";
+import { NFL_STADIUM_META } from "./_nflStadiumMeta.js";
+import { shouldSkipNflLiveBoardForAsk } from "./_nflAskBoardPolicy.js";
+import { formatNflGameStateLine } from "../shared/nflGameState.js";
+import { buildNflLiveBoard } from "./_nflBoard.js";
+import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js";
+import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
+
+export { NFL_STADIUM_META };
 
 /** Hard ceiling for `promptContext` text sent with UR Take (Anthropic payload budget). */
 export const NFL_PROMPT_CONTEXT_BUDGET_CHARS = 20000;
@@ -43,44 +61,6 @@ export function extractNflPlayerNamesFromPromptText(promptText) {
 }
 
 /** BallDontLie is not used for NFL game-by-game logs in this stack — no NBA-style recentGames sort path here. */
-
-// WEATHER RULE: Always use home team's stadium coords.
-// Never use away team. Never use neutral site.
-// If domed === true, skip weather evaluation entirely regardless of conditions.
-export const NFL_STADIUM_META = {
-  ARI: { lat: 33.5277, lon: -112.2626, domed: true, stadium: "State Farm Stadium" },
-  ATL: { lat: 33.7553, lon: -84.4006, domed: true, stadium: "Mercedes-Benz Stadium" },
-  BAL: { lat: 39.278, lon: -76.6227, domed: false, stadium: "M&T Bank Stadium" },
-  BUF: { lat: 42.7738, lon: -78.787, domed: false, stadium: "Highmark Stadium" },
-  CAR: { lat: 35.2258, lon: -80.8528, domed: false, stadium: "Bank of America Stadium" },
-  CHI: { lat: 41.8623, lon: -87.6167, domed: false, stadium: "Soldier Field" },
-  CIN: { lat: 39.0955, lon: -84.516, domed: false, stadium: "Paycor Stadium" },
-  CLE: { lat: 41.5061, lon: -81.6995, domed: false, stadium: "Cleveland Browns Stadium" },
-  DAL: { lat: 32.748, lon: -97.093, domed: true, stadium: "AT&T Stadium" },
-  DEN: { lat: 39.7439, lon: -105.0201, domed: false, stadium: "Empower Field" },
-  DET: { lat: 42.34, lon: -83.0456, domed: true, stadium: "Ford Field" },
-  GB: { lat: 44.5013, lon: -88.0622, domed: false, stadium: "Lambeau Field" },
-  HOU: { lat: 29.6847, lon: -95.4107, domed: true, stadium: "NRG Stadium" },
-  IND: { lat: 39.7601, lon: -86.1639, domed: true, stadium: "Lucas Oil Stadium" },
-  JAX: { lat: 30.3239, lon: -81.6373, domed: false, stadium: "EverBank Stadium" },
-  KC: { lat: 39.0489, lon: -94.4839, domed: false, stadium: "GEHA Field" },
-  LAC: { lat: 33.9535, lon: -118.3392, domed: true, stadium: "SoFi Stadium" },
-  LAR: { lat: 33.9535, lon: -118.3392, domed: true, stadium: "SoFi Stadium" },
-  LV: { lat: 36.0909, lon: -115.1833, domed: true, stadium: "Allegiant Stadium" },
-  MIA: { lat: 25.958, lon: -80.2389, domed: false, stadium: "Hard Rock Stadium" },
-  MIN: { lat: 44.9737, lon: -93.2577, domed: true, stadium: "U.S. Bank Stadium" },
-  NE: { lat: 42.0909, lon: -71.2643, domed: false, stadium: "Gillette Stadium" },
-  NO: { lat: 29.9511, lon: -90.0812, domed: true, stadium: "Caesars Superdome" },
-  NYG: { lat: 40.8135, lon: -74.0745, domed: false, stadium: "MetLife Stadium" },
-  NYJ: { lat: 40.8135, lon: -74.0745, domed: false, stadium: "MetLife Stadium" },
-  PHI: { lat: 39.9008, lon: -75.1675, domed: false, stadium: "Lincoln Financial Field" },
-  PIT: { lat: 40.4468, lon: -80.0158, domed: false, stadium: "Acrisure Stadium" },
-  SEA: { lat: 47.5952, lon: -122.3316, domed: false, stadium: "Lumen Field" },
-  SF: { lat: 37.4033, lon: -121.9694, domed: false, stadium: "Levi's Stadium" },
-  TB: { lat: 27.9759, lon: -82.5033, domed: false, stadium: "Raymond James Stadium" },
-  TEN: { lat: 36.1665, lon: -86.7713, domed: false, stadium: "Nissan Stadium" },
-  WAS: { lat: 38.9076, lon: -76.8645, domed: false, stadium: "Northwest Stadium" },
-};
 
 /**
  * @param {string} abbr
@@ -164,17 +144,35 @@ function filterObjectEntriesByTeam(entries, scope) {
   return entries.filter(([, p]) => scopeMatchesTeam(scope, p?.team));
 }
 
-function filterDefensesMap(scope) {
-  if (!scope || scope.size === 0) return defenses;
+function filterDefensesMap(scope, defenseMap = defenses) {
+  const source = defenseMap && typeof defenseMap === "object" ? defenseMap : defenses;
+  if (!scope || scope.size === 0) return source;
   const out = {};
-  for (const abbr of Object.keys(defenses)) {
+  for (const abbr of Object.keys(source)) {
     let hit = false;
     for (const s of scope) {
       if (nflAbbrAliasKeys(s).includes(abbr)) hit = true;
     }
-    if (hit) out[abbr] = defenses[abbr];
+    if (hit) out[abbr] = source[abbr];
   }
   return out;
+}
+
+/**
+ * @param {Array<Record<string, unknown>>} primary
+ * @param {Array<Record<string, unknown>>} secondary
+ */
+function mergeInjuryRows(primary, secondary) {
+  /** @type {Map<string, Record<string, unknown>>} */
+  const map = new Map();
+  for (const row of [...(secondary || []), ...(primary || [])]) {
+    const key = String(row.player || row.name || "")
+      .toLowerCase()
+      .trim();
+    if (!key) continue;
+    map.set(key, row);
+  }
+  return [...map.values()];
 }
 
 function filterDepthByScope(depthObj, scope) {
@@ -255,9 +253,10 @@ function mapRbToUi(name, player) {
 }
 
 function mapQbToUi(name, player) {
-  const stats = player?.stats2024 || {};
+  const stats = player?.stats2025 || player?.stats2024 || {};
   const games = Math.max(1, toNumber(stats.games, 17));
   const passYdsPg = Math.round((toNumber(stats.yds) / games) * 10) / 10;
+  const seasonLabel = player?.stats2025 ? "2025" : "2024 prior";
 
   return [
     name,
@@ -277,10 +276,10 @@ function mapQbToUi(name, player) {
         recYds: {
           floor: Math.max(140, Math.round(passYdsPg - 35)),
           ceil: Math.round(passYdsPg + 45),
-          lean: "Use matchup + team script context for pass-yardage lean.",
+          lean: `Use ${seasonLabel} + 2026 market pace + matchup for pass-yardage lean.`,
         },
         td: {
-          lean: `${toNumber(stats.td)} passing TD baseline sample.`,
+          lean: `${toNumber(stats.td)} passing TD (${seasonLabel}) — cross-check season O/U when present.`,
         },
       },
       situation: player?.situation2025 || "QB context unavailable.",
@@ -290,20 +289,53 @@ function mapQbToUi(name, player) {
   ];
 }
 
+function isUnconfirmedStarter(player) {
+  const blob = `${player?.tier || ""} ${player?.situation || ""}`;
+  return /UNCONFIRMED|placeholder|unsettled/i.test(blob);
+}
+
 function buildPromptContext(uiPlayers) {
   const lines = Object.entries(uiPlayers)
     .map(([name, p]) => {
       const stats = p.rec2025 || {};
       const tdLean = p?.props?.td?.lean || "—";
       const yLean = p?.props?.recYds?.lean || p?.props?.rushYds?.lean || "—";
-      const core = `${name} | ${p.pos} | ${p.team} | ${p.tier}`;
+      const unsettled = isUnconfirmedStarter(p);
+      const core = unsettled
+        ? `${name} | ${p.pos} | ${p.team} | UNCONFIRMED — not a locked starter`
+        : `${name} | ${p.pos} | ${p.team} | ${p.tier}`;
       const statLine = `  Stats: ${p.ydsPg} yds/g, ${stats.td ?? 0} TD, ${stats.g ?? 0}g`;
       const leanLine = `  Lean: ${yLean} | TD: ${tdLean}`;
-      return [core, statLine, leanLine].join("\n");
+      const sit = unsettled && p.situation
+        ? `  Situation: ${String(p.situation).slice(0, 220)}`
+        : "";
+      return [core, statLine, leanLine, sit].filter(Boolean).join("\n");
     })
     .join("\n\n");
 
   return lines;
+}
+
+/**
+ * Compact live board so "tonight's slate" asks cannot claim games are missing.
+ * @param {Array<Record<string, unknown>>} games
+ */
+function formatLiveSlatePrompt(games) {
+  if (!Array.isArray(games) || !games.length) return "";
+  const lines = games.slice(0, 16).map((g) => {
+    const spread = g?.spread?.displayLine ? ` · ${g.spread.displayLine}` : "";
+    const tot = g?.total?.line != null ? ` · tot ${g.total.line}` : "";
+    const state = formatNflGameStateLine(g);
+    return `${g.awayAbbr || "?"} @ ${g.homeAbbr || "?"} · ${state}${spread}${tot}`;
+  });
+  const kind = games[0]?.seasonType || games[0]?.season_type || "unk";
+  return (
+    `\n\nNFL SLATE (${games.length} games, ${kind}) — each row has GAME STATE (pregame / LIVE / final).\n` +
+    `Write to that state. Pregame = who's in, the number. LIVE = still on it / what changed. Final = grade, don't talk like kickoff is ahead.\n` +
+    `Do not use live language on a pregame row. Do not use "who's dressing" as if kickoff hasn't happened when the row says LIVE.\n` +
+    `Posted favorite/total are authoritative. If you fade a favorite, keep their number (CIN -6.5 too big → DET +6.5). Never invert a posted line into the other team as favorite.\n` +
+    lines.join("\n")
+  );
 }
 
 function formatRbDatabasePrompt(rbMap) {
@@ -334,21 +366,27 @@ function formatWrTeDatabasePrompt(wrMap) {
   );
 }
 
-function formatDefensePrompt(defensesMap) {
+/**
+ * @param {Record<string, Record<string, unknown>>} defensesMap
+ * @param {{ label?: string }} [opts]
+ */
+function formatDefensePrompt(defensesMap, opts = {}) {
+  const label = opts.label || "prior season static";
   const lines = Object.entries(defensesMap || {}).map(
     ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | Pass rank ${d.pass.rank} | Rush rank ${d.rush.rank} | ${d.propImpact.qb}`,
+      `${abbr} (${d.tier}): ${d.overall?.ptsAllowed ?? "?"} pts/g | Pass rank ${d.pass?.rank ?? "?"} | Rush rank ${d.rush?.rank ?? "?"} | ${d.propImpact?.qb || ""}`,
   );
-  return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams):\n" + lines.join("\n");
+  return `\n\nNFL DEFENSE TENDENCIES (${label}):\n` + lines.join("\n");
 }
 
 /** Short defense lines — league-wide mode without long propImpact strings (token budget). */
-function formatDefensePromptCompact(defensesMap) {
+function formatDefensePromptCompact(defensesMap, opts = {}) {
+  const label = opts.label || "prior season static — compact";
   const lines = Object.entries(defensesMap || {}).map(
     ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall.ptsAllowed} pts/g | pass rank ${d.pass.rank} | rush rank ${d.rush.rank}`,
+      `${abbr} (${d.tier}): ${d.overall?.ptsAllowed ?? "?"} pts/g | pass rank ${d.pass?.rank ?? "?"} | rush rank ${d.rush?.rank ?? "?"}`,
   );
-  return "\n\nNFL DEFENSE TENDENCIES (2025 season, all 32 teams — compact):\n" + lines.join("\n");
+  return `\n\nNFL DEFENSE TENDENCIES (${label}):\n` + lines.join("\n");
 }
 
 /**
@@ -404,19 +442,114 @@ export async function buildCanonicalNflContext(options = {}) {
       "\n\nDepth charts (Ourlads): omitted in league mode — ask with a team or matchup for QB1–QB3.";
   }
 
+  const unconfirmedQbs = qbEntries.filter(([, p]) => isUnconfirmedStarter(p));
+  if (unconfirmedQbs.length) {
+    promptContext +=
+      "\n\nQB STARTER HARD STOP:\n" +
+      unconfirmedQbs
+        .map(
+          ([name, p]) =>
+            `${p.team} passer is UNSETTLED. ${name} is a placeholder — do not treat them as locked QB1 or build script around them.`,
+        )
+        .join("\n");
+  }
+
+  const skipLiveBoard = shouldSkipNflLiveBoardForAsk(question);
+  /** @type {Record<string, unknown>|null} */
+  let liveBoard = null;
+  if (!skipLiveBoard) {
+    try {
+      liveBoard = await buildNflLiveBoard({
+        includeProps: true,
+        maxPropGames: scoped ? 6 : 6,
+      });
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          event: "nfl_context_board_failed",
+          error: err?.message || String(err),
+        }),
+      );
+    }
+  }
+
+  const rosterData = await getDurableJson("nfl_espn_roster");
+  const espnInjSnap = await fetchNflEspnInjurySnapshot();
+  let espnInactives = { games: [], fetchedAt: Date.now(), asOf: Date.now(), source: "skip", postedCount: 0 };
+  if (!skipLiveBoard) {
+    try {
+      espnInactives = await fetchNflEspnInactivesSnapshot({
+        maxGames: scoped ? 4 : 6,
+        scopeAbbrs: scoped ? scope : null,
+        liveBoardGames: liveBoard?.games || [],
+      });
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          event: "nfl_context_inactives_failed",
+          error: err?.message || String(err),
+        }),
+      );
+    }
+  }
+
+  /** @type {Array<Record<string, unknown>>} */
+  const espnInjuryRows = [];
+  for (const row of espnInjSnap.rows || []) {
+    const status = String(row.status || "");
+    const part = String(row.participation || "unknown");
+    if (/^active$/i.test(status) && part === "unknown") continue;
+    if (scoped && row.team && !scopeMatchesTeam(scope, row.team)) continue;
+    espnInjuryRows.push(row);
+  }
+  if (rosterData?.players?.length) {
+    for (const p of rosterData.players) {
+      if (!p?.injuryStatus || p.injuryStatus === "Active" || p.structuralImpact === false) continue;
+      if (scoped && !scopeMatchesTeam(scope, p.team)) continue;
+      espnInjuryRows.push({
+        player: p.name,
+        team: p.team,
+        position: p.position,
+        status: p.injuryStatus,
+        source: "espn_roster",
+      });
+    }
+  }
+
+  const briefcaseHealth = await buildNflAskBriefcaseHealth({
+    question,
+    depth: depthFiltered || depthData?.depth || null,
+    espnRosterPlayers: rosterData?.players || [],
+    injuries: espnInjuryRows,
+    uiPlayers,
+    includeLiveBoard: false,
+    board: liveBoard,
+    maxPropGames: scoped ? 6 : 6,
+  });
+
+  const liveDefense = briefcaseHealth.briefcase?.league?.teamDefense || {};
+  const defenseMerged = mergeNflDefenseMaps(liveDefense, defenses);
+  const defenseIsLive = Object.keys(liveDefense).length >= 20;
+  const defenseLabel = defenseIsLive
+    ? "live season ranks (opp yards/pts allowed)"
+    : "2025 season static prior";
+
   if (scoped) {
     const rbMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(RBs || {}), scope));
     const wrMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(WRsAndTEs || {}), scope));
     promptContext += formatRbDatabasePrompt(rbMap);
     promptContext += formatWrTeDatabasePrompt(wrMap);
-    promptContext += formatDefensePrompt(filterDefensesMap(scope));
+    promptContext += formatDefensePrompt(filterDefensesMap(scope, defenseMerged), {
+      label: defenseLabel,
+    });
   } else {
     promptContext +=
       "\n\nLeague mode: RB/WR duplicate rows omitted — ask with a team/matchup for full positional + coaching slices.";
-    promptContext += formatDefensePromptCompact(defenses);
+    promptContext += formatDefensePromptCompact(defenseMerged, {
+      label: `${defenseLabel} — compact`,
+    });
   }
 
-  const rosterData = await getDurableJson("nfl_espn_roster");
   if (!leagueCompact && rosterData?.coaches && typeof rosterData.coaches === "object") {
     let coachEntries = Object.entries(rosterData.coaches);
     if (scoped) {
@@ -435,40 +568,157 @@ export async function buildCanonicalNflContext(options = {}) {
     }
   }
 
-  if (rosterData?.players?.length) {
-    let pool = rosterData.players.filter(
-      (p) =>
-        p.injuryStatus &&
-        p.injuryStatus !== "Active" &&
-        p.structuralImpact !== false,
-    );
-    if (scoped) {
-      pool = pool.filter((p) => scopeMatchesTeam(scope, p.team));
-    }
+  const goatInjuries = Array.isArray(briefcaseHealth.briefcase?.league?.injuries)
+    ? briefcaseHealth.briefcase.league.injuries
+    : [];
+  /** Prefer live injury pocket when filled; else ESPN structural list. */
+  const injuryRows = goatInjuries.length
+    ? mergeInjuryRows(goatInjuries, espnInjuryRows)
+    : espnInjuryRows;
+
+  if (injuryRows.length) {
     const injCap = leagueCompact ? 12 : 40;
-    const injured = pool.map((p) => `${p.name} (${p.team}, ${p.position}): ${p.injuryStatus}`).slice(0, injCap);
+    const injured = injuryRows
+      .filter((p) => !/^active$/i.test(String(p.status || "")))
+      .map((p) => `${p.player || p.name} (${p.team || "?"}, ${p.position || "?"}): ${p.status || "?"}`)
+      .slice(0, injCap);
     if (injured.length) {
-      promptContext += "\n\nNFL INJURY REPORT (ESPN, updated every 6hrs):\n" + injured.join("\n");
+      promptContext += "\n\nNFL INJURY REPORT (updated):\n" + injured.join("\n");
     }
   }
 
-  // ── PROP LINE CONTEXT (before char budget trim) ─────────────────
+  const homeFromMatchup = (() => {
+    const raw = matchupContext?.raw || {};
+    const ha = String(raw.homeTeam?.abbr || raw.home_abbr || "").toUpperCase();
+    return /^[A-Z]{2,4}$/.test(ha) ? ha : null;
+  })();
+  const matchupCard = buildNflMatchupCard({
+    question,
+    scopeTeams: scope,
+    homeAbbr: homeFromMatchup,
+    games: liveBoard?.games || briefcaseHealth.briefcase?.slate?.games || [],
+    propLines: liveBoard?.propLines || briefcaseHealth.briefcase?.slate?.playerProps || [],
+    injuries: injuryRows,
+    depth: depthFiltered || depthData?.depth || null,
+    injuryMeta: {
+      fetchedAt: rosterData?.fetchedAt ?? null,
+      asOf: liveBoard?.asOf || briefcaseHealth.briefcase?.asOf || null,
+    },
+    defenseByTeam: defenseMerged,
+    recentStats: briefcaseHealth.briefcase?.players?.recentStats || [],
+  });
+  const cardOnly =
+    String(matchupCard.cardBlock || "").trim() ||
+    (matchupCard.promptBlock && !String(matchupCard.promptBlock).includes("NFL ASK DISCIPLINE")
+      ? String(matchupCard.promptBlock).trim()
+      : "");
+  if (cardOnly) {
+    promptContext += `\n\n${cardOnly}`;
+  }
+
+  // ── PROP LINE CONTEXT (season O/Us — before budget trim) ────────
   const propPlayerNames = extractNflPlayerNamesFromPromptText(promptContext);
   const propSlice = formatPropContextForPlayers(propPlayerNames, 4);
   if (propSlice) {
     promptContext += propSlice;
   }
 
-  if (promptContext.length > NFL_PROMPT_CONTEXT_BUDGET_CHARS) {
+  // ── CLAY VOLUME PRIORS (usage baseline vs Vegas — not fantasy ranks) ──
+  try {
+    const clay = await buildNflClayPromptSlice(question, propPlayerNames);
+    if (clay.block) promptContext += clay.block;
+  } catch (err) {
+    console.warn(
+      JSON.stringify({
+        event: "nfl_context_clay_failed",
+        error: err?.message || String(err),
+      }),
+    );
+  }
+
+  if (briefcaseHealth.promptBlock) {
+    promptContext += `\n\n${briefcaseHealth.promptBlock}`;
+  }
+  if (skipLiveBoard) {
+    promptContext +=
+      "\n\nNFL BOARD SKIP: draft/futures/predictor ask — live props not hydrated (latency). Use structural + season context.";
+  }
+
+  // Discipline always last so trim cannot drop anti-blur / NEXT.
+  const disciplineProtect =
+    String(matchupCard.disciplineBlock || "").trim() ||
+    buildNflAskDisciplinePromptBlock({
+      question,
+      marketId: matchupCard.marketId || undefined,
+      phase: matchupCard.phase || undefined,
+      hasLiveLine: Boolean(liveBoard?.propLines?.length || liveBoard?.games?.length),
+      injuryFlag: injuryRows.length > 0 || Boolean(matchupCard.injuryLine),
+      ambiguousPlayer: matchupCard.ambiguous
+        ? (matchupCard.candidates || []).join(" / ")
+        : null,
+    });
+  const slateTail =
+    Array.isArray(liveBoard?.games) && liveBoard.games.length
+      ? formatLiveSlatePrompt(liveBoard.games)
+      : "";
+  const extraNames = (matchupCard.namedIdentities || []).map((p) => p.name);
+  let availHits = pickNflAvailabilityForQuestion(espnInjSnap.rows || [], question, extraNames);
+  if (
+    !availHits.length &&
+    /\b(dress(?:ing)?|sit(?:ting)?|starters?|inactive|one series|yanked|preseason)\b/i.test(question)
+  ) {
+    availHits = (espnInjSnap.rows || [])
+      .filter((r) => {
+        const part = String(r.participation || "");
+        if (part !== "play" && part !== "sit" && part !== "limited") return false;
+        if (!scoped || !r.team) return true;
+        return scopeMatchesTeam(scope, r.team);
+      })
+      .slice(0, 10);
+  }
+  const availTail = `\n\n${formatNflAvailabilityPromptBlock(availHits, {
+    asOf: espnInjSnap.fetchedAt,
+    source: espnInjSnap.source,
+  })}`;
+  const inactivesTail = `\n\n${formatNflInactivesPromptBlock(espnInactives, {
+    scopeAbbrs: scoped ? scope : [],
+  })}`;
+  const disciplineTail = `${slateTail}${availTail}${inactivesTail}\n\n${disciplineProtect}`;
+
+  if (promptContext.length + disciplineTail.length > NFL_PROMPT_CONTEXT_BUDGET_CHARS) {
     const suffix =
       "\n\n[NFL context truncated to token budget — narrow the question to a team or matchup.]";
-    const room = Math.max(0, NFL_PROMPT_CONTEXT_BUDGET_CHARS - suffix.length);
-    promptContext = `${promptContext.slice(0, room)}${suffix}`;
+    const room = Math.max(
+      0,
+      NFL_PROMPT_CONTEXT_BUDGET_CHARS - suffix.length - disciplineTail.length,
+    );
+    const body =
+      promptContext.length > room ? `${promptContext.slice(0, room)}` : promptContext;
+    promptContext = `${body}${suffix}${disciplineTail}`;
+  } else {
+    promptContext += disciplineTail;
   }
 
   return {
     uiPlayers,
     promptContext,
+    briefcase: {
+      grade: briefcaseHealth.interaction?.grade || null,
+      smooth: briefcaseHealth.interaction?.smooth ?? null,
+      marketId: briefcaseHealth.interaction?.detected?.marketId || null,
+      detected: briefcaseHealth.interaction?.detected || null,
+      propMatch: briefcaseHealth.interaction?.propMatch || null,
+      forcePass: Boolean(briefcaseHealth.interaction?.forcePass),
+      eliteReady: briefcaseHealth.interaction?.eliteReady ?? null,
+      requiredPct: briefcaseHealth.interaction?.requiredPct ?? null,
+      propCatalog: briefcaseHealth.propCatalog || null,
+      promptBlock: briefcaseHealth.promptBlock || "",
+    },
+    propLines: Array.isArray(liveBoard?.propLines)
+      ? liveBoard.propLines
+      : Array.isArray(briefcaseHealth.briefcase?.slate?.playerProps)
+        ? briefcaseHealth.briefcase.slate.playerProps
+        : [],
     draft: {
       ...draftMeta,
       bundleYear: draftBundle.year,
@@ -486,18 +736,64 @@ export async function buildCanonicalNflContext(options = {}) {
       nflDraftPhase: draftMeta.phase,
       nflPromptContextChars: promptContext.length,
       nflPromptScopeMode: scoped ? `scoped:${[...scope].sort().join("+")}` : "league_compact",
+      briefcaseGrade: briefcaseHealth.interaction?.grade || null,
+      briefcaseSmooth: briefcaseHealth.interaction?.smooth ?? null,
+      briefcaseMarketId: briefcaseHealth.interaction?.detected?.marketId || null,
+      matchupPlayer: matchupCard.player?.name || null,
+      matchupOpponent: matchupCard.opponent || null,
+      matchupThesis: matchupCard.thesis || null,
+      skipLiveBoard,
+    },
+    games: Array.isArray(liveBoard?.games) ? liveBoard.games : [],
+    inactives: {
+      postedCount: espnInactives.postedCount ?? (espnInactives.games || []).filter((g) => g.posted).length,
+      asOf: espnInactives.asOf || espnInactives.fetchedAt || null,
+      source: espnInactives.source || null,
+      games: Array.isArray(espnInactives.games) ? espnInactives.games : [],
+    },
+    matchup: {
+      thesis: matchupCard.thesis || "",
+      player: matchupCard.player || null,
+      opponent: matchupCard.opponent || null,
+      homeAbbr: matchupCard.homeAbbr || null,
+      defenseTier: matchupCard.defenseTier || null,
+      liveLine: matchupCard.liveLine
+        ? {
+            prop: matchupCard.liveLine.prop || matchupCard.liveLine.propRaw || null,
+            line: matchupCard.liveLine.line ?? null,
+            book: matchupCard.liveLine.book || null,
+          }
+        : null,
+      injuryFlag: Boolean(matchupCard.injuryLine),
+      promptBlock: matchupCard.promptBlock || "",
+      namedIdentities: matchupCard.namedIdentities || [],
     },
     dataFreshness: {
-      qbDataSeason: "2024",
+      qbDataSeason: "2024_prior_plus_2026_market_pace",
       rbDataSeason: "2025",
       wrTeDataSeason: "2025",
       lastVerified: "2026-03-30",
       isCurrentSeason: false,
       warning:
-        "QB baseline stats are 2024. Roster situations reflect March 2026 Ourlads. 2026 in-season data not yet integrated.",
+        "QB prior box scores are 2024; matchup cards also use May 2026 season O/U market pace. RB/WR baselines are 2025. Roster/depth from Ourlads + ESPN injuries.",
+      briefcase: {
+        grade: briefcaseHealth.interaction?.grade || null,
+        smooth: briefcaseHealth.interaction?.smooth ?? null,
+        marketId: briefcaseHealth.interaction?.detected?.marketId || null,
+        eliteReady: briefcaseHealth.interaction?.eliteReady ?? null,
+        guidance: briefcaseHealth.interaction?.guidance || null,
+      },
+      matchupThesis: matchupCard.thesis || null,
+      skipLiveBoard,
+      inactivesPosted: Boolean(
+        (espnInactives.games || []).some((g) => g.posted && (g.players || []).length),
+      ),
+      defenseSource: defenseIsLive ? "live_team_season_stats" : "static_2025",
+      defenseTeamCount: Object.keys(defenseMerged).length,
       nflDraft: {
         phase: draftMeta.phase,
         draftClassYear: draftMeta.draftYear,
+        nextClassYearPending: draftMeta.nextClassYearPending || null,
         roundOneBoardSource: draftMeta.roundOneBoardSource,
         officialRoundOnePicksLoaded: draftMeta.officialRoundOneCount > 0,
         bundleWarning: draftMeta.bundleWarning || null,

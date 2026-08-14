@@ -175,6 +175,10 @@ const NFL_TERMS = [
   "big board",
   "receiving yards",
   "rushing yards",
+  "rush yards",
+  "passing yards",
+  "pass yards",
+  "rec yards",
   "anytime td",
   "touchdown",
   "cowboys",
@@ -256,7 +260,7 @@ const NBA_TERMS = [
   "raptors",
   "wizards",
   "lebron",
-  "james",
+  "lebron james",
   "curry",
   "stephen curry",
   "jokic",
@@ -277,6 +281,31 @@ const NBA_TERMS = [
   "edwards",
   "anthony edwards",
 ];
+
+/**
+ * NFL-only abbrevs (no NBA twin). CIN/PIT/GB/KC in "DET @ CIN" beat a stray "nba" word.
+ * Shared tokens (PHI, DET, DAL) stay off this list so Lakers/Sixers slugs still pivot.
+ */
+const NFL_ONLY_TEAM_ABBREVS = new Set([
+  "ari",
+  "bal",
+  "buf",
+  "car",
+  "cin",
+  "gb",
+  "jax",
+  "kc",
+  "lar",
+  "lv",
+  "ne",
+  "nyg",
+  "nyj",
+  "pit",
+  "sea",
+  "sf",
+  "tb",
+  "ten",
+]);
 
 /** NBA team abbreviations — matchup slugs like "SAS @ OKC" route to NBA. */
 const NBA_TEAM_ABBREVS = new Set([
@@ -356,6 +385,31 @@ export function inferNbaFromMatchupSlug(question) {
 }
 
 /**
+ * True when a matchup slug names at least one NFL-only club (Bengals, Steelers, …).
+ * @param {string} question
+ */
+export function inferNflFromMatchupSlug(question) {
+  const q = normalizeText(question);
+  const m = q.match(/\b([a-z]{2,4})\s*(?:@|vs\.?|v)\s*([a-z]{2,4})\b/i);
+  if (!m) return false;
+  const a = m[1].toLowerCase();
+  const b = m[2].toLowerCase();
+  return NFL_ONLY_TEAM_ABBREVS.has(a) || NFL_ONLY_TEAM_ABBREVS.has(b);
+}
+
+/**
+ * "nba" as a sport ask — not "don't route this to NBA" / "not NBA".
+ * @param {string} q already normalized
+ */
+function mentionsNbaAffirmatively(q) {
+  const stripped = String(q || "")
+    .replace(/\bdon(?:'t|t)\s+(?:route|send|switch|go|pivot|treat)?(?:\s+\w+){0,6}\s+nba\b/g, " ")
+    .replace(/\b(?:not|isn(?:'t|t)|no)\s+(?:the\s+)?nba\b/g, " ")
+    .replace(/\bnba\s+(?:no|not)\b/g, " ");
+  return /\bnba\b/.test(stripped);
+}
+
+/**
  * @param {string} [a]
  * @param {string} [b]
  */
@@ -400,6 +454,92 @@ export function extractLatestUserTurnForRouting(question) {
 }
 
 /**
+ * NFL betting / roster lexicon — wins over shared NBA tokens like "james" or PHI.
+ * @param {string} question
+ */
+/** NFL-only nicknames — not giants/rams/cardinals (MLB overlap). */
+const NFL_ONLY_NICKNAMES = [
+  "raiders",
+  "steelers",
+  "packers",
+  "patriots",
+  "pats",
+  "texans",
+  "titans",
+  "49ers",
+  "niners",
+  "chargers",
+  "colts",
+  "bengals",
+  "lions",
+  "bills",
+  "cowboys",
+  "eagles",
+  "chiefs",
+  "ravens",
+  "vikings",
+  "bears",
+  "browns",
+  "jaguars",
+  "jags",
+  "broncos",
+  "commanders",
+  "jets",
+  "dolphins",
+  "saints",
+  "falcons",
+  "panthers",
+  "buccaneers",
+  "bucs",
+  "seahawks",
+];
+
+export function hasNflAskLexicon(question) {
+  const q = normalizeText(extractLatestUserTurnForRouting(question));
+  if (!q) return false;
+  if (q.includes("nfl")) return true;
+  if (inferNflFromMatchupSlug(q)) return true;
+  if (NFL_ONLY_NICKNAMES.some((n) => new RegExp(`\\b${n}\\b`, "i").test(q))) return true;
+  // Posted favorite like "CIN -6.5" / "TEN -6" without the word spread.
+  if (
+    [...NFL_ONLY_TEAM_ABBREVS].some((ab) =>
+      new RegExp(`\\b${ab}\\s+-\\d{1,2}(?:\\.5)?\\b`, "i").test(q),
+    )
+  ) {
+    return true;
+  }
+  if (
+    /\b(rush(?:ing)?|pass(?:ing)?|rec(?:eiving)?)\s+yards?\b/.test(q) ||
+    /\b(anytime\s+td|touchdown|receptions?|sacks?|tackles?|win totals?|mock draft|big board)\b/.test(q)
+  ) {
+    return true;
+  }
+  if (/\b(spread|moneyline|\bml\b|ats|cover)\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
+    return true;
+  }
+  if (/\btotal\b/.test(q) && /(?:^|[^\d])-\d{1,2}(?:\.5)?\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Strong NBA-only signals — enough to pivot off an NFL tab.
+ * Bare first names (james) and shared abbrevs (PHI) are not enough.
+ * @param {string} question
+ */
+export function hasStrongNbaOnlyLexicon(question) {
+  const q = normalizeText(extractLatestUserTurnForRouting(question));
+  if (!q) return false;
+  if (/\b(76ers|sixers|lakers|celtics|knicks|warriors|nuggets|spurs)\b/.test(q)) return true;
+  if (/\b(lebron|embiid|jokic|curry|tatum|luka|doncic|wembanyama|giannis)\b/.test(q)) return true;
+  if (/\b(pra|rebounds?|assists?|three-?pointers?|double-double)\b/.test(q)) return true;
+  // Bare "nba" does not beat an NFL-only matchup slug (DET @ CIN / GB @ PIT).
+  if (mentionsNbaAffirmatively(q) && !inferNflFromMatchupSlug(q)) return true;
+  return false;
+}
+
+/**
  * Keyword inference from question (+ optional matchup card). Returns a sport slug or null.
  * @param {string} question
  * @param {{ league?: string } | null} [matchupContext]
@@ -408,7 +548,13 @@ export function extractLatestUserTurnForRouting(question) {
 export function inferSportFromQuestionText(question, matchupContext, hasImage) {
   const q = normalizeText(extractLatestUserTurnForRouting(question));
 
-  if (inferNbaFromMatchupSlug(q)) return "nba";
+  // NFL yardage / football spreads before NBA matchup slugs (DET @ CIN, vs PHI, "James Cook").
+  // Do not use NFL nicknames here — giants/rams/cardinals overlap MLB.
+  if (hasNflAskLexicon(q) && !hasStrongNbaOnlyLexicon(q)) return "nfl";
+
+  if (hasStrongNbaOnlyLexicon(q)) return "nba";
+
+  if (inferNbaFromMatchupSlug(q) && !hasNflAskLexicon(q)) return "nba";
 
   if (inferWorldCupFromPlayerMarketQuestion(question)) {
     return "worldcup";
@@ -600,6 +746,14 @@ export function resolveSportHint({
   }
 
   // Latest-turn question text wins for cross-sport pivots (except locked World Cup tab hint above).
+  // Shared tokens (James / PHI / DET @ CIN) must not yank an explicit NFL tab to NBA.
+  if (
+    h === "nfl" &&
+    textualSport === "nba" &&
+    !hasStrongNbaOnlyLexicon(routingQuestion)
+  ) {
+    return "nfl";
+  }
   if (textualSport) return textualSport;
 
   if (derbyActive && questionIsDerby && (!h || h === "generic")) {

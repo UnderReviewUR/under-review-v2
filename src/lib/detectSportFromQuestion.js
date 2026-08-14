@@ -280,6 +280,30 @@ export const NFL_TEAM_NAMES = {
   nyj: "NYJ",
   bucs: "TB",
   tampa: "TB",
+  phi: "PHI",
+  pit: "PIT",
+  gb: "GB",
+  kc: "KC",
+  buf: "BUF",
+  dal: "DAL",
+  sf: "SF",
+  lar: "LAR",
+  lac: "LAC",
+  tb: "TB",
+  wsh: "WAS",
+  cin: "CIN",
+  jax: "JAX",
+  ind: "IND",
+  bal: "BAL",
+  cle: "CLE",
+  ari: "ARI",
+  atl: "ATL",
+  chi: "CHI",
+  det: "DET",
+  hou: "HOU",
+  den: "DEN",
+  sea: "SEA",
+  mia: "MIA",
 };
 
 function containsAny(hay, needles) {
@@ -301,6 +325,11 @@ export function detectNflTeamHint(question) {
   if (!q) return null;
   const keys = Object.keys(NFL_TEAM_NAMES).sort((a, b) => b.length - a.length);
   for (const key of keys) {
+    if (key.length <= 3) {
+      const re = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      if (re.test(q)) return NFL_TEAM_NAMES[key];
+      continue;
+    }
     if (q.includes(key)) return NFL_TEAM_NAMES[key];
   }
   return null;

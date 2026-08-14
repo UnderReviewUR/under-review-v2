@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildTeamDraftFocusBlock,
   getActiveDraftBundle,
+  getNflDraftMeta,
   getNflDraftPhase,
   isKnownDraftProspect,
   resolveNflTeamFromQuestion,
@@ -46,4 +47,17 @@ test("getNflDraftPhase follows draft window UTC bounds", () => {
   assert.equal(getNflDraftPhase(new Date("2026-04-01T12:00:00Z"), bundle), "pre_draft");
   assert.equal(getNflDraftPhase(new Date("2026-04-24T12:00:00Z"), bundle), "during_draft");
   assert.equal(getNflDraftPhase(new Date("2026-05-01T12:00:00Z"), bundle), "post_draft");
+});
+
+test("post-June calendar does not advertise empty next class as active year", () => {
+  const aug = new Date("2026-08-12T18:00:00Z");
+  const bundle = getActiveDraftBundle(aug);
+  const meta = getNflDraftMeta(aug, bundle);
+  assert.equal(bundle.year, 2026);
+  assert.equal(bundle.inferredYear, 2026);
+  assert.equal(meta.draftYear, 2026);
+  assert.equal(bundle.nextClassYearPending, 2027);
+  assert.equal(meta.nextClassYearPending, 2027);
+  assert.match(String(meta.bundleWarning || ""), /2027 draft class is not loaded/i);
+  assert.equal(meta.phase, "post_draft");
 });

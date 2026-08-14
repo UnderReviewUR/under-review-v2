@@ -22,7 +22,11 @@ import {
   stripStaleGolfWeekArtifactsForIntent,
 } from "../shared/golfTournamentIntent.js";
 import { hydrateGolfBoardOdds } from "./_golfOddsApi.js";
-import { classifyGolfEvent, EVENT_VALIDITY } from "../shared/eventValidity.js";
+import {
+  classifyGolfEvent,
+  coerceGolfInWeekFeedState,
+  EVENT_VALIDITY,
+} from "../shared/eventValidity.js";
 import {
   isGolfInPlayWindow,
   reconcileGolfBoardCurrentEvent,
@@ -1576,7 +1580,27 @@ async function normalizeEspnScoreboardEventToPayload(selectedEvent) {
   const hasMeaningfulLeaderboard = hasMeaningfulLeaderboardRows(leaderboard);
 
   const rawState = String(status?.state || "pre").toLowerCase();
-  const adjustedState = rawState === "in" && !hasMeaningfulLeaderboard ? "pre" : rawState;
+  let adjustedState = rawState === "in" && !hasMeaningfulLeaderboard ? "pre" : rawState;
+
+  // ESPN marks end-of-round overnight as post/final while Thu–Sun continues.
+  // Keep the board live until the inferred tournament window closes.
+  const startDate = selectedEvent?.date || null;
+  const startMs = parseScheduleMs(startDate);
+  const endMs = Number.isFinite(startMs) ? inferPgaTourEndMsFromStart(startMs) : NaN;
+  const nowMs = Date.now();
+  const weekStillOpen =
+    (Number.isFinite(endMs) && nowMs <= endMs) ||
+    (Number.isFinite(startMs) && nowMs <= startMs + 4 * 24 * 60 * 60 * 1000);
+  if ((adjustedState === "post" || adjustedState === "final") && weekStillOpen) {
+    adjustedState = "in";
+  }
+
+  const roundLabel =
+    adjustedState === "in" && (rawState === "post" || rawState === "final")
+      ? String(status?.detail || status?.description || "Round complete")
+          .replace(/\bfinal\b/gi, "complete")
+          .trim() || "Round complete"
+      : cleanTournamentStatus(adjustedState || status?.description);
 
   return {
     id: selectedEvent?.id || null,
@@ -1585,10 +1609,11 @@ async function normalizeEspnScoreboardEventToPayload(selectedEvent) {
       selectedEvent?.shortName || selectedEvent?.name || "PGA Tour Event",
     course: courseLabel || "TBD",
     location: locationLabel,
-    round: cleanTournamentStatus(adjustedState || status?.description),
+    round: roundLabel,
     state: adjustedState || "pre",
     par: comp?.format?.par || null,
-    startDate: selectedEvent?.date || null,
+    startDate,
+    endDate: Number.isFinite(endMs) ? new Date(endMs).toISOString() : null,
     displayDate: formatDisplayDate(selectedEvent?.date),
     leaderboard,
     leaderboardSource,
@@ -2298,6 +2323,15 @@ function mergeGolfBoard({ espnEvent, bdlBundle, odds, rankings }) {
         : [],
     ),
   };
+
+  // Overnight ESPN post/final mid-week must not close the tournament for Ask/UI.
+  const coercedState = coerceGolfInWeekFeedState(currentEvent.state, currentEvent);
+  if (coercedState !== String(currentEvent.state || "").toLowerCase()) {
+    currentEvent.state = coercedState;
+    if (/final|complete/i.test(String(currentEvent.round || ""))) {
+      currentEvent.round = "Round complete";
+    }
+  }
 
   const suppressCurrent = shouldSuppressStaleMergedEvent({
     espnEvent,

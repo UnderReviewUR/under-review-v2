@@ -51,19 +51,33 @@ function NbaTrophyIcon() {
 
 /**
  * One-time Knicks championship celebration — dismissed state in localStorage.
+ * @param {{ enabled?: boolean }} [props] — keep off NFL/Golf/F1/etc so sport deep links are not blocked.
  */
-export default function NbaChampionsBanner() {
-  const [open, setOpen] = useState(() => !readBannerSeen());
+export default function NbaChampionsBanner({ enabled = true } = {}) {
+  const [open, setOpen] = useState(() => Boolean(enabled) && !readBannerSeen());
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    if (!open || !canvasRef.current) return undefined;
+    if (!enabled) {
+      setOpen(false);
+      return undefined;
+    }
+    if (readBannerSeen()) {
+      setOpen(false);
+      return undefined;
+    }
+    setOpen(true);
+    return undefined;
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled || !open || !canvasRef.current) return undefined;
     const stop = runConfettiBurst(canvasRef.current, {
       durationMs: 4500,
       colors: ["#F58426", "#006BB6", "#F5C842", "#FFFFFF", "#1D428A", "#B8860B"],
     });
     return stop;
-  }, [open]);
+  }, [enabled, open]);
 
   const dismiss = () => {
     try {
@@ -74,7 +88,7 @@ export default function NbaChampionsBanner() {
     setOpen(false);
   };
 
-  if (!open) return null;
+  if (!enabled || !open) return null;
 
   return (
     <>
