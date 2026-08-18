@@ -1,0 +1,412 @@
+[
+  {
+    "id": "A",
+    "label": "Original bug (FRA ML + Over, wait 0-0 ~30)",
+    "question": "France moneyline is -525 and Over 1.5 is -525. I might wait to see if it's 0-0 about 30 minutes in and then evaluate the lines",
+    "statusCode": 200,
+    "elapsedMs": 5558,
+    "pre": {
+      "wcIntent": "PARLAY",
+      "deliveryModeResolved": "take",
+      "simpleTalkOpener": false,
+      "newBettingAsk": true,
+      "plannerLane": "line_movement",
+      "plannerReason": "line_movement_structured_prebuilt",
+      "plannerFastPath": true,
+      "pinnedEventId": "163",
+      "pinnedHome": "PAR",
+      "pinnedAway": "FRA",
+      "lineMovementQuestion": true,
+      "liveEntryPlanning": true,
+      "forceLineMovementStructured": true,
+      "lineMovementTalkEligible": false,
+      "marketKind": "ml_90min",
+      "marketLabel": "90-minute moneyline (regulation only)",
+      "minuteBucket": "mid",
+      "minuteLabel": "0-0 ~30'"
+    },
+    "prebuiltDryRun": {
+      "passKind": "line_movement",
+      "call": "Smart wait from -3000 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-2160; O",
+      "lean": "Smart wait from -3000 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-2160; Over 1.5 drift OUT at"
+    },
+    "handler": {
+      "deliveryMode": "take",
+      "responseFormat": "structured",
+      "wcIntent": "MATCHUP",
+      "liveMode": false,
+      "deliveryPath": "Take / prebuilt (line_movement)",
+      "qaSummary": {
+        "issueCodes": [
+          "wc_card_play_restates_call",
+          "wc_play_line_invalid",
+          "wc_card_missing_delta",
+          "wc_card_incomplete_call",
+          "wc_card_incomplete_line",
+          "wc_card_incomplete_lean",
+          "wc_card_face_missing_numeric_why",
+          "wc_knockout_format_boilerplate_lead",
+          "wc_player_not_in_squad"
+        ],
+        "passedCriticalGates": false,
+        "regenerationAttempts": 0,
+        "qaFallbackApplied": false
+      },
+      "regenerationAttempts": 0,
+      "issueCodes": [
+        "wc_card_play_restates_call",
+        "wc_play_line_invalid",
+        "wc_card_missing_delta",
+        "wc_card_incomplete_call",
+        "wc_card_incomplete_line",
+        "wc_card_incomplete_lean",
+        "wc_card_face_missing_numeric_why",
+        "wc_knockout_format_boilerplate_lead",
+        "wc_player_not_in_squad"
+      ]
+    },
+    "finalReplyText": "Lean: Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Over 1.5 drift OUT at t",
+    "structuredCall": "Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Ove",
+    "structuredLean": "Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Over 1.5 drift OUT at t",
+    "structuredWhyNow": "SCRIPT (55-75' press) is separate.",
+    "talkRepairApplied": false,
+    "qaOnFinalReply": {
+      "passed": true,
+      "issueCodes": []
+    },
+    "qaAfterTalkRepair": null,
+    "handlerLogEvents": [
+      "{\"event\":\"ur_take_wc_fixture_matchup_prebuilt_early\",\"sport\":\"worldcup\",\"wcIntent\":\"MATCHUP\",\"home\":\"PAR\",\"away\":\"FRA\",\"hasKvFixture\":true}",
+      "{\"event\":\"ur_take_wc_line_movement_prebuilt_stub\",\"pinnedEventId\":\"163\",\"home\":\"PAR\",\"away\":\"FRA\"}",
+      "{\"event\":\"ur_take_wc_turn_plan\",\"lane\":\"line_movement\",\"intent\":\"MATCHUP\",\"reason\":\"line_movement_structured_prebuilt\",\"pinnedEventId\":\"163\",\"shouldUseFastPath\":true,\"useLiteContext\":false,\"priorLaneHint\":null}",
+      "[WC Turn Plan] lane=line_movement intent=MATCHUP reason=line_movement_structured_prebuilt priorLean=false",
+      "{\"requestId\":\"86658f91bd73\",\"event\":\"ur_take_complete\",\"sport\":\"worldcup\",\"mode\":\"wc_turn_plan_delivery\",\"lane\":\"line_movement\",\"passKind\":\"line_movement\",\"planReason\":\"line_movement_structured_prebuilt\",\"structuredInPayload\":true,\"durationMs\":5543,\"wcRelevance\":{\"wcIntent\":\"MATCHUP\",\"mentionedTeams\":[\"FRA\"],\"requiredEntities\":[\"FRA\"],\"knockoutRulesInjected\":false,\"structuralEdgeInjected\":false,\"playerPropDetected\":false,\"playerMarketTier\":null,\"wcEventId\":\"163\",\"qaEntityMatch\":\"pass\",\"qaIntentM"
+    ],
+    "caseBPass": null
+  },
+  {
+    "id": "B",
+    "label": "Prod failure (live angle PAR vs FRA)",
+    "question": "Best live angle on PAR vs FRA right now?",
+    "statusCode": 200,
+    "elapsedMs": 24,
+    "pre": {
+      "wcIntent": "MATCHUP",
+      "deliveryModeResolved": "take",
+      "simpleTalkOpener": false,
+      "newBettingAsk": true,
+      "plannerLane": "live_in_play",
+      "plannerReason": "live_in_play_bets_prebuilt",
+      "plannerFastPath": true,
+      "pinnedEventId": "163",
+      "pinnedHome": "PAR",
+      "pinnedAway": "FRA",
+      "lineMovementQuestion": false,
+      "liveEntryPlanning": false,
+      "forceLineMovementStructured": false,
+      "lineMovementTalkEligible": false,
+      "marketKind": "ml_90min",
+      "marketLabel": "90-minute moneyline (regulation only)",
+      "minuteBucket": "unknown",
+      "minuteLabel": "0-0 scoreless"
+    },
+    "prebuiltDryRun": {
+      "passKind": "live_in_play_bets",
+      "call": "France -3000 to win · Over 1.5 goals live",
+      "lean": "2 live leans at 0-1: France -3000 + Over 1.5 goals"
+    },
+    "handler": {
+      "deliveryMode": "take",
+      "responseFormat": "structured",
+      "wcIntent": "MATCHUP",
+      "liveMode": true,
+      "deliveryPath": "Take / prebuilt (live_in_play)",
+      "qaSummary": {
+        "issueCodes": [
+          "wc_matchup_missing_team_headline",
+          "wc_play_line_invalid",
+          "wc_card_incomplete_call",
+          "wc_card_incomplete_lean"
+        ],
+        "passedCriticalGates": false,
+        "regenerationAttempts": 0,
+        "qaFallbackApplied": false
+      },
+      "regenerationAttempts": 0,
+      "issueCodes": [
+        "wc_matchup_missing_team_headline",
+        "wc_play_line_invalid",
+        "wc_card_incomplete_call",
+        "wc_card_incomplete_lean"
+      ]
+    },
+    "finalReplyText": "Lean: 2 live leans at 0-1: France -3000 + Over 1.5 goals",
+    "structuredCall": "France -3000 to win · Over 1.5 goals live",
+    "structuredLean": "2 live leans at 0-1: France -3000 + Over 1.5 goals",
+    "structuredWhyNow": "France leads 1-0 live; Paraguay needs a goal to flip the script. Chance index Paraguay 0.32 · France 1.",
+    "talkRepairApplied": false,
+    "qaOnFinalReply": {
+      "passed": true,
+      "issueCodes": []
+    },
+    "qaAfterTalkRepair": null,
+    "handlerLogEvents": [
+      "{\"event\":\"ur_take_wc_live_in_play_bets_prebuilt_early\",\"sport\":\"worldcup\",\"wcIntent\":\"MATCHUP\",\"home\":\"PAR\",\"away\":\"FRA\",\"score\":\"0-1\"}",
+      "{\"event\":\"ur_take_wc_turn_plan\",\"lane\":\"live_in_play\",\"intent\":\"MATCHUP\",\"reason\":\"live_in_play_bets_prebuilt\",\"pinnedEventId\":\"163\",\"shouldUseFastPath\":true,\"useLiteContext\":false,\"priorLaneHint\":null}",
+      "[WC Turn Plan] lane=live_in_play intent=MATCHUP reason=live_in_play_bets_prebuilt priorLean=false",
+      "{\"requestId\":\"1c966770c7c9\",\"event\":\"ur_take_complete\",\"sport\":\"worldcup\",\"mode\":\"wc_turn_plan_delivery\",\"lane\":\"live_in_play\",\"passKind\":\"live_in_play_bets\",\"planReason\":\"live_in_play_bets_prebuilt\",\"structuredInPayload\":true,\"durationMs\":24,\"wcRelevance\":{\"wcIntent\":\"MATCHUP\",\"mentionedTeams\":[\"PAR\",\"FRA\"],\"requiredEntities\":[\"PAR\",\"FRA\"],\"knockoutRulesInjected\":false,\"structuralEdgeInjected\":false,\"playerPropDetected\":false,\"playerMarketTier\":null,\"wcEventId\":\"163\",\"qaEntityMatch\":\"pass\",\"qaI"
+    ],
+    "caseBPass": true
+  },
+  {
+    "id": "C",
+    "label": "FRA -525 at 0-0 30'",
+    "question": "France -525, what happens if it's 0-0 at 30 minutes?",
+    "statusCode": 200,
+    "elapsedMs": 16,
+    "pre": {
+      "wcIntent": "ENTITY_PRICING",
+      "deliveryModeResolved": "take",
+      "simpleTalkOpener": false,
+      "newBettingAsk": false,
+      "plannerLane": "line_movement",
+      "plannerReason": "line_movement_structured_prebuilt",
+      "plannerFastPath": true,
+      "pinnedEventId": "163",
+      "pinnedHome": "PAR",
+      "pinnedAway": "FRA",
+      "lineMovementQuestion": true,
+      "liveEntryPlanning": false,
+      "forceLineMovementStructured": true,
+      "lineMovementTalkEligible": false,
+      "marketKind": "ml_90min",
+      "marketLabel": "90-minute moneyline (regulation only)",
+      "minuteBucket": "mid",
+      "minuteLabel": "0-0 ~30'"
+    },
+    "prebuiltDryRun": {
+      "passKind": "line_movement",
+      "call": "France 90-minute moneyline (regulation only) at -3000 typically DRIFTS OUT at 0-0 ~30' toward ~-2160",
+      "lean": "France 90-minute moneyline (regulation only) at -3000 typically DRIFTS OUT at 0-0 ~30' toward ~-2160; draw shortens. Not"
+    },
+    "handler": {
+      "deliveryMode": "take",
+      "responseFormat": "structured",
+      "wcIntent": "MATCHUP",
+      "liveMode": false,
+      "deliveryPath": "Take / prebuilt (line_movement)",
+      "qaSummary": {
+        "issueCodes": [
+          "wc_card_play_restates_call",
+          "wc_play_line_invalid",
+          "wc_card_missing_delta",
+          "wc_card_incomplete_call",
+          "wc_card_incomplete_line",
+          "wc_card_incomplete_lean",
+          "wc_card_face_missing_numeric_why",
+          "wc_knockout_format_boilerplate_lead"
+        ],
+        "passedCriticalGates": false,
+        "regenerationAttempts": 0,
+        "qaFallbackApplied": false
+      },
+      "regenerationAttempts": 0,
+      "issueCodes": [
+        "wc_card_play_restates_call",
+        "wc_play_line_invalid",
+        "wc_card_missing_delta",
+        "wc_card_incomplete_call",
+        "wc_card_incomplete_line",
+        "wc_card_incomplete_lean",
+        "wc_card_face_missing_numeric_why",
+        "wc_knockout_format_boilerplate_lead"
+      ]
+    },
+    "finalReplyText": "Lean: France 90-minute moneyline (regulation only) at -525 typically DRIFTS OUT at 0-0 ~30' toward ~-378; draw shortens. Not -",
+    "structuredCall": "France 90-minute moneyline (regulation only) at -525 typically DRIFTS OUT at 0-0 ~30' toward ~-378;",
+    "structuredLean": "France 90-minute moneyline (regulation only) at -525 typically DRIFTS OUT at 0-0 ~30' toward ~-378; draw shortens. Not -",
+    "structuredWhyNow": "SCRIPT (55-75' press) is separate.",
+    "talkRepairApplied": false,
+    "qaOnFinalReply": {
+      "passed": true,
+      "issueCodes": []
+    },
+    "qaAfterTalkRepair": null,
+    "handlerLogEvents": [
+      "{\"event\":\"ur_take_wc_line_movement_prebuilt_stub\",\"pinnedEventId\":\"163\",\"home\":\"PAR\",\"away\":\"FRA\"}",
+      "{\"event\":\"ur_take_wc_turn_plan\",\"lane\":\"line_movement\",\"intent\":\"MATCHUP\",\"reason\":\"line_movement_structured_prebuilt\",\"pinnedEventId\":\"163\",\"shouldUseFastPath\":true,\"useLiteContext\":false,\"priorLaneHint\":null}",
+      "[WC Turn Plan] lane=line_movement intent=MATCHUP reason=line_movement_structured_prebuilt priorLean=false",
+      "{\"requestId\":\"23e6e8b3dd28\",\"event\":\"ur_take_complete\",\"sport\":\"worldcup\",\"mode\":\"wc_turn_plan_delivery\",\"lane\":\"line_movement\",\"passKind\":\"line_movement\",\"planReason\":\"line_movement_structured_prebuilt\",\"structuredInPayload\":true,\"durationMs\":16,\"wcRelevance\":{\"wcIntent\":\"MATCHUP\",\"mentionedTeams\":[\"FRA\"],\"requiredEntities\":[\"FRA\"],\"knockoutRulesInjected\":false,\"structuralEdgeInjected\":false,\"playerPropDetected\":false,\"playerMarketTier\":null,\"wcEventId\":\"163\",\"qaEntityMatch\":\"pass\",\"qaIntentMat"
+    ],
+    "caseBPass": null
+  },
+  {
+    "id": "D",
+    "label": "Germany -669 early scoreless drift",
+    "question": "Germany at -669. Does that go to like -575 if it's scoreless early on?",
+    "statusCode": 200,
+    "elapsedMs": 3749,
+    "pre": {
+      "wcIntent": "ENTITY_PRICING",
+      "deliveryModeResolved": "take",
+      "simpleTalkOpener": false,
+      "newBettingAsk": false,
+      "plannerLane": "line_movement",
+      "plannerReason": "line_movement_structured_prebuilt",
+      "plannerFastPath": true,
+      "pinnedEventId": "148",
+      "pinnedHome": "GER",
+      "pinnedAway": "PAR",
+      "lineMovementQuestion": true,
+      "liveEntryPlanning": false,
+      "forceLineMovementStructured": true,
+      "lineMovementTalkEligible": false,
+      "marketKind": "ml_90min",
+      "marketLabel": "90-minute moneyline (regulation only)",
+      "minuteBucket": "early",
+      "minuteLabel": "0-0 early (~5-15')"
+    },
+    "prebuiltDryRun": {
+      "passKind": "line_movement",
+      "call": "At 0-0 early (~5-15'): 90-min ML favorite drifts OUT; draw shortens; Overs drift OUT — keep the mark",
+      "lean": "At 0-0 early (~5-15'): 90-min ML favorite drifts OUT; draw shortens; Overs drift OUT — keep the market they named."
+    },
+    "handler": {
+      "deliveryMode": "take",
+      "responseFormat": "structured",
+      "wcIntent": "MATCHUP",
+      "liveMode": false,
+      "deliveryPath": "Take / prebuilt (line_movement)",
+      "qaSummary": {
+        "issueCodes": [
+          "wc_line_movement_wrong_direction",
+          "wc_card_play_restates_call",
+          "wc_play_line_invalid",
+          "wc_card_missing_delta",
+          "wc_card_incomplete_call",
+          "wc_card_incomplete_line",
+          "wc_card_incomplete_lean",
+          "wc_card_face_missing_numeric_why",
+          "wc_knockout_format_boilerplate_lead"
+        ],
+        "passedCriticalGates": false,
+        "regenerationAttempts": 0,
+        "qaFallbackApplied": false
+      },
+      "regenerationAttempts": 0,
+      "issueCodes": [
+        "wc_line_movement_wrong_direction",
+        "wc_card_play_restates_call",
+        "wc_play_line_invalid",
+        "wc_card_missing_delta",
+        "wc_card_incomplete_call",
+        "wc_card_incomplete_line",
+        "wc_card_incomplete_lean",
+        "wc_card_face_missing_numeric_why",
+        "wc_knockout_format_boilerplate_lead"
+      ]
+    },
+    "finalReplyText": "Lean: Germany 90-minute moneyline (regulation only) at -669 typically DRIFTS OUT at 0-0 early (~5-15') toward ~-639 (small mov",
+    "structuredCall": "Germany 90-minute moneyline (regulation only) at -669 typically DRIFTS OUT at 0-0 early (~5-15') tow",
+    "structuredLean": "Germany 90-minute moneyline (regulation only) at -669 typically DRIFTS OUT at 0-0 early (~5-15') toward ~-639 (small mov",
+    "structuredWhyNow": "Market -15 — one-line price vs path in breakdown.",
+    "talkRepairApplied": false,
+    "qaOnFinalReply": {
+      "passed": true,
+      "issueCodes": []
+    },
+    "qaAfterTalkRepair": null,
+    "handlerLogEvents": [
+      "{\"event\":\"ur_take_wc_line_movement_prebuilt_stub\",\"pinnedEventId\":\"148\",\"home\":\"GER\",\"away\":\"PAR\"}",
+      "{\"event\":\"ur_take_wc_turn_plan\",\"lane\":\"line_movement\",\"intent\":\"MATCHUP\",\"reason\":\"line_movement_structured_prebuilt\",\"pinnedEventId\":\"148\",\"shouldUseFastPath\":true,\"useLiteContext\":false,\"priorLaneHint\":null}",
+      "[WC Turn Plan] lane=line_movement intent=MATCHUP reason=line_movement_structured_prebuilt priorLean=false",
+      "{\"requestId\":\"09faf8212f56\",\"event\":\"ur_take_complete\",\"sport\":\"worldcup\",\"mode\":\"wc_turn_plan_delivery\",\"lane\":\"line_movement\",\"passKind\":\"line_movement\",\"planReason\":\"line_movement_structured_prebuilt\",\"structuredInPayload\":true,\"durationMs\":3749,\"wcRelevance\":{\"wcIntent\":\"MATCHUP\",\"mentionedTeams\":[\"GER\"],\"requiredEntities\":[\"GER\"],\"knockoutRulesInjected\":false,\"structuralEdgeInjected\":false,\"playerPropDetected\":false,\"playerMarketTier\":null,\"wcEventId\":null,\"qaEntityMatch\":\"pass\",\"qaIntentMa"
+    ],
+    "caseBPass": null
+  },
+  {
+    "id": "E",
+    "label": "Mixed ML + Over wait for 0-0 at 30",
+    "question": "France moneyline -525 and Over 1.5, should I wait for 0-0 at 30?",
+    "statusCode": 200,
+    "elapsedMs": 37,
+    "pre": {
+      "wcIntent": "PARLAY",
+      "deliveryModeResolved": "take",
+      "simpleTalkOpener": false,
+      "newBettingAsk": true,
+      "plannerLane": "line_movement",
+      "plannerReason": "line_movement_structured_prebuilt",
+      "plannerFastPath": true,
+      "pinnedEventId": "163",
+      "pinnedHome": "PAR",
+      "pinnedAway": "FRA",
+      "lineMovementQuestion": true,
+      "liveEntryPlanning": true,
+      "forceLineMovementStructured": true,
+      "lineMovementTalkEligible": false,
+      "marketKind": "ml_90min",
+      "marketLabel": "90-minute moneyline (regulation only)",
+      "minuteBucket": "mid",
+      "minuteLabel": "0-0 ~30'"
+    },
+    "prebuiltDryRun": {
+      "passKind": "line_movement",
+      "call": "Smart wait from -3000 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-2160; O",
+      "lean": "Smart wait from -3000 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-2160; Over 1.5 drift OUT at"
+    },
+    "handler": {
+      "deliveryMode": "take",
+      "responseFormat": "structured",
+      "wcIntent": "MATCHUP",
+      "liveMode": false,
+      "deliveryPath": "Take / prebuilt (line_movement)",
+      "qaSummary": {
+        "issueCodes": [
+          "wc_card_play_restates_call",
+          "wc_play_line_invalid",
+          "wc_card_missing_delta",
+          "wc_card_incomplete_call",
+          "wc_card_incomplete_line",
+          "wc_card_incomplete_lean",
+          "wc_card_face_missing_numeric_why",
+          "wc_knockout_format_boilerplate_lead",
+          "wc_player_not_in_squad"
+        ],
+        "passedCriticalGates": false,
+        "regenerationAttempts": 0,
+        "qaFallbackApplied": false
+      },
+      "regenerationAttempts": 0,
+      "issueCodes": [
+        "wc_card_play_restates_call",
+        "wc_play_line_invalid",
+        "wc_card_missing_delta",
+        "wc_card_incomplete_call",
+        "wc_card_incomplete_line",
+        "wc_card_incomplete_lean",
+        "wc_card_face_missing_numeric_why",
+        "wc_knockout_format_boilerplate_lead",
+        "wc_player_not_in_squad"
+      ]
+    },
+    "finalReplyText": "Lean: Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Over 1.5 drift OUT at t",
+    "structuredCall": "Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Ove",
+    "structuredLean": "Smart wait from -525 — CHECKPOINT at 0-0 ~30': France 90-min ML usually drifts OUT toward ~-378; Over 1.5 drift OUT at t",
+    "structuredWhyNow": "SCRIPT (55-75' press) is separate.",
+    "talkRepairApplied": false,
+    "qaOnFinalReply": {
+      "passed": true,
+      "issueCodes": []
+    },
+    "qaAfterTalkRepair": null,
+    "handlerLogEvents": [
+      "{\"event\":\"ur_take_wc_fixture_matchup_prebuilt_early\",\"sport\":\"worldcup\",\"wcIntent\":\"MATCHUP\",\"home\":\"PAR\",\"away\":\"FRA\",\"hasKvFixture\":true}",
+      "{\"event\":\"ur_take_wc_line_movement_prebuilt_stub\",\"pinnedEventId\":\"163\",\"home\":\"PAR\",\"away\":\"FRA\"}",
+      "{\"event\":\"ur_take_wc_turn_plan\",\"lane\":\"line_movement\",\"intent\":\"MATCHUP\",\"reason\":\"line_movement_structured_prebuilt\",\"pinnedEventId\":\"163\",\"shouldUseFastPath\":true,\"useLiteContext\":false,\"priorLaneHint\":null}",
+      "[WC Turn Plan] lane=line_movement intent=MATCHUP reason=line_movement_structured_prebuilt priorLean=false",
+      "{\"requestId\":\"ffc0497f47b7\",\"event\":\"ur_take_complete\",\"sport\":\"worldcup\",\"mode\":\"wc_turn_plan_delivery\",\"lane\":\"line_movement\",\"passKind\":\"line_movement\",\"planReason\":\"line_movement_structured_prebuilt\",\"structuredInPayload\":true,\"durationMs\":36,\"wcRelevance\":{\"wcIntent\":\"MATCHUP\",\"mentionedTeams\":[\"FRA\"],\"requiredEntities\":[\"FRA\"],\"knockoutRulesInjected\":false,\"structuralEdgeInjected\":false,\"playerPropDetected\":false,\"playerMarketTier\":null,\"wcEventId\":\"163\",\"qaEntityMatch\":\"pass\",\"qaIntentMat"
+    ],
+    "caseBPass": null
+  }
+]

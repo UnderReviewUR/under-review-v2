@@ -1,0 +1,224 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=6.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <meta HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">
+    <meta name="robots" content="noindex">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="_csrf" content="IjQwMmQyNTI0M2NkN2Q4MDYzNzQyMTFlMWM2ZDA3NjcyYWMzNjVlMzIi.HS1RiA.q0XE4JdyHpkHhAcL4yDUsuwS64g">
+    <link rel="chrome-webstore-item" href="https://chrome.google.com/webstore/detail/ljdhjggpgnkjlfpbkodmafnomalmomnc">
+
+  <script src="https://static.vscdn.net/sentry/5.29.2/bundle.tracing.min.js" integrity="" crossorigin="anonymous"></script>
+    <script src="https://static.vscdn.net/sentry/5.29.2/dedupe.min.js" integrity="" crossorigin="anonymous"></script>
+    <script>
+    window._EF_REPORT_JS_ERROR = 1;
+    Sentry.init({
+      dsn: 'https://77e708048c4747e1a801fa2ef5557ca6@vs-errors.eightfold.ai/10',
+      integrations: [
+        new Sentry.Integrations.BrowserTracing(),
+        new Sentry.Integrations.Dedupe()
+      ],
+      tracesSampleRate: 0.1,
+      ignoreErrors: [
+        "null is not an object (evaluating 'n.title')"
+      ],
+      whitelistUrls: [
+        /https?:\/\/(.*\.)?eightfold\.ai/,
+        /https?:\/\/(.*\.)?eightfold\.co/,
+        /https?:\/\/static\.vscdn\.net/,
+      ],
+    });
+
+    Sentry.setUser({
+        "id": "5207890879149021244:1783349256.5794964:108182179524410317"
+    });
+    Sentry.setTag("current_user", "5207890879149021244:1783349256.5794964:108182179524410317");
+    Sentry.setTag("group_id", "Unknown");
+    Sentry.setTag("host", "jobs.northropgrumman.com");
+    Sentry.setTag("endpoint", "None");
+    Sentry.setTag("product", "pcs");
+    Sentry.configureScope(function(scope) {
+      scope.addEventProcessor(function(event, hint) {
+        if (event && event.transaction && typeof event.transaction === 'string') {
+          event.transaction = event.transaction.split("/").map(w => (parseInt(w) > 0 || (w.length > 7 && /\d/.test(w))) ? ':id' : w).join('/');
+        }
+        return event;
+      });
+    });
+    </script>
+
+<link rel="icon" href="https://static.vscdn.net/images/careers/demo/ngc-sandbox/1727969009::NGLogoBlack" sizes="32x32">
+<link rel="icon" href="https://static.vscdn.net/images/careers/demo/ngc-sandbox/1727969047::NGLogoBlack" sizes="192x192">
+<link rel="apple-touch-icon-precomposed" href="https://static.vscdn.net/images/careers/demo/ngc-sandbox/1727969028::NGLogoBlack">
+<meta name="msapplication-TileImage" content="https://static.vscdn.net/images/careers/demo/ngc-sandbox/1727969061::NGLogoBlack">
+
+
+    <title>Eightfold</title>
+    <script>
+      window._EF_GROUP_ID = "Unknown";
+      window._EF_CURRENT_USER = "loggedout@none.com";
+      window._EF_TRACE_ID = "13c965dbd19346f0a412247ee1c6a81e";
+    </script>
+      <script>window.cache_scheduler_preferences_gate = true;</script>
+
+    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:light,regular,semi-bold,bold,bolditalic,italic&display=swap" rel="stylesheet">
+      <link rel="stylesheet" href="/gen/jquery.02f65749.css">
+      <link rel="stylesheet" href="/gen/bootstrap.screen.04e96e02.css">
+      <link rel="stylesheet" href="/gen/font-awesome-5.7.1.783223d0.css">
+      <link rel="stylesheet" href="/gen/inspinia.min.77f63808.css">
+      <link rel="stylesheet" href="/gen/inspinia_toastr.min.7f843b9c.css">
+        <link rel="stylesheet" href="/gen/inspinia_animate.d6f644ff.css">
+      <link rel="stylesheet" href="/gen/quill_editor.e0c53851.css">
+      <link rel="stylesheet" href="/gen/chosen.0e320839.css">
+      <link rel="stylesheet" href="/gen/sweetalert.704364b7.css">
+
+        <link rel="stylesheet" href="/gen/base.cee66930.css">
+
+      <link rel=stylesheet href="/gen/css/coreCss.63d0d6f604467bf3b902.css">
+
+      <link rel="stylesheet" href="/gen/ef-styles-2020.e1b8506c.css">
+
+      <link rel="stylesheet" href="/gen/bootstrap.datepicker3.d96def6f.css">
+      <link rel="stylesheet" href="/gen/feedback.2335fb8b.min.css">
+      <link rel="stylesheet" href="/gen/contact_v2.9a8186a7.css">
+
+      <link rel="stylesheet" href="/gen/common/NavSearch.b25e0e52.css">
+
+  <style>
+ 
+      #navbar-main .navbar-top-links a {
+        color: #ffffff;
+      }
+  </style>
+
+<link rel="stylesheet" href="/gen/other.f3c6f89a.css">
+
+
+
+      <script type="text/javascript" src="/gen/polyfill.5231d666.js"></script>
+      <script type="text/javascript" src="/gen/jquery_v3.4df69f02.js"></script>
+    <script type="text/javascript" src="/gen/jquery_ui_v2.ef124067.js"></script>
+
+      <script type="text/javascript" src="/gen/bootstrap_v5.5ca2d4ac.js"></script>
+
+      <script type="text/javascript" src="/gen/inspinia.1451ccce.js"></script>
+      <script type="text/javascript" src="/gen/inspinia_toastr.196b8da6.js"></script>
+
+        <script type="text/javascript" src="/gen/feedback.d8126edf.min.js"></script>
+
+      <script type="text/javascript" src="/gen/quill_editor.39e83174.js"></script>
+      <script type="text/javascript" src="/gen/chosen.d246fea8.js"></script>
+      <script type="text/javascript" src="/gen/sweetalert.3e1d6bd5.js"></script>
+
+          <script type="text/javascript" src="/gen/i18n_data_en.a8a0de36.js"></script>
+
+    <script type="text/javascript" src="https://static.vscdn.net/gen/i18n/i18n_override_ngc.com_en_64b0b889.js"></script>
+
+    <script type="text/javascript" src="/gen/base.cb91cb12.js"></script>
+
+      <script type="text/javascript" src="/gen/common/NavSearch.e2240145.js"></script>
+
+  <script type="text/javascript" src="/gen/user_interaction.d05956ed.js"></script>
+  <div id="userInteractionEnabled" style="display:none;"></div>
+
+
+    <script type="text/javascript">
+    </script>
+<script type="text/javascript">
+
+  window.addEventListener("load", () => {
+    setTimeout(() => {
+      startRecordingUserInteraction();
+    }, 0);
+  });
+  
+  window.getViewHTMLEventInfo = function() {
+    const viewHTMLNamespace = "unknown";
+    const viewHTMLEndpoint = "None";
+    return {
+        viewHTMLNamespace: viewHTMLNamespace,
+        viewHTMLEndpoint: viewHTMLEndpoint,
+        triggerEventLog: Boolean(0)
+    }
+  }
+</script>  </head>
+
+  <body class="body fixed-nav pace-done fixed-sidebar mini-navbar">
+      <div id="locale" data-locale="en">
+      </div>
+     <code id="branding-data" style="display: none;">
+      {&#34;themeOptions&#34;: {&#34;customTheme&#34;: {&#34;varTheme&#34;: {&#34;navbar-background&#34;: &#34;#000000&#34;, &#34;navbar-text-color&#34;: &#34;#f7f7f7&#34;, &#34;navbar-text-hover-color&#34;: &#34;#ffffff&#34;, &#34;home-banner-title-color&#34;: &#34;#ffffff&#34;, &#34;home-banner-subtitle-color&#34;: &#34;#f7f7f7&#34;, &#34;careerhub-legacy-banner-home-title-color&#34;: &#34;#ffffff&#34;, &#34;careerhub-legacy-banner-home-subtitle-color&#34;: &#34;#ffffff&#34;, &#34;careerhub-legacy-banner-title-color&#34;: &#34;#ffffff&#34;, &#34;careerhub-legacy-banner-subtitle-color&#34;: &#34;#ffffff&#34;}}}, &#34;domain&#34;: &#34;ngc.com&#34;, &#34;configPath&#34;: &#34;CAREER_HUB&gt;employee&gt;&#34;, &#34;updatePath&#34;: &#34;CAREER_HUB&gt;employee&gt;&#34;}
+    </code>
+    <div id="page-wrapper" style="">
+        <div id="header-wrapper" class="row">
+
+<!-- Enabling navbar only for efdemo users now -->
+
+
+  <header class="navbar-wrapper">
+    <div id="navbar-main" class="navbar navbar-static-top kona-navbar nav-fixed" role="banner" >
+
+      <a class="skip-main" href="#main-content">Skip to main content</a>
+      <div class="fixed-width">
+        <ul class="nav navbar-top-links navbar-left nav-logo">
+          <li id="vs_tab_logo"><a class="topbar-app-tab show-spinner" href="/home" style="text-decoration: none; cursor: default;"><img class="navbar-logo" src="https://static.vscdn.net/images/logos/eightfold_logo_no_text.svg" class="logo" alt="Eightfold Logo - Positions" /><span class="print-only">&nbsp;&nbsp;&nbsp;Eightfold</span></a></li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+
+        </div>
+
+      <div id="sticky-content-padding-container"></div>
+      <div class="fixed-width">
+      </div>
+      <div class="fixed-width">
+        <main id="main-content" role="main">
+              <div id="bulk-actions-overlay-profile">
+               </div>
+<script> window._feedback_data = {"page_type": "404"}</script>
+<div class="container">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="error-template">
+          <img src="https://static.vscdn.net/images/404_illustration.png" alt="404 Illustration"  style="width:127px; height:196px;margin-bottom: 32px">
+          <h1>Page Not Found</h1>
+          <div class="error-details">
+                Sorry, the page you requested was not found.
+          </div>
+          <div class="error-actions">
+              <a href="https://jobs.northropgrumman.com" class="btn btn-primary btn-lg">Home</a>
+          </div>
+      </div>
+    </div>
+  </div>
+</div>
+        </main>
+      </div>
+      <div id="react-toast-container"></div>
+      <div id="react-hook"></div>
+    </div>
+
+
+
+  <script>
+    $(document).ready(function() {
+      $(document.body).on('click', '#contact-support-old', function () {
+        $(".feedback-btn").click();
+      });
+
+      $(document.body).on('click', '#contact-support-new', function () {
+        $("#get-help-button").click();
+      });
+    });
+  </script>
+
+
+    <div style="display: none;" id='js-errors'> [] </div>
+  </body>
+</html>
