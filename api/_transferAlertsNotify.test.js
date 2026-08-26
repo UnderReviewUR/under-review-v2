@@ -4,6 +4,7 @@ import {
   formatTransferAlertBody,
   formatTransferAlertTitle,
   sendTransferAlertNtfy,
+  sendTransferAlertEmail,
   bounceTransferAlert,
 } from "./_transferAlertsNotify.js";
 
@@ -59,6 +60,29 @@ describe("sendTransferAlertNtfy", () => {
       assert.equal(r.reason, "topic_missing");
     } finally {
       if (prev !== undefined) process.env.TRANSFER_ALERTS_NTFY_TOPIC = prev;
+    }
+  });
+});
+
+describe("sendTransferAlertEmail", () => {
+  it("skips unless TRANSFER_ALERTS_EMAIL=1", async () => {
+    const prevFlag = process.env.TRANSFER_ALERTS_EMAIL;
+    const prevResend = process.env.RESEND_API_KEY;
+    const prevFrom = process.env.AUTH_EMAIL_FROM;
+    delete process.env.TRANSFER_ALERTS_EMAIL;
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.AUTH_EMAIL_FROM = "alerts@example.com";
+    try {
+      const r = await sendTransferAlertEmail(sample);
+      assert.equal(r.skipped, true);
+      assert.equal(r.reason, "disabled");
+    } finally {
+      if (prevFlag !== undefined) process.env.TRANSFER_ALERTS_EMAIL = prevFlag;
+      else delete process.env.TRANSFER_ALERTS_EMAIL;
+      if (prevResend !== undefined) process.env.RESEND_API_KEY = prevResend;
+      else delete process.env.RESEND_API_KEY;
+      if (prevFrom !== undefined) process.env.AUTH_EMAIL_FROM = prevFrom;
+      else delete process.env.AUTH_EMAIL_FROM;
     }
   });
 });

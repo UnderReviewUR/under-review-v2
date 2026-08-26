@@ -81,7 +81,7 @@ export async function sendTransferAlertNtfy(alert) {
  * @returns {Promise<{ channel: string, ok: boolean, skipped?: boolean, reason?: string }>}
  */
 export async function sendTransferAlertEmail(alert) {
-  const enabled = String(getEnv("TRANSFER_ALERTS_EMAIL") || "1").trim() !== "0";
+  const enabled = String(getEnv("TRANSFER_ALERTS_EMAIL") || "0").trim() === "1";
   if (!enabled) {
     return { channel: "email", ok: false, skipped: true, reason: "disabled" };
   }
