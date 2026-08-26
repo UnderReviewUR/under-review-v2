@@ -156,8 +156,11 @@ describe("formatTransferSpoilerBody", () => {
     assert.match(t2, /Tottenham/i);
     assert.doesNotMatch(t2, /Granted Permission/i);
     assert.doesNotMatch(t2, /Hotspur/i);
+    assert.match(b2, /Loan from Man City to Tottenham/i);
     assert.match(b2, /50m/);
-    assert.match(b2, /Man City/i);
+    assert.match(b2, /4\+1 years/i);
+    assert.doesNotMatch(b2, /joins Man City on loan with Tottenham/i);
     assert.doesNotMatch(b2, /#/);
+    assert.doesNotMatch(b2, /27yo/i);
   });
 });
