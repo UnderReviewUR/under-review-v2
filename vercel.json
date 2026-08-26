@@ -103,6 +103,9 @@
     },
     "api/world-cup.js": {
       "maxDuration": 120
+    },
+    "api/transfer-alerts.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -137,6 +140,10 @@
     {
       "path": "/api/world-cup?view=warmup&kind=all",
       "schedule": "0 15,23 * * *"
+    },
+    {
+      "path": "/api/transfer-alerts",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
