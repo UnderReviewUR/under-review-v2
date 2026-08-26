@@ -1,15 +1,18 @@
 /**
  * Bounce scored transfer alerts to iPhone (ntfy) + optional Resend email.
  *
- * Lock-screen look (ntfy → APNs):
- * - Title  → bold headline on the banner
- * - Body   → secondary text under the title
- * - Tags   → emoji prefix on the title (soccer ⚽, etc.)
+ * Lock-screen look (B/R-style spoiler, ntfy → APNs):
+ * - Title  → the news itself (not desk/emoji branding)
+ * - Body   → extra fact + (reporter)
  * - Priority → iOS interruption level (5 = time-sensitive / urgent)
  * - Click  → opens the story URL when you tap
  */
 
 import { getEnv } from "./_env.js";
+import {
+  formatTransferSpoilerBody,
+  formatTransferSpoilerTitle,
+} from "../shared/transferAlerts/formatSpoiler.js";
 
 const DEFAULT_ALERT_EMAIL = "jon.shepherd@myyahoo.com";
 
@@ -18,46 +21,21 @@ const DEFAULT_ALERT_EMAIL = "jon.shepherd@myyahoo.com";
  */
 
 /**
- * Short lock-screen body — title carries the headline; keep this scannable.
+ * Secondary lock-screen line.
  * @param {ScoredAlert} alert
  * @returns {string}
  */
 export function formatTransferAlertBody(alert) {
-  const byline = alert.reporters?.length
-    ? alert.reporters.join(" + ")
-    : alert.source || alert.feedLabel || "wire";
-  const lines = [
-    alert.title,
-    "",
-    alert.barca ? `Barça · ${byline}` : byline,
-    alert.link || null,
-  ].filter(Boolean);
-  return lines.join("\n");
+  return formatTransferSpoilerBody(alert);
 }
 
 /**
- * Banner title shown above the body on iPhone.
+ * Bold lock-screen line — spoiler, not "Breaking · ornstein".
  * @param {ScoredAlert} alert
  * @returns {string}
  */
 export function formatTransferAlertTitle(alert) {
-  const who = alert.reporters?.[0] || "transfer";
-  if (alert.barca) return `Barça · ${who}`.slice(0, 120);
-  if (alert.tier === 1) return `Breaking · ${who}`.slice(0, 120);
-  return `Transfer · ${who}`.slice(0, 120);
-}
-
-/**
- * ntfy tag emojis — first matching emoji tags prepend the notification title.
- * @param {ScoredAlert} alert
- * @returns {string}
- */
-export function formatTransferAlertTags(alert) {
-  const tags = ["soccer"];
-  if (alert.barca) tags.push("stadium", "rotating_light");
-  else if (alert.priority >= 5) tags.push("rotating_light");
-  else if (alert.tier === 1) tags.push("loudspeaker");
-  return tags.join(",");
+  return formatTransferSpoilerTitle(alert);
 }
 
 /**
@@ -77,7 +55,6 @@ export async function sendTransferAlertNtfy(alert) {
   const headers = {
     Title: formatTransferAlertTitle(alert),
     Priority: String(alert.priority || 3),
-    Tags: formatTransferAlertTags(alert),
     "Content-Type": "text/plain; charset=utf-8",
   };
   if (alert.link) headers.Click = alert.link;
