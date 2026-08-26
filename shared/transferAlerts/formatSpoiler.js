@@ -205,9 +205,47 @@ export function compressNativePost(alert) {
  * @param {string} title
  * @param {string} extra
  */
+function tidyFeeBits(s) {
+  return collapse(
+    String(s || "")
+      .replace(/^for\s+/i, "")
+      .replace(/\s*[–—-]\s*/g, ", ")
+      .replace(/\s*&\s*/g, ", ")
+      .replace(/\b(\d+)\+(\d+)yr(?:\s+contract)?\b/gi, "$1+$2 years")
+      .replace(/,\s*,/g, ","),
+  );
+}
+
+/**
+ * Turn Ornstein telegram-speak into a lock-screen fact line.
+ * "joins City on loan with Spurs buy obligation" means City→Spurs, not the reverse.
+ * @param {string} extra
+ * @returns {string}
+ */
+export function polishDealBody(extra) {
+  let e = collapse(cleanWireText(extra)).replace(/^\d+yo\s+/i, "");
+  const loanBuy = e.match(
+    /^joins\s+(.+?)\s+on loan with\s+(.+?)\s+buy obligation(?:\s+for)?\s*(.*)$/i,
+  );
+  if (loanBuy) {
+    const fromClub = collapse(loanBuy[1]);
+    const toClub = collapse(loanBuy[2]);
+    const rest = tidyFeeBits(loanBuy[3]);
+    e = `Loan from ${fromClub} to ${toClub}${rest ? `, ${rest}` : ""}`;
+    return e;
+  }
+  const loanFrom = e.match(/^joins\s+(.+?)\s+on loan from\s+(.+?)([,.]|$)/i);
+  if (loanFrom) {
+    const rest = tidyFeeBits(e.slice(loanFrom[0].length));
+    e = `Loan from ${collapse(loanFrom[2])} to ${collapse(loanFrom[1])}${rest ? `, ${rest}` : ""}`;
+    return e;
+  }
+  return tidyFeeBits(e);
+}
+
 function finishNative(title, extra) {
   let t = collapse(title);
-  let e = cleanWireText(extra);
+  let e = polishDealBody(extra);
   if (/are now\.?$/i.test(t) && e.length >= 20) {
     t = e.split(/[.!?]/)[0] || t;
     e = "";
@@ -469,7 +507,7 @@ export function formatTransferSpoilerBody(alert) {
   const { extra } = compressTransferCopy(alert);
   const who = formatAttribution(alert.reporters, alert.source);
   if (extra) {
-    const fact = cleanWireText(extra).replace(
+    const fact = polishDealBody(extra).replace(
       /\s*\((?:ornstein|romano|di marzio|david ornstein|fabrizio romano)\)\s*$/i,
       "",
     );
