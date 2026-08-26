@@ -131,7 +131,7 @@ export function cleanWireText(s) {
 export function shortenHeadline(s) {
   let t = cleanWireText(s);
   t = t
-    .replace(/\bgranted permission to take\s+/gi, "")
+    .replace(/\bgranted permission to take\s+/gi, "to ")
     .replace(/\bby representatives\b/gi, "")
     .replace(/\bholding key talks with\b/gi, "in talks with")
     .replace(/\breach(?:es|ed)? agreement with\b/gi, "agree deal with")
@@ -148,7 +148,7 @@ export function shortenHeadline(s) {
     .replace(/\baston villa\b/gi, "Villa")
     .replace(/\bnewcastle united\b/gi, "Newcastle")
     .replace(/\breal madrid\b/gi, "Real Madrid")
-    .replace(/\s+medical$/i, " medical");
+    .replace(/\s+medical\.?$/i, "");
   t = collapse(t);
   return t;
 }
@@ -209,7 +209,7 @@ function tidyFeeBits(s) {
   return collapse(
     String(s || "")
       .replace(/^for\s+/i, "")
-      .replace(/\s*[–—-]\s*/g, ", ")
+      .replace(/\s+[–—-]\s+/g, ", ")
       .replace(/\s*&\s*/g, ", ")
       .replace(/\b(\d+)\+(\d+)yr(?:\s+contract)?\b/gi, "$1+$2 years")
       .replace(/,\s*,/g, ","),
@@ -231,27 +231,30 @@ export function polishDealBody(extra) {
     const fromClub = collapse(loanBuy[1]);
     const toClub = collapse(loanBuy[2]);
     const rest = tidyFeeBits(loanBuy[3]);
-    e = `Loan from ${fromClub} to ${toClub}${rest ? `, ${rest}` : ""}`;
+    e = `${toClub} loan from ${fromClub}${rest ? `; obligation to buy ${rest}` : ""}`;
     return e;
   }
   const loanFrom = e.match(/^joins\s+(.+?)\s+on loan from\s+(.+?)([,.]|$)/i);
   if (loanFrom) {
     const rest = tidyFeeBits(e.slice(loanFrom[0].length));
-    e = `Loan from ${collapse(loanFrom[2])} to ${collapse(loanFrom[1])}${rest ? `, ${rest}` : ""}`;
+    e = `${collapse(loanFrom[1])} loan from ${collapse(loanFrom[2])}${rest ? `; ${rest}` : ""}`;
     return e;
   }
-  return tidyFeeBits(e);
+  return tidyFeeBits(e)
+    .replace(/\bopen to Argentina int'?l exit\b/gi, "open to selling")
+    .replace(/\bafter ([A-Za-z]+(?:\s+[A-Za-z]+)?) made No\.?1\b/gi, "after $1 became No.1")
+    .replace(/\+\s+(Chelsea|Arsenal|Liverpool|Tottenham|Newcastle|Villa) keen\b/gi, "; $1 keen");
 }
 
 function finishNative(title, extra) {
-  let t = collapse(title);
+  let t = collapse(title).replace(/[.]+$/g, "");
   let e = polishDealBody(extra);
   if (/are now\.?$/i.test(t) && e.length >= 20) {
     t = e.split(/[.!?]/)[0] || t;
     e = "";
   }
   return {
-    title: toHeadlineCase(clipWords(t, TITLE_MAX)),
+    title: toHeadlineCase(clipWords(t, TITLE_MAX)).replace(/\s+\./g, ".").replace(/\.+$/g, ""),
     extra: clipWords(e, BODY_MAX),
   };
 }
