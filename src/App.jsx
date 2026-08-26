@@ -5329,6 +5329,15 @@ ${themeCss}
         <div>
           <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.ownerTitle ?? "var(--cyan-bright)",letterSpacing:2,marginBottom:2}}>{accessTier==="owner"?"OWNER ACCESS":"FRIEND ACCESS"}</div>
           <div style={{fontSize:12,color:proMarketing.ownerSub ?? "var(--muted)"}}>{accessTier==="owner"?"Full access. No limits.":"Unlocked via access code. Enjoy."}</div>
+          {accessTier==="owner" ? (
+            <button
+              type="button"
+              onClick={()=>{ window.location.href = "/transfers"; }}
+              style={{marginTop:8,background:"none",border:"none",padding:0,color:"var(--cyan-bright)",fontSize:12,cursor:"pointer",fontFamily:"var(--mono-font)",letterSpacing:1}}
+            >
+              Transfer alerts
+            </button>
+          ) : null}
         </div>
       </div>
     )}

@@ -2,6 +2,7 @@ import { Component, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Analytics } from "@vercel/analytics/react";
 import App from "./App.jsx";
+import TransferAlertsSetup from "./screens/TransferAlertsSetup.jsx";
 import { logUrBuildFingerprint } from "./lib/urBuildFingerprint.js";
 
 logUrBuildFingerprint();
@@ -61,7 +62,11 @@ try {
   createRoot(document.getElementById("root")).render(
     <StrictMode>
       <RootErrorBoundary>
-        <App />
+        {window.location.pathname.replace(/\/+$/, "") === "/transfers" ? (
+          <TransferAlertsSetup />
+        ) : (
+          <App />
+        )}
       </RootErrorBoundary>
       <Analytics />
     </StrictMode>,

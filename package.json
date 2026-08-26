@@ -63,7 +63,8 @@
     "express": "^5.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "stripe": "^14.0.0"
+    "stripe": "^14.0.0",
+    "web-push": "^3.6.7"
   },
   "optionalDependencies": {
     "@sparticuz/chromium": "^133.0.0",

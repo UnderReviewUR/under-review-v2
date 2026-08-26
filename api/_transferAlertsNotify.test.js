@@ -98,7 +98,7 @@ describe("bounceTransferAlert", () => {
     try {
       const out = await bounceTransferAlert(sample);
       assert.equal(out.alertId, "ta_abc");
-      assert.equal(out.results.length, 2);
+      assert.ok(out.results.some((r) => r.channel === "webpush"));
       assert.ok(out.results.every((r) => r.skipped || r.ok === false));
     } finally {
       if (prevTopic !== undefined) process.env.TRANSFER_ALERTS_NTFY_TOPIC = prevTopic;
