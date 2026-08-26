@@ -37,6 +37,10 @@ export const TRANSFER_X_ACCOUNTS = [
   { handle: "David_Ornstein", reporterId: "ornstein" },
   { handle: "FabrizioRomano", reporterId: "romano" },
   { handle: "DiMarzio", reporterId: "di_marzio" },
+  { handle: "jamesbenge", reporterId: "benge", barcaHeavy: true },
+  { handle: "sammarsden_", reporterId: "marsden", barcaHeavy: true },
+  { handle: "sidlowe", reporterId: "lowe", barcaHeavy: true },
+  { handle: "PolBallus", reporterId: "ballus", barcaHeavy: true },
 ];
 
 const GNEWS =
@@ -113,7 +117,7 @@ export const TRANSFER_FEEDS = [
     id: "gnews_top_transfers",
     label: "Top-club transfer desk",
     url: gnews(
-      "(transfer OR \"here we go\" OR \"personal terms\" OR medical) (Liverpool OR Arsenal OR Chelsea OR \"Man City\" OR \"Man United\" OR \"Real Madrid\" OR PSG OR Bayern)",
+      "(transfer OR \"here we go\" OR \"personal terms\" OR medical) (Barcelona OR Barça OR Liverpool OR Arsenal OR Chelsea OR \"Man City\" OR \"Man United\" OR \"Real Madrid\" OR PSG OR Bayern)",
     ),
     weight: 1.0,
   },
