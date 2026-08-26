@@ -102,4 +102,25 @@ describe("formatTransferSpoilerBody", () => {
     assert.match(body, /58\.4m/i);
     assert.match(body, /\(Romano\)/);
   });
+
+  it("splits an Ornstein tweet into spoiler + fee line", () => {
+    const title = formatTransferSpoilerTitle({
+      native: true,
+      reporters: ["ornstein"],
+      title: "Al Hilal finalising agreement with Aston Villa to sign Ollie Watkins.",
+      description:
+        "Subject to AVFC landing replacement, 30yo England striker to move for £50m + small add-ons.",
+    });
+    const body = formatTransferSpoilerBody({
+      native: true,
+      reporters: ["ornstein"],
+      title: "Al Hilal finalising agreement with Aston Villa to sign Ollie Watkins.",
+      description:
+        "Subject to AVFC landing replacement, 30yo England striker to move for £50m + small add-ons.",
+    });
+    assert.match(title, /Watkins/i);
+    assert.doesNotMatch(title, /50m/);
+    assert.match(body, /50m/);
+    assert.match(body, /\(Ornstein\)/);
+  });
 });

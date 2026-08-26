@@ -54,7 +54,7 @@ curl -H "Title: Chelsea Considering Emiliano Martinez" -H "Priority: 5" \
 
 ## What gets through
 
-- **Native X text (preferred):** Romano + Di Marzio Telegram mirrors — full post, fee/details in the body
+- **Native X text (preferred):** FxTwitter public timelines for Ornstein / Romano / Di Marzio (full tweet, including fees) plus Telegram mirrors
 - **Tier-1 Google News fallback:** Ornstein, Romano, Di Marzio  
 - **Strong wires:** Jacobs, Matt Law, Whitwell, Stone, Marcotti, etc.  
 - **Barça-heavy:** Benge, Marsden, Jonathan Johnson, Sid Lowe, Westwood + Barcelona transfer language  

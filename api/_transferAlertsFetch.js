@@ -4,6 +4,8 @@
 
 import { parseRssItems } from "../shared/transferAlerts/parseRss.js";
 import { TRANSFER_FEEDS, feedUrls } from "../shared/transferAlerts/sources.js";
+import { getEnv } from "./_env.js";
+import { fetchTransferXTimelines } from "./_transferAlertsX.js";
 
 const FETCH_TIMEOUT_MS = 12_000;
 const UA =
@@ -80,6 +82,21 @@ export async function fetchTransferFeedItems(opts = {}) {
       }
     }),
   );
+
+  const xEnabled = String(getEnv("TRANSFER_ALERTS_X") || "1").trim() !== "0";
+  if (xEnabled && !opts.feeds) {
+    try {
+      const x = await fetchTransferXTimelines();
+      items.push(...x.items);
+      feedResults.push(...x.feedResults);
+    } catch (err) {
+      feedResults.push({
+        id: "x_timelines",
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   return { items, feedResults };
 }

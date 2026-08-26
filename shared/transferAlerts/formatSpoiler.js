@@ -125,6 +125,17 @@ export function compressNativePost(alert) {
       return b.length > 8 && !a.startsWith(b) && !headline.toLowerCase().includes(a.slice(0, 28));
     }) || "";
 
+  if (!extra) {
+    const blob = stripNativeChrome(`${headline} ${desc}`);
+    const bits = blob.split(/(?<=[.!?])\s+/).filter((p) => p.length >= 12);
+    if (bits.length >= 2) {
+      return {
+        title: toHeadlineCase(clipWords(bits[0], TITLE_MAX)),
+        extra: clipWords(bits.slice(1).join(" "), BODY_MAX),
+      };
+    }
+  }
+
   return {
     title: toHeadlineCase(clipWords(headline, TITLE_MAX)),
     extra: clipWords(extra, BODY_MAX),
