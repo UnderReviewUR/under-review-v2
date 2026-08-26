@@ -1,0 +1,87 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import {
+  formatTransferSpoilerTitle,
+  formatTransferSpoilerBody,
+  formatAttribution,
+} from "./formatSpoiler.js";
+
+describe("formatAttribution", () => {
+  it("uses last name like (Shams)", () => {
+    assert.equal(formatAttribution(["ornstein"]), "Ornstein");
+    assert.equal(formatAttribution(["romano"]), "Romano");
+  });
+});
+
+describe("formatTransferSpoilerTitle", () => {
+  it("puts the Chelsea/Martinez spoiler in the title", () => {
+    const title = formatTransferSpoilerTitle({
+      title:
+        "David Ornstein reveals Chelsea are considering Emiliano Martinez transfer following contact",
+      reporters: ["ornstein"],
+    });
+    assert.match(title, /Chelsea/i);
+    assert.match(title, /Martinez/i);
+    assert.doesNotMatch(title, /Ornstein/i);
+    assert.doesNotMatch(title, /Breaking/i);
+    assert.doesNotMatch(title, /following contact/i);
+  });
+
+  it("uses the quoted Newcastle agreement, not desk branding", () => {
+    const title = formatTransferSpoilerTitle({
+      title:
+        "'Newcastle United reach agreement' – David Ornstein drops transfer news - Read Newcastle",
+      reporters: ["ornstein"],
+    });
+    assert.match(title, /Newcastle/i);
+    assert.match(title, /Agreement/i);
+    assert.doesNotMatch(title, /drops transfer news/i);
+    assert.doesNotMatch(title, /Read Newcastle/i);
+  });
+
+  it("lifts quoted personal terms onto the club", () => {
+    const title = formatTransferSpoilerTitle({
+      title:
+        '"Closing in on personal terms agreement": Fabrizio Romano confirms imminent Liverpool transfer - The Empire of The Kop',
+      reporters: ["romano"],
+    });
+    assert.match(title, /Liverpool/i);
+    assert.match(title, /Personal Terms/i);
+    assert.doesNotMatch(title, /Empire/i);
+    assert.doesNotMatch(title, /Romano/i);
+  });
+
+  it("does not use Barça · reporter as the headline", () => {
+    const title = formatTransferSpoilerTitle({
+      title: "Barcelona close to striker deal — David Ornstein",
+      reporters: ["ornstein"],
+    });
+    assert.match(title, /Barcelona/i);
+    assert.match(title, /Striker/i);
+    assert.doesNotMatch(title, /Barça ·/i);
+  });
+});
+
+describe("formatTransferSpoilerBody", () => {
+  it("puts extra fact and reporter under the spoiler, no URL", () => {
+    const body = formatTransferSpoilerBody({
+      title: "Barcelona close to striker deal — David Ornstein",
+      description: "Personal terms agreed, medical planned this week",
+      reporters: ["ornstein"],
+      source: "The Athletic",
+      link: "https://news.google.com/rss/articles/abc",
+    });
+    assert.match(body, /Personal terms/i);
+    assert.match(body, /\(Ornstein\)/);
+    assert.doesNotMatch(body, /google\.com/i);
+  });
+
+  it("falls back to attribution only", () => {
+    const body = formatTransferSpoilerBody({
+      title: "Newcastle United reach agreement",
+      description: "",
+      reporters: ["ornstein"],
+    });
+    assert.equal(body, "(Ornstein)");
+  });
+});

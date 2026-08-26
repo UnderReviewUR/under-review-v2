@@ -17,10 +17,12 @@ Our cron  →  POST ntfy.sh/<your-topic>  →  Apple Push (APNs)  →  ntfy app 
 
 ### What the banner looks like
 
+B/R-style: the **spoiler is the bold line**. No emoji stack, no `Breaking · ornstein`.
+
 | Piece | Example | Controlled by |
 |--------|---------|----------------|
-| Title (bold) | `⚽🏟🚨 Barça · ornstein` | Our `Title` + `Tags` headers |
-| Body | Story headline + byline + link | Message body we POST |
+| Title (bold) | `Chelsea Considering Emiliano Martinez` | `formatTransferSpoilerTitle` |
+| Body | `Personal terms agreed (Ornstein)` | `formatTransferSpoilerBody` |
 | Urgency | Priority 4–5 = louder / time-sensitive | Our `Priority` header |
 | Tap | Opens the article URL | Our `Click` header |
 
@@ -34,14 +36,13 @@ Suggested topic: `ur-transfers-ae9b2f296c465b5fa2033c36`
 - Focus → allow Time Sensitive so priority 5 still alerts
 
 **In code / env (us):**
-- Title format, emoji tags, body layout — `api/_transferAlertsNotify.js`
+- Spoiler title + body — `shared/transferAlerts/formatSpoiler.js`
 - Priority rules (Barça + tier-1 → 5) — `shared/transferAlerts/scoreAlert.js`
-- Optional custom icon URL later via ntfy’s `Icon` header
 
 Test a fake push after subscribe:
 ```bash
-curl -H "Title: Barça · ornstein" -H "Priority: 5" -H "Tags: soccer,stadium,rotating_light" \
-  -d "Test: Barcelona close to deal — tap works after real alerts" \
+curl -H "Title: Chelsea Considering Emiliano Martinez" -H "Priority: 5" \
+  -d "Following contact (Ornstein)" \
   ntfy.sh/ur-transfers-ae9b2f296c465b5fa2033c36
 ```
 

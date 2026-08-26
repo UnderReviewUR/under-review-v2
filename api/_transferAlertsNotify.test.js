@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   formatTransferAlertBody,
   formatTransferAlertTitle,
-  formatTransferAlertTags,
   sendTransferAlertNtfy,
   bounceTransferAlert,
 } from "./_transferAlertsNotify.js";
@@ -14,7 +13,7 @@ const sample = {
   link: "https://example.com/story",
   pubDate: null,
   source: "The Athletic",
-  description: "Exclusive",
+  description: "Personal terms agreed, medical this week",
   feedId: "gnews_ornstein",
   feedLabel: "Ornstein wire",
   score: 12,
@@ -26,31 +25,27 @@ const sample = {
 };
 
 describe("formatTransferAlertBody", () => {
-  it("includes title and byline", () => {
+  it("is extra fact plus reporter, not a URL dump", () => {
     const body = formatTransferAlertBody(sample);
-    assert.match(body, /Barcelona close/);
-    assert.match(body, /ornstein/i);
-    assert.match(body, /Barça/);
+    assert.match(body, /Personal terms/i);
+    assert.match(body, /\(Ornstein\)/);
+    assert.doesNotMatch(body, /example\.com/);
   });
 });
 
 describe("formatTransferAlertTitle", () => {
-  it("uses Barça · reporter for banner headline", () => {
-    assert.equal(formatTransferAlertTitle(sample), "Barça · ornstein");
+  it("spoilers the deal in the bold line", () => {
+    const title = formatTransferAlertTitle(sample);
+    assert.match(title, /Barcelona/i);
+    assert.match(title, /Striker/i);
+    assert.doesNotMatch(title, /Barça ·/i);
+    assert.doesNotMatch(title, /ornstein/i);
   });
 
-  it("uses Breaking for tier-1 non-Barça", () => {
-    assert.equal(
-      formatTransferAlertTitle({ ...sample, barca: false }),
-      "Breaking · ornstein",
-    );
-  });
-});
-
-describe("formatTransferAlertTags", () => {
-  it("adds stadium + rotating_light for Barça", () => {
-    assert.match(formatTransferAlertTags(sample), /stadium/);
-    assert.match(formatTransferAlertTags(sample), /rotating_light/);
+  it("does not use Breaking · reporter for tier-1", () => {
+    const title = formatTransferAlertTitle({ ...sample, barca: false });
+    assert.doesNotMatch(title, /Breaking/i);
+    assert.match(title, /Barcelona/i);
   });
 });
 
