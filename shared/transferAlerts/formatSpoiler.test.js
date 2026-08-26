@@ -84,4 +84,22 @@ describe("formatTransferSpoilerBody", () => {
     });
     assert.equal(body, "(Ornstein)");
   });
+
+  it("uses the X/Telegram second paragraph as the body spoiler", () => {
+    const alert = {
+      native: true,
+      reporters: ["romano"],
+      title:
+        "BREAKING: Al Hilal have now agreed all details of deal to sign Ollie Watkins, here we go!",
+      description:
+        "BREAKING: Al Hilal have now agreed all details of deal to sign Ollie Watkins, here we go!<br><br>Exclusive details: Aston Villa accepted right now last bid worth £58.4m plus £2m add-ons for the English striker.",
+    };
+    const title = formatTransferSpoilerTitle(alert);
+    const body = formatTransferSpoilerBody(alert);
+    assert.match(title, /Watkins/i);
+    assert.match(title, /Hilal/i);
+    assert.doesNotMatch(title, /58\.4/);
+    assert.match(body, /58\.4m/i);
+    assert.match(body, /\(Romano\)/);
+  });
 });

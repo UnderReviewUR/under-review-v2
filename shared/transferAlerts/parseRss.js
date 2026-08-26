@@ -14,6 +14,8 @@
  *   feedLabel: string,
  *   feedWeight: number,
  *   barcaHeavyFeed: boolean,
+ *   reporterId?: string | null,
+ *   native?: boolean,
  * }} RawFeedItem
  */
 
@@ -75,7 +77,7 @@ export function decodeXmlEntities(s) {
 
 /**
  * @param {string} xml
- * @param {{ id: string, label: string, weight?: number, barcaHeavy?: boolean }} feed
+ * @param {{ id: string, label: string, weight?: number, barcaHeavy?: boolean, reporterId?: string, native?: boolean }} feed
  * @returns {RawFeedItem[]}
  */
 export function parseRssItems(xml, feed) {
@@ -134,6 +136,8 @@ export function parseRssItems(xml, feed) {
       feedLabel: feed.label,
       feedWeight: weight,
       barcaHeavyFeed: Boolean(feed.barcaHeavy),
+      reporterId: feed.reporterId || null,
+      native: Boolean(feed.native),
     });
   }
 

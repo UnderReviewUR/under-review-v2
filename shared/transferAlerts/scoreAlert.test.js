@@ -35,6 +35,25 @@ describe("parseRssItems", () => {
     assert.equal(items[0].feedWeight, 1.2);
     assert.equal(items[0].barcaHeavyFeed, true);
   });
+
+  it("copies native reporterId from the feed", () => {
+    const xml = `<?xml version="1.0"?>
+      <rss><channel>
+        <item>
+          <title>Chelsea close to signing a defender</title>
+          <link>https://t.me/x/1</link>
+          <guid>g-1</guid>
+        </item>
+      </channel></rss>`;
+    const items = parseRssItems(xml, {
+      id: "tg_romano",
+      label: "Romano",
+      reporterId: "romano",
+      native: true,
+    });
+    assert.equal(items[0].reporterId, "romano");
+    assert.equal(items[0].native, true);
+  });
 });
 
 describe("scoreTransferItem", () => {
@@ -74,6 +93,44 @@ describe("scoreTransferItem", () => {
     assert.ok(scored);
     assert.ok(scored.reporters.includes("romano"));
     assert.ok(scored.priority >= 4);
+  });
+
+  it("credits Romano from a native Telegram feed without his name in the title", () => {
+    const scored = scoreTransferItem({
+      guid: "tg-1",
+      title: "Chelsea are in advanced talks over a £40m deal for Honest Ahanor from Atalanta",
+      link: "https://t.me/FabrizioRomanoTG/1",
+      pubDate: new Date().toUTCString(),
+      source: null,
+      description: "Honest already said yes to Chelsea.",
+      feedId: "tg_romano",
+      feedLabel: "Romano X via Telegram",
+      feedWeight: 1.85,
+      barcaHeavyFeed: false,
+      reporterId: "romano",
+      native: true,
+    });
+    assert.ok(scored);
+    assert.ok(scored.reporters.includes("romano"));
+    assert.equal(scored.native, true);
+  });
+
+  it("drops native reply-guy posts", () => {
+    const scored = scoreTransferItem({
+      guid: "tg-reply",
+      title: "@Gazoaks literally 10 minutes ago",
+      link: "https://t.me/FabrizioRomanoTG/2",
+      pubDate: new Date().toUTCString(),
+      source: null,
+      description: "",
+      feedId: "tg_romano",
+      feedLabel: "Romano X via Telegram",
+      feedWeight: 1.85,
+      barcaHeavyFeed: false,
+      reporterId: "romano",
+      native: true,
+    });
+    assert.equal(scored, null);
   });
 
   it("drops match report noise without transfer language or byline", () => {

@@ -6,6 +6,10 @@
 import { TRUSTED_REPORTERS } from "./reporters.js";
 
 const TITLE_MAX = 72;
+const BODY_MAX = 160;
+
+const LEADING_EMOJI =
+  /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\u200D\u20E3]|[↩️🖼⭐✅❌⚡🔥🎯📢📣⚽🏟🚨])+[\s]*/u;
 
 const OUTLET_TAIL =
   /\s*[-–—|]\s*(?:the athletic|sky sports(?: news)?|bbc(?: sport)?|livescore|live score|google news|the guardian|guardian|espn|reuters|afp|telegraph|the times|independent|marca|mundo deportivo|cbs sports|tea?m talk|the sun|mirror|empire of the kop|read (?:newcastle|liverpool|chelsea|arsenal|united)|readliverpoolfc\.com|football insider|caught offside|sportbible|give me sport)(?:\.\w+)?\s*$/i;
@@ -77,6 +81,54 @@ export function formatAttribution(reporterIds, source) {
     return s.slice(0, 24);
   }
   return "Wire";
+}
+
+/**
+ * @param {string} title
+ * @returns {string}
+ */
+export function stripNativeChrome(s) {
+  return collapse(
+    String(s || "")
+      .replace(LEADING_EMOJI, "")
+      .replace(/^(BREAKING|EXCL|Exclusive|Official and confirmed|Official):\s*/i, "")
+      .replace(/\s*https?:\/\/\S+/gi, "")
+      .replace(/\s+[—–-]\s*Fabrizio Romano.*$/i, "")
+      .replace(/\s+@FabrizioRomano\b.*$/i, ""),
+  );
+}
+
+/**
+ * First line = spoiler; remaining paragraphs = lock-screen body (the X post details).
+ * @param {{ title?: string, description?: string }} alert
+ * @returns {{ title: string, extra: string } | null}
+ */
+export function compressNativePost(alert) {
+  const headline = stripNativeChrome(alert.title || "");
+  if (headline.length < 12) return null;
+
+  const desc = String(alert.description || "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ");
+  const paras = desc
+    .split(/\n+/)
+    .map((p) => stripNativeChrome(p))
+    .filter((p) => p.length >= 12)
+    .filter((p) => !/^@\w+$/.test(p))
+    .filter((p) => !/X \(formerly Twitter\)/i.test(p));
+
+  const extra =
+    paras.find((p) => {
+      const a = p.toLowerCase();
+      const b = headline.toLowerCase().slice(0, 28);
+      return b.length > 8 && !a.startsWith(b) && !headline.toLowerCase().includes(a.slice(0, 28));
+    }) || "";
+
+  return {
+    title: toHeadlineCase(clipWords(headline, TITLE_MAX)),
+    extra: clipWords(extra, BODY_MAX),
+  };
 }
 
 /**
@@ -250,6 +302,11 @@ function clipWords(s, max) {
  * @returns {{ title: string, extra: string }}
  */
 export function compressTransferCopy(alert) {
+  if (alert.native) {
+    const native = compressNativePost(alert);
+    if (native?.title) return native;
+  }
+
   const raw = stripOutletAndUrl(alert.title || "");
   const { quote, rest } = extractQuotedFact(raw);
   const framedRest = stripReporterFraming(rest, alert.reporters);

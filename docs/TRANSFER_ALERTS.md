@@ -54,7 +54,8 @@ curl -H "Title: Chelsea Considering Emiliano Martinez" -H "Priority: 5" \
 
 ## What gets through
 
-- **Tier-1:** Ornstein, Fabrizio Romano, Di Marzio  
+- **Native X text (preferred):** Romano + Di Marzio Telegram mirrors — full post, fee/details in the body
+- **Tier-1 Google News fallback:** Ornstein, Romano, Di Marzio  
 - **Strong wires:** Jacobs, Matt Law, Whitwell, Stone, Marcotti, etc.  
 - **Barça-heavy:** Benge, Marsden, Jonathan Johnson, Sid Lowe, Westwood + Barcelona transfer language  
 - Rumors OK with allowlisted bylines; anonymous gossip without club/reporter is dropped
