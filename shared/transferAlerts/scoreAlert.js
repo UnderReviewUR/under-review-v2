@@ -28,6 +28,7 @@ import {
  *   tier: number | null,
  *   reasons: string[],
  *   priority: 3 | 4 | 5,
+ *   native?: boolean,
  * }} ScoredAlert
  */
 
@@ -100,6 +101,25 @@ export function isFreshPubDate(pubDate, nowMs = Date.now()) {
 }
 
 /**
+ * Drop Romano reply-guy / YouTube promo posts that aren't wires.
+ * @param {string} title
+ * @returns {boolean}
+ */
+export function isNativeNoise(title) {
+  const t = String(title || "")
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\u200D]+/gu, " ")
+    .replace(/^[↩️🖼\s]+/u, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (t.length < 18) return true;
+  if (/^@\w/.test(t)) return true;
+  if (/^RT\s+@/i.test(t)) return true;
+  if (/youtube video uploaded/i.test(t)) return true;
+  if (/new youtube video/i.test(t)) return true;
+  return false;
+}
+
+/**
  * @param {RawFeedItem} item
  * @param {{ nowMs?: number }} [opts]
  * @returns {ScoredAlert | null}
@@ -107,6 +127,7 @@ export function isFreshPubDate(pubDate, nowMs = Date.now()) {
 export function scoreTransferItem(item, opts = {}) {
   const nowMs = opts.nowMs ?? Date.now();
   if (!isFreshPubDate(item.pubDate, nowMs)) return null;
+  if (item.native && isNativeNoise(item.title)) return null;
 
   const titleHay = titleBlob(item);
   const fullHay = norm(
@@ -147,7 +168,9 @@ export function scoreTransferItem(item, opts = {}) {
   for (const r of TRUSTED_REPORTERS) {
     // Bylines in title/source only — description often lists related reporters.
     const nameHit = r.names.some((n) => phraseMatch(titleHay, n));
-    if (!nameHit) continue;
+    const feedHit = item.reporterId === r.id;
+    if (!nameHit && !feedHit) continue;
+    if (reporters.includes(r.id)) continue;
 
     reporters.push(r.id);
     const tierBoost = r.tier === 1 ? 5.5 : r.tier === 2 ? 3.5 : 2.2;
@@ -210,6 +233,7 @@ export function scoreTransferItem(item, opts = {}) {
     tier: bestTier,
     reasons,
     priority,
+    native: Boolean(item.native),
   };
 }
 

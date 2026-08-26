@@ -3,7 +3,7 @@
  */
 
 import { parseRssItems } from "../shared/transferAlerts/parseRss.js";
-import { TRANSFER_FEEDS } from "../shared/transferAlerts/sources.js";
+import { TRANSFER_FEEDS, feedUrls } from "../shared/transferAlerts/sources.js";
 
 const FETCH_TIMEOUT_MS = 12_000;
 const UA =
@@ -47,20 +47,35 @@ export async function fetchTransferFeedItems(opts = {}) {
 
   await Promise.all(
     feeds.map(async (feed) => {
-      try {
-        const xml = await doFetch(feed.url);
-        const parsed = parseRssItems(xml, feed);
-        items.push(...parsed);
-        feedResults.push({
-          id: feed.id,
-          ok: true,
-          count: parsed.length,
-        });
-      } catch (err) {
+      const urls = feedUrls(feed);
+      if (!urls.length) {
+        feedResults.push({ id: feed.id, ok: false, error: "no_url" });
+        return;
+      }
+      /** @type {Error | null} */
+      let lastErr = null;
+      for (const url of urls) {
+        try {
+          const xml = await doFetch(url);
+          const parsed = parseRssItems(xml, feed);
+          items.push(...parsed);
+          feedResults.push({
+            id: feed.id,
+            ok: true,
+            count: parsed.length,
+            via: url,
+          });
+          lastErr = null;
+          break;
+        } catch (err) {
+          lastErr = err instanceof Error ? err : new Error(String(err));
+        }
+      }
+      if (lastErr) {
         feedResults.push({
           id: feed.id,
           ok: false,
-          error: err instanceof Error ? err.message : String(err),
+          error: lastErr.message,
         });
       }
     }),

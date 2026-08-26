@@ -36,7 +36,7 @@ GitHub Actions runs `npm ci`, `npm run build`, `npm run lint`, and `npm test` on
 
 ### Transfer alerts (iPhone)
 
-Ornstein / Romano / Barça transfer bounce → ntfy + optional Resend email. Cron: `/api/transfer-alerts` every 10 minutes. Setup: [docs/TRANSFER_ALERTS.md](docs/TRANSFER_ALERTS.md).
+Ornstein / Romano / Barça transfer bounce → ntfy + optional Resend email. Native Romano/Di Marzio wires (full X-post text via Telegram) plus Google News fallback. Cron: `/api/transfer-alerts` every 10 minutes. Setup: [docs/TRANSFER_ALERTS.md](docs/TRANSFER_ALERTS.md).
 
 ### Tennis breaking news
 
