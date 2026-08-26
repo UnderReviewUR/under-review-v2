@@ -54,6 +54,8 @@ curl -H "Title: Chelsea Considering Emiliano Martinez" -H "Priority: 5" \
 
 ## What gets through
 
+Copy rules: lock-screen titles stay under ~46 characters; tweet hashtags (`#CFC`) become club names; `@handles` are stripped. Duplicate wires (X + Telegram + Google) collapse to the highest-scoring copy of the same player.
+
 - **Native X text (preferred):** FxTwitter public timelines for Ornstein / Romano / Di Marzio (full tweet, including fees) plus Telegram mirrors
 - **Tier-1 Google News fallback:** Ornstein, Romano, Di Marzio  
 - **Strong wires:** Jacobs, Matt Law, Whitwell, Stone, Marcotti, etc.  

@@ -3,6 +3,7 @@
  * Docs: GET https://api.fxtwitter.com/2/profile/{handle}/statuses
  */
 
+import { cleanWireText } from "../shared/transferAlerts/formatSpoiler.js";
 import { TRANSFER_X_ACCOUNTS } from "../shared/transferAlerts/sources.js";
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -16,11 +17,7 @@ const FX_BASE = "https://api.fxtwitter.com/2/profile";
  * @returns {{ title: string, description: string }}
  */
 export function splitTweetCopy(text) {
-  const cleaned = String(text || "")
-    .replace(/\s+/g, " ")
-    .replace(/\s*https?:\/\/\S+/gi, "")
-    .replace(/\s*@TheAthleticFC\b/gi, "")
-    .trim();
+  const cleaned = cleanWireText(text);
   const parts = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
   if (parts.length < 2) return { title: cleaned, description: "" };
   return {

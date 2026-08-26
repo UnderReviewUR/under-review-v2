@@ -5,7 +5,7 @@
 
 import { TRUSTED_REPORTERS } from "./reporters.js";
 
-const TITLE_MAX = 72;
+const TITLE_MAX = 46;
 const BODY_MAX = 160;
 
 const LEADING_EMOJI =
@@ -83,18 +83,83 @@ export function formatAttribution(reporterIds, source) {
   return "Wire";
 }
 
+const CLUB_TAGS = {
+  AVFC: "Villa",
+  CFC: "Chelsea",
+  MCFC: "Man City",
+  THFC: "Tottenham",
+  LFC: "Liverpool",
+  NUFC: "Newcastle",
+  AFC: "Arsenal",
+  PSG: "PSG",
+  MUFC: "Man Utd",
+  SAFC: "Sunderland",
+  BHAFC: "Brighton",
+  CPFC: "Palace",
+  WHUFC: "West Ham",
+  FCB: "Barça",
+};
+
 /**
- * @param {string} title
+ * Expand #AVFC / drop @handles so the lock screen reads like a wire, not a tweet.
+ * @param {string} s
  * @returns {string}
  */
-export function stripNativeChrome(s) {
+export function cleanWireText(s) {
   return collapse(
     String(s || "")
       .replace(LEADING_EMOJI, "")
-      .replace(/^(BREAKING|EXCL|Exclusive|Official and confirmed|Official):\s*/i, "")
+      .replace(/#([A-Za-z0-9_]+)/g, (_, tag) => CLUB_TAGS[String(tag).toUpperCase()] || "")
+      .replace(
+        /\b(AVFC|CFC|MCFC|THFC|LFC|NUFC|MUFC|SAFC|BHAFC|CPFC|WHUFC)\b/g,
+        (_, tag) => CLUB_TAGS[tag] || "",
+      )
+      .replace(/@\w+/g, "")
+      .replace(/\bW\/\b/gi, "")
       .replace(/\s*https?:\/\/\S+/gi, "")
-      .replace(/\s+[—–-]\s*Fabrizio Romano.*$/i, "")
-      .replace(/\s+@FabrizioRomano\b.*$/i, ""),
+      .replace(/^(exclusive story,?\s*)+/i, "")
+      .replace(/^(confirmed:?\s*)+/i, "")
+      .replace(/^(BREAKING|EXCL|Exclusive|Official and confirmed|Official):\s*/i, ""),
+  );
+}
+
+/**
+ * Short lock-screen spoiler — iOS stacked banners cut around ~40–45 chars.
+ * @param {string} s
+ * @returns {string}
+ */
+export function shortenHeadline(s) {
+  let t = cleanWireText(s);
+  t = t
+    .replace(/\bgranted permission to take\s+/gi, "")
+    .replace(/\bby representatives\b/gi, "")
+    .replace(/\bholding key talks with\b/gi, "in talks with")
+    .replace(/\breach(?:es|ed)? agreement with\b/gi, "agree deal with")
+    .replace(/\bstrike agreement with\b/gi, "agree deal with")
+    .replace(/\bfinalising agreement with\b/gi, "closing deal with")
+    .replace(/\b(?:closing deal|agree deal) with .+? to sign\b/gi, "to sign")
+    .replace(/\bhave now agreed all details of deal to sign\b/gi, "to sign")
+    .replace(/\bagreed all details of deal to sign\b/gi, "to sign")
+    .replace(/,?\s*here we go!?/gi, "")
+    .replace(/\btottenham hotspur\b/gi, "Tottenham")
+    .replace(/\bmanchester city\b/gi, "Man City")
+    .replace(/\bmanchester united\b/gi, "Man Utd")
+    .replace(/\bparis saint-?germain\b/gi, "PSG")
+    .replace(/\baston villa\b/gi, "Villa")
+    .replace(/\bnewcastle united\b/gi, "Newcastle")
+    .replace(/\breal madrid\b/gi, "Real Madrid")
+    .replace(/\s+medical$/i, " medical");
+  t = collapse(t);
+  return t;
+}
+
+export function stripNativeChrome(s) {
+  return shortenHeadline(
+    collapse(
+      String(s || "")
+        .replace(/\s+[—–-]\s*Fabrizio Romano.*$/i, "")
+        .replace(/\s+@FabrizioRomano\b.*$/i, ""),
+    ),
   );
 }
 
@@ -129,16 +194,27 @@ export function compressNativePost(alert) {
     const blob = stripNativeChrome(`${headline} ${desc}`);
     const bits = blob.split(/(?<=[.!?])\s+/).filter((p) => p.length >= 12);
     if (bits.length >= 2) {
-      return {
-        title: toHeadlineCase(clipWords(bits[0], TITLE_MAX)),
-        extra: clipWords(bits.slice(1).join(" "), BODY_MAX),
-      };
+      return finishNative(bits[0], bits.slice(1).join(" "));
     }
   }
 
+  return finishNative(headline, extra);
+}
+
+/**
+ * @param {string} title
+ * @param {string} extra
+ */
+function finishNative(title, extra) {
+  let t = collapse(title);
+  let e = cleanWireText(extra);
+  if (/are now\.?$/i.test(t) && e.length >= 20) {
+    t = e.split(/[.!?]/)[0] || t;
+    e = "";
+  }
   return {
-    title: toHeadlineCase(clipWords(headline, TITLE_MAX)),
-    extra: clipWords(extra, BODY_MAX),
+    title: toHeadlineCase(clipWords(t, TITLE_MAX)),
+    extra: clipWords(e, BODY_MAX),
   };
 }
 
@@ -336,6 +412,7 @@ export function compressTransferCopy(alert) {
   core = peelBodyClause(core);
   core = tightenGrammar(core);
   core = dropEmptyTransferNoun(core);
+  core = shortenHeadline(core);
   core = collapse(core.replace(/^["']+|["']+$/g, ""));
 
   if (core.length < 12 && alert.description) {
@@ -392,8 +469,12 @@ export function formatTransferSpoilerBody(alert) {
   const { extra } = compressTransferCopy(alert);
   const who = formatAttribution(alert.reporters, alert.source);
   if (extra) {
-    const fact = extra.charAt(0).toUpperCase() + extra.slice(1);
-    return `${fact} (${who})`;
+    const fact = cleanWireText(extra).replace(
+      /\s*\((?:ornstein|romano|di marzio|david ornstein|fabrizio romano)\)\s*$/i,
+      "",
+    );
+    const line = fact.charAt(0).toUpperCase() + fact.slice(1);
+    return `${line} (${who})`;
   }
   return `(${who})`;
 }

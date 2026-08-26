@@ -123,4 +123,41 @@ describe("formatTransferSpoilerBody", () => {
     assert.match(body, /50m/);
     assert.match(body, /\(Ornstein\)/);
   });
+
+  it("cleans lock-screen chrome on Ornstein wires", () => {
+    const martinez = {
+      native: true,
+      reporters: ["ornstein"],
+      title: "Emiliano Martinez offered to Chelsea by representatives.",
+      description:
+        "#AVFC open to Argentina int'l exit after Zion Suzuki made No1 + #CFC keen (Ornstein)",
+    };
+    const title = formatTransferSpoilerTitle(martinez);
+    const body = formatTransferSpoilerBody(martinez);
+    assert.match(title, /Martinez/i);
+    assert.match(title, /Chelsea/i);
+    assert.doesNotMatch(title, /Representatives/i);
+    assert.doesNotMatch(title, /\.\.\./);
+    assert.match(body, /Villa/i);
+    assert.match(body, /Chelsea/i);
+    assert.doesNotMatch(body, /#/);
+    assert.doesNotMatch(body, /@/);
+
+    const marmoush = {
+      native: true,
+      reporters: ["ornstein"],
+      title: "Omar Marmoush granted permission to take Tottenham Hotspur medical.",
+      description:
+        "27yo joins #MCFC on loan with #THFC buy obligation for £50m + £10m (£5m guaranteed) - 4+1yr contract & no Frankfurt sell-on",
+    };
+    const t2 = formatTransferSpoilerTitle(marmoush);
+    const b2 = formatTransferSpoilerBody(marmoush);
+    assert.match(t2, /Marmoush/i);
+    assert.match(t2, /Tottenham/i);
+    assert.doesNotMatch(t2, /Granted Permission/i);
+    assert.doesNotMatch(t2, /Hotspur/i);
+    assert.match(b2, /50m/);
+    assert.match(b2, /Man City/i);
+    assert.doesNotMatch(b2, /#/);
+  });
 });

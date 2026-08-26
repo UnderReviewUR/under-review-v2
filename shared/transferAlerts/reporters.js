@@ -158,6 +158,7 @@ export const TRANSFER_KEYWORDS = [
   "bid",
   "bids",
   "offer",
+  "offered",
   "loan",
   "loans",
   "medical",

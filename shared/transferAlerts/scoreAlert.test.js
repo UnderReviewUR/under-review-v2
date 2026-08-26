@@ -1,7 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { parseRssItems, decodeXmlEntities } from "./parseRss.js";
-import { hashAlertId, rankTransferAlerts, scoreTransferItem } from "./scoreAlert.js";
+import {
+  hashAlertId,
+  rankTransferAlerts,
+  scoreTransferItem,
+  storyFingerprint,
+} from "./scoreAlert.js";
 
 describe("decodeXmlEntities", () => {
   it("decodes common entities", () => {
@@ -175,6 +180,44 @@ describe("rankTransferAlerts", () => {
     );
     assert.equal(ranked.length, 1);
     assert.ok(ranked[0].score >= 5);
+  });
+
+  it("keeps one banner when X and Google rewrite the same player", () => {
+    const now = new Date().toUTCString();
+    const ranked = rankTransferAlerts(
+      [
+        {
+          guid: "x-martinez",
+          native: true,
+          reporterId: "ornstein",
+          title: "Emiliano Martinez offered to Chelsea by representatives.",
+          description: "#AVFC open to Argentina int'l exit after Zion Suzuki made No1 + #CFC keen",
+          link: "https://x.com/David_Ornstein/status/1",
+          pubDate: now,
+          source: "X",
+          feedId: "x_ornstein",
+          feedLabel: "Ornstein X",
+          feedWeight: 1.4,
+          barcaHeavyFeed: false,
+        },
+        {
+          guid: "gnews-martinez",
+          title: "David Ornstein: Chelsea considering Emiliano Martinez transfer - Google News",
+          description: "Aston Villa open to selling the goalkeeper",
+          link: "https://news.google.com/rss/articles/zz",
+          pubDate: now,
+          source: "The Athletic",
+          feedId: "gnews_ornstein",
+          feedLabel: "Ornstein wire",
+          feedWeight: 1,
+          barcaHeavyFeed: false,
+        },
+      ],
+      { limit: 8 },
+    );
+    assert.equal(ranked.length, 1);
+    assert.equal(ranked[0].native, true);
+    assert.equal(storyFingerprint(ranked[0]), "ornstein|martinez");
   });
 });
 
