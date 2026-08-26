@@ -50,7 +50,7 @@ curl -H "Title: Chelsea Considering Emiliano Martinez" -H "Priority: 5" \
 
 - Cron: `GET/POST /api/transfer-alerts` every 10m (`CRON_SECRET` bearer)
 - Dry run: `?dryRun=1` (no push, still marks seen)
-- Email backup via Resend (`TRANSFER_ALERTS_EMAIL=0` to disable)
+- Phone only by default. Email is off unless `TRANSFER_ALERTS_EMAIL=1`
 
 ## What gets through
 
