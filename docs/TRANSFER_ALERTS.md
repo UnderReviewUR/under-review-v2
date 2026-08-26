@@ -1,56 +1,41 @@
 # Transfer alerts → iPhone
 
-Bounce trusted football transfer wires (Ornstein / Romano / Di Marzio + Barça beat) to your phone.
+Bounce trusted football transfer wires (Ornstein / Romano / Di Marzio + Barça beat) to the **Under Review** home-screen app.
 
 ## How it pops up on your lock screen
 
 ```
-Our cron  →  POST ntfy.sh/<your-topic>  →  Apple Push (APNs)  →  ntfy app banner
+Our cron  →  Web Push  →  Apple  →  Under Review banner (your icon)
 ```
 
-1. Install **ntfy** ([App Store](https://apps.apple.com/app/ntfy/id1625396347)).
-2. Subscribe to a private topic (long random string). Allow notifications when iOS asks.
-3. Set `TRANSFER_ALERTS_NTFY_TOPIC` in Vercel to that exact topic → redeploy.
-4. When a wire scores high enough, you get a normal iOS banner from **ntfy** — same as Messages/Slack style, not a custom Under Review app icon.
+Only **you** can subscribe. The public app never asks for notification permission. Friend/Pro codes cannot save a push endpoint.
 
-**iPhone settings that matter:** Settings → Notifications → ntfy → Lock Screen + Banners + Sounds on. For Focus modes, allow ntfy (or Time Sensitive) so Barça/Ornstein priority-5 alerts still break through.
+1. Add Under Review to the home screen (you already have this).
+2. Open it from the icon (not Safari).
+3. Pro tab → owner banner → **Transfer alerts**, or go to `/transfers`.
+4. Tap Enable → Allow. iOS only shows that prompt inside the home-screen app.
+
+Server: `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` in Vercel. Subscriptions live in KV (`transfer_alerts:webpush_v1`).
+
+**iPhone settings:** Settings → Notifications → Under Review → Lock Screen + Banners + Sounds. Focus: allow Time Sensitive if you want priority-5 through.
 
 ### What the banner looks like
 
-B/R-style: the **spoiler is the bold line**. No emoji stack, no `Breaking · ornstein`.
+B/R-style: the **spoiler is the bold line**.
 
 | Piece | Example | Controlled by |
 |--------|---------|----------------|
 | Title (bold) | `Chelsea Considering Emiliano Martinez` | `formatTransferSpoilerTitle` |
 | Body | `Personal terms agreed (Ornstein)` | `formatTransferSpoilerBody` |
-| Urgency | Priority 4–5 = louder / time-sensitive | Our `Priority` header |
-| Tap | Opens the article URL | Our `Click` header |
+| Tap | Opens the article URL | payload `url` |
 
-Suggested topic: `ur-transfers-ae9b2f296c465b5fa2033c36`
-
-### Customize the look
-
-**On the phone (you):**
-- iOS notification style / sound / Lock Screen for the **ntfy** app
-- Per-topic mute in the ntfy app if a feed gets noisy
-- Focus → allow Time Sensitive so priority 5 still alerts
-
-**In code / env (us):**
-- Spoiler title + body — `shared/transferAlerts/formatSpoiler.js`
-- Priority rules (Barça + tier-1 → 5) — `shared/transferAlerts/scoreAlert.js`
-
-Test a fake push after subscribe:
-```bash
-curl -H "Title: Chelsea Considering Emiliano Martinez" -H "Priority: 5" \
-  -d "Following contact (Ornstein)" \
-  ntfy.sh/ur-transfers-ae9b2f296c465b5fa2033c36
-```
+ntfy is off unless `TRANSFER_ALERTS_NTFY=1`. Email is off unless `TRANSFER_ALERTS_EMAIL=1`.
 
 ## Cron / channels
 
 - Cron: `GET/POST /api/transfer-alerts` every 10m (`CRON_SECRET` bearer)
 - Dry run: `?dryRun=1` (no push, still marks seen)
-- Phone only by default. Email is off unless `TRANSFER_ALERTS_EMAIL=1`
+- Owner subscribe API: `/api/transfer-alerts-push` (owner token or owner code only)
 
 ## What gets through
 

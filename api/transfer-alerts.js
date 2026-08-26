@@ -1,10 +1,6 @@
 /**
- * Transfer alert bounce — Vercel cron polls trusted wires and pushes to iPhone (ntfy) + email.
- *
- * Setup (iPhone):
- * 1. Install the free **ntfy** app
- * 2. Subscribe to your private topic (same value as TRANSFER_ALERTS_NTFY_TOPIC)
- * 3. Set TRANSFER_ALERTS_NTFY_TOPIC in Vercel (long random string)
+ * Transfer alert bounce — Vercel cron polls trusted wires and Web Pushes the owner’s
+ * Under Review home-screen app. ntfy is opt-in (`TRANSFER_ALERTS_NTFY=1`).
  *
  * Auth: Authorization Bearer CRON_SECRET (Vercel Cron injects automatically).
  */

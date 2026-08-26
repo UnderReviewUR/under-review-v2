@@ -1,5 +1,5 @@
 /**
- * Bounce scored transfer alerts to iPhone (ntfy) + optional Resend email.
+ * Bounce scored transfer alerts to iPhone (Web Push on the Under Review home-screen app).
  *
  * Lock-screen look (B/R-style spoiler, ntfy → APNs):
  * - Title  → the news itself (not desk/emoji branding)
@@ -13,6 +13,7 @@ import {
   formatTransferSpoilerBody,
   formatTransferSpoilerTitle,
 } from "../shared/transferAlerts/formatSpoiler.js";
+import { sendTransferAlertWebPush } from "./_transferAlertsPush.js";
 
 const DEFAULT_ALERT_EMAIL = "jon.shepherd@myyahoo.com";
 
@@ -129,13 +130,26 @@ export async function bounceTransferAlert(alert) {
   const results = [];
 
   try {
-    results.push(await sendTransferAlertNtfy(alert));
+    results.push(await sendTransferAlertWebPush(alert));
   } catch (err) {
     results.push({
-      channel: "ntfy",
+      channel: "webpush",
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  const ntfyOn = String(getEnv("TRANSFER_ALERTS_NTFY") || "0").trim() === "1";
+  if (ntfyOn) {
+    try {
+      results.push(await sendTransferAlertNtfy(alert));
+    } catch (err) {
+      results.push({
+        channel: "ntfy",
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   }
 
   try {
