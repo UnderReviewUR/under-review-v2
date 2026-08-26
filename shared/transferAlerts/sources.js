@@ -1,8 +1,8 @@
 /**
- * RSS source list for transfer / Barça bounce alerts.
+ * RSS + native X (FxTwitter) source list for transfer / Barça bounce alerts.
  *
- * Native wires (Romano / Di Marzio Telegram) carry the full X-post text —
- * that's the B/R-quality spoiler. Google News stays as fallback / Ornstein.
+ * Native wires: FxTwitter public timelines (full tweet text) + Telegram mirrors.
+ * Google News stays as fallback if those fail.
  */
 
 /**
@@ -28,6 +28,16 @@ export function feedUrls(feed) {
   if (feed.url) list.push(feed.url);
   return [...new Set(list)];
 }
+
+/**
+ * Public X handles → reporter. Fetched via FxTwitter (no official X API key).
+ * @type {{ handle: string, reporterId: string, barcaHeavy?: boolean }[]}
+ */
+export const TRANSFER_X_ACCOUNTS = [
+  { handle: "David_Ornstein", reporterId: "ornstein" },
+  { handle: "FabrizioRomano", reporterId: "romano" },
+  { handle: "DiMarzio", reporterId: "di_marzio" },
+];
 
 const GNEWS =
   "https://news.google.com/rss/search?hl=en-GB&gl=GB&ceid=GB:en&q=";
@@ -106,6 +116,12 @@ export const TRANSFER_FEEDS = [
       "(transfer OR \"here we go\" OR \"personal terms\" OR medical) (Liverpool OR Arsenal OR Chelsea OR \"Man City\" OR \"Man United\" OR \"Real Madrid\" OR PSG OR Bayern)",
     ),
     weight: 1.0,
+  },
+  {
+    id: "athletic_pl",
+    label: "The Athletic Premier League",
+    url: "https://www.nytimes.com/athletic/rss/premier-league/",
+    weight: 1.3,
   },
   {
     id: "bbc_football",
