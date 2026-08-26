@@ -2,6 +2,7 @@
  * Score + gate raw feed items for Ornstein-class transfer bounce alerts.
  */
 
+import { cleanWireText } from "./formatSpoiler.js";
 import {
   BARCA_KEYWORDS,
   LEGIT_OUTLET_KEYWORDS,
@@ -196,6 +197,11 @@ export function scoreTransferItem(item, opts = {}) {
     reasons.push(`club:${clubHits.slice(0, 2).join(",")}`);
   }
 
+  if (item.native) {
+    score += 0.8;
+    reasons.push("native");
+  }
+
   score *= Number(item.feedWeight) > 0 ? Number(item.feedWeight) : 1;
 
   const hasReporter = reporters.length > 0;
@@ -255,6 +261,74 @@ export function hashAlertId(seed) {
 }
 
 /**
+ * Collapse the same wire (X + Telegram + Google rewrite) into one banner.
+ * @param {ScoredAlert} alert
+ * @returns {string}
+ */
+export function storyFingerprint(alert) {
+  const who = alert.reporters?.[0] || "wire";
+  const blob = cleanWireText(`${alert.title || ""} ${alert.description || ""}`);
+  const skipLast = new Set([
+    "breaking",
+    "exclusive",
+    "confirmed",
+    "official",
+    "granted",
+    "permission",
+    "offered",
+    "holding",
+    "agreement",
+    "personal",
+    "subject",
+    "england",
+    "spanish",
+    "spaniard",
+    "argentine",
+    "argentina",
+    "frankfurt",
+    "herewego",
+    "google",
+    "news",
+    "athletic",
+    "chelsea",
+    "arsenal",
+    "liverpool",
+    "tottenham",
+    "newcastle",
+    "barcelona",
+    "madrid",
+    "united",
+    "city",
+    "villa",
+    "wolves",
+    "everton",
+    "brighton",
+    "palace",
+    "bayern",
+    "juventus",
+    "napoli",
+    "atletico",
+    "hilal",
+  ]);
+  for (const r of TRUSTED_REPORTERS) {
+    for (const n of r.names) {
+      const last = n.split(/\s+/).pop();
+      if (last) skipLast.add(last.toLowerCase());
+    }
+  }
+  const caps = blob.match(/\b[A-Z][a-zà-ÿ]{3,}(?:\s+[A-Z][a-zà-ÿ]{3,})?\b/g) || [];
+  const player = caps
+    .map((s) => s.toLowerCase())
+    .find((name) => {
+      const last = name.split(/\s+/).pop() || "";
+      return last.length >= 5 && !skipLast.has(last);
+    });
+  const last = player ? player.split(/\s+/).pop() : "";
+  if (!last) return `${who}|id:${alert.id}`;
+  return `${who}|${last}`;
+}
+
+/**
  * @param {RawFeedItem[]} items
  * @param {{ limit?: number, nowMs?: number }} [opts]
  * @returns {ScoredAlert[]}
@@ -271,9 +345,18 @@ export function rankTransferAlerts(items, opts = {}) {
     if (!prev || scored.score > prev.score) byId.set(scored.id, scored);
   }
 
-  return [...byId.values()]
+  /** @type {Map<string, ScoredAlert>} */
+  const byStory = new Map();
+  for (const scored of byId.values()) {
+    const key = storyFingerprint(scored);
+    const prev = byStory.get(key);
+    if (!prev || scored.score > prev.score) byStory.set(key, scored);
+  }
+
+  return [...byStory.values()]
     .sort((a, b) => {
       if (b.score !== a.score) return b.score - a.score;
+      if (Boolean(b.native) !== Boolean(a.native)) return a.native ? -1 : 1;
       if (a.barca !== b.barca) return a.barca ? -1 : 1;
       return (a.tier || 9) - (b.tier || 9);
     })

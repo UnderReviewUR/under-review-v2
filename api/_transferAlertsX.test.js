@@ -16,6 +16,9 @@ describe("splitTweetCopy", () => {
     assert.match(title, /Watkins/i);
     assert.doesNotMatch(title, /50m/);
     assert.match(description, /50m/);
+    assert.match(description, /Villa/);
+    assert.doesNotMatch(description, /#AVFC/);
+    assert.doesNotMatch(description, /@TheAthleticFC/);
     assert.doesNotMatch(description, /nytimes\.com/);
   });
 });
