@@ -1,5 +1,12 @@
 /**
  * Bounce scored transfer alerts to iPhone (ntfy) + optional Resend email.
+ *
+ * Lock-screen look (ntfy → APNs):
+ * - Title  → bold headline on the banner
+ * - Body   → secondary text under the title
+ * - Tags   → emoji prefix on the title (soccer ⚽, etc.)
+ * - Priority → iOS interruption level (5 = time-sensitive / urgent)
+ * - Click  → opens the story URL when you tap
  */
 
 import { getEnv } from "./_env.js";
@@ -11,25 +18,46 @@ const DEFAULT_ALERT_EMAIL = "jon.shepherd@myyahoo.com";
  */
 
 /**
+ * Short lock-screen body — title carries the headline; keep this scannable.
  * @param {ScoredAlert} alert
  * @returns {string}
  */
 export function formatTransferAlertBody(alert) {
-  const bits = [
-    alert.barca ? "BARÇA" : "TRANSFER",
-    alert.reporters?.length ? alert.reporters.join("+") : null,
-    alert.feedLabel,
-  ].filter(Boolean);
-  const header = bits.join(" · ");
+  const byline = alert.reporters?.length
+    ? alert.reporters.join(" + ")
+    : alert.source || alert.feedLabel || "wire";
   const lines = [
     alert.title,
     "",
-    header,
-    alert.source ? `Source: ${alert.source}` : null,
+    alert.barca ? `Barça · ${byline}` : byline,
     alert.link || null,
-    alert.reasons?.length ? `Why: ${alert.reasons.join("; ")}` : null,
   ].filter(Boolean);
   return lines.join("\n");
+}
+
+/**
+ * Banner title shown above the body on iPhone.
+ * @param {ScoredAlert} alert
+ * @returns {string}
+ */
+export function formatTransferAlertTitle(alert) {
+  const who = alert.reporters?.[0] || "transfer";
+  if (alert.barca) return `Barça · ${who}`.slice(0, 120);
+  if (alert.tier === 1) return `Breaking · ${who}`.slice(0, 120);
+  return `Transfer · ${who}`.slice(0, 120);
+}
+
+/**
+ * ntfy tag emojis — first matching emoji tags prepend the notification title.
+ * @param {ScoredAlert} alert
+ * @returns {string}
+ */
+export function formatTransferAlertTags(alert) {
+  const tags = ["soccer"];
+  if (alert.barca) tags.push("stadium", "rotating_light");
+  else if (alert.priority >= 5) tags.push("rotating_light");
+  else if (alert.tier === 1) tags.push("loudspeaker");
+  return tags.join(",");
 }
 
 /**
@@ -45,14 +73,11 @@ export async function sendTransferAlertNtfy(alert) {
   const server = String(
     getEnv("TRANSFER_ALERTS_NTFY_SERVER") || "https://ntfy.sh",
   ).replace(/\/$/, "");
-  const title = alert.barca
-    ? `Barça transfer · ${alert.reporters?.[0] || "wire"}`
-    : `Transfer · ${alert.reporters?.[0] || alert.feedLabel || "wire"}`;
 
   const headers = {
-    Title: title.slice(0, 120),
+    Title: formatTransferAlertTitle(alert),
     Priority: String(alert.priority || 3),
-    Tags: alert.barca ? "soccer,stadium" : "soccer",
+    Tags: formatTransferAlertTags(alert),
     "Content-Type": "text/plain; charset=utf-8",
   };
   if (alert.link) headers.Click = alert.link;
@@ -95,9 +120,7 @@ export async function sendTransferAlertEmail(alert) {
     String(getEnv("WC_PROPS_ALERT_EMAIL") || "").trim() ||
     DEFAULT_ALERT_EMAIL;
 
-  const subject = alert.barca
-    ? `[Barça] ${alert.title}`.slice(0, 180)
-    : `[Transfer] ${alert.title}`.slice(0, 180);
+  const subject = formatTransferAlertTitle(alert);
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -108,7 +131,7 @@ export async function sendTransferAlertEmail(alert) {
     body: JSON.stringify({
       from,
       to: [to],
-      subject,
+      subject: `${subject} — ${alert.title}`.slice(0, 180),
       text: formatTransferAlertBody(alert),
     }),
   });

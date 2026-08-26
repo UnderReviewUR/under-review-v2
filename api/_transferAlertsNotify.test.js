@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatTransferAlertBody,
+  formatTransferAlertTitle,
+  formatTransferAlertTags,
   sendTransferAlertNtfy,
   bounceTransferAlert,
 } from "./_transferAlertsNotify.js";
@@ -24,11 +26,31 @@ const sample = {
 };
 
 describe("formatTransferAlertBody", () => {
-  it("includes title and reporter", () => {
+  it("includes title and byline", () => {
     const body = formatTransferAlertBody(sample);
     assert.match(body, /Barcelona close/);
     assert.match(body, /ornstein/i);
-    assert.match(body, /BARÇA/);
+    assert.match(body, /Barça/);
+  });
+});
+
+describe("formatTransferAlertTitle", () => {
+  it("uses Barça · reporter for banner headline", () => {
+    assert.equal(formatTransferAlertTitle(sample), "Barça · ornstein");
+  });
+
+  it("uses Breaking for tier-1 non-Barça", () => {
+    assert.equal(
+      formatTransferAlertTitle({ ...sample, barca: false }),
+      "Breaking · ornstein",
+    );
+  });
+});
+
+describe("formatTransferAlertTags", () => {
+  it("adds stadium + rotating_light for Barça", () => {
+    assert.match(formatTransferAlertTags(sample), /stadium/);
+    assert.match(formatTransferAlertTags(sample), /rotating_light/);
   });
 });
 
