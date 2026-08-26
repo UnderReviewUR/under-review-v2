@@ -138,8 +138,12 @@ describe("formatTransferSpoilerBody", () => {
     assert.match(title, /Chelsea/i);
     assert.doesNotMatch(title, /Representatives/i);
     assert.doesNotMatch(title, /\.\.\./);
-    assert.match(body, /Villa/i);
-    assert.match(body, /Chelsea/i);
+    assert.doesNotMatch(title, /Chelsea \./);
+    assert.doesNotMatch(title, /\.$/);
+    assert.match(body, /open to selling/i);
+    assert.match(body, /No\.1/);
+    assert.match(body, /Chelsea keen/i);
+    assert.doesNotMatch(body, /int'?l exit/i);
     assert.doesNotMatch(body, /#/);
     assert.doesNotMatch(body, /@/);
 
@@ -156,9 +160,13 @@ describe("formatTransferSpoilerBody", () => {
     assert.match(t2, /Tottenham/i);
     assert.doesNotMatch(t2, /Granted Permission/i);
     assert.doesNotMatch(t2, /Hotspur/i);
-    assert.match(b2, /Loan from Man City to Tottenham/i);
+    assert.doesNotMatch(t2, /\.$/);
+    assert.match(b2, /Tottenham loan from Man City/i);
+    assert.match(b2, /obligation to buy/i);
     assert.match(b2, /50m/);
     assert.match(b2, /4\+1 years/i);
+    assert.match(b2, /sell-on/i);
+    assert.doesNotMatch(b2, /sell, on/i);
     assert.doesNotMatch(b2, /joins Man City on loan with Tottenham/i);
     assert.doesNotMatch(b2, /#/);
     assert.doesNotMatch(b2, /27yo/i);
