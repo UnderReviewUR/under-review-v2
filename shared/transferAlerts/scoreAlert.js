@@ -5,6 +5,7 @@
 import { cleanWireText } from "./formatSpoiler.js";
 import {
   BARCA_KEYWORDS,
+  LA_LIGA_KEYWORDS,
   LEGIT_OUTLET_KEYWORDS,
   SOFT_TRANSFER_KEYWORDS,
   TOP_CLUB_KEYWORDS,
@@ -25,6 +26,7 @@ import {
  *   feedLabel: string,
  *   score: number,
  *   barca: boolean,
+ *   laLiga: boolean,
  *   reporters: string[],
  *   tier: number | null,
  *   reasons: string[],
@@ -191,6 +193,13 @@ export function scoreTransferItem(item, opts = {}) {
     score += 0.4;
   }
 
+  const laLigaHits = matchesAny(titleHay, LA_LIGA_KEYWORDS);
+  const laLiga = barca || laLigaHits.length > 0;
+  if (!barca && laLigaHits.length) {
+    score += 3.2 + Math.min(1, laLigaHits.length * 0.2);
+    reasons.push(`laliga:${laLigaHits.slice(0, 2).join(",")}`);
+  }
+
   const clubHits = matchesAny(titleHay, TOP_CLUB_KEYWORDS);
   if (clubHits.length) {
     score += 1.2 + Math.min(1.2, clubHits.length * 0.2);
@@ -211,9 +220,9 @@ export function scoreTransferItem(item, opts = {}) {
   // Soft-only transfer language requires a trusted byline.
   if (!hasStrongTransfer && !(hasSoftTransfer && hasReporter)) return null;
   if (!hasReporter && !legitOutlet) return null;
-  if (!hasReporter && !barca && clubHits.length === 0) return null;
+  if (!hasReporter && !barca && !laLiga && clubHits.length === 0) return null;
 
-  const minScore = hasReporter ? 4.5 : barca ? 7.5 : 8.5;
+  const minScore = hasReporter ? 4.5 : barca ? 7.5 : laLiga ? 6.5 : 8.5;
   if (score < minScore) return null;
 
   /** @type {3 | 4 | 5} */
@@ -235,6 +244,7 @@ export function scoreTransferItem(item, opts = {}) {
     feedLabel: item.feedLabel,
     score: Math.round(score * 10) / 10,
     barca,
+    laLiga,
     reporters,
     tier: bestTier,
     reasons,
@@ -307,8 +317,12 @@ export function storyFingerprint(alert) {
     "bayern",
     "juventus",
     "napoli",
-    "atletico",
-    "hilal",
+    "sevilla",
+    "villarreal",
+    "betis",
+    "valencia",
+    "girona",
+    "sociedad",
   ]);
   for (const r of TRUSTED_REPORTERS) {
     for (const n of r.names) {
@@ -371,9 +385,10 @@ export function rankTransferAlerts(items, opts = {}) {
     return (a.tier || 9) - (b.tier || 9);
   });
 
-  const isHeldBarca = (a) => a.barca && !isBarcaMatchPreview(a.title);
-  const barca = sorted.filter(isHeldBarca);
-  const rest = sorted.filter((a) => !isHeldBarca(a));
-  const reserved = barca.slice(0, barcaReserve);
+  const isHeldSpain = (a) =>
+    (a.barca || a.laLiga) && !isBarcaMatchPreview(a.title);
+  const spain = sorted.filter(isHeldSpain);
+  const rest = sorted.filter((a) => !isHeldSpain(a));
+  const reserved = spain.slice(0, barcaReserve);
   return [...reserved, ...rest].slice(0, limit);
 }
