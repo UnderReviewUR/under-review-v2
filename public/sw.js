@@ -1,4 +1,4 @@
-/* Push-only service worker. Do not cache the SPA. rev=2 one-sentence body */
+/* Push-only service worker. Do not cache the SPA. rev=3 blank title */
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
 });
@@ -16,9 +16,9 @@ self.addEventListener("push", (event) => {
   }
   const body = String(data.body || "");
   const url = String(data.url || "/");
-  const title = String(data.title || "").trim();
+  const title = String(data.title || "\u200B");
   event.waitUntil(
-    self.registration.showNotification(title || "Under Review", {
+    self.registration.showNotification(title, {
       body,
       icon: "/favicon.png",
       badge: "/favicon.png",

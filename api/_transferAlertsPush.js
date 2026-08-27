@@ -124,7 +124,7 @@ export async function sendTransferAlertWebPush(alert, opts = {}) {
   }
 
   const payload = JSON.stringify({
-    title: "",
+    title: "\u200B",
     body: formatTransferSpoilerBody(alert),
     url: alert.link || "/",
   });

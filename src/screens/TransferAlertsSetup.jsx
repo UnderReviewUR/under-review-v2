@@ -67,7 +67,7 @@ export default function TransferAlertsSetup() {
       const cfg = await loadConfig();
       if (!cfg?.vapidPublicKey) return;
 
-      const reg = await navigator.serviceWorker.register("/sw.js?v=2", { scope: "/" });
+      const reg = await navigator.serviceWorker.register("/sw.js?v=3", { scope: "/" });
       await navigator.serviceWorker.ready;
 
       const permission = await Notification.requestPermission();

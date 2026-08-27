@@ -21,11 +21,11 @@ Server: `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` in Vercel. Subscriptions live i
 
 ### What the banner looks like
 
-iOS home-screen Web Push always shows a **bold title row** (we leave that as the app name so it cannot clip mid-word) and prefixes the body with **from Under Review**. The news is one complete sentence in the body.
+iOS home-screen Web Push always draws a title row. We send a zero-width title so that row is a thin empty bar; Apple still prefixes the body with **from Under Review**. The news is one complete sentence in the body.
 
 | Piece | Example | Controlled by |
 |--------|---------|----------------|
-| Title (bold) | `Under Review` | empty payload title → SW fallback |
+| Title (bold) | hidden (zero-width space) | payload `\u200B` so iOS does not reprint the app name |
 | Body | `Omar Marmoush: Tottenham loan from Man City; obligation to buy £50m (Ornstein)` | `formatTransferLockScreenLine` |
 | Tap | Opens the article URL | payload `url` |
 
