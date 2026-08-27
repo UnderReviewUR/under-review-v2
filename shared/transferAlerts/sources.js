@@ -117,9 +117,17 @@ export const TRANSFER_FEEDS = [
     id: "gnews_top_transfers",
     label: "Top-club transfer desk",
     url: gnews(
-      "(transfer OR \"here we go\" OR \"personal terms\" OR medical) (Barcelona OR Barça OR Liverpool OR Arsenal OR Chelsea OR \"Man City\" OR \"Man United\" OR \"Real Madrid\" OR PSG OR Bayern)",
+      "(transfer OR \"here we go\" OR \"personal terms\" OR medical) (Barcelona OR Barça OR Liverpool OR Arsenal OR Chelsea OR \"Man City\" OR \"Man United\" OR \"Real Madrid\" OR Atletico OR Sevilla OR Villarreal OR PSG OR Bayern)",
     ),
     weight: 1.0,
+  },
+  {
+    id: "gnews_laliga_transfer",
+    label: "La Liga transfers",
+    url: gnews(
+      "(La Liga OR Laliga OR \"Real Madrid\" OR Atletico OR Sevilla OR Villarreal OR \"Real Sociedad\" OR Betis OR Valencia OR Girona) (transfer OR signing OR signed OR bid OR deal OR loan OR medical)",
+    ),
+    weight: 1.25,
   },
   {
     id: "athletic_pl",

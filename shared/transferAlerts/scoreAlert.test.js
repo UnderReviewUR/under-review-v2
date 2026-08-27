@@ -12,6 +12,7 @@ describe("decodeXmlEntities", () => {
   it("decodes common entities", () => {
     assert.equal(decodeXmlEntities("A &amp; B"), "A & B");
     assert.equal(decodeXmlEntities("It&#39;s"), "It's");
+    assert.equal(decodeXmlEntities("&pound;50m&nbsp;fee"), "£50m fee");
   });
 });
 
@@ -213,6 +214,40 @@ describe("rankTransferAlerts", () => {
     const ranked = rankTransferAlerts([pl, barca], { limit: 1, barcaReserve: 1 });
     assert.equal(ranked.length, 1);
     assert.equal(ranked[0].barca, true);
+  });
+
+  it("reserves La Liga wires the same way", () => {
+    const now = new Date().toUTCString();
+    const pl = {
+      guid: "pl-native-2",
+      native: true,
+      reporterId: "ornstein",
+      title: "Aston Villa strike agreement with Chelsea to sign Nicolas Jackson.",
+      description: "Deal for 25yo striker worth £47.5m.",
+      link: "https://x.com/David_Ornstein/status/2",
+      pubDate: now,
+      source: "X",
+      feedId: "x_ornstein",
+      feedLabel: "Ornstein X",
+      feedWeight: 1.9,
+      barcaHeavyFeed: false,
+    };
+    const madrid = {
+      guid: "rm-deal",
+      title: "Real Madrid strike agreement to sign midfielder - BBC",
+      description: "Personal terms agreed",
+      link: "https://www.bbc.com/sport/football/articles/rm",
+      pubDate: now,
+      source: "BBC",
+      feedId: "bbc_football",
+      feedLabel: "BBC Sport Football",
+      feedWeight: 0.95,
+      barcaHeavyFeed: false,
+    };
+    const ranked = rankTransferAlerts([pl, madrid], { limit: 1, barcaReserve: 1 });
+    assert.equal(ranked.length, 1);
+    assert.equal(ranked[0].laLiga, true);
+    assert.equal(ranked[0].barca, false);
   });
 
   it("keeps one banner when X and Google rewrite the same player", () => {

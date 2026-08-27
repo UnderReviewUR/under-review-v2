@@ -51,6 +51,30 @@ function collapse(s) {
 }
 
 /**
+ * Keep lock-screen copy in characters iOS can render. No replacement diamonds,
+ * private-use glyphs, or smart-punctuation leftovers from RSS/X.
+ * @param {string} s
+ * @returns {string}
+ */
+export function sanitizeLockScreenText(s) {
+  let t = String(s || "").normalize("NFC");
+  t = t
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u00AB\u00BB]/g, '"')
+    .replace(/[\u2013\u2014\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, " ")
+    .replace(/[\u200C\u200D\u2060\u2066-\u2069\uFE00-\uFE0F]/g, "")
+    .replace(/\uFFFD/g, "")
+    .replace(/[\uE000-\uF8FF]/g, "")
+    .replace(/[\u{1F300}-\u{1FAFF}]/gu, "")
+    .replace(/[\u2600-\u27BF]/g, "")
+    .replace(/[\uD800-\uDFFF]/g, "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+  return collapse(t);
+}
+
+/**
  * @param {import("./reporters.js").Reporter | undefined} reporter
  * @returns {string[]}
  */
@@ -254,8 +278,10 @@ function finishNative(title, extra) {
     e = "";
   }
   return {
-    title: toHeadlineCase(clipWords(t, TITLE_MAX)).replace(/\s+\./g, ".").replace(/\.+$/g, ""),
-    extra: clipWords(e, BODY_MAX),
+    title: sanitizeLockScreenText(
+      toHeadlineCase(clipWords(t, TITLE_MAX)).replace(/\s+\./g, ".").replace(/\.+$/g, ""),
+    ),
+    extra: sanitizeLockScreenText(clipWords(e, BODY_MAX)),
   };
 }
 
@@ -498,7 +524,7 @@ export function compressTransferCopy(alert) {
  */
 export function formatTransferSpoilerTitle(alert) {
   const { title } = compressTransferCopy(alert);
-  return title || "Transfer update";
+  return sanitizeLockScreenText(title) || "Transfer update";
 }
 
 /**
@@ -515,7 +541,7 @@ export function formatTransferSpoilerBody(alert) {
       "",
     );
     const line = fact.charAt(0).toUpperCase() + fact.slice(1);
-    return `${line} (${who})`;
+    return sanitizeLockScreenText(`${line} (${who})`);
   }
-  return `(${who})`;
+  return sanitizeLockScreenText(`(${who})`);
 }

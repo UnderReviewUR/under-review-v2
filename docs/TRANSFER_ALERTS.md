@@ -36,7 +36,7 @@ ntfy is off unless `TRANSFER_ALERTS_NTFY=1`. Email is off unless `TRANSFER_ALERT
 - Cron: `GET/POST /api/transfer-alerts` every 10m (`CRON_SECRET` bearer)
 - Dry run: `?dryRun=1` (no push, still marks seen)
 - Owner subscribe API: `/api/transfer-alerts-push` (owner token or owner code only)
-- Ranking keeps two Barça wires in the send list so Premier League deadline noise cannot bury them
+- Ranking keeps two La Liga / Barça wires in the send list so Premier League deadline noise cannot bury them
 
 ## What gets through
 

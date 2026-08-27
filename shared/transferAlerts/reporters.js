@@ -217,6 +217,36 @@ export const BARCA_KEYWORDS = [
   "hansi flick",
 ];
 
+/** Rest of La Liga — welcome alongside Barça, without matching every Catalan feature. */
+export const LA_LIGA_KEYWORDS = [
+  "la liga",
+  "laliga",
+  "real madrid",
+  "atletico",
+  "atlético",
+  "atleti",
+  "sevilla",
+  "villarreal",
+  "real sociedad",
+  "athletic club",
+  "athletic bilbao",
+  "real betis",
+  "betis",
+  "valencia",
+  "girona",
+  "celta",
+  "osasuna",
+  "getafe",
+  "mallorca",
+  "alaves",
+  "alavés",
+  "espanyol",
+  "las palmas",
+  "rayo vallecano",
+  "leganes",
+  "leganés",
+];
+
 /** Mega clubs — keep general top-of-market noise without drowning Barça. */
 export const TOP_CLUB_KEYWORDS = [
   "barcelona",
@@ -239,6 +269,13 @@ export const TOP_CLUB_KEYWORDS = [
   "atletico",
   "atlético",
   "newcastle",
+  "sevilla",
+  "villarreal",
+  "real sociedad",
+  "athletic bilbao",
+  "real betis",
+  "valencia",
+  "girona",
 ];
 
 /**

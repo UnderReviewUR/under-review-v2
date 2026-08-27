@@ -4,12 +4,23 @@ import {
   formatTransferSpoilerTitle,
   formatTransferSpoilerBody,
   formatAttribution,
+  sanitizeLockScreenText,
 } from "./formatSpoiler.js";
 
 describe("formatAttribution", () => {
   it("uses last name like (Shams)", () => {
     assert.equal(formatAttribution(["ornstein"]), "Ornstein");
     assert.equal(formatAttribution(["romano"]), "Romano");
+  });
+});
+
+describe("sanitizeLockScreenText", () => {
+  it("strips replacement diamonds and flattens smart punctuation", () => {
+    const out = sanitizeLockScreenText(
+      "\uFFFDEmiliano \u201Coffered\u201D to Chelsea\u2014Villa",
+    );
+    assert.equal(out.includes("\uFFFD"), false);
+    assert.equal(out, 'Emiliano "offered" to Chelsea-Villa');
   });
 });
 
