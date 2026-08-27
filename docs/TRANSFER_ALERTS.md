@@ -37,6 +37,8 @@ ntfy is off unless `TRANSFER_ALERTS_NTFY=1`. Email is off unless `TRANSFER_ALERT
 - Dry run: `?dryRun=1` (no push, still marks seen)
 - Owner subscribe API: `/api/transfer-alerts-push` (owner token or owner code only)
 - Ranking keeps two La Liga / Barça wires in the send list so Premier League deadline noise cannot bury them
+- Serie A, Bundesliga, Ligue 1, and UCL-club transfers can get through as top wires; they are not reserved
+- Same player does not ping twice unless the club, fee, or Here We Go / signed status actually changed
 
 ## What gets through
 

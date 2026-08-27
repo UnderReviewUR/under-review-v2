@@ -262,10 +262,16 @@ export const TOP_CLUB_KEYWORDS = [
   "psg",
   "paris saint-germain",
   "bayern",
+  "dortmund",
+  "leverkusen",
+  "rb leipzig",
   "juventus",
   "inter milan",
   "ac milan",
   "napoli",
+  "roma",
+  "atalanta",
+  "monaco",
   "atletico",
   "atlético",
   "newcastle",
@@ -276,6 +282,63 @@ export const TOP_CLUB_KEYWORDS = [
   "real betis",
   "valencia",
   "girona",
+  "benfica",
+  "sporting",
+  "ajax",
+];
+
+export const PREMIER_LEAGUE_KEYWORDS = [
+  "premier league",
+  "manchester united",
+  "man utd",
+  "manchester city",
+  "man city",
+  "liverpool",
+  "chelsea",
+  "arsenal",
+  "tottenham",
+  "newcastle",
+  "aston villa",
+  "west ham",
+  "brighton",
+  "crystal palace",
+  "everton",
+  "wolves",
+];
+
+export const SERIE_A_KEYWORDS = [
+  "serie a",
+  "juventus",
+  "inter milan",
+  "ac milan",
+  "napoli",
+  "roma",
+  "lazio",
+  "atalanta",
+  "fiorentina",
+];
+
+export const BUNDESLIGA_KEYWORDS = [
+  "bundesliga",
+  "bayern",
+  "dortmund",
+  "leipzig",
+  "leverkusen",
+  "bayer leverkusen",
+];
+
+export const LIGUE_1_KEYWORDS = [
+  "ligue 1",
+  "psg",
+  "paris saint-germain",
+  "monaco",
+  "marseille",
+];
+
+export const UCL_KEYWORDS = [
+  "champions league",
+  "ucl",
+  "uefa champions",
 ];
 
 /**

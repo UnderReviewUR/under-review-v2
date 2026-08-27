@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { parseRssItems, decodeXmlEntities } from "./parseRss.js";
 import {
   hashAlertId,
+  markAlertSeen,
   rankTransferAlerts,
   scoreTransferItem,
+  shouldSkipAsRepeat,
   storyFingerprint,
 } from "./scoreAlert.js";
 
@@ -349,5 +351,32 @@ describe("phraseMatch / false positives", () => {
       barcaHeavyFeed: false,
     });
     assert.equal(scored, null);
+  });
+});
+
+describe("same-player follow-ups", () => {
+  it("skips a medical on the same loan, allows Here We Go", () => {
+    const first = {
+      id: "ta_1",
+      title: "Omar Marmoush to Tottenham",
+      description: "Tottenham loan from Man City; obligation to buy £50m",
+      reporters: ["ornstein"],
+    };
+    const medical = {
+      id: "ta_2",
+      title: "Omar Marmoush Tottenham medical",
+      description: "Loan from Man City to Tottenham, £50m + £10m",
+      reporters: ["ornstein"],
+    };
+    const hwg = {
+      id: "ta_3",
+      title: "Here We Go: Omar Marmoush to Tottenham",
+      description: "Here we go, Tottenham loan from Man City £50m",
+      reporters: ["romano"],
+    };
+    const seen = {};
+    markAlertSeen(seen, first, Date.now());
+    assert.equal(shouldSkipAsRepeat(medical, seen), true);
+    assert.equal(shouldSkipAsRepeat(hwg, seen), false);
   });
 });
