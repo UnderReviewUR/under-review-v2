@@ -21,12 +21,12 @@ Server: `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` in Vercel. Subscriptions live i
 
 ### What the banner looks like
 
-B/R-style: the **spoiler is the bold line**.
+iOS home-screen Web Push always shows a **bold title row** (we leave that as the app name so it cannot clip mid-word) and prefixes the body with **from Under Review**. The news is one complete sentence in the body.
 
 | Piece | Example | Controlled by |
 |--------|---------|----------------|
-| Title (bold) | `Chelsea Considering Emiliano Martinez` | `formatTransferSpoilerTitle` |
-| Body | `Personal terms agreed (Ornstein)` | `formatTransferSpoilerBody` |
+| Title (bold) | `Under Review` | empty payload title → SW fallback |
+| Body | `Omar Marmoush: Tottenham loan from Man City; obligation to buy £50m (Ornstein)` | `formatTransferLockScreenLine` |
 | Tap | Opens the article URL | payload `url` |
 
 ntfy is off unless `TRANSFER_ALERTS_NTFY=1`. Email is off unless `TRANSFER_ALERTS_EMAIL=1`.
@@ -40,7 +40,7 @@ ntfy is off unless `TRANSFER_ALERTS_NTFY=1`. Email is off unless `TRANSFER_ALERT
 
 ## What gets through
 
-Copy rules: lock-screen titles stay under ~46 characters; tweet hashtags (`#CFC`) become club names; `@handles` are stripped. Duplicate wires (X + Telegram + Google) collapse to the highest-scoring copy of the same player.
+Copy rules: one complete sentence in the body (no 46-character headline clip); tweet hashtags (`#CFC`) become club names; `@handles` are stripped. Duplicate wires (X + Telegram + Google) collapse to the highest-scoring copy of the same player.
 
 - **Native X text (preferred):** FxTwitter public timelines for Ornstein / Romano / Di Marzio (full tweet, including fees) plus Telegram mirrors
 - **Tier-1 Google News fallback:** Ornstein, Romano, Di Marzio  
