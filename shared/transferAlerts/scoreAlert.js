@@ -329,12 +329,23 @@ export function storyFingerprint(alert) {
 }
 
 /**
+ * @param {string} title
+ * @returns {boolean}
+ */
+export function isBarcaMatchPreview(title) {
+  return /\bvs\.?\b|\bprediction\b|\bline-?ups?\b|\blive score\b|\bpre-match\b/i.test(
+    String(title || ""),
+  );
+}
+
+/**
  * @param {RawFeedItem[]} items
- * @param {{ limit?: number, nowMs?: number }} [opts]
+ * @param {{ limit?: number, nowMs?: number, barcaReserve?: number }} [opts]
  * @returns {ScoredAlert[]}
  */
 export function rankTransferAlerts(items, opts = {}) {
   const limit = Math.max(1, Number(opts.limit) || 8);
+  const barcaReserve = Math.min(limit, Math.max(0, Number(opts.barcaReserve ?? 2)));
   /** @type {Map<string, ScoredAlert>} */
   const byId = new Map();
 
@@ -353,12 +364,16 @@ export function rankTransferAlerts(items, opts = {}) {
     if (!prev || scored.score > prev.score) byStory.set(key, scored);
   }
 
-  return [...byStory.values()]
-    .sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      if (Boolean(b.native) !== Boolean(a.native)) return a.native ? -1 : 1;
-      if (a.barca !== b.barca) return a.barca ? -1 : 1;
-      return (a.tier || 9) - (b.tier || 9);
-    })
-    .slice(0, limit);
+  const sorted = [...byStory.values()].sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (Boolean(b.native) !== Boolean(a.native)) return a.native ? -1 : 1;
+    if (a.barca !== b.barca) return a.barca ? -1 : 1;
+    return (a.tier || 9) - (b.tier || 9);
+  });
+
+  const isHeldBarca = (a) => a.barca && !isBarcaMatchPreview(a.title);
+  const barca = sorted.filter(isHeldBarca);
+  const rest = sorted.filter((a) => !isHeldBarca(a));
+  const reserved = barca.slice(0, barcaReserve);
+  return [...reserved, ...rest].slice(0, limit);
 }

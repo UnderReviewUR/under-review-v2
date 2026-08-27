@@ -182,6 +182,39 @@ describe("rankTransferAlerts", () => {
     assert.ok(ranked[0].score >= 5);
   });
 
+  it("reserves Barça wires so Premier League native posts cannot crowd them out", () => {
+    const now = new Date().toUTCString();
+    const pl = {
+      guid: "pl-native",
+      native: true,
+      reporterId: "ornstein",
+      title: "Aston Villa strike agreement with Chelsea to sign Nicolas Jackson.",
+      description: "Deal for 25yo striker worth £47.5m.",
+      link: "https://x.com/David_Ornstein/status/1",
+      pubDate: now,
+      source: "X",
+      feedId: "x_ornstein",
+      feedLabel: "Ornstein X",
+      feedWeight: 1.9,
+      barcaHeavyFeed: false,
+    };
+    const barca = {
+      guid: "barca-alvarez",
+      title: "Atletico hit back at Barca over Alvarez transfer row - BBC",
+      description: "Zero per cent chance of a move",
+      link: "https://www.bbc.com/sport/football/articles/alvarez",
+      pubDate: now,
+      source: "BBC",
+      feedId: "bbc_football",
+      feedLabel: "BBC Sport Football",
+      feedWeight: 0.95,
+      barcaHeavyFeed: true,
+    };
+    const ranked = rankTransferAlerts([pl, barca], { limit: 1, barcaReserve: 1 });
+    assert.equal(ranked.length, 1);
+    assert.equal(ranked[0].barca, true);
+  });
+
   it("keeps one banner when X and Google rewrite the same player", () => {
     const now = new Date().toUTCString();
     const ranked = rankTransferAlerts(

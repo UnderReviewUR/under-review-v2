@@ -79,6 +79,13 @@ export const TRUSTED_REPORTERS = /** @type {Reporter[]} */ ([
     barca: true,
   },
   {
+    id: "ballus",
+    names: ["Pol Ballús", "Pol Ballus"],
+    outlets: ["The Athletic"],
+    tier: 2,
+    barca: true,
+  },
+  {
     id: "schira",
     names: ["Nicolo Schira", "Nicolò Schira"],
     outlets: [],
@@ -212,6 +219,7 @@ export const BARCA_KEYWORDS = [
 
 /** Mega clubs — keep general top-of-market noise without drowning Barça. */
 export const TOP_CLUB_KEYWORDS = [
+  "barcelona",
   "real madrid",
   "manchester united",
   "man utd",
