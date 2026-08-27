@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   formatTransferSpoilerTitle,
   formatTransferSpoilerBody,
+  formatTransferLockScreenLine,
   formatAttribution,
   sanitizeLockScreenText,
 } from "./formatSpoiler.js";
@@ -24,79 +25,103 @@ describe("sanitizeLockScreenText", () => {
   });
 });
 
-describe("formatTransferSpoilerTitle", () => {
-  it("puts the Chelsea/Martinez spoiler in the title", () => {
-    const title = formatTransferSpoilerTitle({
+describe("formatTransferLockScreenLine", () => {
+  it("keeps a complete Alvarez sentence instead of clipping the first name", () => {
+    const line = formatTransferLockScreenLine({
+      title: "Atletico say there is zero chance of Julian Alvarez leaving - BBC",
+      reporters: [],
+      source: "BBC",
+    });
+    assert.match(line, /Julian Alvarez/i);
+    assert.doesNotMatch(line, /Chance of Julian$/);
+    assert.match(line, /\(BBC\)/);
+  });
+
+  it("uses the Romano fact, not a Man United SEO wrapper", () => {
+    const line = formatTransferLockScreenLine({
+      native: true,
+      reporters: ["romano"],
+      title: "Man United : Fabrizio Romano Delivers Massive Update",
+      description:
+        "Barcelona ready to listen on Balde with United interested<br><br>More to follow.",
+    });
+    assert.match(line, /Balde/i);
+    assert.match(line, /Barcelona/i);
+    assert.doesNotMatch(line, /Delivers/i);
+    assert.doesNotMatch(line, /Man United :/i);
+    assert.match(line, /\(Romano\)/);
+  });
+
+  it("puts Chelsea/Martinez in one sentence with the extra fact", () => {
+    const line = formatTransferLockScreenLine({
       title:
         "David Ornstein reveals Chelsea are considering Emiliano Martinez transfer following contact",
       reporters: ["ornstein"],
     });
-    assert.match(title, /Chelsea/i);
-    assert.match(title, /Martinez/i);
-    assert.doesNotMatch(title, /Ornstein/i);
-    assert.doesNotMatch(title, /Breaking/i);
-    assert.doesNotMatch(title, /following contact/i);
+    assert.match(line, /Chelsea/i);
+    assert.match(line, /Martinez/i);
+    assert.match(line, /\(Ornstein\)/);
+    assert.doesNotMatch(line, /Breaking/i);
   });
 
   it("uses the quoted Newcastle agreement, not desk branding", () => {
-    const title = formatTransferSpoilerTitle({
+    const line = formatTransferLockScreenLine({
       title:
         "'Newcastle United reach agreement' – David Ornstein drops transfer news - Read Newcastle",
       reporters: ["ornstein"],
     });
-    assert.match(title, /Newcastle/i);
-    assert.match(title, /Agreement/i);
-    assert.doesNotMatch(title, /drops transfer news/i);
-    assert.doesNotMatch(title, /Read Newcastle/i);
+    assert.match(line, /Newcastle/i);
+    assert.match(line, /agreement/i);
+    assert.doesNotMatch(line, /drops transfer news/i);
+    assert.doesNotMatch(line, /Read Newcastle/i);
   });
 
   it("lifts quoted personal terms onto the club", () => {
-    const title = formatTransferSpoilerTitle({
+    const line = formatTransferLockScreenLine({
       title:
         '"Closing in on personal terms agreement": Fabrizio Romano confirms imminent Liverpool transfer - The Empire of The Kop',
       reporters: ["romano"],
     });
-    assert.match(title, /Liverpool/i);
-    assert.match(title, /Personal Terms/i);
-    assert.doesNotMatch(title, /Empire/i);
-    assert.doesNotMatch(title, /Romano/i);
+    assert.match(line, /Liverpool/i);
+    assert.match(line, /personal terms/i);
+    assert.doesNotMatch(line, /Empire/i);
   });
 
   it("does not use Barça · reporter as the headline", () => {
-    const title = formatTransferSpoilerTitle({
+    const line = formatTransferLockScreenLine({
       title: "Barcelona close to striker deal — David Ornstein",
       reporters: ["ornstein"],
     });
-    assert.match(title, /Barcelona/i);
-    assert.match(title, /Striker/i);
-    assert.doesNotMatch(title, /Barça ·/i);
+    assert.match(line, /Barcelona/i);
+    assert.match(line, /striker/i);
+    assert.doesNotMatch(line, /Barça ·/i);
   });
-});
 
-describe("formatTransferSpoilerBody", () => {
-  it("puts extra fact and reporter under the spoiler, no URL", () => {
-    const body = formatTransferSpoilerBody({
+  it("puts extra fact into the same sentence, no URL", () => {
+    const line = formatTransferLockScreenLine({
       title: "Barcelona close to striker deal — David Ornstein",
       description: "Personal terms agreed, medical planned this week",
       reporters: ["ornstein"],
       source: "The Athletic",
       link: "https://news.google.com/rss/articles/abc",
     });
-    assert.match(body, /Personal terms/i);
-    assert.match(body, /\(Ornstein\)/);
-    assert.doesNotMatch(body, /google\.com/i);
+    assert.match(line, /Barcelona/i);
+    assert.match(line, /Personal terms/i);
+    assert.match(line, /\(Ornstein\)/);
+    assert.doesNotMatch(line, /google\.com/i);
   });
 
-  it("falls back to attribution only", () => {
-    const body = formatTransferSpoilerBody({
+  it("still attributes when there is no extra clause", () => {
+    const line = formatTransferLockScreenLine({
       title: "Newcastle United reach agreement",
       description: "",
       reporters: ["ornstein"],
     });
-    assert.equal(body, "(Ornstein)");
+    assert.match(line, /Newcastle reach agreement/i);
+    assert.match(line, /\(Ornstein\)/);
   });
 
-  it("uses the X/Telegram second paragraph as the body spoiler", () => {
+  it("keeps Watkins and the fee in one sentence", () => {
     const alert = {
       native: true,
       reporters: ["romano"],
@@ -105,59 +130,14 @@ describe("formatTransferSpoilerBody", () => {
       description:
         "BREAKING: Al Hilal have now agreed all details of deal to sign Ollie Watkins, here we go!<br><br>Exclusive details: Aston Villa accepted right now last bid worth £58.4m plus £2m add-ons for the English striker.",
     };
-    const title = formatTransferSpoilerTitle(alert);
-    const body = formatTransferSpoilerBody(alert);
-    assert.match(title, /Watkins/i);
-    assert.match(title, /Hilal/i);
-    assert.doesNotMatch(title, /58\.4/);
-    assert.match(body, /58\.4m/i);
-    assert.match(body, /\(Romano\)/);
+    const line = formatTransferLockScreenLine(alert);
+    assert.match(line, /Watkins/i);
+    assert.match(line, /Hilal/i);
+    assert.match(line, /58\.4m/i);
+    assert.match(line, /\(Romano\)/);
   });
 
-  it("splits an Ornstein tweet into spoiler + fee line", () => {
-    const title = formatTransferSpoilerTitle({
-      native: true,
-      reporters: ["ornstein"],
-      title: "Al Hilal finalising agreement with Aston Villa to sign Ollie Watkins.",
-      description:
-        "Subject to AVFC landing replacement, 30yo England striker to move for £50m + small add-ons.",
-    });
-    const body = formatTransferSpoilerBody({
-      native: true,
-      reporters: ["ornstein"],
-      title: "Al Hilal finalising agreement with Aston Villa to sign Ollie Watkins.",
-      description:
-        "Subject to AVFC landing replacement, 30yo England striker to move for £50m + small add-ons.",
-    });
-    assert.match(title, /Watkins/i);
-    assert.doesNotMatch(title, /50m/);
-    assert.match(body, /50m/);
-    assert.match(body, /\(Ornstein\)/);
-  });
-
-  it("cleans lock-screen chrome on Ornstein wires", () => {
-    const martinez = {
-      native: true,
-      reporters: ["ornstein"],
-      title: "Emiliano Martinez offered to Chelsea by representatives.",
-      description:
-        "#AVFC open to Argentina int'l exit after Zion Suzuki made No1 + #CFC keen (Ornstein)",
-    };
-    const title = formatTransferSpoilerTitle(martinez);
-    const body = formatTransferSpoilerBody(martinez);
-    assert.match(title, /Martinez/i);
-    assert.match(title, /Chelsea/i);
-    assert.doesNotMatch(title, /Representatives/i);
-    assert.doesNotMatch(title, /\.\.\./);
-    assert.doesNotMatch(title, /Chelsea \./);
-    assert.doesNotMatch(title, /\.$/);
-    assert.match(body, /open to selling/i);
-    assert.match(body, /No\.1/);
-    assert.match(body, /Chelsea keen/i);
-    assert.doesNotMatch(body, /int'?l exit/i);
-    assert.doesNotMatch(body, /#/);
-    assert.doesNotMatch(body, /@/);
-
+  it("keeps Marmoush destination and loan details together", () => {
     const marmoush = {
       native: true,
       reporters: ["ornstein"],
@@ -165,21 +145,50 @@ describe("formatTransferSpoilerBody", () => {
       description:
         "27yo joins #MCFC on loan with #THFC buy obligation for £50m + £10m (£5m guaranteed) - 4+1yr contract & no Frankfurt sell-on",
     };
-    const t2 = formatTransferSpoilerTitle(marmoush);
-    const b2 = formatTransferSpoilerBody(marmoush);
-    assert.match(t2, /Marmoush/i);
-    assert.match(t2, /Tottenham/i);
-    assert.doesNotMatch(t2, /Granted Permission/i);
-    assert.doesNotMatch(t2, /Hotspur/i);
-    assert.doesNotMatch(t2, /\.$/);
-    assert.match(b2, /Tottenham loan from Man City/i);
-    assert.match(b2, /obligation to buy/i);
-    assert.match(b2, /50m/);
-    assert.match(b2, /4\+1 years/i);
-    assert.match(b2, /sell-on/i);
-    assert.doesNotMatch(b2, /sell, on/i);
-    assert.doesNotMatch(b2, /joins Man City on loan with Tottenham/i);
-    assert.doesNotMatch(b2, /#/);
-    assert.doesNotMatch(b2, /27yo/i);
+    const line = formatTransferLockScreenLine(marmoush);
+    assert.match(line, /Marmoush/i);
+    assert.match(line, /Tottenham/i);
+    assert.doesNotMatch(line, /Granted Permission/i);
+    assert.doesNotMatch(line, /Hotspur/i);
+    assert.match(line, /loan from Man City/i);
+    assert.match(line, /obligation to buy/i);
+    assert.match(line, /50m/);
+    assert.match(line, /4\+1 years/i);
+    assert.match(line, /sell-on/i);
+    assert.doesNotMatch(line, /sell, on/i);
+    assert.doesNotMatch(line, /joins Man City on loan with Tottenham/i);
+    assert.doesNotMatch(line, /#/);
+    assert.doesNotMatch(line, /27yo/i);
+  });
+
+  it("cleans lock-screen chrome on Ornstein Martinez wire", () => {
+    const martinez = {
+      native: true,
+      reporters: ["ornstein"],
+      title: "Emiliano Martinez offered to Chelsea by representatives.",
+      description:
+        "#AVFC open to Argentina int'l exit after Zion Suzuki made No1 + #CFC keen (Ornstein)",
+    };
+    const line = formatTransferLockScreenLine(martinez);
+    assert.match(line, /Martinez/i);
+    assert.match(line, /Chelsea/i);
+    assert.doesNotMatch(line, /Representatives/i);
+    assert.match(line, /open to selling/i);
+    assert.match(line, /No\.1/);
+    assert.match(line, /Chelsea keen/i);
+    assert.doesNotMatch(line, /int'?l exit/i);
+    assert.doesNotMatch(line, /#/);
+    assert.doesNotMatch(line, /@/);
+  });
+});
+
+describe("formatTransferSpoilerTitle / Body", () => {
+  it("are the same complete sentence (iOS body carries the news)", () => {
+    const alert = {
+      title: "Barcelona close to striker deal — David Ornstein",
+      reporters: ["ornstein"],
+    };
+    assert.equal(formatTransferSpoilerTitle(alert), formatTransferSpoilerBody(alert));
+    assert.equal(formatTransferSpoilerTitle(alert), formatTransferLockScreenLine(alert));
   });
 });

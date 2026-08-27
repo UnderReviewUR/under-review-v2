@@ -9,7 +9,6 @@ import { getEnv, getAccessTokenSecretSync, resolveOwnerCodeForRegistry } from ".
 import { verifyToken } from "./_hmacToken.js";
 import {
   formatTransferSpoilerBody,
-  formatTransferSpoilerTitle,
 } from "../shared/transferAlerts/formatSpoiler.js";
 
 export const WEBPUSH_KV_KEY = "transfer_alerts:webpush_v1";
@@ -125,7 +124,7 @@ export async function sendTransferAlertWebPush(alert, opts = {}) {
   }
 
   const payload = JSON.stringify({
-    title: formatTransferSpoilerTitle(alert),
+    title: "",
     body: formatTransferSpoilerBody(alert),
     url: alert.link || "/",
   });

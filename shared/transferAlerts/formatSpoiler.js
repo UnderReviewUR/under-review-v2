@@ -1,12 +1,13 @@
 /**
- * Compress Google News SEO titles into B/R-style lock-screen copy:
- * bold line = the spoiler, body = extra fact + (reporter).
+ * Compress Google News SEO titles into one lock-screen sentence.
+ * iOS home-screen Web Push always draws a title row (usually the app name)
+ * and prefixes the body with "from Under Review", so the news itself
+ * has to be a complete sentence in the body — not a clipped headline.
  */
 
 import { TRUSTED_REPORTERS } from "./reporters.js";
 
-const TITLE_MAX = 46;
-const BODY_MAX = 160;
+const LINE_MAX = 180;
 
 const LEADING_EMOJI =
   /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\u200D\u20E3]|[↩️🖼⭐✅❌⚡🔥🎯📢📣⚽🏟🚨])+[\s]*/u;
@@ -265,6 +266,7 @@ export function polishDealBody(extra) {
     return e;
   }
   return tidyFeeBits(e)
+    .replace(/^exclusive details:\s*/i, "")
     .replace(/\bopen to Argentina int'?l exit\b/gi, "open to selling")
     .replace(/\bafter ([A-Za-z]+(?:\s+[A-Za-z]+)?) made No\.?1\b/gi, "after $1 became No.1")
     .replace(/\+\s+(Chelsea|Arsenal|Liverpool|Tottenham|Newcastle|Villa) keen\b/gi, "; $1 keen");
@@ -277,11 +279,13 @@ function finishNative(title, extra) {
     t = e.split(/[.!?]/)[0] || t;
     e = "";
   }
+  if (isDeskOrSeoHeadline(t) && e.length >= 20) {
+    t = e.split(/[.!?]/)[0] || t;
+    e = "";
+  }
   return {
-    title: sanitizeLockScreenText(
-      toHeadlineCase(clipWords(t, TITLE_MAX)).replace(/\s+\./g, ".").replace(/\.+$/g, ""),
-    ),
-    extra: sanitizeLockScreenText(clipWords(e, BODY_MAX)),
+    title: sanitizeLockScreenText(t.replace(/\s+\./g, ".").replace(/\.+$/g, "")),
+    extra: sanitizeLockScreenText(e),
   };
 }
 
@@ -443,12 +447,110 @@ export function toHeadlineCase(s) {
  * @param {number} max
  * @returns {string}
  */
-function clipWords(s, max) {
+function clipAtBoundary(s, max) {
   const t = collapse(s);
   if (t.length <= max) return t;
-  const cut = t.slice(0, max - 1);
-  const sp = cut.lastIndexOf(" ");
-  return `${(sp > 24 ? cut.slice(0, sp) : cut).trim()}`;
+  const window = t.slice(0, max);
+  const semi = window.lastIndexOf(";");
+  const comma = window.lastIndexOf(",");
+  const sp = window.lastIndexOf(" ");
+  const cutAt = semi >= 50 ? semi : comma >= 60 ? comma : sp;
+  return (cutAt > 40 ? window.slice(0, cutAt) : window).trim();
+}
+
+/**
+ * Aggregator SEO / "Romano delivers" wrappers are not the news.
+ * @param {string} s
+ */
+function isDeskOrSeoHeadline(s) {
+  const t = String(s || "");
+  return (
+    /\bdelivers?\b/i.test(t) ||
+    /\bdrops transfer news\b/i.test(t) ||
+    /:\s*(fabrizio romano|david ornstein|gianluca di marzio)\b/i.test(t) ||
+    /\bfabrizio romano delivers\b/i.test(t)
+  );
+}
+
+const DEAL_EXTRA =
+  /\b(loan from|on loan|obligation|personal terms|add-ons?|years|keen|open to selling|medical)\b|[£$€]/i;
+
+/**
+ * @param {string} spoiler
+ * @param {string} extra
+ */
+function extraBelongsWithSpoiler(spoiler, extra) {
+  if (!extra) return false;
+  if (DEAL_EXTRA.test(extra)) return true;
+  const stop = new Set([
+    "the",
+    "and",
+    "for",
+    "with",
+    "from",
+    "that",
+    "this",
+    "have",
+    "has",
+    "will",
+    "are",
+    "was",
+    "united",
+    "city",
+    "real",
+    "club",
+    "deal",
+    "sign",
+    "news",
+  ]);
+  const tokens = (s) =>
+    [...new Set((String(s).toLowerCase().match(/[a-z]{3,}/g) || []).filter((w) => !stop.has(w)))];
+  const a = tokens(spoiler);
+  const b = tokens(extra);
+  return a.some((w) => b.includes(w));
+}
+
+/**
+ * One complete lock-screen sentence. iOS still shows an app-name title row
+ * and "from Under Review"; this line is the body.
+ * @param {{ title?: string, description?: string, reporters?: string[], source?: string | null }} alert
+ * @returns {string}
+ */
+export function formatTransferLockScreenLine(alert) {
+  const { title, extra } = compressTransferCopy(alert);
+  const who = formatAttribution(alert.reporters, alert.source);
+  let spoiler = collapse(title);
+  let fact = extra ? polishDealBody(extra) : "";
+  fact = fact.replace(
+    /\s*\((?:ornstein|romano|di marzio|david ornstein|fabrizio romano)\)\s*$/i,
+    "",
+  );
+
+  if (isDeskOrSeoHeadline(spoiler) && fact.length >= 20) {
+    spoiler = fact;
+    fact = "";
+  } else if (fact && !extraBelongsWithSpoiler(spoiler, fact)) {
+    fact = "";
+  } else if (fact && spoiler.toLowerCase().includes(collapse(fact).slice(0, 28).toLowerCase())) {
+    fact = "";
+  }
+
+  if (fact && DEAL_EXTRA.test(fact) && spoiler.length <= 56 && !/\bsign\b/i.test(spoiler)) {
+    const name = (spoiler.match(/^((?:[A-Z][a-z]+\s+){0,2}[A-Z][a-z]+)\b/) || [])[1] || "";
+    const first = name.split(" ")[0];
+    if (name && first && !fact.toLowerCase().includes(first.toLowerCase())) {
+      spoiler = `${name}: ${fact.charAt(0).toLowerCase()}${fact.slice(1)}`;
+      fact = "";
+    }
+  }
+
+  let line = spoiler;
+  if (fact) {
+    const joined = fact.charAt(0).toLowerCase() + fact.slice(1);
+    line = `${spoiler.replace(/[.;]$/, "")}; ${joined}`;
+  }
+  line = collapse(`${line.replace(/[.;]$/, "")} (${who})`);
+  return sanitizeLockScreenText(clipAtBoundary(line, LINE_MAX));
 }
 
 /**
@@ -492,7 +594,7 @@ export function compressTransferCopy(alert) {
     if (desc.length >= 12) core = tightenGrammar(peelBodyClause(desc));
   }
 
-  const title = toHeadlineCase(clipWords(core, TITLE_MAX));
+  const title = collapse(core).replace(/\.+$/g, "");
 
   const extraBits = [];
   const desc = collapse(
@@ -507,7 +609,7 @@ export function compressTransferCopy(alert) {
     !/google news|subscribe|continue reading/i.test(descFirst) &&
     title &&
     !descFirst.toLowerCase().includes(title.toLowerCase().slice(0, 24));
-  if (descUseful) extraBits.push(clipWords(descFirst, 140));
+  if (descUseful) extraBits.push(descFirst);
 
   const clause = String(alert.title || "").match(BODY_CLAUSES);
   if (clause && !extraBits.length) {
@@ -518,30 +620,17 @@ export function compressTransferCopy(alert) {
 }
 
 /**
- * Bold lock-screen line — the spoiler, not the desk.
  * @param {{ title?: string, description?: string, reporters?: string[] }} alert
  * @returns {string}
  */
 export function formatTransferSpoilerTitle(alert) {
-  const { title } = compressTransferCopy(alert);
-  return sanitizeLockScreenText(title) || "Transfer update";
+  return formatTransferLockScreenLine(alert);
 }
 
 /**
- * Secondary line: extra fact + (Ornstein). No URL (tap already opens).
  * @param {{ title?: string, description?: string, reporters?: string[], source?: string | null }} alert
  * @returns {string}
  */
 export function formatTransferSpoilerBody(alert) {
-  const { extra } = compressTransferCopy(alert);
-  const who = formatAttribution(alert.reporters, alert.source);
-  if (extra) {
-    const fact = polishDealBody(extra).replace(
-      /\s*\((?:ornstein|romano|di marzio|david ornstein|fabrizio romano)\)\s*$/i,
-      "",
-    );
-    const line = fact.charAt(0).toUpperCase() + fact.slice(1);
-    return sanitizeLockScreenText(`${line} (${who})`);
-  }
-  return sanitizeLockScreenText(`(${who})`);
+  return formatTransferLockScreenLine(alert);
 }

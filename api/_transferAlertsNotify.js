@@ -1,10 +1,9 @@
 /**
  * Bounce scored transfer alerts to iPhone (Web Push on the Under Review home-screen app).
  *
- * Lock-screen look (B/R-style spoiler, ntfy → APNs):
- * - Title  → the news itself (not desk/emoji branding)
- * - Body   → extra fact + (reporter)
- * - Priority → iOS interruption level (5 = time-sensitive / urgent)
+ * Lock-screen look (iOS home-screen Web Push):
+ * - Title  → app name only (iOS always draws this row; a spoiler here gets clipped)
+ * - Body   → one complete sentence + (reporter). Apple still prefixes "from Under Review".
  * - Click  → opens the story URL when you tap
  */
 
@@ -31,7 +30,7 @@ export function formatTransferAlertBody(alert) {
 }
 
 /**
- * Bold lock-screen line — spoiler, not "Breaking · ornstein".
+ * Unused on iOS Web Push (title row is the app name). Email/ntfy still get the sentence.
  * @param {ScoredAlert} alert
  * @returns {string}
  */

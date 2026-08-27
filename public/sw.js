@@ -1,4 +1,4 @@
-/* Push-only service worker. Do not cache the SPA. */
+/* Push-only service worker. Do not cache the SPA. rev=2 one-sentence body */
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
 });
@@ -14,11 +14,11 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  const title = String(data.title || "Transfer update");
   const body = String(data.body || "");
   const url = String(data.url || "/");
+  const title = String(data.title || "").trim();
   event.waitUntil(
-    self.registration.showNotification(title, {
+    self.registration.showNotification(title || "Under Review", {
       body,
       icon: "/favicon.png",
       badge: "/favicon.png",
