@@ -5,12 +5,17 @@
 import { cleanWireText } from "./formatSpoiler.js";
 import {
   BARCA_KEYWORDS,
+  BUNDESLIGA_KEYWORDS,
   LA_LIGA_KEYWORDS,
   LEGIT_OUTLET_KEYWORDS,
+  LIGUE_1_KEYWORDS,
+  PREMIER_LEAGUE_KEYWORDS,
+  SERIE_A_KEYWORDS,
   SOFT_TRANSFER_KEYWORDS,
   TOP_CLUB_KEYWORDS,
   TRANSFER_KEYWORDS,
   TRUSTED_REPORTERS,
+  UCL_KEYWORDS,
 } from "./reporters.js";
 
 /**
@@ -25,9 +30,10 @@ import {
  *   feedId: string,
  *   feedLabel: string,
  *   score: number,
- *   barca: boolean,
- *   laLiga: boolean,
- *   reporters: string[],
+   *   barca: boolean,
+   *   laLiga: boolean,
+   *   europe: boolean,
+   *   reporters: string[],
  *   tier: number | null,
  *   reasons: string[],
  *   priority: 3 | 4 | 5,
@@ -200,6 +206,17 @@ export function scoreTransferItem(item, opts = {}) {
     reasons.push(`laliga:${laLigaHits.slice(0, 2).join(",")}`);
   }
 
+  const pl = matchesAny(titleHay, PREMIER_LEAGUE_KEYWORDS).length > 0;
+  const serieA = matchesAny(titleHay, SERIE_A_KEYWORDS).length > 0;
+  const bundes = matchesAny(titleHay, BUNDESLIGA_KEYWORDS).length > 0;
+  const ligue1 = matchesAny(titleHay, LIGUE_1_KEYWORDS).length > 0;
+  const ucl = matchesAny(titleHay, UCL_KEYWORDS).length > 0;
+  const europe = serieA || bundes || ligue1 || ucl;
+  if (!barca && !laLiga && europe) {
+    score += 1.4 + (ucl ? 0.3 : 0);
+    reasons.push(`europe:${[serieA && "seriea", bundes && "bundes", ligue1 && "ligue1", ucl && "ucl"].filter(Boolean).join(",")}`);
+  }
+
   const clubHits = matchesAny(titleHay, TOP_CLUB_KEYWORDS);
   if (clubHits.length) {
     score += 1.2 + Math.min(1.2, clubHits.length * 0.2);
@@ -221,8 +238,10 @@ export function scoreTransferItem(item, opts = {}) {
   if (!hasStrongTransfer && !(hasSoftTransfer && hasReporter)) return null;
   if (!hasReporter && !legitOutlet) return null;
   if (!hasReporter && !barca && !laLiga && clubHits.length === 0) return null;
+  // Mix of rumor + close: other-league gossip without a byline needs a real transfer verb.
+  if (!hasReporter && !barca && !laLiga && !pl && europe && !hasStrongTransfer) return null;
 
-  const minScore = hasReporter ? 4.5 : barca ? 7.5 : laLiga ? 6.5 : 8.5;
+  const minScore = hasReporter ? 4.5 : barca ? 7.5 : laLiga ? 6.5 : europe ? 7.0 : 8.5;
   if (score < minScore) return null;
 
   /** @type {3 | 4 | 5} */
@@ -245,6 +264,7 @@ export function scoreTransferItem(item, opts = {}) {
     score: Math.round(score * 10) / 10,
     barca,
     laLiga,
+    europe,
     reporters,
     tier: bestTier,
     reasons,
@@ -340,6 +360,73 @@ export function storyFingerprint(alert) {
   const last = player ? player.split(/\s+/).pop() : "";
   if (!last) return `${who}|id:${alert.id}`;
   return `${who}|${last}`;
+}
+
+/**
+ * Player key for "one banner unless the story actually changed".
+ * @param {ScoredAlert} alert
+ */
+export function playerStoryKey(alert) {
+  const fp = storyFingerprint(alert);
+  const last = String(fp).split("|").pop() || "";
+  if (!last || last.startsWith("id:")) return `id:${alert.id}`;
+  return `p:${last}`;
+}
+
+/**
+ * Club/fee/done signature so medical-on-the-same-loan does not re-ping.
+ * @param {ScoredAlert} alert
+ */
+export function materialSignature(alert) {
+  const blob = cleanWireText(`${alert.title || ""} ${alert.description || ""}`).toLowerCase();
+  const feeNums = [...blob.matchAll(/[£€$]([\d.]+)m/g)]
+    .map((m) => Number(m[1]))
+    .filter((n) => Number.isFinite(n));
+  const fees = feeNums.length ? String(Math.max(...feeNums)) : "";
+  const done = /\bhere we go\b|\bsigned\b|\bofficial\b/.test(blob);
+  const clubs = matchesAny(norm(blob), TOP_CLUB_KEYWORDS).sort().join(",");
+  return `${done ? "done" : "open"}|${fees}|${clubs}`;
+}
+
+/**
+ * @param {ScoredAlert} alert
+ * @param {string | undefined} prevSig
+ */
+export function isMaterialPlayerUpdate(alert, prevSig) {
+  if (!prevSig) return true;
+  const next = materialSignature(alert);
+  if (next === prevSig) return false;
+  const [pDone, pFee, pClubs] = String(prevSig).split("|");
+  const [nDone, nFee, nClubs] = next.split("|");
+  if (nDone === "done" && pDone !== "done") return true;
+  if (nFee && nFee !== pFee) return true;
+  if (nClubs && pClubs && nClubs !== pClubs) return true;
+  return false;
+}
+
+/**
+ * @param {ScoredAlert} alert
+ * @param {Record<string, unknown>} seen
+ */
+export function shouldSkipAsRepeat(alert, seen) {
+  if (seen[alert.id]) return true;
+  const key = playerStoryKey(alert);
+  const row = seen[key];
+  if (!row || typeof row !== "object") return false;
+  return !isMaterialPlayerUpdate(alert, row.sig);
+}
+
+/**
+ * @param {Record<string, unknown>} seen
+ * @param {ScoredAlert} alert
+ * @param {number} now
+ */
+export function markAlertSeen(seen, alert, now) {
+  seen[alert.id] = now;
+  const key = playerStoryKey(alert);
+  if (key.startsWith("p:")) {
+    seen[key] = { t: now, sig: materialSignature(alert) };
+  }
 }
 
 /**

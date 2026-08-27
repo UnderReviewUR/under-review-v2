@@ -539,7 +539,8 @@ export function formatTransferLockScreenLine(alert) {
     const name = (spoiler.match(/^((?:[A-Z][a-z]+\s+){0,2}[A-Z][a-z]+)\b/) || [])[1] || "";
     const first = name.split(" ")[0];
     if (name && first && !fact.toLowerCase().includes(first.toLowerCase())) {
-      spoiler = `${name}: ${fact.charAt(0).toLowerCase()}${fact.slice(1)}`;
+      const rest = /^[A-Z]/.test(fact) ? fact : fact.charAt(0).toLowerCase() + fact.slice(1);
+      spoiler = `${name}: ${rest}`;
       fact = "";
     }
   }

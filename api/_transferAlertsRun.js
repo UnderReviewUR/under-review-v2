@@ -6,21 +6,25 @@ import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { fetchTransferFeedItems } from "./_transferAlertsFetch.js";
 import { bounceTransferAlert } from "./_transferAlertsNotify.js";
-import { rankTransferAlerts } from "../shared/transferAlerts/scoreAlert.js";
+import { rankTransferAlerts, shouldSkipAsRepeat, markAlertSeen } from "../shared/transferAlerts/scoreAlert.js";
 
 const SEEN_KEY = "transfer_alerts:seen_v1";
 const SEEN_TTL_SECONDS = 7 * 24 * 60 * 60;
 const DEFAULT_MAX_SEND = 5;
 
 /**
- * @returns {Promise<Record<string, number>>}
+ * @returns {Promise<Record<string, unknown>>}
  */
 async function loadSeenMap() {
   const raw = await getDurableJson(SEEN_KEY);
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  /** @type {Record<string, number>} */
+  /** @type {Record<string, unknown>} */
   const out = {};
   for (const [k, v] of Object.entries(raw)) {
+    if (v && typeof v === "object" && Number.isFinite(Number(v.t))) {
+      out[k] = { t: Number(v.t), sig: String(v.sig || "") };
+      continue;
+    }
     const n = Number(v);
     if (Number.isFinite(n)) out[k] = n;
   }
@@ -28,15 +32,16 @@ async function loadSeenMap() {
 }
 
 /**
- * @param {Record<string, number>} seen
+ * @param {Record<string, unknown>} seen
  */
 async function saveSeenMap(seen) {
   const now = Date.now();
   const cutoff = now - SEEN_TTL_SECONDS * 1000;
-  /** @type {Record<string, number>} */
+  /** @type {Record<string, unknown>} */
   const pruned = {};
   for (const [k, v] of Object.entries(seen)) {
-    if (v >= cutoff) pruned[k] = v;
+    const t = v && typeof v === "object" ? Number(v.t) : Number(v);
+    if (Number.isFinite(t) && t >= cutoff) pruned[k] = v;
   }
   await setDurableJson(SEEN_KEY, pruned, { ttlSeconds: SEEN_TTL_SECONDS });
 }
@@ -65,7 +70,7 @@ export async function runTransferAlertsTick(opts = {}) {
   /** @type {typeof ranked} */
   const fresh = [];
   for (const alert of ranked) {
-    if (seen[alert.id]) continue;
+    if (shouldSkipAsRepeat(alert, seen)) continue;
     fresh.push(alert);
     if (fresh.length >= maxSend) break;
   }
@@ -83,6 +88,7 @@ export async function runTransferAlertsTick(opts = {}) {
         dryRun: true,
       });
       seen[alert.id] = now;
+      markAlertSeen(seen, alert, now);
       continue;
     }
 
@@ -93,7 +99,7 @@ export async function runTransferAlertsTick(opts = {}) {
       bounce.results.length > 0 &&
       bounce.results.every((r) => r.skipped && !r.ok);
     if (delivered || onlyConfigSkip) {
-      seen[alert.id] = now;
+      markAlertSeen(seen, alert, now);
     }
     sent.push({
       id: alert.id,

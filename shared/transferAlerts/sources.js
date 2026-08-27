@@ -130,6 +130,30 @@ export const TRANSFER_FEEDS = [
     weight: 1.25,
   },
   {
+    id: "gnews_serie_a_transfer",
+    label: "Serie A transfers",
+    url: gnews(
+      "(\"Serie A\" OR Juventus OR Napoli OR \"Inter Milan\" OR \"AC Milan\" OR Roma OR Atalanta) (transfer OR signing OR signed OR bid OR deal OR loan OR medical OR \"here we go\")",
+    ),
+    weight: 1.05,
+  },
+  {
+    id: "gnews_bundesliga_transfer",
+    label: "Bundesliga transfers",
+    url: gnews(
+      "(Bundesliga OR Bayern OR Dortmund OR Leverkusen OR Leipzig) (transfer OR signing OR signed OR bid OR deal OR loan OR medical)",
+    ),
+    weight: 1.05,
+  },
+  {
+    id: "gnews_ucl_transfer",
+    label: "UCL club transfers",
+    url: gnews(
+      "(\"Champions League\" OR UCL) (transfer OR signing OR signed OR bid OR deal OR loan) (Barcelona OR \"Real Madrid\" OR Bayern OR PSG OR Liverpool OR Arsenal OR Inter OR Juventus OR Dortmund OR Benfica)",
+    ),
+    weight: 1.0,
+  },
+  {
     id: "athletic_pl",
     label: "The Athletic Premier League",
     url: "https://www.nytimes.com/athletic/rss/premier-league/",
