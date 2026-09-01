@@ -13,6 +13,10 @@ import {
   buildNflGoatBriefcase,
   normalizeNflBdlGames,
   normalizeNflBdlInjuries,
+  normalizeNflBdlOddsRows,
+  normalizeNflBdlRosterRows,
+  nflBdlQueryParams,
+  isNflBdlLiveGameStatus,
 } from "./_nflBdl.js";
 
 test("nflDefenseTierFromRank bands", () => {
@@ -179,4 +183,58 @@ test("buildNflGoatBriefcase is safe no-op when NFL_BDL_PRIMARY off", async () =>
   assert.equal(briefcase.primarySource, "action_network");
   assert.deepEqual(briefcase.league.teamDefense, {});
   assert.match(String(briefcase.coverage?.note || ""), /primary off|key missing/i);
+});
+
+test("nflBdlQueryParams bracket-encodes array keys for BDL NFL", () => {
+  assert.deepEqual(nflBdlQueryParams({ team_ids: [7, 8], season: 2026 }), {
+    "team_ids[]": [7, 8],
+    season: 2026,
+  });
+});
+
+test("normalizeNflBdlOddsRows prefers draftkings per game", () => {
+  const rows = normalizeNflBdlOddsRows(
+    [
+      {
+        game_id: 1,
+        vendor: "caesars",
+        spread_home_value: "-3.5",
+        total_value: "44.5",
+        moneyline_home_odds: -150,
+      },
+      {
+        game_id: 1,
+        vendor: "draftkings",
+        spread_home_value: "-3",
+        total_value: "45",
+        moneyline_home_odds: -145,
+      },
+    ],
+    { preferVendor: true },
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].vendor, "draftkings");
+  assert.equal(rows[0].spread.home, "-3");
+});
+
+test("normalizeNflBdlRosterRows maps depth roles", () => {
+  const rows = normalizeNflBdlRosterRows(
+    [
+      {
+        player_name: "Bo Nix",
+        position: "QB",
+        depth: 1,
+        player: { id: 42, jersey_number: "10" },
+      },
+    ],
+    "DEN",
+  );
+  assert.equal(rows[0].name, "Bo Nix");
+  assert.equal(rows[0].role, "QB1");
+  assert.equal(rows[0].team, "DEN");
+});
+
+test("isNflBdlLiveGameStatus detects in_progress", () => {
+  assert.equal(isNflBdlLiveGameStatus("in_progress", null), true);
+  assert.equal(isNflBdlLiveGameStatus("scheduled", null), false);
 });

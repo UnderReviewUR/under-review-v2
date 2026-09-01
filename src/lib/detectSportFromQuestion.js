@@ -1,7 +1,7 @@
 import { inferSportFromQuestionText } from "../../shared/urTakeSportRouting.js";
 import { normalizeText } from "./normalizeText.js";
 
-const SPORT_TABS = new Set(["nba", "mlb", "nfl", "golf", "tennis", "f1", "worldcup"]);
+const SPORT_TABS = new Set(["nba", "mlb", "nfl", "cfb", "laliga", "golf", "tennis", "f1", "worldcup"]);
 
 /** WTA-first names / signals — checked before ATP. */
 const WTA_NAMES = [

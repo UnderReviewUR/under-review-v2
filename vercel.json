@@ -106,6 +106,9 @@
     },
     "api/transfer-alerts.js": {
       "maxDuration": 60
+    },
+    "api/bdl-goat-warm.js": {
+      "maxDuration": 120
     }
   },
   "crons": [
@@ -144,6 +147,14 @@
     {
       "path": "/api/transfer-alerts",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/bdl-goat-warm",
+      "schedule": "0 16 3 9 *"
+    },
+    {
+      "path": "/api/bdl-goat-warm",
+      "schedule": "0 16 * * *"
     }
   ]
 }

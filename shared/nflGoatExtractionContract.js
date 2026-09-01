@@ -428,6 +428,9 @@ export function createEmptyNflGoatBriefcase(meta = {}) {
       injuries: [],
       rostersByTeam: {},
       standings: [],
+      teams: [],
+      activePlayers: [],
+      teamStats: [],
       /** Live defense map from BDL team_season_stats when NFL_BDL_PRIMARY=1 */
       teamDefense: {},
       defenseSource: null,
@@ -436,6 +439,17 @@ export function createEmptyNflGoatBriefcase(meta = {}) {
       recentStats: [],
       seasonStats: [],
       advanced: { passing: [], rushing: [], receiving: [] },
+    },
+    dfs: {
+      slates: [],
+      draftables: [],
+    },
+    fantasy: {
+      scoringFormats: [],
+      projections: [],
+      weeklyStats: [],
+      rankings: [],
+      adp: [],
     },
     live: {
       playsByGameId: {},

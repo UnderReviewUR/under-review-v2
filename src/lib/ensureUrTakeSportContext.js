@@ -151,6 +151,8 @@ function payloadFromHooks(sport, hooks) {
   if (sport === "golf") return hooks.golfData || null;
   if (sport === "f1") return hooks.f1Data || null;
   if (sport === "nfl") return hooks.nflContextData || null;
+  if (sport === "cfb") return hooks.cfbContextData || null;
+  if (sport === "laliga") return hooks.laligaContextData || null;
   if (sport === "tennis_wta_profile") {
     if (hooks.players && hooks.context) return packTennisWta(hooks.players, hooks.context);
     return null;
@@ -170,6 +172,8 @@ async function fetchPayloadForSport(sport) {
   if (sport === "golf") return fetchJson("/api/golf?view=board");
   if (sport === "f1") return fetchJson("/api/f1");
   if (sport === "nfl") return fetchJson("/api/nfl-context");
+  if (sport === "cfb") return fetchJson("/api/ncaaf-context");
+  if (sport === "laliga") return fetchJson("/api/laliga-context");
   if (sport === "tennis_wta_profile") {
     const [players, context] = await Promise.all([
       fetchJson("/api/tennis-players"),
@@ -199,6 +203,8 @@ export function overridesFromPayload(sport, payload) {
   if (sport === "golf") return { golfData: payload };
   if (sport === "f1") return { f1Data: payload };
   if (sport === "nfl") return { nflContextData: payload };
+  if (sport === "cfb") return { cfbContextData: payload };
+  if (sport === "laliga") return { laligaContextData: payload };
   if (sport === "tennis_wta_profile") {
     return { tennisPlayers: payload.players, tennisContext: payload.context };
   }

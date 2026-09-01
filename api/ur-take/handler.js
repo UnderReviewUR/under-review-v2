@@ -390,6 +390,8 @@ import { autocorrectUrTakeQuestion } from "../../shared/urTakeQuestionAutocorrec
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "../_takeLedger.js";
 import { buildCanonicalNflContext } from "../_nflContext.js";
+import { buildNcaafContextForAsk } from "../_ncaafContext.js";
+import { buildLaligaContextForAsk } from "../_laligaContext.js";
 import { applyNflAskGuard, buildNflPassStructuredTake } from "../../shared/nflAskGuard.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
@@ -1249,6 +1251,10 @@ ${contextJsonForModel({
   } else if (sportHint === "nfl") {
     relevantContext = `NFL context:
 ${typeof nflContext === "string" ? nflContext : contextJsonForModel(nflContext)}`;
+  } else if (sportHint === "cfb") {
+    relevantContext = "College football — server board hydrated in main prompt.";
+  } else if (sportHint === "laliga") {
+    relevantContext = "La Liga — server board hydrated in main prompt.";
   } else if (sportHint === "mlb") {
     relevantContext = `MLB context:
 ${contextJsonForModel(mlbContext)}`;
@@ -5522,6 +5528,38 @@ If gameTotals in context shows 214.5, that band is the pace read: a line that lo
             priorTakesSummary,
             mlbVerifiedBlock,
           });
+  } else if (sportHint === "cfb") {
+    const cfbCtx = await buildNcaafContextForAsk({ question });
+    userPrompt = `You are answering a college football betting question.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${question}
+
+${cfbCtx.promptContext || ""}
+
+${buildUrTakeSportTurnScopeRules("cfb")}
+
+Rules:
+- Use only spreads, totals, moneylines, and props present in the context — never invent a posted number.
+- CFP / ranked teams: cite rankings/standings when in payload.
+- PASS is valid when the priced market itself is missing; empty prop pockets alone do not force PASS on a posted spread/total.
+- Never mention data vendors or API names in the answer.`;
+  } else if (sportHint === "laliga") {
+    const laligaCtx = await buildLaligaContextForAsk({ question });
+    userPrompt = `You are answering a La Liga betting question.
+
+${priorTakesSummary ? priorTakesSummary + "\n\n" : ""}Question:
+${question}
+
+${laligaCtx.promptContext || ""}
+
+${buildUrTakeSportTurnScopeRules("laliga")}
+
+Rules:
+- La Liga match odds in payload are 1X2 (home/draw/away) — there is no spread/total on the main board.
+- Player props (goals, shots, etc.) may appear separately — cite only when present.
+- Use standings/injuries for form; never invent prices not in context.
+- Never mention data vendors or API names in the answer.`;
   } else if (sportHint === "f1") {
     const f1VerifiedBlock = buildF1VerifiedDriverListBlock(f1Context, question);
     const f1OddsBlock = buildF1OddsPromptBlock(f1Context?.odds || f1Context?.smarketsOdds);

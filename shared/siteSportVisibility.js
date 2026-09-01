@@ -3,7 +3,7 @@
  * without removing API routes or deep-link screens.
  */
 
-/** @typedef {"home"|"worldcup"|"nba"|"nfl"|"f1"|"golf"|"tennis"|"mlb"|"ask"|"pro"} NavSportSlug */
+/** @typedef {"home"|"worldcup"|"nba"|"nfl"|"cfb"|"laliga"|"f1"|"golf"|"tennis"|"mlb"|"ask"|"pro"} NavSportSlug */
 /** @typedef {"nba"|"mlb"|"nfl"|"f1"|"tennis"|"golf"|"worldcup"} HomeTickerSportSlug */
 /** @typedef {"nba"|"mlb"|"tennis"|"f1"|"golf"|"nflDraft"} HomeCardSportSlug */
 /** @typedef {"mlb"|"tennis"|"nfl"} HomePromptSportSlug */
@@ -14,8 +14,10 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
     home: true,
     worldcup: true,
     nba: false,
-    golf: true,
     nfl: true,
+    cfb: false,
+    laliga: true,
+    golf: false,
     f1: false,
     tennis: false,
     mlb: false,
@@ -117,4 +119,12 @@ export function isDailyTakeSportVisible(slug) {
  */
 export function isNflUrTakeGated(_opts = {}) {
   return !isNavSportVisible("nfl");
+}
+
+export function isCfbUrTakeGated(_opts = {}) {
+  return !isNavSportVisible("cfb");
+}
+
+export function isLaligaUrTakeGated(_opts = {}) {
+  return !isNavSportVisible("laliga");
 }

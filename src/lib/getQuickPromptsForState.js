@@ -186,5 +186,19 @@ export function getQuickPromptsForState(sport, eventState) {
     return ["Who wins the next Grand Prix?", "Best qualifying value?", "Podium picks?", "Sprint weekend angle?"];
   }
 
+  if (sport === "cfb") {
+    if (st === "live" || st === "mixed") {
+      return ["Live spread lean?", "Second-half total?", "Best live prop?", "Which favorite is tired?"];
+    }
+    return ["Best CFB spread?", "Top total on the board?", "Best QB prop?", "Anytime TD value?"];
+  }
+
+  if (sport === "laliga") {
+    if (st === "live" || st === "mixed") {
+      return ["Live 1X2 lean?", "Next goal angle?", "Best in-play prop?", "Draw still live?"];
+    }
+    return ["Best 1X2 on the slate?", "BTTS angle?", "Anytime scorer value?", "Table form vs price?"];
+  }
+
   return [];
 }

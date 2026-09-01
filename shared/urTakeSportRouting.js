@@ -362,6 +362,8 @@ const ATP_HINT_NAMES = [
 const SPORT_TAB_NUDGE_COPY = {
   nba: { more: "NBA", tab: "NBA" },
   nfl: { more: "NFL", tab: "NFL" },
+  cfb: { more: "college football", tab: "CFB" },
+  laliga: { more: "La Liga", tab: "La Liga" },
   mlb: { more: "MLB", tab: "MLB" },
   golf: { more: "golf", tab: "Golf" },
   f1: { more: "F1", tab: "F1" },
@@ -494,6 +496,68 @@ const NFL_ONLY_NICKNAMES = [
   "seahawks",
 ];
 
+const CFB_TERMS = [
+  "college football",
+  "ncaaf",
+  "cfb",
+  "cfp",
+  "college playoff",
+  "ohio state",
+  "michigan wolverines",
+  "alabama crimson",
+  "alabama",
+  "auburn",
+  "georgia bulldogs",
+  "georgia",
+  "texas longhorns",
+  "penn state",
+  "oregon ducks",
+  "clemson",
+  "notre dame",
+  "lsu tigers",
+  "oklahoma sooners",
+  "usc trojans",
+  "florida state",
+  "miami hurricanes",
+  "tennessee volunteers",
+];
+
+const LALIGA_TERMS = [
+  "la liga",
+  "laliga",
+  "real madrid",
+  "barcelona",
+  "barca",
+  "atletico madrid",
+  "atletico",
+  "sevilla",
+  "real sociedad",
+  "villarreal",
+  "athletic bilbao",
+  "girona",
+  "real betis",
+  "valencia",
+  "1x2",
+  "both teams to score",
+  "btts",
+  "anytime scorer",
+  "goalscorer",
+];
+
+export function hasCfbAskLexicon(question) {
+  const q = normalizeText(extractLatestUserTurnForRouting(question));
+  if (!q) return false;
+  if (/\b(ncaaf|cfb|college football|cfp)\b/.test(q)) return true;
+  return containsAny(q, CFB_TERMS);
+}
+
+export function hasLaligaAskLexicon(question) {
+  const q = normalizeText(extractLatestUserTurnForRouting(question));
+  if (!q) return false;
+  if (/\b(la liga|laliga)\b/.test(q)) return true;
+  return containsAny(q, LALIGA_TERMS);
+}
+
 export function hasNflAskLexicon(question) {
   const q = normalizeText(extractLatestUserTurnForRouting(question));
   if (!q) return false;
@@ -548,8 +612,11 @@ export function hasStrongNbaOnlyLexicon(question) {
 export function inferSportFromQuestionText(question, matchupContext, hasImage) {
   const q = normalizeText(extractLatestUserTurnForRouting(question));
 
+  // College football before NFL yardage lexicon (shared prop language).
+  if (hasCfbAskLexicon(q) && !hasStrongNbaOnlyLexicon(q)) return "cfb";
+  if (hasLaligaAskLexicon(q) && !hasStrongNbaOnlyLexicon(q)) return "laliga";
+
   // NFL yardage / football spreads before NBA matchup slugs (DET @ CIN, vs PHI, "James Cook").
-  // Do not use NFL nicknames here — giants/rams/cardinals overlap MLB.
   if (hasNflAskLexicon(q) && !hasStrongNbaOnlyLexicon(q)) return "nfl";
 
   if (hasStrongNbaOnlyLexicon(q)) return "nba";
@@ -565,6 +632,8 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
     if (league.includes("golf") || league.includes("pga")) return "golf";
     if (league.includes("nba")) return "nba";
     if (league.includes("mlb")) return "mlb";
+    if (league.includes("ncaaf") || league.includes("college football")) return "cfb";
+    if (league.includes("la liga") || league.includes("laliga")) return "laliga";
     if (league.includes("nfl")) return "nfl";
     if (league.includes("f1") || league.includes("formula 1")) return "f1";
     if (league.includes("tennis")) return "tennis";
@@ -604,6 +673,14 @@ export function inferSportFromQuestionText(question, matchupContext, hasImage) {
     containsAny(q, MLB_TERMS)
   ) {
     return "mlb";
+  }
+
+  if (containsAny(q, CFB_TERMS) || q.includes("ncaaf") || q.includes("cfb")) {
+    return "cfb";
+  }
+
+  if (containsAny(q, LALIGA_TERMS)) {
+    return "laliga";
   }
 
   if (q.includes("nfl") || q.includes("receiving") || q.includes("rushing") || containsAny(q, NFL_TERMS)) {
@@ -677,6 +754,8 @@ export function inferSportFromChatHistory(history) {
 const SPORT_TURN_LABELS = {
   nba: "NBA",
   nfl: "NFL",
+  cfb: "college football",
+  laliga: "La Liga",
   mlb: "MLB",
   golf: "Golf",
   f1: "Formula 1",

@@ -119,6 +119,8 @@ import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentati
 import {
   isHomeCardSportVisible,
   isNavSportVisible,
+  isCfbUrTakeGated,
+  isLaligaUrTakeGated,
   isNflUrTakeGated,
 } from "../shared/siteSportVisibility.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
@@ -185,6 +187,8 @@ import { useMlbData } from "./hooks/useMlbData.js";
 import { useGolfData } from "./hooks/useGolfData.js";
 import { useWorldCupData } from "./hooks/useWorldCupData.js";
 import { useNflData } from "./hooks/useNflData.js";
+import { useCfbData } from "./hooks/useCfbData.js";
+import { useLaligaData } from "./hooks/useLaligaData.js";
 import { usePerformance } from "./hooks/usePerformance.js";
 import { useTakeAuthHeaders } from "./hooks/useTakeAuthHeaders.js";
 import DerbyHomeCard from "./components/DerbyHomeCard.jsx";
@@ -192,6 +196,8 @@ import { isDerbyActive } from "./data/derby2026.js";
 import HomeScreen from "./screens/HomeScreen.jsx";
 import TennisScreen from "./screens/TennisScreen.jsx";
 import NflScreen from "./screens/NflScreen.jsx";
+import CfbScreen from "./screens/CfbScreen.jsx";
+import LaligaScreen from "./screens/LaligaScreen.jsx";
 import NflComingSoonScreen from "./screens/NflComingSoonScreen.jsx";
 import NflPredictScreen from "./screens/NflPredictScreen.jsx";
 import F1Screen from "./screens/F1Screen.jsx";
@@ -557,6 +563,8 @@ ${themeCss}
   const [wtaInput, setWtaInput]         = useState("");
   const [wtaSectionOpen, setWtaSectionOpen] = useState(false);
   const [nflInput, setNflInput]         = useState("");
+  const [cfbInput, setCfbInput]         = useState("");
+  const [laligaInput, setLaligaInput]   = useState("");
   const [f1Input, setF1Input]           = useState("");
   const [nbaInput, setNbaInput]         = useState("");
   /** Canonical `nbaEventKey` for the Home NBA card the user last tapped — sorts UR Take `todaysGames` first. */
@@ -569,6 +577,8 @@ ${themeCss}
   const [savedTakes, setSavedTakes]   = useState([]);
   const [tennisMsgs, setTennisMsgs]   = useState([]);
   const [nflMsgs, setNflMsgs]         = useState([]);
+  const [cfbMsgs, setCfbMsgs]         = useState([]);
+  const [laligaMsgs, setLaligaMsgs]   = useState([]);
   const [f1Msgs, setF1Msgs]           = useState([]);
   const [nbaMsgs, setNbaMsgs]         = useState([]);
   const [mlbMsgs, setMlbMsgs]         = useState([]);
@@ -598,6 +608,8 @@ ${themeCss}
   const tennisInputRef    = useRef(null);
   const wtaInputRef       = useRef(null);
   const nflInputRef       = useRef(null);
+  const cfbInputRef       = useRef(null);
+  const laligaInputRef    = useRef(null);
   const f1InputRef        = useRef(null);
   const nbaInputRef       = useRef(null);
   const mlbInputRef       = useRef(null);
@@ -607,12 +619,16 @@ ${themeCss}
   const wcBarRef          = useRef(null);
   const tennisBarRef      = useRef(null);
   const nflBarRef         = useRef(null);
+  const cfbBarRef         = useRef(null);
+  const laligaBarRef      = useRef(null);
   const f1BarRef          = useRef(null);
   const nbaBarRef         = useRef(null);
   const mlbBarRef         = useRef(null);
   const askScreenRef      = useRef(null);
   const tennisScreenRef   = useRef(null);
   const nflScreenRef      = useRef(null);
+  const cfbScreenRef      = useRef(null);
+  const laligaScreenRef   = useRef(null);
   const f1ScreenRef       = useRef(null);
   const nbaScreenRef      = useRef(null);
   const mlbScreenRef      = useRef(null);
@@ -842,6 +858,25 @@ ${themeCss}
     nflPropLines,
   } = useNflData({
     enabled: isNavSportVisible("nfl"),
+  });
+  const {
+    cfbContextData,
+    cfbBoard,
+    cfbBoardLoading,
+    cfbGames,
+    cfbPropLines,
+  } = useCfbData({
+    enabled: isNavSportVisible("cfb"),
+  });
+  const {
+    laligaContextData,
+    laligaBoard,
+    laligaBoardLoading,
+    laligaMatches,
+    laligaPropLines,
+    laligaStandings,
+  } = useLaligaData({
+    enabled: isNavSportVisible("laliga"),
   });
   const {
     performanceData,
@@ -1618,16 +1653,20 @@ ${themeCss}
   const screenSport =
     scr === "nfl" || scr === "nflplayer"
       ? "nfl"
-      : scr === "mlb" ||
-          scr === "nba" ||
-          scr === "golf" ||
-          scr === "tennis" ||
-          scr === "f1" ||
-          scr === "worldcup"
-        ? scr === "nflplayer"
-          ? "nfl"
-          : scr
-        : null;
+      : scr === "cfb"
+        ? "cfb"
+        : scr === "laliga"
+          ? "laliga"
+          : scr === "mlb" ||
+              scr === "nba" ||
+              scr === "golf" ||
+              scr === "tennis" ||
+              scr === "f1" ||
+              scr === "worldcup"
+            ? scr === "nflplayer"
+              ? "nfl"
+              : scr
+            : null;
 
   // NFL Ask is live on Home / NFL tab / draft cards whenever the sport is on.
   const earlyTextSport = inferSportFromQuestionText(text, matchup || null, !!imgToSend);
@@ -1785,6 +1824,8 @@ ${themeCss}
       golfData,
       f1Data,
       nflContextData,
+      cfbContextData,
+      laligaContextData,
       players,
       context,
       liveMatches,
@@ -3672,6 +3713,28 @@ ${themeCss}
     setNflUrView(openPredict ? "predict" : "take");
   }, [screen, tab]);
 
+  const goCfb = useCallback(() => {
+    if (screen !== "cfb" || tab !== "cfb") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("cfb");
+    setScreen("cfb");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
+  const goLaliga = useCallback(() => {
+    if (screen !== "laliga" || tab !== "laliga") {
+      setNavHistory((h) => [...h, { screen, tab }]);
+    }
+    setTab("laliga");
+    setScreen("laliga");
+    setSelectedMatchup(null);
+    setSelectedPlayer(null);
+    setSelectedNflPlayer(null);
+  }, [screen, tab]);
+
   const syncNflSubViewQuery = useCallback((view) => {
     if (typeof window === "undefined") return;
     try {
@@ -4178,6 +4241,8 @@ ${themeCss}
     [askUrTake, isAsking, wtaInput, scheduleChatScroll],
   );
   const submitNfl     = useCallback(forced=>{ const t=(forced??nflInput).trim();    if(!t||isAsking)return; if(!forced)setNflInput("");   askUrTake({text:t,setMsgs:setNflMsgs,sportHint:"nfl"}); scheduleChatScroll(nflScreenRef); },[askUrTake,isAsking,nflInput,scheduleChatScroll]);
+  const submitCfb     = useCallback(forced=>{ const t=(forced??cfbInput).trim();    if(!t||isAsking)return; if(!forced)setCfbInput("");   askUrTake({text:t,setMsgs:setCfbMsgs,sportHint:"cfb"}); scheduleChatScroll(cfbScreenRef); },[askUrTake,isAsking,cfbInput,scheduleChatScroll]);
+  const submitLaliga  = useCallback(forced=>{ const t=(forced??laligaInput).trim(); if(!t||isAsking)return; if(!forced)setLaligaInput(""); askUrTake({text:t,setMsgs:setLaligaMsgs,sportHint:"laliga"}); scheduleChatScroll(laligaScreenRef); },[askUrTake,isAsking,laligaInput,scheduleChatScroll]);
   const submitF1      = useCallback(forced=>{ const t=(forced??f1Input).trim();     if(!t||isAsking)return; if(!forced)setF1Input("");    askUrTake({text:t,setMsgs:setF1Msgs,sportHint:"f1"}); scheduleChatScroll(f1ScreenRef); },[askUrTake,isAsking,f1Input,scheduleChatScroll]);
   const submitNba     = useCallback(forced=>{ const t=(forced??nbaInput).trim();    if(!t||isAsking)return; if(!forced)setNbaInput("");   askUrTake({text:t,setMsgs:setNbaMsgs,sportHint:"nba"}); scheduleChatScroll(nbaScreenRef); },[askUrTake,isAsking,nbaInput,scheduleChatScroll]);
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,mlbInput,scheduleChatScroll]);
@@ -4418,6 +4483,60 @@ ${themeCss}
     },
     [askUrTake, isAsking, scheduleChatScroll],
   );
+  const urTakeFollowUpCfb = useCallback(
+    (text, meta) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking) return;
+      setCfbInput("");
+      askUrTake({
+        text: t,
+        setMsgs: setCfbMsgs,
+        sportHint: "cfb",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "cfb",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(cfbScreenRef);
+      requestAnimationFrame(() => {
+        cfbInputRef.current?.focus({ preventScroll: true });
+      });
+    },
+    [askUrTake, isAsking, scheduleChatScroll],
+  );
+  const urTakeFollowUpLaliga = useCallback(
+    (text, meta) => {
+      const t = String(text || "").trim();
+      if (!t || isAsking) return;
+      setLaligaInput("");
+      askUrTake({
+        text: t,
+        setMsgs: setLaligaMsgs,
+        sportHint: "laliga",
+        followUpTelemetry: {
+          followUpText: t,
+          sourceMsgId: meta?.sourceMsgId,
+          msSinceResponseShown: meta?.msSinceResponseShown,
+          intent: meta?.intent,
+          liveMode: meta?.liveMode,
+          sport: meta?.sport || "laliga",
+          followUpIndex: meta?.followUpIndex,
+          followUpCount: meta?.followUpCount,
+        },
+      });
+      scheduleChatScroll(laligaScreenRef);
+      requestAnimationFrame(() => {
+        laligaInputRef.current?.focus({ preventScroll: true });
+      });
+    },
+    [askUrTake, isAsking, scheduleChatScroll],
+  );
   const urTakeFollowUpF1 = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
@@ -4614,6 +4733,8 @@ ${themeCss}
   const hasDockedBar =
     (screen === "tennis" && tennisMsgs.length > 0) ||
     (screen === "nfl" && nflUrView === "take" && nflMsgs.length > 0) ||
+    (screen === "cfb" && cfbMsgs.length > 0) ||
+    (screen === "laliga" && laligaMsgs.length > 0) ||
     (screen === "f1" && f1Msgs.length > 0) ||
     (screen === "nba" && nbaMsgs.length > 0) ||
     (screen === "mlb" && mlbMsgs.length > 0) ||
@@ -5134,6 +5255,54 @@ ${themeCss}
               />
             )}
           </>
+        )}
+
+
+        {/* ══ CFB ══ */}
+        {screen==="cfb"&&(
+          <CfbScreen
+            cfbScreenRef={cfbScreenRef}
+            hasDockedBar={hasDockedBar}
+            cfbMsgs={cfbMsgs}
+            cfbBarRef={cfbBarRef}
+            cfbInputRef={cfbInputRef}
+            cfbInput={cfbInput}
+            setCfbInput={setCfbInput}
+            submitCfb={submitCfb}
+            askBarCommon={askBarCommon}
+            urTakeTrackPlay={urTakeTrackPlay}
+            accessTier={accessTier}
+            onUrTakeFollowUpPick={urTakeFollowUpCfb}
+            onUpgradePromptClick={openUpgradeModal}
+            cfbGames={cfbGames}
+            cfbPropLines={cfbPropLines}
+            cfbBoardLoading={cfbBoardLoading}
+            cfbBoardAsOf={cfbBoard?.asOf || null}
+          />
+        )}
+
+        {/* ══ LA LIGA ══ */}
+        {screen==="laliga"&&(
+          <LaligaScreen
+            laligaScreenRef={laligaScreenRef}
+            hasDockedBar={hasDockedBar}
+            laligaMsgs={laligaMsgs}
+            laligaBarRef={laligaBarRef}
+            laligaInputRef={laligaInputRef}
+            laligaInput={laligaInput}
+            setLaligaInput={setLaligaInput}
+            submitLaliga={submitLaliga}
+            askBarCommon={askBarCommon}
+            urTakeTrackPlay={urTakeTrackPlay}
+            accessTier={accessTier}
+            onUrTakeFollowUpPick={urTakeFollowUpLaliga}
+            onUpgradePromptClick={openUpgradeModal}
+            laligaMatches={laligaMatches}
+            laligaPropLines={laligaPropLines}
+            laligaStandings={laligaStandings}
+            laligaBoardLoading={laligaBoardLoading}
+            laligaBoardAsOf={laligaBoard?.asOf || null}
+          />
         )}
 
 
@@ -6300,6 +6469,24 @@ ${themeCss}
             </div>
           </div>
         )}
+        {screen==="cfb"&&cfbMsgs.length>0&&(
+          <div className="docked-bar ur-docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(196,98,45,.25)" }}>
+              <div className="docked-bar-label" style={{color:"#C4622D"}}>CFB · Ask another</div>
+              <UrTakeFollowUpDockStrip msgs={cfbMsgs} onPick={urTakeFollowUpCfb} />
+              <AskBar inputRef={cfbInputRef} value={cfbInput} onChange={setCfbInput} onSubmit={()=>submitCfb()} placeholder="Ask another..." btnColor="#C4622D" {...askBarCommon} dockedGradient />
+            </div>
+          </div>
+        )}
+        {screen==="laliga"&&laligaMsgs.length>0&&(
+          <div className="docked-bar ur-docked-bar">
+            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(238,68,68,.25)" }}>
+              <div className="docked-bar-label" style={{color:"#EE4444"}}>La Liga · Ask another</div>
+              <UrTakeFollowUpDockStrip msgs={laligaMsgs} onPick={urTakeFollowUpLaliga} />
+              <AskBar inputRef={laligaInputRef} value={laligaInput} onChange={setLaligaInput} onSubmit={()=>submitLaliga()} placeholder="Ask another..." btnColor="#EE4444" {...askBarCommon} dockedGradient />
+            </div>
+          </div>
+        )}
         {screen==="f1"&&f1Msgs.length>0&&(
           <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(225,6,0,.25)" }}>
@@ -6734,12 +6921,12 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
 
         <NbaChampionsBanner enabled={screen === "home" || screen === "nba"} />
 
-        {/* ══ NAV ══ Aug cadence: Home · NFL · Golf · F1 · PRO (WC off tab; NBA when in season) */}
+        {/* ══ NAV ══ Home · NFL · CFB · La Liga · PRO */}
         <nav className="bottom-nav bottom-nav--five" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
           <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
-          <button className={`nav-btn${tab==="golf"?" golf-active":""}`} onClick={goGolf}><span>Golf</span></button>
-          <button className={`nav-btn${tab==="f1"?" f1-active":""}`} onClick={goF1} aria-label="Formula 1"><span>F1</span></button>
+          <button className={`nav-btn${tab==="cfb"?" cfb-active":""}`} onClick={goCfb}><span>CFB</span></button>
+          <button className={`nav-btn${tab==="laliga"?" laliga-active":""}`} onClick={goLaliga}><span>La Liga</span></button>
           <button
             className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
             onClick={goPro}
