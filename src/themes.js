@@ -912,6 +912,21 @@ export const THEMES = {
       .app.theme-broadsheet .home-surface-premium .home-live-label {
         color: #6b6054;
       }
+      .app.theme-broadsheet .ur-home-starters-option-a .ur-home-starter-item {
+        background: #F7F4EE;
+        border-color: #d8d0c4;
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .ur-home-starters-option-a .ur-home-starter-item:hover {
+        border-color: #C9A84C;
+        background: #FFFCF7;
+      }
+      .app.theme-broadsheet .ur-home-starters-option-a .ur-home-starter-chev {
+        color: #9a8b7a;
+      }
+      .app.theme-broadsheet .ur-home-feed {
+        border-top-color: #d8d0c4;
+      }
     `,
   },
 
