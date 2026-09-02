@@ -399,7 +399,7 @@ import { buildCanonicalNflContext } from "../_nflContext.js";
 import { NFL_UR_TAKE_FAST_MODEL_DEFAULT } from "../../shared/nflAskFastPath.js";
 import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
-import { applyNflAskGuard, buildNflPassStructuredTake } from "../../shared/nflAskGuard.js";
+import { applyNflAskGuard, buildNflPassStructuredTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
   extractMentionedPersonFromQuestion,
@@ -7530,13 +7530,21 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             }
 
             // Invalid structured response — NFL ships PASS, other sports may fall back to prose.
-            structuredResponse =
-              sportHint === "nfl"
-                ? repairStructuredForDelivery(
-                    buildNflPassStructuredTake("structured_parse_failed"),
-                    sportHint,
-                  )
-                : null;
+            // Prefer suitcase truth (no live prop) over a generic parse-fail lean.
+            if (sportHint === "nfl") {
+              const suitcase = resolveNflSuitcaseGuard(nflAskGuardBriefcase, question);
+              const passReason = suitcase.forcePass
+                ? suitcase.noLiveProp
+                  ? "no_live_prop"
+                  : "suitcase_red"
+                : "structured_parse_failed";
+              structuredResponse = repairStructuredForDelivery(
+                buildNflPassStructuredTake(passReason, { question }),
+                sportHint,
+              );
+            } else {
+              structuredResponse = null;
+            }
           }
         } catch (parseError) {
           console.error("[STRUCTURED_UR_TAKE_PARSE_ERROR]", {
@@ -7567,7 +7575,16 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
           structuredResponse =
             sportHint === "nfl"
-              ? buildNflPassStructuredTake("structured_parse_failed")
+              ? buildNflPassStructuredTake(
+                  (() => {
+                    const suitcase = resolveNflSuitcaseGuard(nflAskGuardBriefcase, question);
+                    if (suitcase.forcePass) {
+                      return suitcase.noLiveProp ? "no_live_prop" : "suitcase_red";
+                    }
+                    return "structured_parse_failed";
+                  })(),
+                  { question },
+                )
               : null;
         }
       }

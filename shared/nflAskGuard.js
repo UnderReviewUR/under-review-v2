@@ -93,12 +93,35 @@ export function resolveNflSuitcaseGuard(briefcase, question = "") {
 }
 
 /**
- * @param {string} reason
+ * Pull a user-stated prop number from the ask (e.g. "Maye 1.5 passing TDs").
+ * @param {string} question
+ * @returns {number|null}
  */
-export function buildNflPassStructuredTake(reason = "suitcase_red") {
+export function extractNflStatedPropLine(question) {
+  const q = String(question || "");
+  const m =
+    q.match(
+      /\b(\d+(?:\.\d+)?)\s*(?:passing\s+|rushing\s+|receiving\s+)?(?:tds?|touchdowns?|yards?|receptions?|sacks?|targets?|ints?|interceptions?)\b/i,
+    ) ||
+    q.match(/\b(?:over|under|o\/u)\s+(\d+(?:\.\d+)?)\b/i) ||
+    q.match(/\b(\d+\.5)\b/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * @param {string} reason
+ * @param {{ question?: string, marketLabel?: string }} [opts]
+ */
+export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
+  const detected = detectNflAskMarket(opts.question || "");
+  const marketLabel = String(opts.marketLabel || detected.label || "prop").trim() || "prop";
+  const stated = extractNflStatedPropLine(opts.question || "");
+  const statedBit = stated != null ? ` (you cited ${stated})` : "";
   const leans = {
     suitcase_red: "Lean: Pass. Live line not in payload. No invented number.",
-    no_live_prop: "Lean: Pass. No live row for this prop. No invented number.",
+    no_live_prop: `Lean: Pass. No live ${marketLabel} row on the board.`,
     structured_parse_failed: "Lean: Pass. Take did not parse cleanly. No invented number.",
     invented_line: "Lean: Pass. Cited number is not on the live board.",
     call_body_conflict: "Lean: Pass. Call and writeup disagreed on the side.",
@@ -107,31 +130,41 @@ export function buildNflPassStructuredTake(reason = "suitcase_red") {
     inactives_not_posted: "Lean: Pass. Official inactives not posted yet (~90 min before kick).",
     inactive_confirmed: "Lean: Pass. Named player is on the official inactive list.",
   };
-  const lean = leans[reason] || leans.suitcase_red;
+  let lean = leans[reason] || leans.suitcase_red;
+  if (lean.length > 120) lean = lean.slice(0, 119).replace(/\s+\S*$/, "").replace(/[.]*$/, ".");
+
+  const noLineBody =
+    reason === "no_live_prop" || reason === "suitcase_red" || reason === "invented_line";
+  const whyNow = noLineBody
+    ? `The live board has no verified ${marketLabel} row for this ask${statedBit}. Pass until GOAT/books post that market — matchup notes are not a ticket.`
+    : "The priced market for this ask is missing or the take was not safe to ship. Passing is the call until a live number is on the board.";
+  const edge = noLineBody
+    ? `No priced edge without a verified live ${marketLabel} number. Role notes and season pace are not a substitute for a posted prop.`
+    : "No priced edge without a verified live number. Role notes and season pace are not a substitute for a posted prop or spread.";
+
   return {
     sport: "NFL",
     call: "PASS",
     callType: "prop",
     confidence: "Speculative",
     lean,
-    whyNow:
-      "The priced market for this ask is missing or the take was not safe to ship. Passing is the call until a live number is on the board.",
-    edge:
-      "No priced edge without a verified live number. Role notes and season pace are not a substitute for a posted prop or spread.",
+    whyNow,
+    edge,
     analysis: {
       matchupAnalysis:
         "Suitcase pockets for this ask are too thin to price a ticket. Do not invent a line or treat a season O/U as tonight's prop.",
       injuryContext:
         "Availability is not confirmed enough to force a play. Wait for the official report or a posted market.",
-      marketContext:
-        "No verified live line for the asked market. PASS is the honest closer, not a delayed pick.",
+      marketContext: `No verified live ${marketLabel} line on the board${statedBit}. PASS is the honest closer, not a delayed pick.`,
       lineMovement: "No live number to shop. Come back when the board posts the market.",
       statisticalEdge:
         "Role and history are context only. They do not become a ticket without a posted line.",
     },
     caveats: [
-      "Live line not in payload.",
-      "Do not treat this PASS as a delayed over.",
+      `Live ${marketLabel} line not in payload.`,
+      stated != null
+        ? `Do not treat this PASS as a delayed ticket on ${stated}.`
+        : "Do not treat this PASS as a delayed over.",
     ],
     timestamp: new Date().toISOString(),
   };
@@ -141,9 +174,10 @@ export function buildNflPassStructuredTake(reason = "suitcase_red") {
  * @param {Record<string, unknown>} structured
  * @param {string} reason
  * @param {string} [leanOverride]
+ * @param {string} [question]
  */
-function rewriteStructuredToPass(structured, reason, leanOverride) {
-  const pass = buildNflPassStructuredTake(reason);
+function rewriteStructuredToPass(structured, reason, leanOverride, question = "") {
+  const pass = buildNflPassStructuredTake(reason, { question });
   structured.call = pass.call;
   structured.callType = structured.callType || pass.callType;
   structured.confidence = "Speculative";
@@ -152,6 +186,8 @@ function rewriteStructuredToPass(structured, reason, leanOverride) {
   structured.edge = pass.edge;
   structured.analysis = { ...pass.analysis };
   if (!Array.isArray(structured.caveats) || structured.caveats.length < 1) {
+    structured.caveats = pass.caveats;
+  } else if (reason === "no_live_prop" || reason === "suitcase_red") {
     structured.caveats = pass.caveats;
   }
   return structured;
@@ -464,8 +500,6 @@ export function applyNflAskGuard(opts = {}) {
 
   const suitcase = resolveNflSuitcaseGuard(opts.briefcase, question);
   const phase = detectNflAskPhase(question);
-  const skipPriced =
-    phase === "draft" || phase === "futures" || String(structured.call || "").toUpperCase() === "PASS";
 
   const call = String(structured.call || "");
   const lean = String(structured.lean || "");
@@ -520,9 +554,12 @@ export function applyNflAskGuard(opts = {}) {
     rewriteStructuredToPass(structured, "inactives_not_posted");
   }
 
-  if (suitcase.forcePass && !skipPriced && String(structured.call || "").toUpperCase() !== "PASS") {
-    codes.push(suitcase.noLiveProp ? "no_live_prop" : "suitcase_red");
-    rewriteStructuredToPass(structured, suitcase.noLiveProp ? "no_live_prop" : "suitcase_red");
+  // Always rewrite when the suitcase says no ticket — even if the model already
+  // returned PASS with a broken / parse-fail lean. Draft/futures stay exempt.
+  if (suitcase.forcePass && phase !== "draft" && phase !== "futures") {
+    const reason = suitcase.noLiveProp ? "no_live_prop" : "suitcase_red";
+    codes.push(reason);
+    rewriteStructuredToPass(structured, reason, undefined, question);
   }
 
   const conflict = detectNflCallBodyConflict(

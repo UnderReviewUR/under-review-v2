@@ -9,6 +9,7 @@ import {
   detectNflInventedLineMove,
   detectNflSpreadInvert,
   detectNflVintageBlur,
+  extractNflStatedPropLine,
   isNflConditionalSnapAsk,
   isNflPreseasonStarterAssumption,
   parseNflPostedSpreads,
@@ -134,6 +135,35 @@ test("red suitcase on a prop ask forces PASS", () => {
   assert.ok(codes.includes("no_live_prop") || codes.includes("suitcase_red"));
   assert.equal(structured.call, "PASS");
   assert.equal(structured.confidence, "Speculative");
+});
+
+test("forcePass rewrites even when model already said PASS", () => {
+  const q =
+    "I'm looking at Maye 1.5 passing TDs (NE @ SEA). Should I fade the over, take the under, or pass?";
+  const { structured, codes } = applyNflAskGuard({
+    question: q,
+    structured: {
+      call: "PASS",
+      lean: "Lean: Pass. Take did not parse cleanly. No invented number.",
+      confidence: "Speculative",
+      whyNow: "broken",
+      edge: "short",
+    },
+    games: tonight,
+    briefcase: {
+      grade: "red",
+      detected: { marketId: "pass_tds", propTypeHints: ["passing_tds", "pass_tds"], label: "Passing touchdowns" },
+      propMatch: { matched: 0 },
+    },
+  });
+  assert.ok(codes.includes("no_live_prop"));
+  assert.equal(structured.call, "PASS");
+  assert.match(String(structured.lean), /No live .+ row on the board/i);
+  assert.ok(!/did not parse cleanly/i.test(String(structured.lean)));
+  const take = buildNflPassStructuredTake("no_live_prop", { question: q });
+  const v = validateStructuredURTakeResponse(take);
+  assert.equal(v.valid, true, v.errors && v.errors.join("; "));
+  assert.equal(extractNflStatedPropLine(q), 1.5);
 });
 
 test("red suitcase on a posted spread does not force PASS when odds are present", () => {

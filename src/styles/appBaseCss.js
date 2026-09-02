@@ -2937,18 +2937,21 @@ export const baseCss = `
     font-size:10px;
     letter-spacing:0.14em;
     text-transform:uppercase;
-    color:rgba(170,179,194,0.78);
+    color:#64748B;
   }
-  .ur-user-ask-sep{font-family:var(--mono-font);font-size:10px;color:rgba(255,255,255,0.22);}
+  .ur-user-ask-sep{font-family:var(--mono-font);font-size:10px;color:#94A3B8;}
   .ur-user-ask-body{
     display:block;
     margin-top:6px;
     font-size:15px;
     line-height:1.45;
     font-weight:500;
-    color:rgba(248,250,252,0.94);
+    color:#0F172A;
     text-align:right;
   }
+  .theme-epilogue .ur-user-ask-kicker{color:rgba(170,179,194,0.78);}
+  .theme-epilogue .ur-user-ask-sep{color:rgba(255,255,255,0.22);}
+  .theme-epilogue .ur-user-ask-body{color:rgba(248,250,252,0.94);}
   .nfl-matchup-thesis{
     margin-bottom:10px;
     padding:10px 12px;
@@ -4808,10 +4811,26 @@ export const baseCss = `
   .ur-v2-stat-label{font-family:var(--mono-font);font-size:8px;letter-spacing:0.07em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;}
   .ur-v2-stat-value{font-size:13px;font-weight:800;color:#fff;line-height:1.35;word-break:break-word;}
   .ur-v2-divider{height:0.5px;background:#141414;margin:8px 16px;border:none;}
-  .ur-v2-body-copy{font-size:14px;line-height:1.65;color:#d1d5db;padding:0 16px;}
+  .ur-v2-body-copy{font-size:14px;line-height:1.65;color:#e5e7eb;padding:0 16px;}
+  .ur-v2-body-primary{
+    padding:0 16px;
+    font-size:14px;
+    line-height:1.65;
+    color:#e5e7eb;
+  }
   .ur-v2-body-prose-wrap--clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
   button.ur-v2-body-expand{margin:6px 16px 0;padding:0;border:none;background:none;color:#00F5E9;font-family:var(--mono-font);font-size:11px;letter-spacing:0.08em;cursor:pointer;text-align:left;touch-action:manipulation;}
-  .ur-v2-body-p{margin:0 0 12px;}
+  .ur-v2-body-p{margin:0 0 12px;color:#e5e7eb;}
+  .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card,
+  .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card{
+    color:#e5e7eb;
+  }
+  .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card .ur-v2-body-primary,
+  .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card .ur-v2-body-p,
+  .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card .ur-v2-body-primary,
+  .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card .ur-v2-body-p{
+    color:#e5e7eb;
+  }
   .ur-v2-muted{color:rgba(255,255,255,.55);}
   .ur-v2-inline-label{font-family:var(--mono-font);font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-right:6px;}
   .ur-v2-driver-list{margin:8px 0 0;padding-left:18px;color:rgba(255,255,255,.65);font-size:13px;}
