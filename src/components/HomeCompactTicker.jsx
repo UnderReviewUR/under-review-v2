@@ -60,6 +60,16 @@ function labelForItem(item, { golfData, getSeriesLabel }) {
     }
     case "nfl":
       return "NFL · Slate active";
+    case "laliga": {
+      const m = item.laligaMatch;
+      if (!m) return null;
+      const away = m.awayAbbr || m.awayName || "AWAY";
+      const home = m.homeAbbr || m.homeName || "HOME";
+      if (m.homeScore != null && m.awayScore != null && String(m.statusState || "").toLowerCase() === "in") {
+        return `La Liga · ${away} ${m.awayScore}–${m.homeScore} ${home}`;
+      }
+      return `La Liga · ${away} @ ${home}`;
+    }
     default:
       return null;
   }
@@ -72,6 +82,7 @@ export default function HomeCompactTicker({
   isNflSlateActive,
   tickerNbaGames,
   wcMatches,
+  laligaMatches = [],
   getSeriesLabel,
   tennisTickerMatches,
   golfData,
@@ -88,6 +99,7 @@ export default function HomeCompactTicker({
     f1Data,
     tennisMatchesForTicker: tennisTickerMatches || [],
     wcMatches: wcMatches || [],
+    laligaMatches: laligaMatches || [],
     golfSnapshotKey: () => golfKeyForLiveSnapshot(golfData),
   });
 

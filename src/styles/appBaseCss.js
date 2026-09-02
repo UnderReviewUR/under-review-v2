@@ -950,7 +950,7 @@ export const baseCss = `
     padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + 200px + env(safe-area-inset-bottom));
   }
   .home-surface-option-a .ur-home-hero{
-    padding:10px 0 28px;
+    padding:10px 0 16px;
     text-align:center;
   }
   .home-surface-option-a .ur-home-promise{
@@ -1097,6 +1097,157 @@ export const baseCss = `
   .home-surface-option-a .ask-home-hero-send-icon{
     width:15px;
     height:15px;
+  }
+  .ur-home-board-lanes{
+    margin:0 0 20px;
+  }
+  .ur-home-board-lanes__head{
+    margin:0 0 12px;
+    text-align:left;
+  }
+  .ur-home-board-lanes__kicker{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:rgba(255,255,255,0.42);
+    margin-bottom:6px;
+    font-weight:600;
+  }
+  .ur-home-board-lanes__title{
+    font-family:var(--display-font);
+    font-size:17px;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+    color:#fff;
+    margin:0 0 4px;
+  }
+  .ur-home-board-lanes__sub{
+    margin:0;
+    font-size:12px;
+    color:rgba(255,255,255,0.45);
+    line-height:1.4;
+  }
+  .ur-home-board-lanes__grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  @media (min-width:520px){
+    .ur-home-board-lanes__grid{grid-template-columns:1fr 1fr;}
+  }
+  .ur-home-board-lane{
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.08);
+    background:rgba(8,10,12,0.55);
+    overflow:hidden;
+  }
+  .ur-home-board-lane--nfl{
+    border-left:3px solid #E11D48;
+  }
+  .ur-home-board-lane--laliga{
+    border-left:3px solid #EE4444;
+  }
+  .ur-home-board-lane__head{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    width:100%;
+    padding:12px 14px 10px;
+    border:none;
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    background:transparent;
+    text-align:left;
+    cursor:pointer;
+  }
+  .ur-home-board-lane__head:disabled{cursor:default;}
+  .ur-home-board-lane__head:not(:disabled):hover{
+    background:rgba(255,255,255,0.03);
+  }
+  .ur-home-board-lane__head-top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:10px;
+    width:100%;
+  }
+  .ur-home-board-lane__league{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    font-weight:700;
+    color:rgba(255,255,255,0.72);
+  }
+  .ur-home-board-lane--nfl .ur-home-board-lane__league{color:#E11D48;}
+  .ur-home-board-lane--laliga .ur-home-board-lane__league{color:#EE4444;}
+  .ur-home-board-lane__meta{
+    font-family:var(--mono-font);
+    font-size:10px;
+    letter-spacing:0.06em;
+    color:rgba(255,255,255,0.38);
+    text-transform:uppercase;
+  }
+  .ur-home-board-lane__matchup{
+    font-family:var(--mono-font);
+    font-size:15px;
+    font-weight:700;
+    letter-spacing:0.02em;
+    color:#fff;
+    font-variant-numeric:tabular-nums;
+  }
+  .ur-home-board-lane__line{
+    font-family:var(--mono-font);
+    font-size:11px;
+    letter-spacing:0.04em;
+    color:rgba(255,255,255,0.55);
+    line-height:1.4;
+  }
+  .ur-home-board-lane__asks{
+    list-style:none;
+    margin:0;
+    padding:0;
+  }
+  .ur-home-board-lane__asks li + li{
+    border-top:1px solid rgba(255,255,255,0.06);
+  }
+  .ur-home-board-lane__ask{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    width:100%;
+    padding:11px 14px;
+    border:none;
+    background:transparent;
+    color:rgba(255,255,255,0.9);
+    font-size:13px;
+    line-height:1.4;
+    text-align:left;
+    cursor:pointer;
+  }
+  .ur-home-board-lane__ask:hover{
+    background:rgba(255,255,255,0.04);
+  }
+  .ur-home-board-lane__kind{
+    flex:0 0 auto;
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    font-weight:700;
+    color:rgba(255,255,255,0.38);
+    padding-top:2px;
+    min-width:36px;
+  }
+  .ur-home-board-lane__kind--fade{
+    color:rgba(255,180,80,0.72);
+  }
+  .ur-home-board-lane__ask-text{
+    flex:1;
+    min-width:0;
+    color:#fff;
+    font-weight:500;
   }
   .ur-home-starters-option-a{
     margin:0 0 32px;

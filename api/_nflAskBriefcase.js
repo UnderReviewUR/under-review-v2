@@ -245,7 +245,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
   }
   const depthRosters = rostersFromDepth(opts.depth);
   const espnRosters = rostersFromEspnPlayers(opts.espnRosterPlayers);
-  const mergedRosters = { ...(briefcase.league.rostersByTeam || {}), ...espnRosters };
+  const bdlRosters = briefcase.league.rostersByTeam || {};
+  const mergedRosters = { ...espnRosters, ...bdlRosters };
   for (const [team, rows] of Object.entries(depthRosters)) {
     mergedRosters[team] = [...(mergedRosters[team] || []), ...rows];
   }

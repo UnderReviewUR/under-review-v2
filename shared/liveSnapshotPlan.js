@@ -39,6 +39,7 @@ import { isWcPreKickoffPromoOnly } from "./wc2026PromoFixtures.js";
  * @param {Array} [input.tennisMatchesForTicker]
  * @param {Array} [input.wcMatches]
  * @param {object} [input.golfData]
+ * @param {Array} [input.laligaMatches]
  * @param {() => string|null} [input.golfSnapshotKey]
  * @param {Array} [input.validNbaGames] pre-filtered displayable NBA
  * @param {Array} [input.validMlbGames] pre-filtered displayable MLB
@@ -109,6 +110,13 @@ export function planLiveSnapshot(input) {
 
   if (nflOn && isHomeTickerSportVisible("nfl")) {
     if (tryAdd("nfl", nflSnapshotBoardKey())) return finalize();
+  }
+
+  if (isHomeTickerSportVisible("laliga") && Array.isArray(input.laligaMatches)) {
+    for (const m of input.laligaMatches.slice(0, 3)) {
+      const k = `laliga:${m?.providerMatchId ?? `${m?.awayAbbr}-${m?.homeAbbr}`}`;
+      if (tryAdd("laliga", k, { laligaMatch: m })) return finalize();
+    }
   }
 
   if (f1InWindow && nextF1Race && isHomeTickerSportVisible("f1")) {

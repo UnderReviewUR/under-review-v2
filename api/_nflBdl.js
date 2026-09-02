@@ -14,10 +14,13 @@ import {
   buildDefenseMapFromBdlTeamSeasonStats,
 } from "../shared/nflBdlDefenseNormalize.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
+import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 
 const NFL_BDL_PREFIX = "/nfl/v1";
 const DEFENSE_KV_KEY = "nfl_bdl_team_defense";
 const DEFENSE_TTL_SEC = 6 * 60 * 60;
+const ROSTERS_KV_PREFIX = "nfl_bdl_all_rosters";
+const ROSTERS_TTL_SEC = 6 * 60 * 60;
 const PREFERRED_ODDS_VENDORS = ["draftkings", "fanduel", "betmgm", "caesars", "fanatics", "betrivers"];
 const LIVE_GAME_STATUS_STATES = new Set(["in_progress", "delayed", "suspended"]);
 
@@ -686,6 +689,93 @@ export async function fetchNflBdlSlateRosters(games, opts) {
   };
 }
 
+function rostersKvKey(season) {
+  return `${ROSTERS_KV_PREFIX}_${season}`;
+}
+
+/**
+ * All 32 NFL team rosters for a season (cached 6h).
+ * @param {{ season: number, apiKey?: string, useCache?: boolean, forceRefresh?: boolean }} opts
+ */
+export async function fetchNflBdlAllTeamRosters(opts) {
+  const season = Number(opts.season);
+  if (!Number.isFinite(season)) {
+    return { rostersByTeam: {}, ok: false, teamCount: 0, error: "missing_season", source: "none" };
+  }
+
+  const cacheKey = rostersKvKey(season);
+  if (opts.useCache !== false && !opts.forceRefresh) {
+    try {
+      const cached = await getDurableJson(cacheKey);
+      if (
+        cached?.season === season &&
+        cached?.rostersByTeam &&
+        Object.keys(cached.rostersByTeam).length >= 28 &&
+        Date.now() - (cached.fetchedAt || 0) < ROSTERS_TTL_SEC * 1000
+      ) {
+        return {
+          rostersByTeam: cached.rostersByTeam,
+          ok: true,
+          teamCount: Object.keys(cached.rostersByTeam).length,
+          source: "cache",
+          fetchedAt: cached.fetchedAt,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const apiKey = opts.apiKey;
+  const teams = await fetchNflBdlTeams({ apiKey });
+  /** @type {Record<string, Array<Record<string, unknown>>>} */
+  const rostersByTeam = {};
+  let ok = true;
+  let lastError = null;
+
+  for (const team of teams) {
+    const abbr = String(team?.abbreviation || "").toUpperCase();
+    const teamId = Number(team?.id);
+    if (!abbr || !Number.isFinite(teamId)) continue;
+    const res = await nflBdlFetch(
+      `/teams/${teamId}/roster`,
+      { season },
+      { apiKey, timeoutMs: 20000 },
+    );
+    if (!res.ok) {
+      ok = false;
+      lastError = res.error;
+      continue;
+    }
+    const rows = Array.isArray(res.data?.data) ? res.data.data : [];
+    if (rows.length) rostersByTeam[abbr] = normalizeNflBdlRosterRows(rows, abbr);
+  }
+
+  const teamCount = Object.keys(rostersByTeam).length;
+  const result = {
+    rostersByTeam,
+    ok: teamCount >= 28,
+    teamCount,
+    error: teamCount >= 28 ? null : lastError || "incomplete_roster_fetch",
+    source: "live",
+    fetchedAt: Date.now(),
+  };
+
+  if (teamCount >= 28) {
+    try {
+      await setDurableJson(
+        cacheKey,
+        { season, rostersByTeam, fetchedAt: result.fetchedAt },
+        { ttlSeconds: ROSTERS_TTL_SEC },
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return result;
+}
+
 /**
  * @param {{ season: number, playerIds?: Array<number|string>, apiKey?: string, maxPlayers?: number }} opts
  */
@@ -981,6 +1071,8 @@ export async function fetchNflBdlFantasyAdp(opts = {}) {
  *   hydrateStats?: boolean,
  *   hydrateDfs?: boolean,
  *   hydrateFantasy?: boolean,
+ *   hydrateRosters?: boolean,
+ *   hydrateAllRosters?: boolean,
  * }} [opts]
  */
 export async function buildNflGoatBriefcase(opts = {}) {
@@ -1002,7 +1094,7 @@ export async function buildNflGoatBriefcase(opts = {}) {
     return briefcase;
   }
 
-  const season = opts.season != null ? Number(opts.season) : inferDefaultNflSeason();
+  const season = opts.season != null ? Number(opts.season) : inferNflSeasonYear();
   const week = opts.week != null ? Number(opts.week) : null;
   briefcase.season = season;
   briefcase.week = week;
@@ -1145,6 +1237,40 @@ export async function buildNflGoatBriefcase(opts = {}) {
         JSON.stringify({ event: "nfl_goat_injuries_failed", error: err?.message || String(err) }),
       );
       endpoints.player_injuries = { ok: false, error: err?.message || String(err) };
+    }
+  }
+
+  if (opts.hydrateRosters !== false && Number.isFinite(season)) {
+    try {
+      const allRosters =
+        opts.hydrateAllRosters !== false
+          ? await fetchNflBdlAllTeamRosters({
+              season,
+              apiKey: getNflBdlApiKey(),
+              useCache: true,
+              forceRefresh: opts.hydrateAllRosters === "refresh",
+            })
+          : { rostersByTeam: {}, ok: false, teamCount: 0 };
+      if (Object.keys(allRosters.rostersByTeam || {}).length) {
+        briefcase.league.rostersByTeam = {
+          ...(briefcase.league.rostersByTeam || {}),
+          ...allRosters.rostersByTeam,
+        };
+      }
+      endpoints["teams/all_rosters"] = {
+        ok: allRosters.ok,
+        count: allRosters.teamCount,
+        source: allRosters.source || null,
+        error: allRosters.error,
+        note:
+          allRosters.teamCount >= 32
+            ? "all 32 teams"
+            : allRosters.teamCount >= 28
+              ? "28+ teams — slate merge may add remainder"
+              : "partial — ESPN roster merge fills gaps in Ask",
+      };
+    } catch (err) {
+      endpoints["teams/all_rosters"] = { ok: false, error: err?.message || String(err) };
     }
   }
 
@@ -1393,12 +1519,4 @@ export async function buildNflGoatBriefcase(opts = {}) {
     endpoints,
   };
   return briefcase;
-}
-
-function inferDefaultNflSeason() {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth() + 1;
-  // NFL season year labels the fall start (Sep 2026 → 2026). Jan–Feb still prior year.
-  return m >= 3 ? y : y - 1;
 }

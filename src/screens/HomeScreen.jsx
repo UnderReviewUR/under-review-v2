@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 import HomeCompactTicker from "../components/HomeCompactTicker.jsx";
 import HomeDailyEdgeCard from "../components/HomeDailyEdgeCard.jsx";
+import HomeEngageLanes from "../components/HomeEngageLanes.jsx";
 import NflHomeScoreStrip from "../components/NflHomeScoreStrip.jsx";
 import NflSlateTakesCard from "../components/NflSlateTakesCard.jsx";
 import HomeSpotlightRow from "../components/HomeSpotlightRow.jsx";
@@ -24,7 +25,7 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
 
 /** Home hero copy — value-first headline + product promise. */
 const HOME_HEADLINE = "Before you bet, know why.";
-const HOME_SUBHEAD = "Sharp reads on live lines, matchups, and slips.";
+const HOME_SUBHEAD = "Spreads, totals, and props on today's board.";
 const HOME_ASK_PROMISE = `${HOME_HEADLINE} ${HOME_SUBHEAD}`;
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
@@ -40,6 +41,7 @@ export default function HomeScreen({
   askBarCommon,
   goTennis: _goTennis,
   goNfl,
+  goLaliga = null,
   goF1: _goF1,
   goNba: _goNba,
   goMlb: _goMlb,
@@ -65,7 +67,11 @@ export default function HomeScreen({
   isNflSlateActive,
   nflGames = [],
   nflBoardAsOf = null,
+  nflPropLines = [],
   nflUrTakeGated = true,
+  laligaMatches = [],
+  laligaPropLines = [],
+  laligaUrTakeGated = true,
   tickerNbaGames,
   getSeriesLabel,
   tennisTickerMatches,
@@ -113,21 +119,29 @@ export default function HomeScreen({
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
     const maxStarters = narrowHome ? 2 : 3;
     const offset = dq.length > 1 ? 1 : 0;
+    const liveSports = new Set(["nfl", "laliga"]);
+    const liveFirst = dq.filter((q) => liveSports.has(String(q?.sportHint || "").toLowerCase()));
+    const rest = dq.filter((q) => !liveSports.has(String(q?.sportHint || "").toLowerCase()));
+    const ordered = liveFirst.length ? [...liveFirst, ...rest] : dq;
 
     if (wcXiStarter) {
-      const rest = dq.slice(offset, offset + maxStarters);
-      return [wcXiStarter, ...rest.filter((q) => q.id !== wcXiStarter.id)].slice(0, maxStarters);
+      const restPick = ordered.slice(offset, offset + maxStarters);
+      return [wcXiStarter, ...restPick.filter((q) => q.id !== wcXiStarter.id)].slice(0, maxStarters);
+    }
+
+    if (liveFirst.length >= maxStarters) {
+      return liveFirst.slice(0, maxStarters);
     }
 
     if (isWcHomePromoWindow()) {
-      return dq.slice(offset, offset + maxStarters);
+      return ordered.slice(offset, offset + maxStarters);
     }
-    const wc = dq.find((q) => String(q?.sportHint || "").toLowerCase() === "worldcup");
-    let picks = dq.slice(offset, offset + maxStarters);
-    if (wc && !picks.some((q) => q.id === wc.id)) {
+    const wc = ordered.find((q) => String(q?.sportHint || "").toLowerCase() === "worldcup");
+    let picks = ordered.slice(offset, offset + maxStarters);
+    if (wc && !picks.some((q) => q.id === wc.id) && !liveFirst.length) {
       picks = [wc, ...picks.filter((q) => q.id !== wc.id)].slice(0, maxStarters);
     }
-    if (dq.length <= 1) return narrowHome ? dq.slice(0, 2) : dq.slice(0, 3);
+    if (ordered.length <= 1) return narrowHome ? ordered.slice(0, 2) : ordered.slice(0, 3);
     return picks;
   }, [dynamicHomeQuestions, narrowHome, wcXiStarter]);
 
@@ -255,6 +269,9 @@ export default function HomeScreen({
       case "nfl":
         goNfl?.();
         break;
+      case "laliga":
+        goLaliga?.();
+        break;
       default:
         break;
     }
@@ -266,6 +283,7 @@ export default function HomeScreen({
         isNflSlateActive={isNflSlateActive}
         tickerNbaGames={homeNbaGames}
         wcMatches={wcMatches}
+        laligaMatches={laligaMatches}
         getSeriesLabel={getSeriesLabel}
         tennisTickerMatches={tennisTickerMatches}
         golfData={golfData}
@@ -293,6 +311,76 @@ export default function HomeScreen({
           />
         </div>
       </section>
+
+      <HomeEngageLanes
+        nflGames={nflGames}
+        laligaMatches={laligaMatches}
+        nflPropLines={nflPropLines}
+        laligaPropLines={laligaPropLines}
+        nflUrTakeGated={nflUrTakeGated}
+        laligaUrTakeGated={laligaUrTakeGated}
+        onPrompt={(prompt, sportHint, promptId) => {
+          if (!nflUrTakeGated && sportHint === "nfl" && typeof prefillUrTakeQuestion === "function") {
+            prefillUrTakeQuestion(prompt, "nfl");
+            return;
+          }
+          if (!laligaUrTakeGated && sportHint === "laliga" && typeof prefillUrTakeQuestion === "function") {
+            prefillUrTakeQuestion(prompt, "laliga");
+            return;
+          }
+          firePrompt(prompt, sportHint || null, promptId);
+        }}
+        onOpenSport={(sport) => {
+          if (sport === "nfl") goNfl?.();
+          else if (sport === "laliga") goLaliga?.();
+        }}
+      />
+
+      {starterQs.length > 0 ? (
+        <section className="ur-home-starters ur-home-starters-option-a" aria-labelledby="ur-home-starters-heading">
+          <h2 id="ur-home-starters-heading" className="ur-home-starters-heading">
+            Ask next
+          </h2>
+          <div className="ur-home-starter-list">
+            {starterQs.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                className="ur-home-starter-item"
+                onClick={() => {
+                  if (q.id === "q-wc-xi-confirmed" && askWorldCup) {
+                    askWorldCup(q.prompt, {
+                      eventId: q.eventId,
+                      highlightEventId: q.eventId,
+                      matchSubTab: "today",
+                    });
+                    return;
+                  }
+                  if (String(q.sportHint || "").toLowerCase() === "worldcup" && askWorldCup) {
+                    askWorldCup(q.prompt, { inheritThread: false });
+                    return;
+                  }
+                  if (String(q.sportHint || "").toLowerCase() === "laliga" && typeof prefillUrTakeQuestion === "function") {
+                    prefillUrTakeQuestion(q.prompt, "laliga");
+                    return;
+                  }
+                  if (String(q.sportHint || "").toLowerCase() === "nfl" && typeof prefillUrTakeQuestion === "function") {
+                    prefillUrTakeQuestion(q.prompt, "nfl");
+                    return;
+                  }
+                  firePrompt(q.prompt, q.sportHint || null, q.id);
+                }}
+              >
+                <span className="ur-home-starter-accent" style={{ background: q.color }} aria-hidden />
+                <span className="ur-home-starter-text">{q.text}</span>
+                <span className="ur-home-starter-chev" aria-hidden>
+                  ›
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <NflHomeScoreStrip
         games={nflGames}
@@ -337,44 +425,6 @@ export default function HomeScreen({
         firePrompt={firePrompt}
         onOpenGolf={_goGolf}
       />
-
-      {starterQs.length > 0 ? (
-        <section className="ur-home-starters ur-home-starters-option-a" aria-labelledby="ur-home-starters-heading">
-          <h2 id="ur-home-starters-heading" className="ur-home-starters-heading">
-            Ask next
-          </h2>
-          <div className="ur-home-starter-list">
-            {starterQs.map((q) => (
-              <button
-                key={q.id}
-                type="button"
-                className="ur-home-starter-item"
-                onClick={() => {
-                  if (q.id === "q-wc-xi-confirmed" && askWorldCup) {
-                    askWorldCup(q.prompt, {
-                      eventId: q.eventId,
-                      highlightEventId: q.eventId,
-                      matchSubTab: "today",
-                    });
-                    return;
-                  }
-                  if (String(q.sportHint || "").toLowerCase() === "worldcup" && askWorldCup) {
-                    askWorldCup(q.prompt, { inheritThread: false });
-                    return;
-                  }
-                  firePrompt(q.prompt, q.sportHint || null, q.id);
-                }}
-              >
-                <span className="ur-home-starter-accent" style={{ background: q.color }} aria-hidden />
-                <span className="ur-home-starter-text">{q.text}</span>
-                <span className="ur-home-starter-chev" aria-hidden>
-                  ›
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       {!narrowHome ? (
       <div className="ur-home-feed">

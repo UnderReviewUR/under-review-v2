@@ -4,7 +4,7 @@
  */
 
 /** @typedef {"home"|"worldcup"|"nba"|"nfl"|"cfb"|"laliga"|"f1"|"golf"|"tennis"|"mlb"|"ask"|"pro"} NavSportSlug */
-/** @typedef {"nba"|"mlb"|"nfl"|"f1"|"tennis"|"golf"|"worldcup"} HomeTickerSportSlug */
+/** @typedef {"nba"|"mlb"|"nfl"|"laliga"|"f1"|"tennis"|"golf"|"worldcup"} HomeTickerSportSlug */
 /** @typedef {"nba"|"mlb"|"tennis"|"f1"|"golf"|"nflDraft"} HomeCardSportSlug */
 /** @typedef {"mlb"|"tennis"|"nfl"} HomePromptSportSlug */
 /** @typedef {"nba"|"worldcup"|"mlb"|"tennis"} DailyTakeSportSlug */
@@ -26,12 +26,13 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
   }),
   homeTicker: Object.freeze({
     nba: false,
-    worldcup: true,
+    worldcup: false,
     mlb: false,
-    nfl: false,
-    f1: true,
+    nfl: true,
+    laliga: true,
+    f1: false,
     tennis: false,
-    golf: true,
+    golf: false,
   }),
   homeCards: Object.freeze({
     mlb: false,

@@ -3,6 +3,8 @@
  */
 import { buildLaligaGoatBriefcase, buildLaligaLiveBoard, isLaligaBdlPrimaryEnabled } from "./_laligaBdl.js";
 import { isBdlGoatTrialPaceActive } from "../shared/bdlGoatTrialPolicy.js";
+import { formatLaligaRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
+import { formatLaligaSeasonLabel, inferLaligaSeasonStartYear } from "../shared/bdlSeasonDefaults.js";
 
 function detectLaligaMarket(question) {
   const q = String(question || "").toLowerCase();
@@ -133,9 +135,12 @@ export async function buildLaligaContextForAsk(opts = {}) {
   const odds = briefcase?.slate?.odds || [];
   const standings = briefcase?.league?.standings || [];
   const injuries = briefcase?.league?.injuries || [];
+  const rostersByTeam = briefcase?.league?.rostersByTeam || {};
+  const rosterTeamCount = Object.keys(rostersByTeam).length;
+  const seasonLabel = formatLaligaSeasonLabel(briefcase?.season ?? inferLaligaSeasonStartYear());
 
   const lines = [
-    "LA LIGA LIVE BOARD (BallDontLie GOAT — 1X2 moneyline, player props, standings)",
+    `LA LIGA LIVE BOARD (BallDontLie GOAT — ${seasonLabel}, 1X2 moneyline, player props, standings)`,
     `Matches (${matches.length}):`,
     ...matches.slice(0, 16).map((m) => {
       const ml = m.moneyline ? ` 1X2 ${JSON.stringify(m.moneyline)}` : "";
@@ -149,6 +154,13 @@ export async function buildLaligaContextForAsk(opts = {}) {
     ...standings.slice(0, 12).map((s) => `- ${s.position}. ${s.teamName || s.team} (${s.points} pts)`),
     injuries.length ? `Injuries (${injuries.length} logged)` : "",
     ...injuries.slice(0, 12).map((i) => `- ${i.player} (${i.team}): ${i.status}`),
+    rosterTeamCount
+      ? formatLaligaRostersPromptBlock(rostersByTeam, {
+          maxTeams: rosterTeamCount,
+          maxPlayersPerTeam: 24,
+          label: `LA LIGA VERIFIED SQUADS (${seasonLabel} — BDL)`,
+        })
+      : "",
     promptBlock,
   ].filter(Boolean);
 

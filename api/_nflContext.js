@@ -28,6 +28,8 @@ import { formatNflGameStateLine } from "../shared/nflGameState.js";
 import { buildNflLiveBoard } from "./_nflBoard.js";
 import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js";
 import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
+import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
+import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 
 export { NFL_STADIUM_META };
 
@@ -424,7 +426,7 @@ export async function buildCanonicalNflContext(options = {}) {
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
   const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
   const nflRosterVerificationBanner =
-    "NOTE: NFL roster data last verified May 2026. Rookie class from 2025 draft integrated via ESPN roster fetch. For 2025 draftees not in static database, use ESPN roster context only.";
+    `NOTE: Verified NFL rosters (${inferNflSeasonYear()} season) from BallDontLie GOAT + ESPN snapshot. Static QB/RB/WR notes below are usage/stats baselines only — resolve player-team from verified roster blocks when they conflict.`;
   let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
 
   const depthData = await getDurableJson("nfl_depth_chart");
@@ -639,6 +641,19 @@ export async function buildCanonicalNflContext(options = {}) {
   if (briefcaseHealth.promptBlock) {
     promptContext += `\n\n${briefcaseHealth.promptBlock}`;
   }
+
+  const liveRosters = briefcaseHealth.briefcase?.league?.rostersByTeam;
+  const rosterTeamCount = liveRosters ? Object.keys(liveRosters).length : 0;
+  if (rosterTeamCount > 0) {
+    const rosterBlock = formatNflRostersPromptBlock(liveRosters, {
+      scopeAbbrs: scoped ? scope : undefined,
+      maxTeams: scoped ? 2 : Math.min(rosterTeamCount, 32),
+      maxPlayersPerTeam: scoped ? 32 : 22,
+      label: `NFL VERIFIED ROSTERS (${briefcaseHealth.briefcase?.season || inferNflSeasonYear()} season — BDL + ESPN)`,
+    });
+    if (rosterBlock) promptContext += `\n\n${rosterBlock}`;
+  }
+
   if (skipLiveBoard) {
     promptContext +=
       "\n\nNFL BOARD SKIP: draft/futures/predictor ask — live props not hydrated (latency). Use structural + season context.";

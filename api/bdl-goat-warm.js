@@ -9,8 +9,10 @@ import {
   isBdlGoatTrialPaceActive,
   bdlGoatTrialEndsAtIso,
 } from "../shared/bdlGoatTrialPolicy.js";
+import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 import { buildNflGoatBriefcase, isNflBdlPrimaryEnabled } from "./_nflBdl.js";
 import { buildLaligaLiveBoard } from "./_laligaBdl.js";
+import { fetchNflRosterSnapshot } from "./_nflEspnRoster.js";
 
 export const config = { maxDuration: 120 };
 
@@ -47,16 +49,33 @@ export default async function handler(req, res) {
 
   try {
     if (isNflBdlPrimaryEnabled()) {
+      const season = inferNflSeasonYear();
+      let espnRoster = { playerCount: 0 };
+      try {
+        const snap = await fetchNflRosterSnapshot();
+        espnRoster = {
+          playerCount: Array.isArray(snap.players) ? snap.players.length : 0,
+          fetchedAt: snap.fetchedAt,
+        };
+      } catch (err) {
+        espnRoster = { ok: false, error: err?.message || String(err) };
+      }
+
       const briefcase = await buildNflGoatBriefcase({
         week: 1,
-        season: 2026,
+        season,
         hydrateDefense: true,
         hydrateInjuries: true,
         hydrateStats: true,
         hydrateDfs: true,
         hydrateFantasy: true,
+        hydrateRosters: true,
+        hydrateAllRosters: "refresh",
       });
       warmed.nfl = {
+        season,
+        espnRoster,
+        rosterTeams: Object.keys(briefcase.league?.rostersByTeam || {}).length,
         games: briefcase.slate?.games?.length ?? 0,
         odds: briefcase.slate?.odds?.length ?? 0,
         props: briefcase.slate?.playerProps?.length ?? 0,

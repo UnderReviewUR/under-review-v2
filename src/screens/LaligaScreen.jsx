@@ -91,7 +91,7 @@ export default function LaligaScreen({
                   }}
                   onClick={() =>
                     submitLaliga(
-                      `${m.awayAbbr} @ ${m.homeAbbr} — 1X2 lean or best prop?${format1x2(m)}`,
+                      `${m.awayAbbr} @ ${m.homeAbbr} — side or best prop?${format1x2(m)}`,
                     )
                   }
                   onKeyDown={(e) => {
@@ -150,7 +150,7 @@ export default function LaligaScreen({
         value={laligaInput}
         onChange={setLaligaInput}
         onSubmit={() => submitLaliga()}
-        placeholder="Ask about La Liga 1X2, props, or form..."
+        placeholder="Ask about La Liga sides, totals, or props..."
         btnColor="#EE4444"
         {...askBarCommon}
       />

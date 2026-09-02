@@ -8,6 +8,7 @@ import {
   hasLaligaBdlApiKey,
 } from "../shared/laligaBdlPolicy.js";
 import { getBdlBoardCached } from "./_bdlBoardCache.js";
+import { inferLaligaSeasonStartYear } from "../shared/bdlSeasonDefaults.js";
 
 const LALIGA_PREFIX = "/laliga/v1";
 const PREFERRED_VENDORS = ["draftkings", "fanduel", "betmgm", "caesars", "fanatics", "betrivers"];
@@ -198,15 +199,6 @@ export function isLaligaLiveMatch(statusState, status) {
   const s = String(status || "").toLowerCase();
   return /\b(live|in progress|1st half|2nd half|halftime|extra time)\b/.test(s);
 }
-
-function inferDefaultLaligaSeason() {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth() + 1;
-  // European season start year (Aug–Dec → current year; Jan–Jul → prior year)
-  return m >= 8 ? y : y - 1;
-}
-
 function dateWindow(days = 10) {
   const out = [];
   const base = new Date();
@@ -387,7 +379,7 @@ export async function buildLaligaGoatBriefcase(opts = {}) {
     return briefcase;
   }
 
-  const season = opts.season != null ? Number(opts.season) : inferDefaultLaligaSeason();
+  const season = opts.season != null ? Number(opts.season) : inferLaligaSeasonStartYear();
   const dates = opts.dates?.length ? opts.dates : dateWindow(12);
   briefcase.season = season;
 
@@ -472,7 +464,7 @@ export async function buildLaligaGoatBriefcase(opts = {}) {
  * @param {{ season?: number|null, dates?: string[], includeProps?: boolean, maxPropMatches?: number }} [opts]
  */
 export async function buildLaligaLiveBoard(opts = {}) {
-  const season = opts.season != null ? Number(opts.season) : inferDefaultLaligaSeason();
+  const season = opts.season != null ? Number(opts.season) : inferLaligaSeasonStartYear();
   const includeProps = opts.includeProps !== false;
   const datesKey = opts.dates?.length ? opts.dates.join("_") : "auto";
   const cacheKey = `laliga_board_${season}_${datesKey}_p${includeProps ? 1 : 0}`;
@@ -483,7 +475,7 @@ export async function buildLaligaLiveBoard(opts = {}) {
 }
 
 async function buildLaligaLiveBoardFresh(opts = {}) {
-  const season = opts.season != null ? Number(opts.season) : inferDefaultLaligaSeason();
+  const season = opts.season != null ? Number(opts.season) : inferLaligaSeasonStartYear();
   const dates = opts.dates?.length ? opts.dates : dateWindow(10);
   const asOf = new Date().toISOString();
 

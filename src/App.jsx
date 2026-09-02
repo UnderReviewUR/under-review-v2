@@ -546,8 +546,16 @@ ${baseCss}
 ${themeCss}
 `;
 
-  const [tab, setTab] = useState(() => getColdLoadRouteSnapshot().tab);
-  const [screen, setScreen] = useState(() => getColdLoadRouteSnapshot().screen);
+  const [tab, setTab] = useState(() => {
+    const t = getColdLoadRouteSnapshot().tab;
+    if (t === "cfb" && !isNavSportVisible("cfb")) return "home";
+    return t;
+  });
+  const [screen, setScreen] = useState(() => {
+    const s = getColdLoadRouteSnapshot().screen;
+    if (s === "cfb" && !isNavSportVisible("cfb")) return "home";
+    return s;
+  });
   /** NFL tab: UR Take chat vs 2026 predictor (?predictor=1, ?share=, ?picks=, /predict-nfl, or /nfl path opens predictor). */
   const [nflUrView, setNflUrView] = useState(() => getColdLoadRouteSnapshot().nflUrView);
   /** Stack of { screen, tab } snapshots for header back + swipe-back. */
@@ -647,6 +655,7 @@ ${themeCss}
     () => isNflUrTakeGated({ nflSeasonMode }),
     [nflSeasonMode],
   );
+  const laligaUrTakeGated = useMemo(() => isLaligaUrTakeGated(), []);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -3581,6 +3590,10 @@ ${themeCss}
       f1Data,
       hourEt: hourEt ?? 12,
       wcMatches,
+      nflGames,
+      laligaMatches,
+      nflPropLines,
+      laligaPropLines,
     });
     const cap = isWcHomePromoWindow() ? 4 : 3;
     const capped = Array.isArray(list) ? list.slice(0, cap) : [];
@@ -3600,6 +3613,10 @@ ${themeCss}
     f1Data,
     hourEt,
     wcMatches,
+    nflGames,
+    laligaMatches,
+    nflPropLines,
+    laligaPropLines,
     promptRefreshTick,
   ]);
 
@@ -3714,6 +3731,10 @@ ${themeCss}
   }, [screen, tab]);
 
   const goCfb = useCallback(() => {
+    if (!isNavSportVisible("cfb")) {
+      goHome();
+      return;
+    }
     if (screen !== "cfb" || tab !== "cfb") {
       setNavHistory((h) => [...h, { screen, tab }]);
     }
@@ -3722,6 +3743,13 @@ ${themeCss}
     setSelectedMatchup(null);
     setSelectedPlayer(null);
     setSelectedNflPlayer(null);
+  }, [screen, tab, goHome]);
+
+  useEffect(() => {
+    if ((screen === "cfb" || tab === "cfb") && !isNavSportVisible("cfb")) {
+      setTab("home");
+      setScreen("home");
+    }
   }, [screen, tab]);
 
   const goLaliga = useCallback(() => {
@@ -5052,6 +5080,7 @@ ${themeCss}
             askBarCommon={askBarCommon}
             goTennis={goTennis}
             goNfl={goNfl}
+            goLaliga={goLaliga}
             goF1={goF1}
             goNba={goNba}
             goMlb={goMlb}
@@ -5082,7 +5111,11 @@ ${themeCss}
             isNflSlateActive={isNflSlateActive}
             nflGames={nflGames}
             nflBoardAsOf={nflBoard?.asOf || null}
+            nflPropLines={nflPropLines}
             nflUrTakeGated={nflUrTakeGated}
+            laligaMatches={laligaMatches}
+            laligaPropLines={laligaPropLines}
+            laligaUrTakeGated={laligaUrTakeGated}
             tickerNbaGames={tickerNbaGames}
             getSeriesLabel={getSeriesLabel}
             tennisTickerMatches={tennisTickerMatches}
@@ -5259,7 +5292,7 @@ ${themeCss}
 
 
         {/* ══ CFB ══ */}
-        {screen==="cfb"&&(
+        {screen==="cfb"&&isNavSportVisible("cfb")&&(
           <CfbScreen
             cfbScreenRef={cfbScreenRef}
             hasDockedBar={hasDockedBar}
@@ -6469,7 +6502,7 @@ ${themeCss}
             </div>
           </div>
         )}
-        {screen==="cfb"&&cfbMsgs.length>0&&(
+        {screen==="cfb"&&isNavSportVisible("cfb")&&cfbMsgs.length>0&&(
           <div className="docked-bar ur-docked-bar">
             <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(196,98,45,.25)" }}>
               <div className="docked-bar-label" style={{color:"#C4622D"}}>CFB · Ask another</div>
@@ -6921,12 +6954,18 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
 
         <NbaChampionsBanner enabled={screen === "home" || screen === "nba"} />
 
-        {/* ══ NAV ══ Home · NFL · CFB · La Liga · PRO */}
+        {/* ══ NAV ══ Home · NFL · [CFB] · La Liga · PRO */}
         <nav className="bottom-nav bottom-nav--five" aria-label="Primary">
           <button className={`nav-btn${tab==="home"&&screen==="home"?" active":""}`} onClick={goHome}><span>Home</span></button>
-          <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
-          <button className={`nav-btn${tab==="cfb"?" cfb-active":""}`} onClick={goCfb}><span>CFB</span></button>
-          <button className={`nav-btn${tab==="laliga"?" laliga-active":""}`} onClick={goLaliga}><span>La Liga</span></button>
+          {isNavSportVisible("nfl") ? (
+            <button className={`nav-btn${tab==="nfl"?" nfl-active":""}`} onClick={goNfl}><span>NFL</span></button>
+          ) : null}
+          {isNavSportVisible("cfb") ? (
+            <button className={`nav-btn${tab==="cfb"?" cfb-active":""}`} onClick={goCfb}><span>CFB</span></button>
+          ) : null}
+          {isNavSportVisible("laliga") ? (
+            <button className={`nav-btn${tab==="laliga"?" laliga-active":""}`} onClick={goLaliga}><span>La Liga</span></button>
+          ) : null}
           <button
             className={`nav-btn pro-active${tab === "pro" ? " nav-pro-on" : ""}`}
             onClick={goPro}

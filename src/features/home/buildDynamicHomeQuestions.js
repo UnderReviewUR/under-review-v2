@@ -20,7 +20,11 @@ import {
   isNbaFinalsWindowEt,
 } from "../../../shared/nbaFinalsHomePrompt.js";
 import { NBA_2026_FINALS_TEAMS } from "../../../shared/nbaFinalsUtils.js";
-import { isHomePromptSportVisible, isNflUrTakeGated } from "../../../shared/siteSportVisibility.js";
+import { isHomePromptSportVisible, isNavSportVisible, isNflUrTakeGated } from "../../../shared/siteSportVisibility.js";
+import {
+  buildLaligaEngageNudges,
+  buildNflEngageNudges,
+} from "../../../shared/homeEngageNudges.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -87,6 +91,8 @@ function computeSortRanks(nflTop, { nbaFinalsCapOne = false } = {}) {
       nflB: 8,
       nflC: 9,
       nflSolo: 8,
+      laligaA: 10,
+      laligaB: 11,
       golf: 9,
       golfLive: 8,
       nbaLive: nbaFinalsCapOne ? 18 : 14,
@@ -105,6 +111,8 @@ function computeSortRanks(nflTop, { nbaFinalsCapOne = false } = {}) {
     nflB: 21,
     nflC: 22,
     nflSolo: 20,
+    laligaA: 21,
+    laligaB: 22,
     nbaLive: nbaFinalsCapOne ? 12 : 7,
     nbaUp: nbaFinalsCapOne ? 13 : 8,
     nbaSeason: nbaFinalsCapOne ? 14 : 9,
@@ -170,6 +178,10 @@ export function buildDynamicHomeQuestions({
   hourEt: _hourEt = 12,
   promoNowMs = Date.now(),
   wcMatches = [],
+  nflGames = [],
+  laligaMatches = [],
+  nflPropLines = [],
+  laligaPropLines = [],
 }) {
   const prompts = [];
   const usedCardText = new Set();
@@ -787,6 +799,41 @@ export function buildDynamicHomeQuestions({
       sportHint: "nfl",
       sortRank: ranks.nflSolo,
       ...nflFuturePrompt,
+    });
+  }
+
+  const laligaList = Array.isArray(laligaMatches) ? laligaMatches : [];
+  if (isNavSportVisible("laliga") && laligaList.length > 0) {
+    const featured =
+      laligaList.find((m) => m?.moneyline?.home != null || m?.moneyline?.away != null) ||
+      laligaList[0];
+    const laligaNudges = buildLaligaEngageNudges(featured, laligaPropLines, 20);
+    laligaNudges.forEach((nudge, i) => {
+      push({
+        id: `q-laliga-nudge-${i}`,
+        color: "#EE4444",
+        sportHint: "laliga",
+        sortRank: ranks.laligaA + i,
+        text: nudge.text,
+        prompt: nudge.prompt,
+      });
+    });
+  }
+
+  const nflList = Array.isArray(nflGames) ? nflGames : [];
+  if (!nflUrTakeGated && nflList.length > 0) {
+    const featured =
+      nflList.find((g) => g?.spread?.homePoint != null || g?.spread?.awayPoint != null) ||
+      nflList[0];
+    buildNflEngageNudges(featured, nflPropLines, 30).forEach((nudge, i) => {
+      push({
+        id: `q-nfl-nudge-${i}`,
+        color: "#E11D48",
+        sportHint: "nfl",
+        sortRank: ranks.nflSolo + i,
+        text: nudge.text,
+        prompt: nudge.prompt,
+      });
     });
   }
 

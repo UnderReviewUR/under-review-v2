@@ -195,9 +195,9 @@ export function getQuickPromptsForState(sport, eventState) {
 
   if (sport === "laliga") {
     if (st === "live" || st === "mixed") {
-      return ["Live 1X2 lean?", "Next goal angle?", "Best in-play prop?", "Draw still live?"];
+      return ["Who wins from here?", "Next goal angle?", "Best in-play prop?", "Draw still live?"];
     }
-    return ["Best 1X2 on the slate?", "BTTS angle?", "Anytime scorer value?", "Table form vs price?"];
+    return ["Best side on the slate?", "Both teams to score?", "Anytime scorer value?", "Table form vs price?"];
   }
 
   return [];

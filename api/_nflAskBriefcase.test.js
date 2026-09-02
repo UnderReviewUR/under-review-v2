@@ -56,3 +56,10 @@ test("buildNflAskBriefcaseHealth fills rosters from ESPN players when Ourlads de
   assert.ok(briefcase.league.rostersByTeam.DEN?.some((r) => r.name === "Bo Nix"));
   assert.ok(briefcase.league.rostersByTeam.ATL?.some((r) => /Penix/i.test(r.name)));
 });
+
+test("NFL roster merge policy — BDL wins over ESPN for the same team", () => {
+  const espnRosters = { KC: [{ name: "Wrong QB", source: "espn" }] };
+  const bdlRosters = { KC: [{ name: "Patrick Mahomes", source: "balldontlie_nfl" }] };
+  const merged = { ...espnRosters, ...bdlRosters };
+  assert.equal(merged.KC[0].name, "Patrick Mahomes");
+});
