@@ -53,7 +53,7 @@ export function useLaligaData({ enabled = true } = {}) {
         const data = await res.json();
         if (active) {
           hasBoardRef.current = Boolean(data?.matches?.length);
-          setLaligaBoard(data?.ok === false ? null : data);
+          setLaligaBoard(data?.matches?.length ? data : data?.ok === false ? null : data);
         }
       } catch {
         if (active) {

@@ -18,6 +18,8 @@ export async function getBdlBoardCached(key, fetchFresh) {
     return { ...memHit.payload, cache: "memory" };
   }
 
+  /** @type {Record<string, unknown>|null} */
+  let stalePayload = null;
   try {
     const kvHit = await getDurableJson(key);
     if (
@@ -30,17 +32,36 @@ export async function getBdlBoardCached(key, fetchFresh) {
       boardMem.set(key, { fetchedAtMs: Number(kvHit.fetchedAtMs), payload: kvHit.payload });
       return { ...kvHit.payload, cache: "kv" };
     }
+    if (kvHit?.payload && Array.isArray(kvHit.payload.matches) && kvHit.payload.matches.length > 0) {
+      stalePayload = kvHit.payload;
+    }
   } catch {
     /* KV optional locally */
   }
 
+  if (memHit?.payload && Array.isArray(memHit.payload.matches) && memHit.payload.matches.length > 0) {
+    stalePayload = memHit.payload;
+  }
+
   const payload = await fetchFresh();
-  const entry = { fetchedAtMs: Date.now(), payload };
-  boardMem.set(key, entry);
-  try {
-    await setDurableJson(key, entry, { ttlSeconds: Math.ceil(ttlMs / 1000) });
-  } catch {
-    /* KV optional locally */
+  const hasMatches = Array.isArray(payload?.matches) && payload.matches.length > 0;
+  if (!hasMatches && stalePayload) {
+    return {
+      ...stalePayload,
+      cache: "stale_fallback",
+      asOf: payload?.asOf || stalePayload.asOf,
+      error: payload?.error || stalePayload.error || "rate_limited_or_empty_refresh",
+    };
+  }
+
+  if (hasMatches || payload?.ok !== false) {
+    const entry = { fetchedAtMs: Date.now(), payload };
+    boardMem.set(key, entry);
+    try {
+      await setDurableJson(key, entry, { ttlSeconds: Math.ceil(ttlMs / 1000) });
+    } catch {
+      /* KV optional locally */
+    }
   }
   return { ...payload, cache: "fresh" };
 }

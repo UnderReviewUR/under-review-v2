@@ -9,6 +9,12 @@ import {
 } from "../shared/laligaBdlPolicy.js";
 import { getBdlBoardCached } from "./_bdlBoardCache.js";
 import { inferLaligaSeasonStartYear } from "../shared/bdlSeasonDefaults.js";
+import {
+  filterLaligaMatchesByDates,
+  laligaBoardDateWindow,
+  sortLaligaBoardMatches,
+} from "../shared/laligaBoardDates.js";
+import { isBdlGoatTrialPaceActive } from "../shared/bdlGoatTrialPolicy.js";
 
 const LALIGA_PREFIX = "/laliga/v1";
 const PREFERRED_VENDORS = ["draftkings", "fanduel", "betmgm", "caesars", "fanatics", "betrivers"];
@@ -200,14 +206,76 @@ export function isLaligaLiveMatch(statusState, status) {
   return /\b(live|in progress|1st half|2nd half|halftime|extra time)\b/.test(s);
 }
 function dateWindow(days = 10) {
-  const out = [];
-  const base = new Date();
-  for (let i = -1; i < days; i++) {
-    const d = new Date(base);
-    d.setUTCDate(d.getUTCDate() + i);
-    out.push(d.toISOString().slice(0, 10));
+  return laligaBoardDateWindow(new Date(), { pastDays: Math.max(days, 21), futureDays: 14 });
+}
+
+/**
+ * Resolve La Liga matches for the board — season + wide date window with fallbacks.
+ * @param {{ season?: number, dates?: string[], apiKey?: string }} [opts]
+ */
+export async function resolveLaligaMatchesForBoard(opts = {}) {
+  const season = opts.season != null ? Number(opts.season) : inferLaligaSeasonStartYear();
+  const dates = opts.dates?.length ? opts.dates : laligaBoardDateWindow();
+  const apiKey = opts.apiKey;
+
+  const primary = await fetchLaligaMatches({ season, dates, apiKey });
+  if (primary.matches.length) {
+    return {
+      ...primary,
+      season,
+      dates,
+      strategy: "season_dates",
+      matches: sortLaligaBoardMatches(primary.matches),
+    };
   }
-  return out;
+
+  const wideDates = laligaBoardDateWindow(new Date(), { pastDays: 45, futureDays: 21 });
+  const wide = await fetchLaligaMatches({ season, dates: wideDates, apiKey });
+  if (wide.matches.length) {
+    return {
+      ...wide,
+      season,
+      dates: wideDates,
+      strategy: "wide_dates",
+      matches: sortLaligaBoardMatches(wide.matches),
+    };
+  }
+
+  const seasonOnly = await fetchLaligaMatches({ season, apiKey, maxPages: 8 });
+  const filtered = filterLaligaMatchesByDates(seasonOnly.matches, dates);
+  if (filtered.length) {
+    return {
+      matches: sortLaligaBoardMatches(filtered),
+      ok: seasonOnly.ok,
+      status: seasonOnly.status,
+      error: seasonOnly.error,
+      season,
+      dates,
+      strategy: "season_filter",
+    };
+  }
+
+  if (season > 2000) {
+    const altSeason = season - 1;
+    const alt = await fetchLaligaMatches({ season: altSeason, dates, apiKey });
+    if (alt.matches.length) {
+      return {
+        ...alt,
+        season: altSeason,
+        dates,
+        strategy: "prior_season",
+        matches: sortLaligaBoardMatches(alt.matches),
+      };
+    }
+  }
+
+  return {
+    ...primary,
+    season,
+    dates,
+    strategy: "empty",
+    matches: [],
+  };
 }
 
 export async function fetchLaligaMatches(opts = {}) {
@@ -220,7 +288,7 @@ export async function fetchLaligaMatches(opts = {}) {
   const res = await laligaBdlFetchAllPages("/matches", params, {
     apiKey: opts.apiKey,
     timeoutMs: 20000,
-    maxPages: 4,
+    maxPages: Math.max(1, Math.min(Number(opts.maxPages) || 4, 12)),
   });
   if (!res.ok) return { matches: [], ok: false, status: res.status, error: res.error };
   return {
@@ -476,8 +544,9 @@ export async function buildLaligaLiveBoard(opts = {}) {
 
 async function buildLaligaLiveBoardFresh(opts = {}) {
   const season = opts.season != null ? Number(opts.season) : inferLaligaSeasonStartYear();
-  const dates = opts.dates?.length ? opts.dates : dateWindow(10);
+  const dates = opts.dates?.length ? opts.dates : laligaBoardDateWindow();
   const asOf = new Date().toISOString();
+  const trialPace = isBdlGoatTrialPaceActive();
 
   if (!hasLaligaBdlApiKey()) {
     return {
@@ -492,26 +561,35 @@ async function buildLaligaLiveBoardFresh(opts = {}) {
     };
   }
 
-  const matchesRes = await fetchLaligaMatches({ season, dates });
+  const matchesRes = await resolveLaligaMatchesForBoard({ season, dates });
   let matches = matchesRes.matches;
-  const oddsRes = await fetchLaligaOdds({
-    matchIds: matches.map((m) => m.providerMatchId).filter(Boolean),
-    dates,
-  });
+  const resolvedSeason = matchesRes.season ?? season;
+
+  let oddsRes = { rows: [], ok: false, status: 0, error: null };
+  if (matches.length) {
+    oddsRes = await fetchLaligaOdds({
+      matchIds: matches.map((m) => m.providerMatchId).filter(Boolean),
+      dates: matchesRes.dates || dates,
+    });
+  }
   if (!matches.length && oddsRes.rows.length) {
     const ids = [...new Set(oddsRes.rows.map((r) => r.match_id).filter(Boolean))].slice(0, 24);
     if (ids.length) {
-      const byOdds = await fetchLaligaMatches({ matchIds: ids, season });
-      if (byOdds.matches.length) matches = byOdds.matches;
+      const byOdds = await fetchLaligaMatches({ matchIds: ids, season: resolvedSeason });
+      if (byOdds.matches.length) matches = sortLaligaBoardMatches(byOdds.matches);
     }
   }
-  const standingsRes = await fetchLaligaStandings({ season });
+
+  let standingsRes = { rows: [], ok: false };
+  if (!trialPace || matches.length <= 12) {
+    standingsRes = await fetchLaligaStandings({ season: resolvedSeason });
+  }
 
   /** @type {Array<Record<string, unknown>>} */
   const propLines = [];
-  if (opts.includeProps !== false && isLaligaBdlPrimaryEnabled()) {
-    const max = Math.max(1, Math.min(Number(opts.maxPropMatches) || 6, 10));
-    for (const m of matches.slice(0, max)) {
+  if (opts.includeProps !== false && isLaligaBdlPrimaryEnabled() && matches.length) {
+    const cap = trialPace ? 3 : Math.max(1, Math.min(Number(opts.maxPropMatches) || 6, 10));
+    for (const m of matches.slice(0, cap)) {
       const props = await fetchLaligaPlayerPropsForMatch(m.providerMatchId, {
         gameLabel: `${m.awayAbbr} @ ${m.homeAbbr}`,
       });
@@ -528,15 +606,19 @@ async function buildLaligaLiveBoardFresh(opts = {}) {
     book: oddsByMatch.get(String(m.providerMatchId))?.book || null,
   }));
 
+  const boardOk = matches.length > 0 || matchesRes.ok || oddsRes.ok;
+
   return {
-    ok: matchesRes.ok || oddsRes.ok,
+    ok: boardOk,
     source: isLaligaBdlPrimaryEnabled() ? "balldontlie_laliga" : "balldontlie_laliga_free",
-    season,
+    season: resolvedSeason,
     asOf,
     matches: matchesWithOdds,
     propLines,
     odds: oddsRes.rows,
     standings: standingsRes.rows,
     primary: isLaligaBdlPrimaryEnabled(),
+    matchStrategy: matchesRes.strategy || null,
+    error: boardOk ? null : matchesRes.error || oddsRes.error || "no_laliga_matches",
   };
 }

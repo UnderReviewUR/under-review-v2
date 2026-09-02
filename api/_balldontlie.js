@@ -23,6 +23,10 @@ function buildQueryString(params = {}) {
   return parts.length ? `?${parts.join("&")}` : "";
 }
 
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function bdlFetch(endpoint, params = {}, options = {}) {
   const apiKey = options.apiKey || getEnv("BALLDONTLIE_API_KEY") || "";
   const timeoutMs = options.timeoutMs || 8000;
@@ -72,7 +76,7 @@ export async function bdlFetch(endpoint, params = {}, options = {}) {
     }
 
     if (!res.ok) {
-      return {
+      const failure = {
         ok: false,
         status: res.status,
         data: json,
@@ -82,6 +86,11 @@ export async function bdlFetch(endpoint, params = {}, options = {}) {
           `BALLDONTLIE request failed with status ${res.status}`,
         url,
       };
+      if (res.status === 429 && !options._retried429) {
+        await delay(2600);
+        return bdlFetch(endpoint, params, { ...options, _retried429: true });
+      }
+      return failure;
     }
 
     return {
