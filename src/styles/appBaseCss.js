@@ -2888,10 +2888,10 @@ export const baseCss = `
     margin-right:0;
     max-width:85%;
     width:auto;
-    background:rgba(255,255,255,0.08);
+    background:#1E293B;
     border:none;
     border-radius:18px 18px 4px 18px;
-    color:#fff;
+    color:#F8FAFC;
     font-size:15px;
     line-height:1.45;
     padding:12px 16px;
@@ -2912,10 +2912,10 @@ export const baseCss = `
     width:fit-content;
     margin-left:auto;
     margin-right:0;
-    background:rgba(255,255,255,0.08);
+    background:#1E293B;
     border:none;
     border-radius:18px 18px 4px 18px;
-    color:#fff;
+    color:#F8FAFC;
     box-shadow:none;
     padding:12px 16px;
     font-size:15px;
@@ -4655,7 +4655,10 @@ export const baseCss = `
     max-width:100%;
     box-sizing:border-box;
     border-left:none;
-    background:rgba(255,255,255,0.03);
+    /* Solid panel — rgba white wash was invisible on paper themes. */
+    background:#0d1117;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:14px;
     padding:10px 14px 14px 22px;
     overflow:visible;
   }

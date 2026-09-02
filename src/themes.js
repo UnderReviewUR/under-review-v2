@@ -941,6 +941,24 @@ export const THEMES = {
       .app.theme-broadsheet .ur-home-feed {
         border-top-color: #d8d0c4;
       }
+
+      .app.theme-broadsheet .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card,
+      .app.theme-broadsheet .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card {
+        background: #0d1117;
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      .app.theme-broadsheet .bubble.ai:not(.ur-take-response-bubble-host) {
+        background: #FFFFFF;
+        border-color: #d8d0c4;
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .ur-talk-bubble-wrap {
+        background: #0d1117;
+        border-color: rgba(0, 245, 233, 0.28);
+      }
+      .app.theme-broadsheet .ur-talk-bubble-body {
+        color: rgba(248, 250, 252, 0.9);
+      }
     `,
   },
 
@@ -1329,6 +1347,25 @@ export const THEMES = {
       }
       .app.theme-crisp .ur-home-feed {
         border-top-color: #CBD5E1;
+      }
+
+      /* Chat answers must stay readable on paper screen chrome. */
+      .app.theme-crisp .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card,
+      .app.theme-crisp .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card {
+        background: #0d1117;
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+      .app.theme-crisp .bubble.ai:not(.ur-take-response-bubble-host) {
+        background: #FFFFFF;
+        border-color: #E2E8F0;
+        color: #0F172A;
+      }
+      .app.theme-crisp .ur-talk-bubble-wrap {
+        background: #0d1117;
+        border-color: rgba(0, 245, 233, 0.28);
+      }
+      .app.theme-crisp .ur-talk-bubble-body {
+        color: rgba(248, 250, 252, 0.9);
       }
     `,
   },
