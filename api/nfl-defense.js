@@ -484,23 +484,23 @@ export const defenses = {
     "SEA": {
       team: "Seattle Seahawks", abbr: "SEA", conf: "NFC",
       season: 2025,
-      tier: "AVERAGE",
-      overall: { rank: 11, ptsAllowed: 21.6, ydsAllowed: 326.8, dvoa: -7.2 },
-      pass: { rank: 10, ydsAllowed: 196.4, sacks: 2.7, pressurePct: 27.2, intPg: 1.1, dvoa: -7.9 },
-      rush: { rank: 17, ydsAllowed: 130.4, dvoa: -5.8 },
-      keyPlayers: ["Boye Mafe", "Dre'Mont Jones", "Devon Witherspoon", "Jamal Adams"],
+      tier: "ELITE",
+      overall: { rank: 1, ptsAllowed: 17.2, ydsAllowed: 292.9, dvoa: -18.5 },
+      pass: { rank: 9, ydsAllowed: 198.6, sacks: 2.8, pressurePct: 28.4, intPg: 1.06, dvoa: -12.4 },
+      rush: { rank: 3, ydsAllowed: 94.4, dvoa: -16.8 },
+      keyPlayers: ["Devon Witherspoon", "Boye Mafe", "Julian Love", "Leonard Williams"],
       propImpact: {
-        qb: "LEAN FADE — 196 pass yds allowed. Witherspoon is an elite young corner.",
-        rb: "PLAYABLE — Rush D is average. RBs get their yards but not big games.",
-        wr: "LEAN FADE WR1 — Witherspoon limits the best WR every week. WR2 is more open.",
-        te: "PLAYABLE — TE crossers work vs Seattle's coverage."
+        qb: "FADE passing TDs / volume — #1 scoring D (17.2 ppg). Opposing QBs struggle to stack scores in Seattle.",
+        rb: "FADE rushing — top-3 rush D (~94 rush yds/g allowed). Big RB games are rare.",
+        wr: "FADE WR1 — Witherspoon limits the alpha. Prefer WR2/slot over the featured boundary guy.",
+        te: "MODERATE FADE — coverage is disciplined; TE ceilings shrink in negative scripts."
       },
       bettingAngles: [
-        "Seahawks defense is quietly above average — market underrates it",
-        "Devon Witherspoon is the best young corner in the NFC — fade WR1 when he's healthy",
-        "CenturyLink crowd is a 2-3 point home field advantage"
+        "Seattle led the league in points allowed in 2025 — treat them as ELITE, not average",
+        "Fade opposing pass-TD overs at Lumen; soft TD markets need a real script reason",
+        "Home crowd + Dark Side front is a real 2–3 point defensive edge"
       ],
-      note: "Devon Witherspoon is developing into an elite corner. Boye Mafe is a consistent pass rusher. Seattle's defense is better than their record suggests — Darnold's regression risk is a bigger concern than defensive quality."
+      note: "2025 #1 scoring defense (The Dark Side). Witherspoon anchors the secondary; the front generates consistent pressure. Do not label this unit AVERAGE."
     },
 
     "HOU": {

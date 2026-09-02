@@ -268,7 +268,13 @@ export default function URTakeResponse({
     : buildSharpBriefStatGrid({
         estimatedEdge: ee,
         takeMeta,
-        structured: { call: callScrub, line: wcLine, confidence: displayConfidence, callType },
+        structured: {
+          call: callScrub,
+          lean: leanDisplay,
+          line: wcLine,
+          confidence: displayConfidence,
+          callType,
+        },
         parlayLegs: safeParlayLegs,
       });
 

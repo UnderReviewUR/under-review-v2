@@ -83,6 +83,23 @@ test("buildSharpBriefStatGrid tolerates odd structured.call types (stringified d
   assert.ok(grid.slots.every((s) => typeof s.label === "string"));
 });
 
+test("buildSharpBriefStatGrid fills UR read from lean when call is placeholder dash", () => {
+  const grid = buildSharpBriefStatGrid({
+    estimatedEdge: null,
+    takeMeta: null,
+    structured: {
+      call: "—",
+      lean: "Lean: Under 1.5. Passing touchdowns is lumpy — fade the over at 1.5.",
+      confidence: "Speculative",
+      callType: "prop",
+    },
+  });
+  const ur = grid.slots.find((s) => s.key === "p");
+  const lean = grid.slots.find((s) => s.key === "d");
+  assert.equal(ur?.value, "Under 1.5");
+  assert.equal(lean?.value, "Under");
+});
+
 test("buildEstimatedEdgeCardModel stringifies object drivers", () => {
   const m = buildEstimatedEdgeCardModel({
     source: "estimated_edge",

@@ -1727,13 +1727,17 @@ function coerceStructuredForUrTakeCard(raw) {
       ? String(raw.parlayTotalOdds).slice(0, 48)
       : null;
 
-  const call = toStr(raw.call).trim() || "—";
+  let call = toStr(raw.call).trim() || "—";
   const whyNow = toStr(raw.whyNow);
   const lean = synthesizeLeanLine({
     lean: toStr(raw.lean),
     call,
     whyNow,
   });
+  if ((call === "—" || call === "-" || call === "–") && lean) {
+    const m = String(lean).match(/^Lean:\s*(.+?)(?:\.\s+|\.\s*$|$)/i);
+    if (m && m[1].trim()) call = m[1].trim().slice(0, 100);
+  }
 
   return {
     sport: String(raw.sport ?? "generic"),

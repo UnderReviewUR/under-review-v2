@@ -65,6 +65,7 @@ test("mergeNflDefenseMaps prefers live ranks and keeps static angles", () => {
         abbr: "PHI",
         tier: "ELITE",
         source: "balldontlie_team_season_stats",
+        gamesPlayed: 8,
         overall: { rank: 2, ptsAllowed: 16 },
         pass: { rank: 3 },
         rush: { rank: 4 },
@@ -91,6 +92,34 @@ test("mergeNflDefenseMaps prefers live ranks and keeps static angles", () => {
   assert.equal(merged.PHI.overall.rank, 2);
   assert.deepEqual(merged.PHI.bettingAngles, ["fade slot volume"]);
   assert.match(String(merged.PHI.propImpact.qb), /Long static/);
+});
+
+test("mergeNflDefenseMaps keeps static SEA prior when live sample is thin", () => {
+  const merged = mergeNflDefenseMaps(
+    {
+      SEA: {
+        abbr: "SEA",
+        tier: "AVERAGE",
+        gamesPlayed: 1,
+        overall: { rank: 16, ptsAllowed: 24 },
+        propImpact: { qb: "short" },
+      },
+    },
+    {
+      SEA: {
+        abbr: "SEA",
+        tier: "ELITE",
+        overall: { rank: 1, ptsAllowed: 17.2 },
+        propImpact: {
+          qb: "FADE passing TDs / volume — #1 scoring D prose that is long enough to keep.",
+        },
+        bettingAngles: ["fade pass TD overs"],
+      },
+    },
+  );
+  assert.equal(merged.SEA.tier, "ELITE");
+  assert.equal(merged.SEA.overall.rank, 1);
+  assert.equal(merged.SEA.liveDeferred, true);
 });
 
 test("inferNflOpponentFromSlate picks the other side", () => {

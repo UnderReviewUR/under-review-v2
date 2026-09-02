@@ -122,6 +122,19 @@ export function mergeNflDefenseMaps(live, staticMap) {
   const out = { ...(staticMap && typeof staticMap === "object" ? staticMap : {}) };
   for (const [abbr, row] of Object.entries(live || {})) {
     const prev = out[abbr] || {};
+    const liveGp = Number(row.gamesPlayed ?? row.games_played ?? 0);
+    const thinLive = !Number.isFinite(liveGp) || liveGp < 4;
+    // Week-1 / cold-start: sparse live ranks mislabel priors (e.g. SEA as AVERAGE).
+    // Keep the richer static tier/ranks until the sample is real.
+    if (thinLive && prev.tier) {
+      out[abbr] = {
+        ...prev,
+        source: prev.source || "static_prior",
+        liveDeferred: true,
+        gamesPlayed: liveGp || prev.gamesPlayed || 0,
+      };
+      continue;
+    }
     out[abbr] = {
       ...prev,
       ...row,

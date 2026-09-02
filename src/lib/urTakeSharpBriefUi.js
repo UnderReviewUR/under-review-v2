@@ -4,6 +4,33 @@ function nonEmpty(v) {
   return v != null && String(v).trim() !== "";
 }
 
+function isBlankFaceCall(call) {
+  const c = String(call || "").trim();
+  return !c || c === "—" || c === "-" || c === "–";
+}
+
+/**
+ * Prefer structured.call; if it's the empty "—" placeholder, pull the ticket
+ * from the lean line so UR Read is never blank while the headline has a side.
+ */
+export function deriveSharpBriefUrRead(call, lean, lineField) {
+  if (!isBlankFaceCall(call)) return String(call).trim().slice(0, 80);
+  const l = String(lean || "").trim();
+  const m = l.match(/^Lean:\s*(.+?)(?:\.\s+|\.\s*$|$)/i);
+  if (m && m[1].trim()) return m[1].trim().slice(0, 80);
+  if (l) return l.replace(/^Lean:\s*/i, "").slice(0, 80);
+  if (nonEmpty(lineField)) return String(lineField).trim().slice(0, 80);
+  return "See lean";
+}
+
+export function deriveSharpBriefDirection(call, lean) {
+  const blob = `${call || ""} ${lean || ""}`;
+  if (/\bunder\b/i.test(blob)) return "Under";
+  if (/\bover\b/i.test(blob)) return "Over";
+  if (/\bpass\b/i.test(blob)) return "Pass";
+  return "Side";
+}
+
 function playableEeSummary(ee) {
   const parts = [];
   if (ee?.playableOverAtOrBelow != null && String(ee.playableOverAtOrBelow).trim() !== "") {
@@ -20,12 +47,13 @@ function playableEeSummary(ee) {
  * @param {object} opts
  * @param {object|null} opts.estimatedEdge
  * @param {object|null} opts.takeMeta
- * @param {object} opts.structured — { call, confidence, callType }
+ * @param {object} opts.structured — { call, lean, confidence, callType, line }
  * @param {Array|undefined} opts.parlayLegs — when ≥2 legs, suppress stat grid even if callType is wrong
  */
 export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, parlayLegs }) {
   const ee = estimatedEdge?.source === "estimated_edge" ? estimatedEdge : null;
   const call = String(structured?.call || "").trim();
+  const lean = String(structured?.lean || "").trim();
   const lineField = String(structured?.line || "").trim();
   const conf = String(structured?.confidence || "Medium").trim();
   const callType = String(structured?.callType || "single").toLowerCase();
@@ -36,7 +64,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
       ? String(ee.projection).trim()
       : nonEmpty(ee.leanRead)
         ? String(ee.leanRead).trim().slice(0, 80)
-        : call.slice(0, 80) || "UR read";
+        : deriveSharpBriefUrRead(call, lean, lineField);
     const playable = playableEeSummary(ee);
     const dq = String(ee.dataQuality || "thin").replace(/^./, (c) => c.toUpperCase());
     const capConf = displayedEstimatedEdgeConfidence(ee);
@@ -60,7 +88,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
   }
 
   if (callType.startsWith("player_market")) {
-    const line = lineField || call || "Player market read";
+    const line = lineField || deriveSharpBriefUrRead(call, lean, "") || "Player market read";
     return {
       mode: "player_market",
       slots: [
@@ -71,7 +99,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
   }
 
   if (callType === "matchup") {
-    const line = lineField || call.slice(0, 120) || "Advancement paths";
+    const line = lineField || deriveSharpBriefUrRead(call, lean, "") || "Advancement paths";
     return {
       mode: "matchup",
       slots: lineField
@@ -87,7 +115,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
   }
 
   if (callType === "analysis") {
-    const line = lineField || call.slice(0, 120) || "Outright read";
+    const line = lineField || deriveSharpBriefUrRead(call, lean, "") || "Outright read";
     return {
       mode: "analysis",
       slots: lineField
@@ -110,9 +138,14 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
         ? `${snap.openingAmerican > 0 ? "+" : ""}${snap.openingAmerican}`
         : "";
   const sideRaw = snap?.side != null ? String(snap.side).trim() : "";
-  const direction =
-    /over/i.test(sideRaw) ? "Over" : /under/i.test(sideRaw) ? "Under" : sideRaw ? sideRaw : "Side";
-  const proj = call.slice(0, 80) || "UR read";
+  const direction = sideRaw
+    ? /over/i.test(sideRaw)
+      ? "Over"
+      : /under/i.test(sideRaw)
+        ? "Under"
+        : sideRaw
+    : deriveSharpBriefDirection(call, lean);
+  const proj = deriveSharpBriefUrRead(call, lean, lineField);
 
   if (lineVal) {
     const juice =

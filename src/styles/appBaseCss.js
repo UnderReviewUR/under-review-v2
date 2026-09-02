@@ -2608,8 +2608,16 @@ export const baseCss = `
     display:block;
     font-size:14px;
     line-height:1.5;
-    color:rgba(255,255,255,0.52);
+    color:#0F172A;
     text-align:left;
+    font-weight:500;
+  }
+  .theme-epilogue .ur-focus-user-text{
+    color:rgba(248,250,252,0.92);
+  }
+  .app.theme-crisp .ur-focus-user-text,
+  .app.theme-broadsheet .ur-focus-user-text{
+    color:#0F172A;
   }
   .wc-take-card--focus{
     border:none;
