@@ -1,5 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -12,21 +11,15 @@ const commitSha =
 
 const buildTime = new Date().toISOString();
 
-/** Dev routing for multi-page build: /worldcup + SPA fallback to index.html. */
-function worldcupRoutePlugin() {
+/** Dev SPA fallback to index.html (API + Vite assets excluded). */
+function spaFallbackPlugin() {
   return {
-    name: "worldcup-route",
+    name: "spa-fallback",
     configureServer(server) {
       server.middlewares.use((req, _res, next) => {
         const raw = req.url || "";
         const qIdx = raw.indexOf("?");
         const pathOnly = (qIdx === -1 ? raw : raw.slice(0, qIdx)).split("#")[0];
-        const query = qIdx === -1 ? "" : raw.slice(qIdx);
-
-        if (pathOnly === "/worldcup" || pathOnly === "/worldcup/") {
-          req.url = `/worldcup.html${query}`;
-          return next();
-        }
 
         const isDevAsset =
           pathOnly.startsWith("/@") ||
@@ -36,18 +29,10 @@ function worldcupRoutePlugin() {
           /\.[a-zA-Z0-9]+$/.test(pathOnly);
 
         if (!isDevAsset && pathOnly !== "/index.html") {
-          req.url = `/index.html${query}`;
+          req.url = `/index.html${qIdx === -1 ? "" : raw.slice(qIdx)}`;
         }
         next();
       });
-    },
-    closeBundle() {
-      const distDir = join(process.cwd(), "dist");
-      const src = join(distDir, "worldcup.html");
-      if (!existsSync(src)) return;
-      const destDir = join(distDir, "worldcup");
-      mkdirSync(destDir, { recursive: true });
-      copyFileSync(src, join(destDir, "index.html"));
     },
   };
 }
@@ -61,11 +46,10 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(process.cwd(), "index.html"),
-        worldcup: resolve(process.cwd(), "worldcup.html"),
       },
     },
   },
-  plugins: [react(), worldcupRoutePlugin()],
+  plugins: [react(), spaFallbackPlugin()],
   /** Allow REACT_APP_STRUCTURED_UR_TAKE alongside VITE_* for structured UR Take UI flag. */
   envPrefix: ["VITE_", "REACT_APP_"],
   server: {

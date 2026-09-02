@@ -1,14 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/worldcup",
-      "destination": "/worldcup/index.html"
-    },
-    {
-      "source": "/worldcup/",
-      "destination": "/worldcup/index.html"
-    },
-    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -16,24 +8,6 @@
   "headers": [
     {
       "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/worldcup/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/worldcup.html",
       "headers": [
         {
           "key": "Cache-Control",
@@ -101,9 +75,6 @@
     "api/scrape-scheduler.js": {
       "maxDuration": 300
     },
-    "api/world-cup.js": {
-      "maxDuration": 120
-    },
     "api/transfer-alerts.js": {
       "maxDuration": 60
     },
@@ -139,10 +110,6 @@
     {
       "path": "/api/scrape-scheduler",
       "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/world-cup?view=warmup&kind=all",
-      "schedule": "0 15,23 * * *"
     },
     {
       "path": "/api/transfer-alerts",

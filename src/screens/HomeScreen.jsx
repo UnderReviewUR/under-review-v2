@@ -5,20 +5,15 @@ import HomeDailyEdgeCard from "../components/HomeDailyEdgeCard.jsx";
 import HomeEngageLanes from "../components/HomeEngageLanes.jsx";
 import NflHomeScoreStrip from "../components/NflHomeScoreStrip.jsx";
 import NflSlateTakesCard from "../components/NflSlateTakesCard.jsx";
-import HomeSpotlightRow from "../components/HomeSpotlightRow.jsx";
 import AskBar from "../components/AskBar.jsx";
 import HomeLastLeanCard from "../components/HomeLastLeanCard.jsx";
 import { trackFunnelEvent } from "../lib/funnelAnalytics.js";
 import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
-import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { FREE_TIER_HOME_FOOTNOTE_PRIMARY, FREE_TIER_HOME_FOOTNOTE_SECONDARY } from "../../shared/freeTierCopy.js";
 import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
-import { buildWcXiConfirmedHomeStarter } from "../features/home/buildWcHomePromoCard.js";
 import { buildHomeDailyEdgeView } from "../features/home/buildHomeDailyEdgeView.js";
-import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
-import { pickWcFeaturedMatch } from "../../shared/wcFeaturedMatch.js";
 
 const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
@@ -47,18 +42,10 @@ export default function HomeScreen({
   goNba: _goNba,
   goMlb: _goMlb,
   goGolf: _goGolf,
-  goWorldCup: _goWorldCup,
   dynamicHomeQuestions,
   dailyFeaturedAngleCard,
   pgaChampionshipOddsCard,
-  wcHomePromoCard: _wcHomePromoCard,
-  goWorldCup,
-  goWorldCupMatchesToday,
-  wcXiConfirmedNotice,
-  onDismissWcXiNotice,
-  onOpenWcXiNotice,
   firePrompt,
-  askWorldCup = null,
   prefillUrTakeQuestion,
   isUnlimited = false,
   freeUsedCount = 0,
@@ -81,7 +68,6 @@ export default function HomeScreen({
   mlbGames,
   mlbData,
   f1Data,
-  wcMatches,
   homeCards,
   openMatchup,
   golfScoreColor,
@@ -111,40 +97,25 @@ export default function HomeScreen({
     return dq.length > 1 ? dq[0] : null;
   }, [dynamicHomeQuestions]);
 
-  const wcXiStarter = useMemo(
-    () => buildWcXiConfirmedHomeStarter(wcXiConfirmedNotice),
-    [wcXiConfirmedNotice],
-  );
-
   const starterQs = useMemo(() => {
     const dq = Array.isArray(dynamicHomeQuestions) ? dynamicHomeQuestions : [];
     const maxStarters = narrowHome ? 2 : 3;
     const offset = dq.length > 1 ? 1 : 0;
     const liveSports = new Set(["nfl", "laliga"]);
-    const liveFirst = dq.filter((q) => liveSports.has(String(q?.sportHint || "").toLowerCase()));
-    const rest = dq.filter((q) => !liveSports.has(String(q?.sportHint || "").toLowerCase()));
-    const ordered = liveFirst.length ? [...liveFirst, ...rest] : dq;
-
-    if (wcXiStarter) {
-      const restPick = ordered.slice(offset, offset + maxStarters);
-      return [wcXiStarter, ...restPick.filter((q) => q.id !== wcXiStarter.id)].slice(0, maxStarters);
-    }
+    const visible = dq.filter(
+      (q) => String(q?.sportHint || "").toLowerCase() !== "worldcup",
+    );
+    const liveFirst = visible.filter((q) => liveSports.has(String(q?.sportHint || "").toLowerCase()));
+    const rest = visible.filter((q) => !liveSports.has(String(q?.sportHint || "").toLowerCase()));
+    const ordered = liveFirst.length ? [...liveFirst, ...rest] : visible;
 
     if (liveFirst.length >= maxStarters) {
       return liveFirst.slice(0, maxStarters);
     }
 
-    if (isWcHomePromoWindow()) {
-      return ordered.slice(offset, offset + maxStarters);
-    }
-    const wc = ordered.find((q) => String(q?.sportHint || "").toLowerCase() === "worldcup");
-    let picks = ordered.slice(offset, offset + maxStarters);
-    if (wc && !picks.some((q) => q.id === wc.id) && !liveFirst.length) {
-      picks = [wc, ...picks.filter((q) => q.id !== wc.id)].slice(0, maxStarters);
-    }
     if (ordered.length <= 1) return narrowHome ? ordered.slice(0, 2) : ordered.slice(0, 3);
-    return picks;
-  }, [dynamicHomeQuestions, narrowHome, wcXiStarter]);
+    return ordered.slice(offset, offset + maxStarters);
+  }, [dynamicHomeQuestions, narrowHome]);
 
   useLayoutEffect(() => {
     if (!strippedHomeSession) return;
@@ -165,15 +136,9 @@ export default function HomeScreen({
     trackFunnelEvent("first_session_home_view", { surface: "stripped_home" });
   }, [strippedHomeSession]);
 
-  const wcFeaturedEventId = useMemo(() => {
-    if (!isWcHomePromoWindow()) return null;
-    const featured = pickWcFeaturedMatch({ matches: wcMatches });
-    return featured?.match?.id != null ? String(featured.match.id) : null;
-  }, [wcMatches]);
-
   const homeDailyEdge = useMemo(
-    () => buildHomeDailyEdgeView(dailyPreview, wcMatches),
-    [dailyPreview, wcMatches],
+    () => buildHomeDailyEdgeView(dailyPreview),
+    [dailyPreview],
   );
 
   useEffect(() => {
@@ -192,7 +157,7 @@ export default function HomeScreen({
     return () => {
       cancelled = true;
     };
-  }, [strippedHomeSession, wcFeaturedEventId]);
+  }, [strippedHomeSession]);
 
   if (strippedHomeSession) {
     return (
@@ -249,9 +214,6 @@ export default function HomeScreen({
   const handleCompactTickerNav = (item) => {
     if (!item?.kind) return;
     switch (item.kind) {
-      case "worldcup":
-        _goWorldCup?.();
-        break;
       case "golf":
         _goGolf?.();
         break;
@@ -283,7 +245,6 @@ export default function HomeScreen({
       <HomeCompactTicker
         isNflSlateActive={isNflSlateActive}
         tickerNbaGames={homeNbaGames}
-        wcMatches={wcMatches}
         laligaMatches={laligaMatches}
         getSeriesLabel={getSeriesLabel}
         tennisTickerMatches={tennisTickerMatches}
@@ -349,16 +310,7 @@ export default function HomeScreen({
                 type="button"
                 className="ur-home-starter-item"
                 onClick={() => {
-                  if (q.id === "q-wc-xi-confirmed" && askWorldCup) {
-                    askWorldCup(q.prompt, {
-                      eventId: q.eventId,
-                      highlightEventId: q.eventId,
-                      matchSubTab: "today",
-                    });
-                    return;
-                  }
-                  if (String(q.sportHint || "").toLowerCase() === "worldcup" && askWorldCup) {
-                    askWorldCup(q.prompt, { inheritThread: false });
+                  if (String(q.sportHint || "").toLowerCase() === "worldcup") {
                     return;
                   }
                   if (String(q.sportHint || "").toLowerCase() === "laliga" && typeof prefillUrTakeQuestion === "function") {
@@ -416,17 +368,6 @@ export default function HomeScreen({
         onSeeBoard={goNfl}
       />
 
-      <HomeSpotlightRow
-        wcMatches={wcMatches}
-        golfData={golfData}
-        golfLoading={golfLoading}
-        goWorldCup={goWorldCup}
-        goWorldCupMatchesToday={goWorldCupMatchesToday}
-        askWorldCup={askWorldCup}
-        firePrompt={firePrompt}
-        onOpenGolf={_goGolf}
-      />
-
       {!narrowHome ? (
       <div className="ur-home-feed">
       {tryOne ? (
@@ -457,14 +398,6 @@ export default function HomeScreen({
         onOpenUpgrade={onOpenUpgrade}
       />
 
-      {wcXiConfirmedNotice ? (
-        <WcXiConfirmedHomeBanner
-          notice={wcXiConfirmedNotice}
-          onOpenMatch={onOpenWcXiNotice}
-          onDismiss={onDismissWcXiNotice}
-        />
-      ) : null}
-
       <LiveEdgeAlert alerts={nbaLiveEdgeAlerts || []} />
 
       {!narrowHome ? (
@@ -478,10 +411,8 @@ export default function HomeScreen({
         goMlb={_goMlb}
         goF1={_goF1}
         goTennis={_goTennis}
-        goWorldCup={_goWorldCup}
         goLaliga={goLaliga}
         tickerNbaGames={homeNbaGames}
-        wcMatches={wcMatches}
         laligaMatches={laligaMatches}
         getSeriesLabel={getSeriesLabel}
         tennisTickerMatches={tennisTickerMatches}

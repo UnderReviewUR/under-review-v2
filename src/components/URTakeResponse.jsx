@@ -18,7 +18,6 @@ import {
   wcDataConfidenceCautionBanner,
   wcDataConfidenceNeedsCaution,
 } from "../../shared/wcDataConfidence.js";
-import WcTakeCard from "./WcTakeCard.jsx";
 import UrTakeBreakdownBody from "./UrTakeBreakdownBody.jsx";
 import { sanitizeUrTakeUserFacingProse } from "../../shared/wcUserFacingCopy.js";
 import {
@@ -385,107 +384,7 @@ export default function URTakeResponse({
         : "";
 
   if (isWcDirectCard) {
-    const lineSlotValue =
-      statGrid.slots.find((s) => s.key === "ln" || s.key === "pl")?.value ?? "";
-    const wcWhyPrepared =
-      wcPredictionSlotRows.length > 0 ? { why: "", modelAttribution: null } : prepareWcCardWhyDisplay(whyNowRaw);
-    const thePlayRaw = wcCardSectionText(
-      pickWcThePlayLine({
-        lean: leanDisplay,
-        call: callScrub,
-        headline: callScrub,
-        lineSlot: lineSlotValue,
-        callType,
-      }),
-    );
-    const wcFace = prepareWcCardFaceDisplay({
-      lean: leanDisplay,
-      call: callScrub,
-      why: wcWhyPrepared.why,
-      watchFor: wcCardSectionText(edgeRaw),
-      thePlay: thePlayRaw,
-      breakdown: String(wcDeep || "").trim(),
-      breakdownAvailable: Boolean(breakdownAvailable),
-      focusLayout,
-      lineSlot: lineSlotValue,
-      callType,
-      question: userQuestion,
-      cardType: wcCardType,
-      playerMarketTier,
-      propBoardRows: wcPropBoardRows,
-      fixtureHome: wcFixtureHome,
-      fixtureAway: wcFixtureAway,
-      parlayLegs: safeParlayLegs,
-      parlayCombinedOdds: combinedParlayOdds,
-      tomorrowSlateAngles: Array.isArray(tomorrowSlateAngles) ? tomorrowSlateAngles : [],
-      slateDay: slateDay || null,
-      tomorrowFixtureCount,
-      wcNamedPlayerPropsCard,
-      isKnockout:
-        String(callType || "").toLowerCase() === "matchup" &&
-        isKnockoutPhase(String(wcTournamentPhase || "").trim()),
-    });
-    const wcSections = {
-      ...wcFace.sections,
-      ...compressWcCardSections({
-        headline: wcFace.headline,
-        lineSlot: lineSlotValue,
-        why: wcFace.sections.why,
-        watchFor: wcFace.sections.watchFor,
-        thePlay: wcFace.sections.thePlay,
-        callType,
-      }),
-    };
-    return (
-      <WcTakeCard
-        headline={wcFace.headline}
-        statSlots={focusLayout ? [] : statGrid.slots}
-        sections={wcSections}
-        confidence={displayConfidence}
-        contextLine={contextLine}
-        modePill={focusLayout ? null : modePill}
-        cautionText={focusLayout ? null : showWcCaution ? wcCautionText : null}
-        sharePath={shareQuery}
-        userQuestion={userQuestion}
-        timestamp={timestamp}
-        breakdownText={wcFace.breakdownText}
-        breakdownTextFull={wcFace.breakdownTextFull}
-        breakdownTruncated={wcFace.breakdownTruncated}
-        breakdownAvailable={wcFace.breakdownAvailable}
-        predictionSlots={wcPredictionSlotRows}
-        focusLayout={focusLayout}
-        collapsed={cardCollapsed}
-        callType={callType}
-        slateListFace={wcFace.slateListFace}
-        modelAttribution={modelAttribution || wcWhyPrepared.modelAttribution}
-        auditFootnote={auditFootnote}
-        groundingVisible={groundingVisible}
-        groundingPinBanner={groundingPinBanner}
-        groundingInventoryStrip={groundingInventoryStrip}
-        namedLegCitation={namedLegCitation}
-        breakdownDefaultExpanded={
-          focusLayout &&
-          wcFace.breakdownAvailable &&
-          (Boolean(breakdownDefaultExpanded) ||
-            callType === "group_slate" ||
-            callType === "advancement" ||
-            shouldAutoExpandWcBreakdown(userQuestion, breakdownDefaultExpanded))
-        }
-        fallbackSummary={
-          wcTakeCardHasVisibleContent({
-            headline: wcFace.headline,
-            sections: wcSections,
-            breakdownText: wcFace.breakdownText,
-            breakdownAvailable: wcFace.breakdownAvailable,
-            modelAttribution: modelAttribution || wcWhyPrepared.modelAttribution,
-          })
-            ? ""
-            : [leanDisplay, whyNowDisplay, wcFace.breakdownText, callScrub, userQuestion]
-                .map((x) => String(x || "").trim())
-                .find((x) => x && x !== "—") || "Analysis unavailable — try again."
-        }
-      />
-    );
+    return <p>World Cup is offline</p>;
   }
 
   return (

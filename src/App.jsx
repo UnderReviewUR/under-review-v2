@@ -88,10 +88,6 @@ import StripeSubscriptionSync from "./components/StripeSubscriptionSync.jsx";
 import { resolveF1RaceStart } from "./features/f1/raceStart.js";
 import { buildHomeTrackerCards } from "./features/home/buildHomeTrackerCards.js";
 import { buildDynamicHomeQuestions } from "./features/home/buildDynamicHomeQuestions.js";
-import { isWcHomePromoWindow } from "../shared/wc2026Constants.js";
-import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "../shared/wcUrTakeKeywords.js";
-import { resolveUrColdLoadRoute } from "../shared/wcMarketingDeepLinks.js";
-import { shouldResetWorldCupBrowseHome } from "./lib/wcBrowseHomeNav.js";
 import { isWcRulesQuestion, classifyWcQuestionIntent, WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import { isWcPlayerMarketIntent } from "../shared/wcUrTakePlayerMarket.js";
 import {
@@ -100,10 +96,6 @@ import {
 } from "../shared/wcUrTakeVerdict.js";
 import { extractLatestUserTurnForRouting } from "../shared/urTakeSportRouting.js";
 import { formatWcCompactDisplayText } from "../shared/wcUrTakeCompactDelivery.js";
-import {
-  buildWcHomePromoCard,
-  orderHomeQuestionsForWcPromo,
-} from "./features/home/buildWcHomePromoCard.js";
 import { buildDailyFeaturedAngleCard } from "./features/home/buildDailyFeaturedAngleCard.js";
 import { buildPgaChampionshipOddsHomeCard } from "./features/home/buildPgaChampionshipOddsCard.js";
 import { buildLiveEdgeAlerts } from "./features/home/buildLiveEdgeAlerts.js";
@@ -145,12 +137,9 @@ import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFro
 import {
   inferSportFromChatHistory,
   inferSportFromQuestionText,
-  shouldLockWorldCupThreadSport,
 } from "../shared/urTakeSportRouting.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import { urTakeLoadingLabelForSport, isUrTakeLoadingPlaceholder } from "../shared/wcNamedLegCardUi.js";
-import { resolveWcUrTakeLoadingSportKey } from "../shared/wcUrTakePipeline.js";
-import { mergeWcUrTakeEventPin } from "../shared/wcUrTakeEventPin.js";
 import {
   alignMergedGamesToVerifiedSlate,
   augmentNbaRosterGroundingWithUi,
@@ -203,7 +192,6 @@ import { useF1Data } from "./hooks/useF1Data.js";
 import { useNbaData } from "./hooks/useNbaData.js";
 import { useMlbData } from "./hooks/useMlbData.js";
 import { useGolfData } from "./hooks/useGolfData.js";
-import { useWorldCupData } from "./hooks/useWorldCupData.js";
 import { useNflData } from "./hooks/useNflData.js";
 import { useCfbData } from "./hooks/useCfbData.js";
 import { useLaligaData } from "./hooks/useLaligaData.js";
@@ -222,7 +210,6 @@ import F1Screen from "./screens/F1Screen.jsx";
 import NbaScreen from "./screens/NbaScreen.jsx";
 import MlbScreen from "./screens/MlbScreen.jsx";
 import GolfScreen from "./screens/GolfScreen.jsx";
-import WorldCupScreen from "./screens/WorldCupScreen.jsx";
 import AskScreen from "./screens/AskScreen.jsx";
 import UrTakeDockedFollowUps from "./components/UrTakeDockedFollowUps.jsx";
 import UrTakeProLedgerDashboard from "./components/UrTakeProLedgerDashboard.jsx";
@@ -250,7 +237,6 @@ import {
   resolveUrTakeFailSoftFromError,
   resolveUrTakeFailSoftFromResponse,
 } from "./lib/urTakeFailSoft.js";
-import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
 import BookmakerOddsPanel from "./components/BookmakerOddsPanel.jsx";
 import UrTakeOnboardingOverlay from "./components/UrTakeOnboardingOverlay.jsx";
 import { isUrFocusSession } from "./lib/urFocusSession.js";
@@ -510,40 +496,26 @@ function extractPlayThesisFields(playText) {
   return { player, market, direction, line, anchor };
 }
 
+const EMPTY_WC_MATCHES = [];
+
 // ── App ──────────────────────────────────────────────────────────────────────
 
-/** Parsed once on cold load so /worldcup opens WC tab before first paint. */
+/** Parsed once on cold load. World Cup routes intentionally fall back to Home. */
 let coldLoadRouteSnapshot;
 function getColdLoadRouteSnapshot() {
   if (!coldLoadRouteSnapshot) {
-    if (typeof window === "undefined") {
-      coldLoadRouteSnapshot = {
-        tab: "home",
-        screen: "home",
-        nflUrView: "take",
-        wcDeepLinkAction: null,
-        cleanPath: null,
-      };
-    } else {
-      try {
-        const route = resolveUrColdLoadRoute(window.location.pathname, window.location.search);
-        coldLoadRouteSnapshot = {
-          tab: route.tab,
-          screen: route.screen,
-          nflUrView: route.nflUrView || "take",
-          wcDeepLinkAction: route.wcDeepLinkAction || null,
-          cleanPath: route.cleanPath || null,
-        };
-      } catch {
-        coldLoadRouteSnapshot = {
-          tab: "home",
-          screen: "home",
-          nflUrView: "take",
-          wcDeepLinkAction: null,
-          cleanPath: null,
-        };
-      }
-    }
+    const path = typeof window === "undefined" ? "" : String(window.location.pathname || "");
+    const search = typeof window === "undefined" ? "" : String(window.location.search || "");
+    const sp = new URLSearchParams(search);
+    const opensNflPredictor =
+      sp.has("predictor") ||
+      Boolean(sp.get("share")) ||
+      Boolean(sp.get("picks")) ||
+      /\/predict-nfl/i.test(path) ||
+      path.replace(/\/+$/, "").toLowerCase().endsWith("/nfl");
+    coldLoadRouteSnapshot = opensNflPredictor
+      ? { tab: "nfl", screen: "nfl", nflUrView: "predict", cleanPath: null }
+      : { tab: "home", screen: "home", nflUrView: "take", cleanPath: null };
   }
   return coldLoadRouteSnapshot;
 }
@@ -619,8 +591,6 @@ ${themeCss}
   const [pastedImage, setPastedImage]   = useState(null);
   const [golfInput, setGolfInput]       = useState("");
   const [golfMsgs, setGolfMsgs]         = useState([]);
-  const [wcInput, setWcInput]           = useState("");
-  const [wcMsgs, setWcMsgs]             = useState([]);
   const [trackedPlays, setTrackedPlays] = useState([]);
   const [trackedUrTakeMessageIds, setTrackedUrTakeMessageIds] = useState([]);
   const [trackerLoaded, setTrackerLoaded] = useState(false);
@@ -645,9 +615,7 @@ ${themeCss}
   const nbaInputRef       = useRef(null);
   const mlbInputRef       = useRef(null);
   const golfInputRef      = useRef(null);
-  const wcInputRef        = useRef(null);
   const golfBarRef        = useRef(null);
-  const wcBarRef          = useRef(null);
   const tennisBarRef      = useRef(null);
   const nflBarRef         = useRef(null);
   const cfbBarRef         = useRef(null);
@@ -664,7 +632,6 @@ ${themeCss}
   const nbaScreenRef      = useRef(null);
   const mlbScreenRef      = useRef(null);
   const golfScreenRef     = useRef(null);
-  const wcScreenRef       = useRef(null);
   const matchupScreenRef  = useRef(null);
   const matchupInputRef   = useRef(null);
   const playerInputRef    = useRef(null);
@@ -748,11 +715,6 @@ ${themeCss}
   });
   const proSuccess = proCheckoutState.success;
   const proCheckoutEmail = proCheckoutState.email;
-
-  /** WC marketing / share deep link — auto-ask or prefill-only (see shared/wcMarketingDeepLinks.js). */
-  const [wcDeepLinkAction, setWcDeepLinkAction] = useState(
-    () => getColdLoadRouteSnapshot().wcDeepLinkAction,
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -862,26 +824,8 @@ ${themeCss}
   const verifiedNbaSlateForTakeRef = useRef([]);
   const { mlbData, mlbLoading, mlbGames } = useMlbData();
   const { golfData, golfLoading } = useGolfData();
-  const wcDataPollEnabled = useMemo(
-    () =>
-      isWcHomePromoWindow() &&
-      (screen === "home" || screen === "worldcup" || screen === "ask"),
-    [screen],
-  );
-  const {
-    wcLoading,
-    groups,
-    matches: wcMatches,
-    liveMatches: wcLiveMatches,
-    upcomingMatches: wcUpcomingMatches,
-    teams: wcTeams,
-    outrightsMeta: wcOutrightsMeta,
-    matchReadContext,
-    retryWcLoad,
-    xiConfirmedNotice,
-    dismissXiConfirmedNotice,
-  } = useWorldCupData({ enabled: wcDataPollEnabled });
-  const [wcScreenNav, setWcScreenNav] = useState(null);
+  const wcMatches = EMPTY_WC_MATCHES;
+  const wcLiveMatches = EMPTY_WC_MATCHES;
   const {
     nflContextData,
     nflBoard,
@@ -1791,8 +1735,7 @@ ${themeCss}
               scr === "nba" ||
               scr === "golf" ||
               scr === "tennis" ||
-              scr === "f1" ||
-              scr === "worldcup"
+              scr === "f1"
             ? scr === "nflplayer"
               ? "nfl"
               : scr
@@ -1847,18 +1790,17 @@ ${themeCss}
       priorSnapshot.length > 0 && historyForRoute.length > 1
         ? inferSportFromChatHistory(historyForRoute)
         : null;
-    const lockWcThread = shouldLockWorldCupThreadSport({
-      question: text,
-      textualSport: fromQuestion,
-      historySport: fromHistory,
-      chatHistory: historyForRoute,
-    });
     const pinnedExplicit =
-      typeof sportHint === "string" && sportHint.trim() && sportHint.trim() !== "generic"
+      typeof sportHint === "string" &&
+      sportHint.trim() &&
+      sportHint.trim() !== "generic" &&
+      sportHint.trim() !== "worldcup"
         ? sportHint.trim()
         : null;
     const pinnedScreen =
-      screenSport && screenSport !== "generic" ? screenSport : null;
+      screenSport && screenSport !== "generic" && screenSport !== "worldcup"
+        ? screenSport
+        : null;
     const imageAmbiguousRoute =
       !!imgToSend &&
       !pinnedExplicit &&
@@ -1869,17 +1811,13 @@ ${themeCss}
     let eff =
       pinnedExplicit ??
       pinnedScreen ??
-      (lockWcThread ? "worldcup" : null) ??
       fromQuestion ??
       detected ??
       fromHistory ??
       (imageAmbiguousRoute ? null : lastUrTakeSportRef.current) ??
       (imageAmbiguousRoute ? null : inferUrTakeSportFromMessages(priorSnapshot)) ??
       null;
-    if (pinnedExplicit === "worldcup" || pinnedScreen === "worldcup") {
-      eff = "worldcup";
-    }
-    if (eff === "generic") eff = null;
+    if (eff === "generic" || eff === "worldcup") eff = null;
     effectiveSportHint = eff;
 
     let hEnsure = effectiveSportHint;
@@ -1888,11 +1826,7 @@ ${themeCss}
     if (!hEnsure && screenSport) hEnsure = screenSport;
     hintForEnsure = hEnsure;
 
-    const loadingSport = eff === "tennis_wta_profile" ? "tennis" : eff;
-    const loadingSportKey =
-      loadingSport === "worldcup"
-        ? resolveWcUrTakeLoadingSportKey("worldcup", text)
-        : loadingSport;
+    const loadingSportKey = eff === "tennis_wta_profile" ? "tennis" : eff;
 
     return [
       ...prev,
@@ -3731,15 +3665,16 @@ ${themeCss}
       mlbGames: homePipeline?.mlbGamesForHome,
       f1Data,
       hourEt: hourEt ?? 12,
-      wcMatches,
       nflGames,
       laligaMatches,
       nflPropLines,
       laligaPropLines,
     });
-    const cap = isWcHomePromoWindow() ? 4 : 3;
-    const capped = Array.isArray(list) ? list.slice(0, cap) : [];
-    return orderHomeQuestionsForWcPromo(capped);
+    return Array.isArray(list)
+      ? list
+          .filter((question) => String(question?.sportHint || "").toLowerCase() !== "worldcup")
+          .slice(0, 3)
+      : [];
   }, [
     activeTournamentMatches,
     tennisLiveMatches,
@@ -3754,7 +3689,6 @@ ${themeCss}
     homePipeline?.mlbGamesForHome,
     f1Data,
     hourEt,
-    wcMatches,
     nflGames,
     laligaMatches,
     nflPropLines,
@@ -3809,8 +3743,6 @@ ${themeCss}
     () => buildPgaChampionshipOddsHomeCard(golfData),
     [golfData],
   );
-
-  const wcHomePromoCard = useMemo(() => buildWcHomePromoCard(undefined, wcMatches), [promptRefreshTick, wcMatches]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const goBack = useCallback(() => {
@@ -4093,62 +4025,6 @@ ${themeCss}
     setSelectedNflPlayer(null);
   }, [screen, tab]);
 
-  const resetWorldCupBrowseHome = useCallback(() => {
-    setWcMsgs([]);
-    setWcInput("");
-    requestAnimationFrame(() => {
-      wcScreenRef.current?.scrollTo?.({ top: 0, behavior: "instant" });
-      wcBarRef.current?.scrollTo?.({ top: 0, behavior: "instant" });
-    });
-  }, []);
-
-  const goWorldCup = useCallback(
-    (nav = null) => {
-      const alreadyOnWc = screen === "worldcup" && tab === "worldcup";
-      if (
-        shouldResetWorldCupBrowseHome({
-          alreadyOnWc,
-          wcMsgCount: wcMsgs.length,
-          nav,
-        })
-      ) {
-        resetWorldCupBrowseHome();
-        return;
-      }
-      if (!alreadyOnWc) {
-        setNavHistory((h) => [...h, { screen, tab }]);
-      }
-      if (nav && typeof nav === "object") {
-        setWcScreenNav({
-          mainTab: nav.mainTab || "matches",
-          matchSubTab: nav.matchSubTab || "live",
-          highlightEventId: nav.highlightEventId || null,
-        });
-      }
-      setTab("worldcup");
-      setScreen("worldcup");
-      setSelectedMatchup(null);
-      setSelectedPlayer(null);
-      setSelectedNflPlayer(null);
-    },
-    [screen, tab, wcMsgs.length, resetWorldCupBrowseHome],
-  );
-
-  const goWorldCupMatchesToday = useCallback(() => {
-    goWorldCup({ mainTab: "matches", matchSubTab: "today" });
-  }, [goWorldCup]);
-
-  const openWcMatchFromTake = useCallback(
-    (eventId) => {
-      const id = String(eventId || "").trim();
-      if (!id) return;
-      goWorldCup({ mainTab: "matches", matchSubTab: "today", highlightEventId: id });
-    },
-    [goWorldCup],
-  );
-
-  const clearWcScreenNav = useCallback(() => setWcScreenNav(null), []);
-
   const goUrTakeTab = useCallback(() => {
     if (screen !== "ask" || tab !== "ask") {
       setNavHistory((h) => [...h, { screen, tab }]);
@@ -4326,12 +4202,8 @@ ${themeCss}
       const rawHint =
         typeof sportHint === "string" && sportHint.trim() && sportHint.trim() !== "generic"
           ? sportHint.trim()
-          : isNavSportVisible("worldcup") &&
-              (questionMentionsWorldCup(text) || inferWorldCupFromPlayerMarketQuestion(text))
-            ? "worldcup"
-            : null;
-      const resolvedHint =
-        rawHint === "worldcup" && !isNavSportVisible("worldcup") ? null : rawHint;
+          : null;
+      const resolvedHint = rawHint === "worldcup" ? null : rawHint;
       if (screen !== "ask" || tab !== "ask") {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
@@ -4379,15 +4251,9 @@ ${themeCss}
     setAskInput("");
     setTab("ask");
     setScreen("ask");
-    const homeSportHint =
-      isNavSportVisible("worldcup") &&
-      (questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t))
-        ? "worldcup"
-        : undefined;
     askUrTake({
       text: t,
       setMsgs: setAskMsgs,
-      ...(homeSportHint ? { sportHint: homeSportHint } : {}),
     });
     requestAnimationFrame(() => {
       scheduleChatScroll(askScreenRef);
@@ -4399,15 +4265,9 @@ ${themeCss}
     const t = askInput.trim();
     if (!t || isAsking) return;
     setAskInput("");
-    const askSportHint =
-      isNavSportVisible("worldcup") &&
-      (questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t))
-        ? "worldcup"
-        : undefined;
     askUrTake({
       text: t,
       setMsgs: setAskMsgs,
-      ...(askSportHint ? { sportHint: askSportHint } : {}),
     });
     scheduleChatScroll(askScreenRef);
     requestAnimationFrame(() => {
@@ -4433,86 +4293,6 @@ ${themeCss}
   const submitMlb     = useCallback(forced=>{ const t=(forced??mlbInput).trim();    if(!t||isAsking)return; if(!forced)setMlbInput("");   askUrTake({text:t,setMsgs:setMlbMsgs,sportHint:"mlb"}); scheduleChatScroll(mlbScreenRef); },[askUrTake,isAsking,mlbInput,scheduleChatScroll]);
 
   const submitGolf = useCallback(forced=>{ const t=(forced??golfInput).trim(); if(!t||isAsking)return; if(!forced)setGolfInput(""); askUrTake({text:t,setMsgs:setGolfMsgs,sportHint:"golf"}); scheduleChatScroll(golfScreenRef); },[askUrTake,isAsking,golfInput,scheduleChatScroll]);
-  const submitWc = useCallback(
-    (forced, opts = {}) => {
-      const t = (typeof forced === "string" ? forced : wcInput).trim();
-      if (!t || isAsking) return;
-      if (typeof forced !== "string") setWcInput("");
-      const pin = mergeWcUrTakeEventPin({
-        explicitEventId: opts.eventId,
-        inheritThread: opts.inheritThread,
-        threadMsgs: wcMsgs,
-        matches: wcMatches,
-        liveMatches: wcLiveMatches,
-      });
-      askUrTake({
-        text: t,
-        setMsgs: setWcMsgs,
-        sportHint: "worldcup",
-        wcEventId: pin.eventId,
-        wcMatchTeams: pin.matchTeams,
-      });
-      scheduleChatScroll(wcScreenRef);
-    },
-    [askUrTake, isAsking, wcInput, scheduleChatScroll, wcMatches, wcLiveMatches, wcMsgs],
-  );
-
-  const askWorldCup = useCallback(
-    (prompt, opts = null) => {
-      const pinOpts = opts && typeof opts === "object" ? opts : {};
-      if (pinOpts.mainTab || pinOpts.matchSubTab || pinOpts.highlightEventId != null) {
-        setWcScreenNav({
-          mainTab: pinOpts.mainTab || "matches",
-          matchSubTab: pinOpts.matchSubTab || "live",
-          highlightEventId: pinOpts.highlightEventId || null,
-        });
-      }
-      if (screen !== "worldcup" || tab !== "worldcup") {
-        setNavHistory((h) => [...h, { screen, tab }]);
-      }
-      setTab("worldcup");
-      setScreen("worldcup");
-      setSelectedMatchup(null);
-      setSelectedPlayer(null);
-      setSelectedNflPlayer(null);
-      const text = String(prompt || "").trim();
-      if (text) {
-        requestAnimationFrame(() => {
-          submitWc(text, {
-            eventId: pinOpts.eventId ?? pinOpts.wcEventId ?? pinOpts.featuredEventId,
-            inheritThread: false,
-          });
-          scheduleChatScroll(wcScreenRef);
-        });
-      }
-    },
-    [screen, tab, submitWc, scheduleChatScroll],
-  );
-
-  useEffect(() => {
-    if (screen !== "worldcup" || !wcDeepLinkAction || isAsking) {
-      return;
-    }
-    const t = String(wcDeepLinkAction.q || "").trim();
-    const prefillOnly = Boolean(wcDeepLinkAction.prefillOnly);
-    setWcDeepLinkAction(null);
-    if (!t) return;
-    if (prefillOnly) {
-      setWcInput(t);
-      requestAnimationFrame(() => {
-        wcInputRef.current?.focus?.();
-        scheduleChatScroll(wcScreenRef);
-      });
-      return;
-    }
-    submitWc(t);
-  }, [
-    screen,
-    wcDeepLinkAction,
-    isAsking,
-    submitWc,
-    scheduleChatScroll,
-  ]);
   const submitMatchup = useCallback(forced=>{ const t=(forced??matchupInput).trim(); if(!t||isAsking)return; if(!forced)setMatchupInput(""); const league=String(selectedMatchup?.league||"").toUpperCase(); const hint=league.includes("NFL")?"nfl":league.includes("NBA")?"nba":league.includes("MLB")?"mlb":league.includes("F1")?"f1":league.includes("GOLF")?"golf":"tennis"; askUrTake({text:t,matchup:selectedMatchup,setMsgs:setMatchupMsgs,sportHint:hint}); scheduleChatScroll(matchupScreenRef); },[askUrTake,isAsking,matchupInput,selectedMatchup,scheduleChatScroll]);
 
   /** Insert suggested live follow-up from thread pills and submit (matches each sport's ask flow). */
@@ -4548,9 +4328,9 @@ ${themeCss}
   }, []);
 
   useEffect(() => {
-    if (screen !== "ask" && screen !== "worldcup") return;
+    if (screen !== "ask") return;
     refreshSavedTakes();
-  }, [screen, askMsgs.length, wcMsgs.length, refreshSavedTakes]);
+  }, [screen, askMsgs.length, refreshSavedTakes]);
 
   const saveTakeFromMsgs = useCallback(
     (msgs) => {
@@ -4587,20 +4367,12 @@ ${themeCss}
     saveTakeFromMsgs(askMsgs);
   }, [askMsgs, saveTakeFromMsgs]);
 
-  const onSaveLastWcUrTake = useCallback(() => {
-    saveTakeFromMsgs(wcMsgs);
-  }, [wcMsgs, saveTakeFromMsgs]);
-
   const onOpenSavedTake = useCallback(
     (t) => {
       trackFunnelEvent("saved_take_open", { id: String(t?.id || "") });
       const snippet = trimToCompleteSentence(String(t?.headlineSnippet || "").trim(), 120);
       if (!snippet) return;
       const sport = String(t?.sport || "").toLowerCase();
-      if (sport === "worldcup") {
-        askWorldCup(`About my saved take: ${snippet} — `);
-        return;
-      }
       if (screen !== "ask" || tab !== "ask") {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
@@ -4611,7 +4383,7 @@ ${themeCss}
         askInputRef.current?.focus({ preventScroll: true });
       });
     },
-    [askWorldCup, screen, tab],
+    [screen, tab],
   );
 
   const urTakeFollowUpTennis = useCallback(
@@ -4830,40 +4602,6 @@ ${themeCss}
     },
     [askUrTake, isAsking, scheduleChatScroll],
   );
-  const urTakeFollowUpWc = useCallback(
-    (text, meta) => {
-      const t = String(text || "").trim();
-      if (!t || isAsking) return;
-      setWcInput("");
-      const pin = mergeWcUrTakeEventPin({
-        threadMsgs: wcMsgs,
-        matches: wcMatches,
-        liveMatches: wcLiveMatches,
-      });
-      askUrTake({
-        text: t,
-        setMsgs: setWcMsgs,
-        sportHint: "worldcup",
-        ...(pin.eventId ? { wcEventId: pin.eventId } : {}),
-        ...(pin.matchTeams ? { wcMatchTeams: pin.matchTeams } : {}),
-        followUpTelemetry: {
-          followUpText: t,
-          sourceMsgId: meta?.sourceMsgId,
-          msSinceResponseShown: meta?.msSinceResponseShown,
-          intent: meta?.intent,
-          liveMode: meta?.liveMode,
-          sport: meta?.sport || "worldcup",
-          followUpIndex: meta?.followUpIndex,
-          followUpCount: meta?.followUpCount,
-        },
-      });
-      scheduleChatScroll(wcScreenRef);
-      requestAnimationFrame(() => {
-        wcInputRef.current?.focus({ preventScroll: true });
-      });
-    },
-    [askUrTake, isAsking, wcMsgs, wcMatches, wcLiveMatches, scheduleChatScroll],
-  );
   const urTakeFollowUpMatchup = useCallback(
     (text, meta) => {
       const t = String(text || "").trim();
@@ -4924,13 +4662,10 @@ ${themeCss}
     (screen === "nba" && nbaMsgs.length > 0) ||
     (screen === "mlb" && mlbMsgs.length > 0) ||
     (screen === "golf" && golfMsgs.length > 0) ||
-    (screen === "worldcup" && wcMsgs.length > 0) ||
     (screen === "ask" && askMsgs.length > 0);
 
   const askFocusSession = isUrFocusSession(askMsgs);
-  const wcFocusSession = isUrFocusSession(wcMsgs);
-  const activeFocusSession =
-    (screen === "ask" && askFocusSession) || (screen === "worldcup" && wcFocusSession);
+  const activeFocusSession = screen === "ask" && askFocusSession;
 
   // ── Header pill ────────────────────────────────────────────────────────────
   const headerPill = (
@@ -5041,7 +4776,7 @@ ${themeCss}
   />
   <style>{css}</style>
   <div
-    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}${activeFocusSession ? " ur-focus-session" : ""}${screen === "worldcup" ? " app--wc-premium" : ""}`}
+    className={`app theme-${activeTheme}${hasDockedBar ? " has-docked" : ""}${activeFocusSession ? " ur-focus-session" : ""}`}
     style={{
       background: THEMES[activeTheme]?.appBg || "var(--bg)",
       color:
@@ -5245,20 +4980,7 @@ ${themeCss}
             dynamicHomeQuestions={dynamicHomeQuestions}
             dailyFeaturedAngleCard={dailyFeaturedAngleCard}
             pgaChampionshipOddsCard={pgaChampionshipOddsCard}
-            wcHomePromoCard={wcHomePromoCard}
-            goWorldCup={goWorldCup}
-            goWorldCupMatchesToday={goWorldCupMatchesToday}
-            wcXiConfirmedNotice={xiConfirmedNotice}
-            onDismissWcXiNotice={dismissXiConfirmedNotice}
-            onOpenWcXiNotice={(notice) =>
-              goWorldCup({
-                mainTab: "matches",
-                matchSubTab: "today",
-                highlightEventId: notice?.eventId,
-              })
-            }
             firePrompt={firePrompt}
-            askWorldCup={askWorldCup}
             prefillUrTakeQuestion={prefillUrTakeQuestion}
             isUnlimited={isUnlimited}
             freeUsedCount={freeUsedCount}
@@ -5281,7 +5003,6 @@ ${themeCss}
             mlbGames={homePipeline?.mlbGamesForHome}
             mlbData={mlbData}
             f1Data={f1Data}
-            wcMatches={wcMatches}
             homeCards={homeCards}
             openMatchup={openMatchup}
             golfScoreColor={golfScoreColor}
@@ -5402,7 +5123,6 @@ ${themeCss}
                     setNflUrView("predict");
                     syncNflSubViewQuery("predict");
                   }}
-                  onOpenWorldCup={goWorldCup}
                   onGoHome={goHome}
                   nflGames={nflGames}
                   nflPropLines={nflPropLines}
@@ -5612,55 +5332,6 @@ ${themeCss}
           />
         )}
 
-
-
-        {/* ══ WORLD CUP ══ */}
-        {screen==="worldcup"&&(
-          <WorldCupScreen
-            wcScreenRef={wcScreenRef}
-            hasDockedBar={hasDockedBar}
-            wcLoading={wcLoading}
-            groups={groups}
-            matches={wcMatches}
-            liveMatches={wcLiveMatches}
-            upcomingMatches={wcUpcomingMatches}
-            teams={wcTeams}
-            outrightsMeta={wcOutrightsMeta}
-            matchReadContext={matchReadContext}
-            retryWcLoad={retryWcLoad}
-            wcMsgs={wcMsgs}
-            wcBarRef={wcBarRef}
-            wcInputRef={wcInputRef}
-            wcInput={wcInput}
-            setWcInput={setWcInput}
-            submitWc={submitWc}
-            askBarCommon={askBarCommon}
-            accessTier={accessTier}
-            onUpgradePromptClick={openUpgradeModal}
-            onValueTrialClick={openValueTrialModal}
-            wcScreenNav={wcScreenNav}
-            onWcScreenNavConsumed={clearWcScreenNav}
-            onUrTakeRetry={(prompt) => submitWc(prompt, { inheritThread: true })}
-            onViewWcMatch={openWcMatchFromTake}
-            onUrTakeFollowUpPick={urTakeFollowUpWc}
-            urTakeTrackPlay={urTakeTrackPlay}
-            onSaveLastUrTake={onSaveLastWcUrTake}
-            savedTakes={savedTakes}
-            onOpenSavedTake={onOpenSavedTake}
-            wcXiConfirmedNotice={xiConfirmedNotice}
-            onDismissWcXiNotice={dismissXiConfirmedNotice}
-            onOpenWcXiNotice={(notice) =>
-              goWorldCup({
-                mainTab: "matches",
-                matchSubTab: "today",
-                highlightEventId: notice?.eventId,
-              })
-            }
-            wcHomePromoCard={wcHomePromoCard}
-            focusSession={wcFocusSession}
-            onResetWcBrowseHome={resetWorldCupBrowseHome}
-          />
-        )}
 
 
         {/* ══ GOLF ══ */}
@@ -6715,26 +6386,6 @@ ${themeCss}
               <div className="docked-bar-label" style={{color:"#FFFFFF"}}>Golf · Ask another</div>
               <UrTakeFollowUpDockStrip msgs={golfMsgs} onPick={urTakeFollowUpGolf} />
               <AskBar inputRef={golfInputRef} value={golfInput} onChange={setGolfInput} onSubmit={()=>submitGolf()} placeholder="Ask another..." btnColor="#DCE6F2" {...askBarCommon} dockedGradient />
-            </div>
-          </div>
-        )}
-        {screen==="worldcup"&&wcMsgs.length>0&&(
-          <div className="docked-bar ur-docked-bar">
-            <div className="docked-interaction-zone" style={{ "--dock-accent": "rgba(245,158,11,.28)" }}>
-              {!wcFocusSession ? (
-                <div className="docked-bar-label" style={{color:"var(--wc-gold)"}}>World Cup · Ask another</div>
-              ) : null}
-              <UrTakeFollowUpDockStrip msgs={wcMsgs} onPick={urTakeFollowUpWc} focusSession={wcFocusSession} />
-              <AskBar
-                inputRef={wcInputRef}
-                value={wcInput}
-                onChange={setWcInput}
-                onSubmit={() => submitWc()}
-                placeholder={wcFocusSession ? "Push back or ask a follow-up…" : "Team & tournament angles · player props when XIs confirmed"}
-                btnColor="var(--wc-gold)"
-                {...askBarCommon}
-                dockedGradient
-              />
             </div>
           </div>
         )}
