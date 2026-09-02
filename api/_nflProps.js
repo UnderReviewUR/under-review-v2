@@ -116,12 +116,24 @@ export async function getNflPropsForBoard(gameId, opts = {}) {
     });
   }
 
+  if (opts.cacheOnly) {
+    if (cached?.payload) {
+      return decorateNflPropsWithFreshness(cached.payload, cached.fetchedAtMs, {
+        isLive: Boolean(cached.isLive || opts.isLive),
+      });
+    }
+    return null;
+  }
+
   try {
     return await scrapeAndCacheNflProps(gid, {
       tipoffMs: opts.tipoffMs ?? cached?.tipoffMs ?? null,
       isLive: Boolean(opts.isLive),
     });
   } catch (err) {
+    if (opts.cacheOnly) {
+      return null;
+    }
     if (cached?.payload) {
       console.warn(
         JSON.stringify({

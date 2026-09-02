@@ -390,6 +390,7 @@ import { autocorrectUrTakeQuestion } from "../../shared/urTakeQuestionAutocorrec
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "../_takeLedger.js";
 import { buildCanonicalNflContext } from "../_nflContext.js";
+import { NFL_UR_TAKE_FAST_MODEL_DEFAULT } from "../../shared/nflAskFastPath.js";
 import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
 import { applyNflAskGuard, buildNflPassStructuredTake } from "../../shared/nflAskGuard.js";
@@ -4740,6 +4741,9 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
   let nflAskIsCurrentSeason = false;
   /** @type {Record<string, unknown>|null} */
   let nflAskGuardInactives = null;
+  let nflFastPathActive = false;
+  /** @type {string|null} */
+  let anthropicModelOverride = null;
 
   let userPrompt = question;
   /** Scoped for Anthropic token budget — NFL TYPE_A draft simulation uses a higher max_tokens ceiling. */
@@ -5615,6 +5619,11 @@ Never open with "no odds yet." Give them a monitoring plan and a priced band
 in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`;
   } else if (sportHint === "nfl") {
     const canonicalNfl = await buildCanonicalNflContext({ question, matchupContext });
+    nflFastPathActive = Boolean(canonicalNfl?.meta?.fastPath);
+    if (nflFastPathActive) {
+      anthropicModelOverride =
+        String(getEnv("NFL_UR_TAKE_FAST_MODEL") || "").trim() || NFL_UR_TAKE_FAST_MODEL_DEFAULT;
+    }
     nflAskGuardGames = Array.isArray(canonicalNfl?.games) ? canonicalNfl.games : [];
     nflAskGuardPropLines = Array.isArray(canonicalNfl?.propLines) ? canonicalNfl.propLines : [];
     nflAskGuardBriefcase =
@@ -6364,8 +6373,11 @@ IMAGE MARKETS (binding): The user attached a World Cup screenshot that shows pos
     const factualQuestion = isSettledFactQuestion(question);
     const selectedTemperature = factualQuestion ? 0.2 : 0.45;
 
-    const tokenBudget =
-      draftTeamSimulationInject
+    const tokenBudget = nflFastPathActive
+      ? isPro
+        ? 650
+        : 480
+      : draftTeamSimulationInject
         ? 2600
         : effectiveStructuredModeRequested
           ? isConversationFollowUp
@@ -7337,7 +7349,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       const anthropicT0 = Date.now();
       const result = await callAnthropic({
         apiKey: ANTHROPIC_API_KEY,
-        model: ANTHROPIC_MODEL,
+        model: anthropicModelOverride || ANTHROPIC_MODEL,
         system: systemForAttempt,
         messages,
         temperature: temperatureForAttempt,
@@ -8566,6 +8578,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         nbaBoardBuildMs,
         anthropicMs,
         haikuFollowUpsMs,
+        ...(sportHint === "nfl" ? { nflFastPath: nflFastPathActive } : {}),
         ...nbaPlayoffFocusLog,
         ...(sportHint === "worldcup" ? { wcRelevance: wcRelevanceLog } : {}),
         ...(nbaRelevanceLog ? { nbaRelevance: nbaRelevanceLog } : {}),

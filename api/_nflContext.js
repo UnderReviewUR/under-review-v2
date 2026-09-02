@@ -31,6 +31,7 @@ import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 import { trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 
 export { NFL_STADIUM_META };
 
@@ -399,7 +400,13 @@ function formatDefensePromptCompact(defensesMap, opts = {}) {
  * @param {Set<string>|string[]|null} [options.scopeTeamAbbrs]
  */
 export async function buildCanonicalNflContext(options = {}) {
-  const { question = "", matchupContext = null, scopeTeamAbbrs = null } = options;
+  const { question = "", matchupContext = null, scopeTeamAbbrs = null, forceFull = false } = options;
+
+  if (!forceFull && isNflScopedPropFastPath(question)) {
+    const { buildNflFastAskContext } = await import("./_nflContextFast.js");
+    const fast = await buildNflFastAskContext({ question, matchupContext });
+    if (fast) return fast;
+  }
 
   let scope = resolveNflScopeTeamAbbrevSet(question, matchupContext);
   if (scopeTeamAbbrs instanceof Set && scopeTeamAbbrs.size > 0 && scopeTeamAbbrs.size <= 2) {
