@@ -3,6 +3,7 @@ import test from "node:test";
 import { validateStructuredURTakeResponse } from "../api/types/urTakeResponse.js";
 import {
   applyNflAskGuard,
+  buildNflLivePropBoardTake,
   buildNflPassStructuredTake,
   detectNflCallBodyConflict,
   detectNflInventedLine,
@@ -164,6 +165,41 @@ test("forcePass rewrites even when model already said PASS", () => {
   const v = validateStructuredURTakeResponse(take);
   assert.equal(v.valid, true, v.errors && v.errors.join("; "));
   assert.equal(extractNflStatedPropLine(q), 1.5);
+});
+
+test("live prop board recovery leans Under on soft TD vs AVERAGE D", () => {
+  const q =
+    "I'm looking at Maye 1.5 passing TDs (NE @ SEA). Should I fade the over, take the under, or pass?";
+  const take = buildNflLivePropBoardTake({
+    question: q,
+    liveLine: {
+      player: "Drake Maye",
+      prop: "pass TDs",
+      propRaw: "passing_tds",
+      line: 1.5,
+      book: "DraftKings",
+    },
+    defenseTier: "AVERAGE",
+    playerName: "Drake Maye",
+  });
+  assert.match(String(take.call), /UNDER\s+1\.5/i);
+  assert.match(String(take.lean), /^Lean:\s*Under 1\.5\./i);
+  assert.ok(!/did not parse cleanly/i.test(String(take.lean)));
+  assert.ok(!/not in payload/i.test(String(take.whyNow)));
+  const v = validateStructuredURTakeResponse(take);
+  assert.equal(v.valid, true, v.errors && v.errors.join("; "));
+});
+
+test("live prop board recovery leans Over into soft D", () => {
+  const take = buildNflLivePropBoardTake({
+    question: "Maye over 1.5 passing TDs?",
+    liveLine: { player: "Drake Maye", propRaw: "passing_tds", line: 1.5, book: "FanDuel" },
+    defenseTier: "SOFT",
+    playerName: "Drake Maye",
+  });
+  assert.match(String(take.call), /OVER\s+1\.5/i);
+  const v = validateStructuredURTakeResponse(take);
+  assert.equal(v.valid, true, v.errors && v.errors.join("; "));
 });
 
 test("red suitcase on a posted spread does not force PASS when odds are present", () => {

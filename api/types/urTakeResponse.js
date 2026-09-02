@@ -280,8 +280,19 @@ export function repairStructuredForDelivery(response, sportHint) {
 
   const withLean = ensureLeanOnStructured(base);
   base.lean = clip(sanitizeLeanBroTone(String(withLean.lean || '')), 120);
+  // sanitizeLeanBroTone already ensures a period — clip() can drop it at exactly 120.
+  if (base.lean && !/\.\s*$/.test(base.lean)) {
+    base.lean = `${base.lean.replace(/[.]+$/g, '').slice(0, 119)}.`.slice(0, 120);
+  }
+  if (!/^Lean:\s*.+\./.test(String(base.lean || '').trim())) {
+    const fromCall = String(base.call || 'Pass').trim() || 'Pass';
+    base.lean = clip(`Lean: ${fromCall}. Board recovery.`, 120);
+    if (!/\.\s*$/.test(base.lean)) {
+      base.lean = `${base.lean.replace(/[.]+$/g, '').slice(0, 119)}.`.slice(0, 120);
+    }
+  }
   if (base.lean.length < 8) {
-    base.lean = clip('Lean: Pass.', 120);
+    base.lean = clip('Lean: Pass. Confirm the live number.', 120);
   }
 
   if (!['High', 'Medium', 'Speculative'].includes(base.confidence)) {

@@ -2969,18 +2969,29 @@ export const baseCss = `
     font-size:9px;
     letter-spacing:1.1px;
     text-transform:uppercase;
-    color:#64748B;
+    color:#475569;
     margin-bottom:4px;
     font-weight:600;
   }
-  .theme-epilogue .nfl-matchup-thesis{
-    background:rgba(255,255,255,0.06);
+  .app .chat-thread--ur-chat-dock .bubble.ai .nfl-matchup-thesis,
+  .app .chat-thread--ur-chat-dock .nfl-matchup-thesis{
+    background:#FFFFFF;
+    color:#0F172A;
+  }
+  .app .chat-thread--ur-chat-dock .bubble.ai .nfl-matchup-thesis__label,
+  .app .chat-thread--ur-chat-dock .nfl-matchup-thesis__label{
+    color:#475569;
+  }
+  .theme-epilogue .nfl-matchup-thesis,
+  .theme-epilogue .app .chat-thread--ur-chat-dock .bubble.ai .nfl-matchup-thesis{
+    background:rgba(255,255,255,0.08);
     border-color:rgba(255,255,255,0.14);
-    color:rgba(248,250,252,0.92);
+    color:rgba(248,250,252,0.95);
     box-shadow:none;
   }
-  .theme-epilogue .nfl-matchup-thesis__label{
-    color:rgba(248,250,252,0.55);
+  .theme-epilogue .nfl-matchup-thesis__label,
+  .theme-epilogue .app .chat-thread--ur-chat-dock .nfl-matchup-thesis__label{
+    color:rgba(248,250,252,0.65);
   }
   .ur-take-ai-panel{
     background:transparent;
@@ -4808,7 +4819,7 @@ export const baseCss = `
   .ur-v2-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;margin-bottom:0;}
   .ur-v2-stat-cell{background:#111;border:0.5px solid #1e1e1e;border-radius:8px;padding:8px 10px;min-height:0;display:flex;flex-direction:column;justify-content:center;}
   .ur-v2-stat-cell--hi{border-color:rgba(0,245,233,.55);box-shadow:0 0 0 1px rgba(0,245,233,.1);}
-  .ur-v2-stat-label{font-family:var(--mono-font);font-size:8px;letter-spacing:0.07em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;}
+  .ur-v2-stat-label{font-family:var(--mono-font);font-size:8px;letter-spacing:0.07em;text-transform:uppercase;color:#cbd5e1;margin-bottom:4px;}
   .ur-v2-stat-value{font-size:13px;font-weight:800;color:#fff;line-height:1.35;word-break:break-word;}
   .ur-v2-divider{height:0.5px;background:#141414;margin:8px 16px;border:none;}
   .ur-v2-body-copy{font-size:14px;line-height:1.65;color:#e5e7eb;padding:0 16px;}

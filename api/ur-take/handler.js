@@ -399,7 +399,7 @@ import { buildCanonicalNflContext } from "../_nflContext.js";
 import { NFL_UR_TAKE_FAST_MODEL_DEFAULT } from "../../shared/nflAskFastPath.js";
 import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
-import { applyNflAskGuard, buildNflPassStructuredTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
+import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
   extractMentionedPersonFromQuestion,
@@ -7487,6 +7487,22 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               isCurrentSeason: nflAskIsCurrentSeason,
             });
             structuredResponse = guarded.structured;
+            // Never leave parse-fail copy on screen when the matchup card has a live line.
+            const liveLine = nflMatchupMetaOut?.liveLine;
+            if (
+              liveLine &&
+              liveLine.line != null &&
+              /did not parse cleanly|not safe to ship/i.test(
+                `${structuredResponse?.lean || ""} ${structuredResponse?.whyNow || ""}`,
+              )
+            ) {
+              structuredResponse = buildNflLivePropBoardTake({
+                question,
+                liveLine,
+                defenseTier: nflMatchupMetaOut?.defenseTier,
+                playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+              });
+            }
           }
 
           // Validate
@@ -7529,19 +7545,33 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               // Sentry error, skip
             }
 
-            // Invalid structured response — NFL ships PASS, other sports may fall back to prose.
-            // Prefer suitcase truth (no live prop) over a generic parse-fail lean.
+            // Invalid structured response — NFL: prefer live-board lean when the
+            // thesis already has a posted number; else suitcase PASS; never claim
+            // "parse failed" while a live prop is on the card.
             if (sportHint === "nfl") {
-              const suitcase = resolveNflSuitcaseGuard(nflAskGuardBriefcase, question);
-              const passReason = suitcase.forcePass
-                ? suitcase.noLiveProp
-                  ? "no_live_prop"
-                  : "suitcase_red"
-                : "structured_parse_failed";
-              structuredResponse = repairStructuredForDelivery(
-                buildNflPassStructuredTake(passReason, { question }),
-                sportHint,
-              );
+              const liveLine = nflMatchupMetaOut?.liveLine;
+              if (liveLine && liveLine.line != null) {
+                structuredResponse = repairStructuredForDelivery(
+                  buildNflLivePropBoardTake({
+                    question,
+                    liveLine,
+                    defenseTier: nflMatchupMetaOut?.defenseTier,
+                    playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+                  }),
+                  sportHint,
+                );
+              } else {
+                const suitcase = resolveNflSuitcaseGuard(nflAskGuardBriefcase, question);
+                const passReason = suitcase.forcePass
+                  ? suitcase.noLiveProp
+                    ? "no_live_prop"
+                    : "suitcase_red"
+                  : "structured_parse_failed";
+                structuredResponse = repairStructuredForDelivery(
+                  buildNflPassStructuredTake(passReason, { question }),
+                  sportHint,
+                );
+              }
             } else {
               structuredResponse = null;
             }
@@ -7575,16 +7605,30 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
           structuredResponse =
             sportHint === "nfl"
-              ? buildNflPassStructuredTake(
-                  (() => {
-                    const suitcase = resolveNflSuitcaseGuard(nflAskGuardBriefcase, question);
-                    if (suitcase.forcePass) {
-                      return suitcase.noLiveProp ? "no_live_prop" : "suitcase_red";
-                    }
-                    return "structured_parse_failed";
-                  })(),
-                  { question },
-                )
+              ? (() => {
+                  const liveLine = nflMatchupMetaOut?.liveLine;
+                  if (liveLine && liveLine.line != null) {
+                    return repairStructuredForDelivery(
+                      buildNflLivePropBoardTake({
+                        question,
+                        liveLine,
+                        defenseTier: nflMatchupMetaOut?.defenseTier,
+                        playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+                      }),
+                      sportHint,
+                    );
+                  }
+                  const suitcase = resolveNflSuitcaseGuard(nflAskGuardBriefcase, question);
+                  const passReason = suitcase.forcePass
+                    ? suitcase.noLiveProp
+                      ? "no_live_prop"
+                      : "suitcase_red"
+                    : "structured_parse_failed";
+                  return repairStructuredForDelivery(
+                    buildNflPassStructuredTake(passReason, { question }),
+                    sportHint,
+                  );
+                })()
               : null;
         }
       }

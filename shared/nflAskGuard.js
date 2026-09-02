@@ -111,6 +111,102 @@ export function extractNflStatedPropLine(question) {
 }
 
 /**
+ * When the model take fails validation but a live prop is on the board, ship a
+ * real OVER/UNDER/PASS lean from the posted number + defense tier — never
+ * "did not parse cleanly" while the thesis shows a live line.
+ * @param {{
+ *   question?: string,
+ *   liveLine?: Record<string, unknown>|null,
+ *   defenseTier?: string|null,
+ *   playerName?: string|null,
+ * }} [opts]
+ */
+export function buildNflLivePropBoardTake(opts = {}) {
+  const question = String(opts.question || "");
+  const liveLine = opts.liveLine && typeof opts.liveLine === "object" ? opts.liveLine : null;
+  const line = Number(liveLine?.line);
+  if (!liveLine || !Number.isFinite(line)) {
+    return buildNflPassStructuredTake("no_live_prop", { question });
+  }
+
+  const detected = detectNflAskMarket(question);
+  const band = confidenceForNflMarket(detected.marketId).band;
+  const tierRaw = String(opts.defenseTier || "").trim();
+  const tier = tierRaw.toUpperCase() || "UNKNOWN";
+  const who = String(opts.playerName || liveLine.player || "Player").trim() || "Player";
+  const prop = String(liveLine.prop || liveLine.propRaw || detected.label || "prop").trim();
+  const book = String(liveLine.book || "board").trim() || "board";
+  const marketLabel = String(detected.label || prop).trim() || "prop";
+
+  const tough = /\b(ELITE|TOP|LOCK|SHUT|TOUGH|GOOD|STOUT)\b/.test(tier);
+  const softD = /\b(SOFT|BOTTOM|BAD|POOR|LEAKY|WORST|WEAK)\b/.test(tier);
+
+  /** @type {string} */
+  let call;
+  /** @type {string} */
+  let lean;
+  /** @type {string} */
+  let whyNow;
+  /** @type {string} */
+  let edge;
+  /** @type {"Speculative"|"Medium"} */
+  let confidence = band === "firm" || band === "medium" ? "Medium" : "Speculative";
+
+  const softMarket = band === "soft" || band === "lottery";
+
+  if (softD && !tough) {
+    call = `OVER ${line}`;
+    lean = `Lean: Over ${line}. ${marketLabel} vs ${tierRaw || tier} D — pay the over.`;
+    whyNow = `${who} ${prop} is live at ${line} (${book}). ${tierRaw || tier} D is a green light at the posted number — over is the lean.`;
+    edge = `Posted ${line} into a soft defense look. Soft markets stay speculative — this is a lean off matchup + board, not a lock.`;
+  } else if (tough || softMarket) {
+    // Lumpy TD / rare-event markets: fade the over unless defense is soft.
+    // AVERAGE / tough / unknown → Under at the live number.
+    call = `UNDER ${line}`;
+    lean = `Lean: Under ${line}. ${marketLabel} is lumpy — fade the over at ${line}.`;
+    whyNow = `${who} ${prop} is live at ${line} (${book}). ${tierRaw || "This"} D is not a smash-over green light on a soft market — under is the one lean.`;
+    edge = `Live board is ${line}. Soft/lumpy props need a script reason to pay the over; without one, fade is the call at Speculative.`;
+    confidence = "Speculative";
+  } else {
+    call = `UNDER ${line}`;
+    lean = `Lean: Under ${line}. No smash-over case vs ${tierRaw || tier} D.`;
+    whyNow = `${who} ${prop} is live at ${line} (${book}). Matchup is not a clear over; under is the lean until script or injury flips it.`;
+    edge = `Posted ${line} without a soft-defense green light. Lean under and re-check closer to kick if the number moves.`;
+  }
+
+  if (lean.length > 120) {
+    lean = lean.slice(0, 119).replace(/\s+\S*$/, "").replace(/[.]*$/, ".");
+  }
+  if (!/\.\s*$/.test(lean)) lean = `${lean.replace(/[.]+$/g, "")}.`;
+
+  return {
+    sport: "NFL",
+    call,
+    callType: "prop",
+    confidence,
+    lean,
+    whyNow,
+    edge,
+    analysis: {
+      matchupAnalysis: whyNow,
+      injuryContext:
+        "Confirm inactives and OL/skill availability before locking — this lean is board + defense tier only.",
+      marketContext: `Verified live ${marketLabel} at ${line} (${book}). Recovery lean from board after the model take failed validation.`,
+      lineMovement: `Shop ${book} and peers around ${line}; do not invent a different number.`,
+      statisticalEdge:
+        "Defense tier + posted line drive this recovery lean. Season pace alone is not the ticket.",
+    },
+    caveats: [
+      `Live ${marketLabel} ${line} from ${book}.`,
+      softMarket
+        ? "Soft market — Speculative only; do not lock language."
+        : "Re-check the number closer to kick if the board moves.",
+    ],
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
  * @param {string} reason
  * @param {{ question?: string, marketLabel?: string }} [opts]
  */
