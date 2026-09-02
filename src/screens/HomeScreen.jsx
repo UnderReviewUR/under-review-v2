@@ -14,6 +14,7 @@ import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
 import { FREE_TIER_HOME_FOOTNOTE_PRIMARY, FREE_TIER_HOME_FOOTNOTE_SECONDARY } from "../../shared/freeTierCopy.js";
+import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
 import { buildWcXiConfirmedHomeStarter } from "../features/home/buildWcHomePromoCard.js";
 import { buildHomeDailyEdgeView } from "../features/home/buildHomeDailyEdgeView.js";
 import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
