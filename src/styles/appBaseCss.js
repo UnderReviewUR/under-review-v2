@@ -2946,8 +2946,38 @@ export const baseCss = `
     font-size:15px;
     line-height:1.45;
     font-weight:500;
-    color:rgba(255,255,255,0.92);
+    color:rgba(248,250,252,0.94);
     text-align:right;
+  }
+  .nfl-matchup-thesis{
+    margin-bottom:10px;
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid rgba(15,23,42,0.12);
+    background:#FFFFFF;
+    font-size:13px;
+    line-height:1.4;
+    letter-spacing:0.1px;
+    color:#0F172A;
+    box-shadow:0 2px 10px rgba(15,23,42,0.06);
+  }
+  .nfl-matchup-thesis__label{
+    font-family:var(--mono-font);
+    font-size:9px;
+    letter-spacing:1.1px;
+    text-transform:uppercase;
+    color:#64748B;
+    margin-bottom:4px;
+    font-weight:600;
+  }
+  .theme-epilogue .nfl-matchup-thesis{
+    background:rgba(255,255,255,0.06);
+    border-color:rgba(255,255,255,0.14);
+    color:rgba(248,250,252,0.92);
+    box-shadow:none;
+  }
+  .theme-epilogue .nfl-matchup-thesis__label{
+    color:rgba(248,250,252,0.55);
   }
   .ur-take-ai-panel{
     background:transparent;
@@ -4775,10 +4805,10 @@ export const baseCss = `
   .ur-v2-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 16px;margin-bottom:0;}
   .ur-v2-stat-cell{background:#111;border:0.5px solid #1e1e1e;border-radius:8px;padding:8px 10px;min-height:0;display:flex;flex-direction:column;justify-content:center;}
   .ur-v2-stat-cell--hi{border-color:rgba(0,245,233,.55);box-shadow:0 0 0 1px rgba(0,245,233,.1);}
-  .ur-v2-stat-label{font-family:var(--mono-font);font-size:8px;letter-spacing:0.07em;text-transform:uppercase;color:#444;margin-bottom:4px;}
+  .ur-v2-stat-label{font-family:var(--mono-font);font-size:8px;letter-spacing:0.07em;text-transform:uppercase;color:#94a3b8;margin-bottom:4px;}
   .ur-v2-stat-value{font-size:13px;font-weight:800;color:#fff;line-height:1.35;word-break:break-word;}
   .ur-v2-divider{height:0.5px;background:#141414;margin:8px 16px;border:none;}
-  .ur-v2-body-copy{font-size:14px;line-height:1.65;color:#999;padding:0 16px;}
+  .ur-v2-body-copy{font-size:14px;line-height:1.65;color:#d1d5db;padding:0 16px;}
   .ur-v2-body-prose-wrap--clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
   button.ur-v2-body-expand{margin:6px 16px 0;padding:0;border:none;background:none;color:#00F5E9;font-family:var(--mono-font);font-size:11px;letter-spacing:0.08em;cursor:pointer;text-align:left;touch-action:manipulation;}
   .ur-v2-body-p{margin:0 0 12px;}

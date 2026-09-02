@@ -78,8 +78,10 @@ export function sanitizeLeanBroTone(lean) {
   if (s && !/^Lean:\s/i.test(s)) {
     s = `Lean: ${s}`;
   }
+  // Clip first, then ensure a trailing period so validation `/^Lean:\s*.+\./` still passes.
+  s = s.slice(0, 119).trimEnd();
   if (s && !/\.\s*$/.test(s)) {
-    s = `${s}.`;
+    s = `${s.replace(/[.]+$/g, "")}.`;
   }
   return s.slice(0, 120);
 }

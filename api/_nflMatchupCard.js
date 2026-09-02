@@ -277,14 +277,19 @@ function propImpactKey(pos) {
 function propRawHintsForMarket(marketId, pos) {
   const m = String(marketId || "");
   if (m === "pass_yds") return ["pass_yds", "passing_yards"];
+  if (m === "pass_tds") return ["pass_tds", "passing_tds"];
   if (m === "rush_yds") return ["rush_yds", "rushing_yards"];
+  if (m === "rush_tds") return ["rush_tds", "rushing_tds"];
   if (m === "rec_yds") return ["rec_yds", "receiving_yards"];
+  if (m === "rec_tds") return ["rec_tds", "receiving_tds"];
   if (m === "receptions") return ["receptions"];
   if (m === "anytime_td") return ["anytime_td"];
+  if (m === "first_td") return ["first_td"];
   if (m === "sacks") return ["sacks"];
   if (m === "tackles") return ["tackles", "solo_tackles"];
   if (m === "targets") return ["targets"];
   if (m === "pass_ints") return ["pass_ints", "interceptions"];
+  if (m === "completions_attempts") return ["passing_completions", "passing_attempts", "completions", "attempts"];
   // Position defaults when market is general
   if (pos === "QB") return ["pass_yds", "passing_yards"];
   if (pos === "RB") return ["rush_yds", "rushing_yards"];
@@ -315,9 +320,9 @@ export function pickLivePropLine(propLines, playerName, hints) {
   const best = ranked[0];
   if (!best) return null;
   const raw = String(best.propRaw || best.prop || "").toLowerCase();
+  // Priced prop ask with no matching market → do not show a wrong prop (e.g. yards for TDs).
   if (want.length && !want.some((h) => raw.includes(h))) {
-    // Still return best player row if any prop posted
-    if (!ranked.length) return null;
+    return null;
   }
   return best;
 }

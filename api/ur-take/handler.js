@@ -7490,8 +7490,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           }
 
           // Validate
-          const validation = validateStructuredURTakeResponse(structuredResponse);
+          let validation = validateStructuredURTakeResponse(structuredResponse);
           logLeanContractIfMissing(structuredResponse);
+          if (!validation.valid) {
+            // Guard / lean sanitize can mutate fields after the first repair — try once more
+            // before nuking a usable NFL take into a generic PASS.
+            structuredResponse = repairStructuredForDelivery(structuredResponse, sportHint);
+            if (structuredResponse?.lean) {
+              structuredResponse.lean = sanitizeLeanBroTone(structuredResponse.lean);
+            }
+            validation = validateStructuredURTakeResponse(structuredResponse);
+          }
           if (!validation.valid) {
             console.error("[STRUCTURED_UR_TAKE_VALIDATION_ERROR]", {
               requestId,
@@ -7523,7 +7532,10 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             // Invalid structured response — NFL ships PASS, other sports may fall back to prose.
             structuredResponse =
               sportHint === "nfl"
-                ? buildNflPassStructuredTake("structured_parse_failed")
+                ? repairStructuredForDelivery(
+                    buildNflPassStructuredTake("structured_parse_failed"),
+                    sportHint,
+                  )
                 : null;
           }
         } catch (parseError) {

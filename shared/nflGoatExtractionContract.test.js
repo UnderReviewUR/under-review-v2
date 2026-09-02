@@ -71,6 +71,20 @@ test("extended prop catalog covers defense and volume markets", () => {
   assert.ok(NFL_BRIEFCASE_POCKETS.some((p) => p.alwaysLoad && p.path === "slate.playerProps"));
 });
 
+test("detectNflAskMarket routes passing TDs before yards / general", () => {
+  assert.equal(
+    detectNflAskMarket(
+      "I'm looking at Maye 1.5 passing TDs (NE @ SEA). Should I fade the over, take the under, or pass?",
+    ).marketId,
+    "pass_tds",
+  );
+  assert.deepEqual(
+    detectNflAskMarket("Maye over 1.5 passing TDs").propTypeHints,
+    ["passing_tds", "pass_tds"],
+  );
+  assert.equal(detectNflAskMarket("Mahomes pass yards").marketId, "pass_yds");
+});
+
 test("detectNflAskMarket routes tackles and sacks", () => {
   assert.equal(detectNflAskMarket("Micah Parsons over on sacks?").marketId, "sacks");
   assert.equal(detectNflAskMarket("solo tackles for Roquan").marketId, "tackles");

@@ -525,6 +525,10 @@ export function detectNflAskMarket(question) {
     { id: "pass_ints", label: "INTs thrown", re: /\b(?:ints?|interceptions?)\s+thrown\b|\bthrow(?:s|ing)?\s+(?:an?\s+)?int/, paths: ["slate.playerProps", "players.recentStats", "slate.odds"], props: ["interceptions", "pass_ints"] },
     { id: "def_ints", label: "Defensive INTs", re: /\bdefensive\s+interceptions?\b|\bpicks?\b|\binterceptions?\b/, paths: ["slate.playerProps", "players.recentStats"], props: ["defensive_interceptions", "def_ints", "interceptions"] },
     { id: "anytime_td", label: "Anytime TD", re: /\banytime\s+td\b|\btouchdown\s+scorer\b|\bto\s+score\b/, paths: ["slate.playerProps", "league.injuries", "league.rosters", "players.recentStats"], props: ["anytime_td"] },
+    // Passing TDs before pass yards so "passing TDs" does not fall through to general → yards.
+    { id: "pass_tds", label: "Passing touchdowns", re: /\bpass(?:ing)?\s+(?:tds?|touchdowns?)\b|\bpassing\s+td\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats", "slate.odds"], props: ["passing_tds", "pass_tds"] },
+    { id: "rush_tds", label: "Rushing touchdowns", re: /\brush(?:ing)?\s+(?:tds?|touchdowns?)\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats"], props: ["rushing_tds", "rush_tds"] },
+    { id: "rec_tds", label: "Receiving touchdowns", re: /\breceiv(?:ing)?\s+(?:tds?|touchdowns?)\b|\brec\s+(?:tds?|touchdowns?)\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats"], props: ["receiving_tds", "rec_tds"] },
     { id: "pass_yds", label: "Passing yards", re: /\bpass(?:ing)?\s+yards?\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats", "slate.odds"], props: ["passing_yards"] },
     { id: "rush_yds", label: "Rushing yards", re: /\brush(?:ing)?\s+yards?\b/, paths: ["slate.playerProps", "league.injuries", "league.rosters", "players.recentStats"], props: ["rushing_yards"] },
     { id: "rec_yds", label: "Receiving yards", re: /\breceiv(?:ing|er)?\s+yards?\b|\brec\s+yards?\b|\breceiving\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats"], props: ["receiving_yards"] },
