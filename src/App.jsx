@@ -555,6 +555,11 @@ export default function App() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("ur_theme", activeTheme);
+      const bg = THEMES[activeTheme]?.appBg;
+      if (bg) {
+        document.documentElement.style.background = bg;
+        document.body.style.background = bg;
+      }
     }
   }, [activeTheme]);
 

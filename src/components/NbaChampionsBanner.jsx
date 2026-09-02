@@ -49,16 +49,31 @@ function NbaTrophyIcon() {
   );
 }
 
+/** Celebration window ended — keep component mounted as no-op so App import stays stable. */
+const BANNER_END_ET_YMD = "2026-07-01";
+
+function isBannerWindowActive(nowMs = Date.now()) {
+  try {
+    const ymd = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    return ymd <= BANNER_END_ET_YMD;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * One-time Knicks championship celebration — dismissed state in localStorage.
+ * Expired after Finals season; no longer blocks home with a dark overlay.
  * @param {{ enabled?: boolean }} [props] — keep off NFL/Golf/F1/etc so sport deep links are not blocked.
  */
 export default function NbaChampionsBanner({ enabled = true } = {}) {
-  const [open, setOpen] = useState(() => Boolean(enabled) && !readBannerSeen());
+  const [open, setOpen] = useState(
+    () => Boolean(enabled) && isBannerWindowActive() && !readBannerSeen(),
+  );
   const canvasRef = useRef(null);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !isBannerWindowActive()) {
       setOpen(false);
       return undefined;
     }

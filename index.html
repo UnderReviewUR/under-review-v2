@@ -1,28 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-<script>
-  (function() {
-    try {
-      var sp = new URLSearchParams(window.location.search);
-      var path = (window.location.pathname || '').replace(/\/+$/, '').toLowerCase();
-      var hasDeepLink =
-        path === '/worldcup' ||
-        sp.has('q') ||
-        sp.has('prompt') ||
-        sp.has('wc') ||
-        sp.has('sport') ||
-        sp.has('pro') ||
-        sp.has('predictor') ||
-        sp.has('share') ||
-        sp.has('picks');
-      if (!localStorage.getItem('ur_seen_landing') && !hasDeepLink) {
-        localStorage.setItem('ur_seen_landing', '1');
-        window.location.replace('/about');
-      }
-    } catch(e) {}
-  })();
-</script>
     <meta charset="UTF-8" />
 
     <!-- Mobile + viewport -->
@@ -31,8 +9,8 @@
     <!-- Title -->
     <title>Under Review</title>
 
-    <!-- Theme color (mobile browser UI) -->
-    <meta name="theme-color" content="#070710" />
+    <!-- Theme color (mobile browser UI) — matches crisp paper default -->
+    <meta name="theme-color" content="#CBD5E1" />
 
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
@@ -56,7 +34,7 @@
         width: 100%;
         overflow: hidden;
         position: fixed;
-        background: #070710;
+        background: #CBD5E1;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }

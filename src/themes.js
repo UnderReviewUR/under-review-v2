@@ -30,6 +30,19 @@ export function validateThemeForTier(themeId, tier) {
 
 export function resolveInitialTheme() {
   if (typeof window === "undefined") return DEFAULT_THEME;
+  try {
+    // One-time migrate: free users who still have the old dark default → paper.
+    if (localStorage.getItem("ur_theme_paper_default_v1") !== "1") {
+      localStorage.setItem("ur_theme_paper_default_v1", "1");
+      const prior = localStorage.getItem("ur_theme");
+      const tier = getStoredAccessTier();
+      if ((!prior || prior === "epilogue") && !canUseProThemes(tier)) {
+        localStorage.setItem("ur_theme", DEFAULT_THEME);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
   const stored = localStorage.getItem("ur_theme") || DEFAULT_THEME;
   return validateThemeForTier(stored, getStoredAccessTier());
 }
