@@ -1286,6 +1286,21 @@ export const THEMES = {
       .app.theme-crisp .home-surface-premium .home-live-label {
         color: #64748B;
       }
+      .app.theme-crisp .ur-home-starters-option-a .ur-home-starter-item {
+        background: #FFFFFF;
+        border-color: #E2E8F0;
+        color: #0F172A;
+      }
+      .app.theme-crisp .ur-home-starters-option-a .ur-home-starter-item:hover {
+        border-color: #38BDF8;
+        background: #F8FAFC;
+      }
+      .app.theme-crisp .ur-home-starters-option-a .ur-home-starter-chev {
+        color: #94A3B8;
+      }
+      .app.theme-crisp .ur-home-feed {
+        border-top-color: #CBD5E1;
+      }
     `,
   },
 };
