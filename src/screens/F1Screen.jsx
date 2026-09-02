@@ -21,6 +21,7 @@ export default function F1Screen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
 }) {
   const [weekAgoMs] = useState(() => Date.now() - 7 * 86400000);
 
@@ -45,6 +46,8 @@ export default function F1Screen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
   const f1BoardBelow =

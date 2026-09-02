@@ -3,7 +3,7 @@
  */
 
 /** Home first-session footnote (primary line). */
-export const FREE_TIER_HOME_FOOTNOTE_PRIMARY = "3 free questions · No card · No signup";
+export const FREE_TIER_HOME_FOOTNOTE_PRIMARY = "3 free NFL + La Liga reads · No card · No signup";
 
 /** Home first-session footnote (secondary — optional). */
 export const FREE_TIER_HOME_FOOTNOTE_SECONDARY =
@@ -35,5 +35,5 @@ $9.99/month · cancel anytime`;
  */
 export function freeLimitChipMessage(remaining) {
   const qWord = remaining === 1 ? "question" : "questions";
-  return `${remaining} free ${qWord} left. Pro gives the full read with THE PLAY, not the summary.`;
+  return `${remaining} free ${qWord} left. Pro unlocks THE PLAY and unlimited reads.`;
 }

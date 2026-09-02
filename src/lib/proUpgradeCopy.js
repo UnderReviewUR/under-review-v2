@@ -1,6 +1,6 @@
 /**
- * Outcome-first Pro upgrade copy (modal, chips, nudges, Pro tab).
- * Lead differentiators: full take + THE PLAY, session memory.
+ * Outcome-first Pro upgrade copy — ICP: NFL + La Liga weekend companion.
+ * Lead differentiators: THE PLAY, play tracking, session memory, graded record.
  * No em dashes in user-facing strings.
  */
 
@@ -17,137 +17,130 @@ export {
   freeLimitChipMessage,
 } from "../../shared/freeTierCopy.js";
 
+export { VALUE_TRIAL_DAYS } from "../../shared/valueConversion.js";
+
+export const HOME_ICP_TAGLINE = "NFL + La Liga weekend companion";
+export const HOME_ICP_SUBLINE =
+  "Posted lines, matchup reads, and prop angles before kickoff.";
+
 export const THREAD_UPGRADE_NUDGE_TEXT =
-  "Get the full take with THE PLAY. Pro recalls your recent takes across the slate.";
+  "Like the read? Try Pro free for 7 days — THE PLAY, tracking, and unlimited NFL + La Liga takes.";
+
+export const THREAD_UPGRADE_NUDGE_CTA = "Try 7 days free";
+
+export const VALUE_TRIAL_MODAL_HEADLINE = "Your slate reads are working";
+export const VALUE_TRIAL_MODAL_SUB = "Keep the weekend edge going.";
+export const VALUE_TRIAL_MODAL_BODY =
+  "7 days unlimited on NFL + La Liga: THE PLAY on every ask, play tracking, and your graded record. Then $9.99/mo — cancel anytime.";
+export const VALUE_TRIAL_CTA_LABEL = "Start 7-day free trial";
+
+export const TRACK_PLAY_PRO_TEASER = "Track THE PLAY · Pro";
 
 export const LEDGER_TEASER_UNLOCK =
-  "Your full record. Every THE PLAY tracked and graded with Pro.";
+  "Your graded record: every THE PLAY tracked, win/loss tallied, CLV proxy on structure.";
+
+export const LEDGER_RENEWAL_HEADLINE = "Your record is the product";
+export const LEDGER_RENEWAL_BODY = (wins, losses, pushes, roiUnits) =>
+  `${wins}-${losses}-${pushes} graded · ${roiUnits > 0 ? "+" : ""}${Number(roiUnits).toFixed(1)}u ROI. Keep every play tracked and graded — not just unlimited asks.`;
 
 export const PRO_UNLOCK_BUTTON_LABEL = "Unlock Pro · $9.99/mo";
 
 export const PRO_RESTORE_RECEIPT_HINT =
   "New phone or browser? Enter the email from your Stripe receipt. We'll email you a secure login link.";
 
-export const PRO_SUBSCRIPTION_BODY = `UR Take reads the slate: lineups, lines, and matchup context.
-Then it closes with a direct call.
-Not picks. A real-time edge with THE PLAY every time.
-World Cup match reads update when XIs confirm.`;
+export const PRO_SUBSCRIPTION_BODY = `Built for NFL and La Liga weekends: posted lines, injury context, and prop boards before kickoff.
+Every Pro take closes with THE PLAY — what to bet and why.
+Your plays grade into a running record you can trust.`;
 
 /** @type {[string, string][]} */
 export const PRO_VALUE_GRID_ROWS = [
   [
-    "KNOW BEFORE THE LINE MOVES",
-    `Lineup gaps, injury context,
-and pace math before the market
-adjusts.`,
+    "NFL + LA LIGA WEEKENDS",
+    `Posted spreads, totals, and props
+on today's verified board.
+Ask before the line moves.`,
   ],
   [
     "THE PLAY. EVERY TIME.",
-    `Every response closes with a
+    `Every Pro response closes with a
 direct call. No hedging.
 No 'on the other hand.'`,
   ],
   [
-    "IT REMEMBERS. YOU BUILD.",
-    `Follow-ups carry context in each thread.
-Pro recalls recent takes across sessions.
-Your angles compound.`,
+    "YOUR GRADED RECORD",
+    `Track THE PLAY. Win/loss and ROI
+update as markets settle.
+Renew because the record matters.`,
   ],
   [
-    "ASK EVERYTHING. PAY NOTHING EXTRA.",
-    `No weekly ceiling. No per-query
-fees. One price, unlimited reads.`,
+    "SESSION MEMORY",
+    `Follow-ups stay in context.
+Pro recalls recent takes across
+sessions on the same slate.`,
   ],
 ];
 
 export const PRO_CTA_BULLETS = [
-  "Lines move. You move first.",
-  "Real-time edges, not yesterday's picks",
-  "Built to beat the market",
+  "NFL + La Liga boards every weekend",
+  "THE PLAY + graded record, not generic AI",
+  "7-day trial — then $9.99/mo",
 ];
 
 export const PRO_PROOF_LINES = [
-  `Injury and lineup moves tracked across active slates.
-The market reacts slower than this.`,
-  `280+ player profiles updated every 30 minutes.
-World Cup, NBA, Golf, and MLB plus the broader seasonal library.`,
-  `Live game scripts adjust in real time.
-You know before the line moves.`,
+  `NFL props and spreads from verified boards — not stale pick lists.`,
+  `La Liga 1X2 and goalscorer lines when the matchweek is live.`,
+  `Every tracked play grades to win/loss so you see what actually worked.`,
 ];
 
 /**
- * Pro tab feature list: differentiators, active nav sports, then seasonal library.
+ * Pro tab feature list — NFL + La Liga first; other sports de-emphasized.
  * @type {Array<{ kind: "section", label: string } | { kind: "feature", color: string, name: string, desc: string }>}
  */
 export const PRO_PAGE_FEATURE_ROWS = [
-  { kind: "section", label: "Pro differentiators" },
+  { kind: "section", label: "Weekend companion" },
   {
     kind: "feature",
-    color: "#C9A227",
-    name: "Session Memory",
-    desc: "Follow-ups stay in context inside each thread. Pro recalls your last few takes across sessions so the next read builds on what you already asked.",
+    color: "#4A90D9",
+    name: "NFL: Props, Spreads & Match Reads",
+    desc: "Verified weekly slate: passing TDs, spreads, totals, and injury-aware matchup reads on today's board.",
   },
+  {
+    kind: "feature",
+    color: "#EE4444",
+    name: "La Liga: 1X2 & Goalscorer Props",
+    desc: "Matchweek board with posted moneylines and scorer props. Bet, fade, or pass before kickoff.",
+  },
+  { kind: "section", label: "Pro differentiators" },
   {
     kind: "feature",
     color: "var(--cyan-bright)",
     name: "THE PLAY, Every Time",
-    desc: "The full conviction read: what to bet and why. Free gets the summary; Pro closes with a mandatory play call.",
+    desc: "The full conviction read: what to bet and why. Free gets analysis + soft lean only.",
+  },
+  {
+    kind: "feature",
+    color: "#C9A227",
+    name: "Play Tracker + Graded Record",
+    desc: "Track THE PLAY on every response. Win/loss and ROI build your record — the renewal reason.",
+  },
+  {
+    kind: "feature",
+    color: "#C9A227",
+    name: "Session Memory",
+    desc: "Follow-ups stay in context. Pro recalls your last few takes across sessions on the same slate.",
   },
   {
     kind: "feature",
     color: "var(--cyan-bright)",
-    name: "Betting Companion, Not a Chatbot",
-    desc: "Deeper responses that carry your angles forward. Built for how you actually bet the slate.",
+    name: "Betting Style",
+    desc: "Bold and committed, or full picture to decide. Toggle anytime.",
   },
-  {
-    kind: "feature",
-    color: "var(--cyan-bright)",
-    name: "Betting Style Personalization",
-    desc: "Tell UR Take how you approach your bets. Bold and committed, or full picture to decide. Toggle anytime.",
-  },
-  { kind: "section", label: "Active now" },
-  {
-    kind: "feature",
-    color: "#00F5E9",
-    name: "World Cup 2026: Match Reads & Knockout",
-    desc: "XI-aware match reads, group-winner lines, and advancement angles when lineups confirm.",
-  },
+  { kind: "section", label: "More sports (seasonal)" },
   {
     kind: "feature",
     color: "#FF6B00",
-    name: "NBA: PRA Calibration",
-    desc: "Pace-adjusted floors and ceilings. Live injury replacement plays in real time.",
-  },
-  {
-    kind: "feature",
-    color: "#FFFFFF",
-    name: "Golf: Course Fit & Matchup H2Hs",
-    desc: "PGA SG profiles, make-cut plays, and outright value the market underprices weekly.",
-  },
-  {
-    kind: "feature",
-    color: "#1DB954",
-    name: "MLB: Pitcher K Props",
-    desc: "Park-adjusted, platoon-split, barrel rate. Know before the line moves on pitcher K props and slate reads.",
-  },
-  { kind: "section", label: "Seasonal library (included with Pro)" },
-  {
-    kind: "feature",
-    color: "#4A90D9",
-    name: "NFL: QB, RB, WR & TE Database",
-    desc: "NFL Predictor live now. TD rates, prop floors, and scheme angles. Full live UR Take props return with the 2026 season.",
-  },
-  {
-    kind: "feature",
-    color: "#FFE600",
-    name: "Tennis: Elo + Surface Edges",
-    desc: "ATP/WTA rally profiles, serve baselines, and draw-path value across every surface.",
-  },
-  {
-    kind: "feature",
-    color: "#E10600",
-    name: "F1: Race-Day Angles",
-    desc: "Full 2026 driver grid. Race-day edges the market has not priced yet.",
+    name: "NBA, MLB, Golf, Tennis, F1, World Cup",
+    desc: "Seasonal library included with Pro. We are not expanding the front door until NFL and La Liga boards are elite every weekend.",
   },
 ];
 

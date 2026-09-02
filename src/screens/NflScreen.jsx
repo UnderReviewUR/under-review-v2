@@ -28,6 +28,7 @@ export default function NflScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
   nflGames = [],
   nflPropLines = [],
   nflBoardLoading = false,
@@ -49,6 +50,7 @@ export default function NflScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
 

@@ -221,6 +221,7 @@ export default function GolfScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
 }) {
   const [lastKnownEventSnapshot, setLastKnownEventSnapshot] = useState(null);
 
@@ -316,6 +317,8 @@ export default function GolfScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+
+    onValueTrialClick,
     hideFollowUpDock: true,
     golfSessionBoard,
   };

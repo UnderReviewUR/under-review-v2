@@ -33,6 +33,12 @@ import {
   formatStructuredResponseAsUrTakeProse,
 } from "./wc/rulesDelivery.js";
 import {
+  FREE_TIER_UR_TAKE_APPENDIX,
+  maskStructuredForFreeTier,
+  stripThePlayFromProse,
+} from "../../shared/freeTierTakeShape.js";
+import { extractBoardCountsFromSportContext } from "../../shared/urTakeSessionHealth.js";
+import {
   applyNbaConfidenceModifiers,
   applyNbaMarketInvalidation,
   buildAllowedMatchupPlayerPool,
@@ -2715,6 +2721,7 @@ export default async function handler(req, res) {
     req.body?.bettingStyle === "limits"
       ? "limits"
       : "balanced";
+  const effectiveBettingStyle = isPro ? bettingStyle : "balanced";
 
   const normalizedUrTakeHistoryForGate = normalizeIncomingChatHistory(incomingHistory);
   const conversationFollowUpMeta = resolveUrTakeConversationFollowUp(
@@ -4537,7 +4544,7 @@ export default async function handler(req, res) {
   });
   const takeClientPayload = (takeRecord) => ({
     id: takeRecord.id,
-    playLine: takeRecord.playLine,
+    playLine: isPro ? takeRecord.playLine : null,
     confidence: takeRecord.confidence,
     status: takeRecord.status,
     trust: takeTrustUi,
@@ -4563,7 +4570,7 @@ export default async function handler(req, res) {
     hasMatchupContext: Boolean(matchupContext),
     evidenceSparsityProfile,
     liveSignals,
-    bettingStyle,
+    bettingStyle: effectiveBettingStyle,
     memoryBlock,
     longFormRequested,
   });
@@ -4665,9 +4672,9 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
       intent: nbaIntentForMemory,
     });
   }
-  const priorTakesSummary = [sessionMemory.summary, sessionMemory.conversationTransitionBlock]
-    .filter(Boolean)
-    .join("\n\n");
+  const priorTakesSummary = isPro
+    ? [sessionMemory.summary, sessionMemory.conversationTransitionBlock].filter(Boolean).join("\n\n")
+    : "";
   const nbaImpactSummary =
     sportHint === "nba" ? summarizeNbaNewsImpact(nbaNewsImpact) : "";
   const nbaStatusShiftLine =
@@ -6411,6 +6418,12 @@ IMAGE MARKETS (binding): The user attached a World Cup screenshot that shows pos
       !isConversationFollowUp &&
       !draftTeamSimulationInject;
 
+    const shouldApplyFreeTierAppendix =
+      !isPro &&
+      outputJsonMode === "plain" &&
+      !isConversationFollowUp &&
+      !draftTeamSimulationInject;
+
     const proDepthAppendix = shouldApplyProDepthAppendix ? `
 
 [PRO SESSION — DEPTH UNLOCKED]
@@ -6429,7 +6442,11 @@ You are responding to a Pro subscriber. Apply the following:
 - Never fabricate a line, spread, or total that is not present in the context payload. If odds are unavailable, the verdict close must be directional only — no invented numbers.
 ` : "";
 
-    const systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}`;
+    const freeTierAppendix = shouldApplyFreeTierAppendix
+      ? `\n\n${FREE_TIER_UR_TAKE_APPENDIX}`
+      : "";
+
+    const systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}${freeTierAppendix}`;
 
     if (sportHint === "nba" && nbaContext?.rosterGrounding) {
       console.log(
@@ -8403,6 +8420,25 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
     }
 
+    if (!isPro) {
+      if (structuredResponse && typeof structuredResponse === "object") {
+        structuredResponse = maskStructuredForFreeTier(structuredResponse);
+        if (sportHint === "worldcup" && wcIntent !== WC_INTENT.RULES) {
+          responseText = formatWcCompactDisplayText(
+            structuredResponse,
+            stripThePlayFromProse(responseText),
+          );
+        } else if (!isNbaFinalsStructured(structuredResponse)) {
+          const formatted = formatStructuredResponseAsUrTakeProse(structuredResponse);
+          if (formatted.trim()) responseText = formatted;
+          else responseText = stripThePlayFromProse(responseText);
+        }
+      } else if (responseText) {
+        responseText = stripThePlayFromProse(responseText);
+      }
+      if (responseDeep) responseDeep = stripThePlayFromProse(responseDeep);
+    }
+
     if (userEmail && isPro && !isConversationFollowUp) {
       void (async () => {
         try {
@@ -8559,7 +8595,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         event: "ur_take_complete",
         sport: sportHint,
         mode: nbaDecisionMode || "standard",
-        bettingStyle,
+        bettingStyle: effectiveBettingStyle,
         oddsAvailable,
         fallback: nbaFallbackOrRepairUsed || false,
         confidenceTier: takeRecord?.confidence || "unknown",
@@ -8568,6 +8604,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         durationMs: Date.now() - requestStart,
         isFollowUp: isConversationFollowUp,
         isPro,
+        ...(sportHint === "nfl" || sportHint === "laliga"
+          ? (() => {
+              const counts = extractBoardCountsFromSportContext(
+                sportHint,
+                sportHint === "nfl" ? nflContext : req.body?.laligaContext,
+              );
+              return {
+                boardMatchCount: counts.matchCount,
+                boardPropLineCount: counts.propLineCount,
+                boardMatchesOk: counts.matchCount > 0,
+                boardPropLinesOk: counts.propLineCount > 0,
+              };
+            })()
+          : {}),
         qa: qaSummaryForLog,
         liveMode: liveModeFlag,
         hasLiveKeyword: Boolean(liveSignals?.hasLiveKeyword),

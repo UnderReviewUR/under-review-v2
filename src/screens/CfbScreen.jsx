@@ -17,6 +17,7 @@ export default function CfbScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
   cfbGames = [],
   cfbPropLines = [],
   cfbBoardLoading = false,
@@ -30,6 +31,8 @@ export default function CfbScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
 

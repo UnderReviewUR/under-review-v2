@@ -46,6 +46,13 @@ import {
   PRO_UNLOCK_BUTTON_LABEL,
   PRO_RESTORE_RECEIPT_HINT,
 } from "./lib/proUpgradeCopy.js";
+import ValueTrialModal from "./components/ValueTrialModal.jsx";
+import {
+  incrementSuccessfulTakeCount,
+  markTrackPlayAttemptSession,
+  markValueTrialOfferShown,
+  shouldOfferValueTrial,
+} from "../shared/valueConversion.js";
 import { getOrCreateUrSessionId } from "./lib/urSessionId.js";
 import {
   formatLastLeanSportLabel,
@@ -53,6 +60,17 @@ import {
   saveUrLastLean,
 } from "./lib/urLastLean.js";
 import { synthesizeLeanLine } from "./lib/urTakeLean.js";
+import {
+  maskStructuredForFreeTier,
+  stripThePlayFromProse,
+} from "../shared/freeTierTakeShape.js";
+import {
+  deriveAskSessionHealthFromMsgs,
+  deriveScopedBoardHealth,
+  markPaywallSuppressedSession,
+  readPaywallSuppressedSession,
+  shouldSuppressPaywallPush,
+} from "../shared/urTakeSessionHealth.js";
 import { PerformanceContext } from "./context/PerformanceContext.jsx";
 import {
   THEMES,
@@ -923,6 +941,8 @@ ${themeCss}
   }, []);
 
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showValueTrialModal, setShowValueTrialModal] = useState(false);
+  const [valueTrialSurface, setValueTrialSurface] = useState("unknown");
   const [showEmailGateModal, setShowEmailGateModal] = useState(false);
   const [emailGateInput, setEmailGateInput] = useState("");
   const [emailGateError, setEmailGateError] = useState("");
@@ -937,6 +957,7 @@ ${themeCss}
       return false;
     }
   });
+  const [paywallSuppressedRevision, setPaywallSuppressedRevision] = useState(0);
   const [showRestoreAccessModal, setShowRestoreAccessModal] = useState(false);
   const [restoreAccessEmail, setRestoreAccessEmail] = useState("");
   const [restoreAccessError, setRestoreAccessError] = useState("");
@@ -959,6 +980,97 @@ ${themeCss}
   }, [freeUsedRevision]);
 
   const freeQuotaLimit = hasStoredFreeTierEmail() ? FREE_LIMIT : FREE_SESSION_QUESTION_LIMIT;
+
+  const paywallSuppressedSession = useMemo(() => {
+    void paywallSuppressedRevision;
+    return readPaywallSuppressedSession();
+  }, [paywallSuppressedRevision]);
+
+  const bumpPaywallSuppressed = useCallback(() => {
+    markPaywallSuppressedSession();
+    setPaywallSuppressedRevision((n) => n + 1);
+  }, []);
+
+  const scopedBoardHealth = useMemo(() => {
+    const onNfl = screen === "nfl" || tab === "nfl";
+    const onLaliga = screen === "laliga" || tab === "laliga";
+    if (onNfl) {
+      return deriveScopedBoardHealth({
+        sport: "nfl",
+        matchCount: nflGames?.length ?? 0,
+        propLineCount: nflPropLines?.length ?? 0,
+        boardLoading: nflBoardLoading,
+        feedDegraded: !nflBoardLoading && !nflBoard && isNavSportVisible("nfl"),
+      });
+    }
+    if (onLaliga) {
+      return deriveScopedBoardHealth({
+        sport: "laliga",
+        matchCount: laligaMatches?.length ?? 0,
+        propLineCount: laligaPropLines?.length ?? 0,
+        boardLoading: laligaBoardLoading,
+        feedDegraded: !laligaBoardLoading && !laligaBoard && isNavSportVisible("laliga"),
+      });
+    }
+    return { scoped: false, healthy: true, reason: null };
+  }, [
+    screen,
+    tab,
+    nflGames,
+    nflPropLines,
+    nflBoardLoading,
+    nflBoard,
+    laligaMatches,
+    laligaPropLines,
+    laligaBoardLoading,
+    laligaBoard,
+  ]);
+
+  useEffect(() => {
+    if (accessTier !== "free") return;
+    if (scopedBoardHealth.scoped && scopedBoardHealth.healthy === false) {
+      bumpPaywallSuppressed();
+    }
+  }, [accessTier, scopedBoardHealth, bumpPaywallSuppressed]);
+
+  const maybeOfferValueTrial = useCallback(
+    (surface, opts = {}) => {
+      if (accessTier !== "free") return;
+      if (
+        shouldSuppressPaywallPush({
+          paywallSuppressedSession,
+          boardHealth: scopedBoardHealth,
+        })
+      ) {
+        return;
+      }
+      if (
+        !shouldOfferValueTrial({
+          ...opts,
+          isPro: false,
+          paywallSuppressed: false,
+        })
+      ) {
+        return;
+      }
+      markValueTrialOfferShown();
+      setValueTrialSurface(String(surface || "unknown"));
+      setShowValueTrialModal(true);
+    },
+    [accessTier, paywallSuppressedSession, scopedBoardHealth],
+  );
+
+  const openValueTrialModal = useCallback(
+    (surface = "unknown") => {
+      maybeOfferValueTrial(surface, { trackAttempt: true });
+    },
+    [maybeOfferValueTrial],
+  );
+
+  const handleTrackPlayAttempt = useCallback(() => {
+    markTrackPlayAttemptSession();
+    openValueTrialModal("track_play");
+  }, [openValueTrialModal]);
 
   const accessTierRef = useRef(accessTier);
   useEffect(() => {
@@ -1271,8 +1383,9 @@ ${themeCss}
       enabled: isUnlimited,
       trackedIds: trackedUrTakeMessageIds,
       onTrack: handleTrackPlay,
+      onTrackAttempt: isUnlimited ? null : handleTrackPlayAttempt,
     }),
-    [isUnlimited, trackedUrTakeMessageIds, handleTrackPlay],
+    [isUnlimited, trackedUrTakeMessageIds, handleTrackPlay, handleTrackPlayAttempt],
   );
 
   useEffect(() => {
@@ -1637,6 +1750,9 @@ ${themeCss}
 
   // ── Core AI call ───────────────────────────────────────────────────────────
   const askUrTake = useCallback(async ({ text, matchup, setMsgs, sportHint, followUpTelemetry, wcEventId, wcMatchTeams }) => {
+    const markUnhealthySession = () => {
+      if (accessTierRef.current === "free") bumpPaywallSuppressed();
+    };
   text = autocorrectUrTakeQuestion(String(text || "").trim()).text;
   if (!text || isAsking) return;
   if (!canAsk()) return;
@@ -2116,6 +2232,7 @@ ${themeCss}
             ...urTakeClientFailureDebugAttachment(accessTierRef.current, dbgAuth),
           },
         ]);
+        markUnhealthySession();
         return;
       }
       const dbgFetchNonOk = buildUrTakeClientFailureDebug({
@@ -2162,6 +2279,7 @@ ${themeCss}
             error: "upstream_503",
           });
         }
+        markUnhealthySession();
         return;
       }
       let msg = `/api/ur-take ${res.status}: ${raw.slice(0, 600)}`;
@@ -2343,6 +2461,7 @@ ${themeCss}
           error: "upstream_rate_limit",
         });
       }
+      markUnhealthySession();
       return;
     }
 
@@ -2436,6 +2555,10 @@ ${themeCss}
       };
     }
 
+    if (!isUnlimited && structuredForBubble) {
+      structuredForBubble = maskStructuredForFreeTier(structuredForBubble);
+    }
+
     let apiSuccessFallbackDbg = null;
     if (isApiSuccessFallback) {
       apiSuccessFallbackDbg = buildUrTakeApiSuccessFallbackDebug(data, effectiveSportHint, {
@@ -2505,11 +2628,15 @@ ${themeCss}
             ? String(lastUserWcEventId).trim()
             : null;
 
-    const bubbleResponseText =
+    const bubbleResponseTextRaw =
       structuredForBubble &&
       String(structuredForBubble.sport || sportForBubble || "").toLowerCase() === "worldcup"
         ? formatWcCompactDisplayText(structuredForBubble, normalizedDisplay.response)
         : normalizedDisplay.response;
+    const bubbleResponseText =
+      !isUnlimited && !isApiSuccessFallback
+        ? stripThePlayFromProse(bubbleResponseTextRaw)
+        : bubbleResponseTextRaw;
 
     const bubbleSport =
       String(structuredForBubble?.sport || "").trim().toLowerCase() ||
@@ -2630,6 +2757,13 @@ ${themeCss}
       return next;
     });
 
+    if (isApiSuccessFallback) markUnhealthySession();
+
+    if (!isUnlimited && !isApiSuccessFallback) {
+      const takeCount = incrementSuccessfulTakeCount();
+      maybeOfferValueTrial("second_take", { successfulTakes: takeCount });
+    }
+
     if (!isUnlimited && structuredForBubble && !isApiSuccessFallback) {
       const leanLine = String(structuredForBubble.lean || "").trim();
       if (leanLine) {
@@ -2733,6 +2867,7 @@ ${themeCss}
         ...urTakeClientFailureDebugAttachment(accessTierRef.current, failureDbg),
       },
     ]);
+    if (!failSoft.showUpgrade) markUnhealthySession();
   } finally {
     setIsAsking(false);
     urTakeInFlightRef.current = false;
@@ -2764,6 +2899,8 @@ ${themeCss}
   screen,
   nbaUrTakeFocusGameKey,
   nflUrTakeGated,
+  bumpPaywallSuppressed,
+  maybeOfferValueTrial,
 ]);
 
   // ── Player lookups ─────────────────────────────────────────────────────────
@@ -3899,6 +4036,14 @@ ${themeCss}
   const freeLimitChip = useMemo(() => {
     if (accessTier !== "free") return null;
     if (freeLimitChipDismissedSession) return null;
+    if (
+      shouldSuppressPaywallPush({
+        paywallSuppressedSession,
+        boardHealth: scopedBoardHealth,
+      })
+    ) {
+      return null;
+    }
     if (!freeTierApproachingLimit(freeUsedCount, freeQuotaLimit)) return null;
     const remaining = Math.max(0, freeQuotaLimit - freeUsedCount);
     const qWord = remaining === 1 ? "question" : "questions";
@@ -3929,6 +4074,8 @@ ${themeCss}
     freeUsedCount,
     freeQuotaLimit,
     openUpgradeModal,
+    paywallSuppressedSession,
+    scopedBoardHealth,
   ]);
 
   const goGolf = useCallback(() => {
@@ -5178,6 +5325,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpTennis}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
           />
         )}
 
@@ -5274,6 +5422,7 @@ ${themeCss}
                 accessTier={accessTier}
                 onUrTakeFollowUpPick={urTakeFollowUpNfl}
                 onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
                 nflGames={nflGames}
                 nflPropLines={nflPropLines}
                 nflBoardLoading={nflBoardLoading}
@@ -5308,6 +5457,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpCfb}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
             cfbGames={cfbGames}
             cfbPropLines={cfbPropLines}
             cfbBoardLoading={cfbBoardLoading}
@@ -5331,6 +5481,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpLaliga}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
             laligaMatches={laligaMatches}
             laligaPropLines={laligaPropLines}
             laligaStandings={laligaStandings}
@@ -5399,6 +5550,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpF1}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
           />
         )}
 
@@ -5422,6 +5574,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpNba}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
             getSeriesLabel={getSeriesLabel}
           />
         )}
@@ -5446,6 +5599,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpMlb}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
           />
         )}
 
@@ -5474,6 +5628,7 @@ ${themeCss}
             askBarCommon={askBarCommon}
             accessTier={accessTier}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
             wcScreenNav={wcScreenNav}
             onWcScreenNavConsumed={clearWcScreenNav}
             onUrTakeRetry={(prompt) => submitWc(prompt, { inheritThread: true })}
@@ -5517,6 +5672,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpGolf}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
           />
         )}
 
@@ -6156,7 +6312,7 @@ ${themeCss}
         <span style={{fontSize:64,fontWeight:800,color:"var(--cyan-bright)",letterSpacing:-2,lineHeight:1}}>.99</span>
         <span style={{fontSize:12,color:"var(--muted)",alignSelf:"flex-end",paddingBottom:8,marginLeft:4}}>/month</span>
       </div>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>$9.99/month · cancel anytime</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,letterSpacing:2,color:proMarketing.trialLine ?? "rgba(0,245,233,.35)",textTransform:"uppercase",marginBottom:18}}>7-day free trial · then $9.99/mo · cancel anytime</div>
       <ProCheckoutCTA
         className="pro-cta-btn"
         restoreProEntitlement={restoreProEntitlement}
@@ -6164,7 +6320,7 @@ ${themeCss}
       >
         Unlock Live Edges →
       </ProCheckoutCTA>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>$9.99/month · cancel anytime · 3 free questions to start</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>NFL + La Liga weekends · 3 free reads to start</div>
     </div>
     )}
 
@@ -6248,17 +6404,11 @@ ${themeCss}
       Display mode
     </div>
     <div style={{ fontSize:10, color: dm.subtitle, fontFamily:"var(--mono-font)", letterSpacing:0.4, marginBottom:12, lineHeight:1.45 }}>
-      {canUseProThemes(accessTier)
-        ? accessTier === "owner"
-          ? "Choose your look. Pro unlocks two additional themes."
-          : "Pro: Broadsheet (newsprint) or Crisp Sport (slate). Everyone else stays on Authority dark."
-        : "Light editions unlock with Pro or an owner access code."}
+      Crisp paper is the default. Switch to Authority dark anytime, or Broadsheet for newsprint.
     </div>
 
     <div style={{display:"flex",flexDirection:"column",gap:8}}>
-      {Object.values(THEMES)
-        .filter((theme) => !theme.proOnly || canUseProThemes(accessTier))
-        .map((theme) => {
+      {Object.values(THEMES).map((theme) => {
           const isActive = activeTheme === theme.id;
 
           return (
@@ -6424,6 +6574,7 @@ ${themeCss}
               accessTier={accessTier}
               onUrTakeFollowUpPick={urTakeFollowUpMatchup}
               onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
               hideFollowUpDock
             />
             <UrTakeFollowUpDockStrip msgs={matchupMsgs} onPick={urTakeFollowUpMatchup} />
@@ -6476,6 +6627,7 @@ ${themeCss}
             accessTier={accessTier}
             onUrTakeFollowUpPick={urTakeFollowUpAsk}
             onUpgradePromptClick={openUpgradeModal}
+            onValueTrialClick={openValueTrialModal}
             fileInputRef={fileInputRef}
             savedTakes={savedTakes}
             onSaveLastUrTake={onSaveLastUrTake}
@@ -6639,6 +6791,14 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
             </div>
           </div>
         )}
+
+        <ValueTrialModal
+          open={showValueTrialModal}
+          surface={valueTrialSurface}
+          onClose={() => setShowValueTrialModal(false)}
+          onAlreadyPro={restoreProEntitlement}
+          setUserEmail={setUserEmail}
+        />
 
         {/* ══ EMAIL GATE MODAL (anonymous session limit — question 4) ══ */}
         {showEmailGateModal && (

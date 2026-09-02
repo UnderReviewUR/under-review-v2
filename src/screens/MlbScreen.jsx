@@ -20,6 +20,7 @@ export default function MlbScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
 }) {
   const gamesForState =
     Array.isArray(mlbGames) && mlbGames.length > 0
@@ -36,6 +37,8 @@ export default function MlbScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
   const mlbBoardBelow =

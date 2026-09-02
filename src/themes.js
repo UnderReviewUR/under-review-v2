@@ -1,6 +1,6 @@
-export const DEFAULT_THEME = "epilogue";
+export const DEFAULT_THEME = "crisp";
 
-/** Light themes: paid Pro or owner-tier access codes (not friend / free). */
+/** Light themes: available to all tiers (free defaults to crisp paper). */
 export function canUseProThemes(tier) {
   return tier === "pro" || tier === "owner";
 }
@@ -365,7 +365,7 @@ export const THEMES = {
   epilogue: {
     id: "epilogue",
     name: "Authority",
-    label: "Epilogue Dark — default",
+    label: "Authority — dark mode",
     proOnly: false,
     appBg: "#070710",
     css: `
@@ -555,7 +555,7 @@ export const THEMES = {
     id: "broadsheet",
     name: "Broadsheet Edition",
     label: "Broadsheet — newspaper light",
-    proOnly: true,
+    proOnly: false,
     appBg: "#E0D8CC",
     css: `
       /* BROADSHEET LIGHT (Pro) — cream paper + ink masthead */
@@ -815,8 +815,8 @@ export const THEMES = {
   crisp: {
     id: "crisp",
     name: "Crisp Sport",
-    label: "Crisp Sport — slate light",
-    proOnly: true,
+    label: "Crisp Sport — slate light (default)",
+    proOnly: false,
     appBg: "#CBD5E1",
     css: `
       /* CRISP SPORT LIGHT (Pro) — slate / sky accent */

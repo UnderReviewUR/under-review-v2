@@ -31,6 +31,7 @@ export default function NbaScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
   getSeriesLabel = null,
 }) {
   const gamesForState = Array.isArray(verifiedNbaGames) ? verifiedNbaGames : [];
@@ -99,6 +100,8 @@ export default function NbaScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
 

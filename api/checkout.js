@@ -48,6 +48,10 @@ export default async function handler(req, res) {
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const raw = body.email ?? body.Email;
     const email = String(raw || "").trim().toLowerCase();
+    const wantsTrial =
+      body.trial === true ||
+      body.trial === "true" ||
+      String(body.offer || "").toLowerCase() === "weekend_trial";
     if (!isValidCheckoutEmail(email)) {
       return res.status(400).json({
         error: "email_required",
@@ -117,9 +121,17 @@ export default async function handler(req, res) {
         customer_email: email,
         success_url: `${appBase}/?${successQs.toString()}`,
         cancel_url: `${appBase}/?pro=cancelled`,
+        ...(wantsTrial
+          ? {
+              subscription_data: {
+                trial_period_days: 7,
+              },
+            }
+          : {}),
         metadata: {
           product: "under_review_pro",
           tier: "pro",
+          ...(wantsTrial ? { trial: "7d" } : {}),
         },
       },
       {

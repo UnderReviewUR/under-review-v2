@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   inferSportFromQuestionText,
@@ -18,7 +18,12 @@ import {
   isWcDockCompactEligible,
 } from "../../lib/wcTakeCardLayout.js";
 import { synthesizeLeanLine } from "../../lib/urTakeLean.js";
-import { THREAD_UPGRADE_NUDGE_TEXT } from "../../lib/proUpgradeCopy.js";
+import { THREAD_UPGRADE_NUDGE_TEXT, THREAD_UPGRADE_NUDGE_CTA, TRACK_PLAY_PRO_TEASER } from "../../lib/proUpgradeCopy.js";
+import {
+  deriveAskSessionHealthFromMsgs,
+  readPaywallSuppressedSession,
+  shouldSuppressPaywallPush,
+} from "../../../shared/urTakeSessionHealth.js";
 import { normalizeText } from "../../lib/normalizeText.js";
 import { polishUrTakeFollowUpPhrase } from "../../lib/polishUrTakeFollowUpPhrase.js";
 import { CHASE_CALM_COPY } from "../../lib/chaseSignals.js";
@@ -2072,8 +2077,43 @@ function UrTakeAiBubble({
     Boolean(trackPlay?.trackedIds?.length) &&
     m.msgId &&
     trackPlay.trackedIds.includes(m.msgId);
-  const showTrack =
-    Boolean(trackPlay?.enabled) && Boolean(m.msgId) && hasThePlay && typeof trackPlay.onTrack === "function";
+  const showTrackPro =
+    Boolean(trackPlay?.enabled) &&
+    Boolean(m.msgId) &&
+    hasThePlay &&
+    typeof trackPlay.onTrack === "function";
+  const showTrackTeaser =
+    Boolean(trackPlay?.onTrackAttempt) &&
+    Boolean(m.msgId) &&
+    (hasThePlay || Boolean(m.structured?.lean));
+  const showTrack = showTrackPro || showTrackTeaser;
+  const trackButtonLabel = showTrackPro
+    ? tracked
+      ? "✓ Tracked"
+      : isTracking
+        ? "Tracking..."
+        : "Track this play"
+    : tracked
+      ? "✓ Tracked"
+      : isTracking
+        ? "…"
+        : TRACK_PLAY_PRO_TEASER;
+
+  const runTrackPlayClick = async () => {
+    if (tracked || isTracking) return;
+    if (showTrackPro && typeof trackPlay.onTrack === "function") {
+      setIsTracking(true);
+      try {
+        await Promise.resolve(trackPlay.onTrack(m));
+      } finally {
+        setIsTracking(false);
+      }
+      return;
+    }
+    if (typeof trackPlay?.onTrackAttempt === "function") {
+      trackPlay.onTrackAttempt(m);
+    }
+  };
   const takeId = String(m.takeMeta?.id || "").trim();
   const showBetSignal = Boolean(takeId && hasThePlay);
   const trustChips = m.takeMeta?.trust ? <UrTakeTrustChips trust={m.takeMeta.trust} /> : null;
@@ -2325,6 +2365,32 @@ function UrTakeAiBubble({
         {!hideTakeExtras ? wcConfidenceChip : null}
         {!hideTakeExtras ? trustChips : null}
         {!hideTakeExtras ? betSignalRow : null}
+        {!hideTakeExtras && showTrack ? (
+          <button
+            type="button"
+            onClick={runTrackPlayClick}
+            disabled={tracked || isTracking}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "1px solid rgba(255,61,143,0.35)",
+              borderRadius: 6,
+              padding: "5px 10px",
+              cursor: tracked || isTracking ? "default" : "pointer",
+              marginTop: 8,
+              fontFamily: "var(--mono-font)",
+              fontSize: 9,
+              letterSpacing: 1.5,
+              color: tracked ? "rgba(255,61,143,0.35)" : "rgba(255,61,143,0.75)",
+              textTransform: "uppercase",
+              opacity: isTracking ? 0.5 : 1,
+            }}
+          >
+            {trackButtonLabel}
+          </button>
+        ) : null}
         {m.chaseCalmFooter ? <UrTakeChaseCalmInset /> : null}
       </>
     );
@@ -2405,15 +2471,7 @@ function UrTakeAiBubble({
         {showTrack ? (
           <button
             type="button"
-            onClick={async () => {
-              if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
-              setIsTracking(true);
-              try {
-                await Promise.resolve(trackPlay.onTrack(m));
-              } finally {
-                setIsTracking(false);
-              }
-            }}
+            onClick={runTrackPlayClick}
             disabled={tracked || isTracking}
             style={{
               display: "flex",
@@ -2433,7 +2491,7 @@ function UrTakeAiBubble({
               opacity: isTracking ? 0.5 : 1,
             }}
           >
-            {tracked ? "✓ Tracked" : isTracking ? "Tracking..." : "Track this play"}
+            {tracked ? "✓ Tracked" : isTracking ? "Tracking..." : trackButtonLabel}
           </button>
         ) : null}
         {m.deepText ? (
@@ -2536,15 +2594,7 @@ function UrTakeAiBubble({
               {showTrack ? (
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (tracked || isTracking || typeof trackPlay.onTrack !== "function") return;
-                    setIsTracking(true);
-                    try {
-                      await Promise.resolve(trackPlay.onTrack(m));
-                    } finally {
-                      setIsTracking(false);
-                    }
-                  }}
+                  onClick={runTrackPlayClick}
                   disabled={tracked || isTracking}
                   style={{
                     background: "transparent",
@@ -2559,7 +2609,7 @@ function UrTakeAiBubble({
                     opacity: isTracking ? 0.5 : 1,
                   }}
                 >
-                  {tracked ? "✓ TRACKED" : isTracking ? "TRACKING..." : "TRACK THIS PLAY"}
+                  {tracked ? "✓ TRACKED" : isTracking ? "TRACKING..." : trackButtonLabel.toUpperCase()}
                 </button>
               ) : null}
             </div>
@@ -2665,6 +2715,7 @@ export function ChatThread({
   accessTier = null,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
   onUrTakeRetry = null,
   onViewWcMatch = null,
   hideFollowUpDock = false,
@@ -2735,6 +2786,14 @@ export function ChatThread({
 
   const dailyUsed = readFreeTierUsedToday();
 
+  const paywallPushBlocked = useMemo(() => {
+    if (accessTier !== "free") return false;
+    return shouldSuppressPaywallPush({
+      paywallSuppressedSession: readPaywallSuppressedSession(),
+      askHealth: deriveAskSessionHealthFromMsgs(msgs),
+    });
+  }, [accessTier, msgs]);
+
   const followUpDockSource =
     !hideFollowUpDock &&
     variant !== "urChatDocked" &&
@@ -2743,6 +2802,10 @@ export function ChatThread({
       : null;
 
   useEffect(() => {
+    if (paywallPushBlocked) {
+      setProUpgradeNudgeVisible(false);
+      return;
+    }
     const qualifies =
       !focusSession && computeProUpgradeNudgeQualifies(msgs, accessTier, onUpgradePromptClick);
     if (!qualifies) {
@@ -2767,11 +2830,12 @@ export function ChatThread({
     }
     proUpgradeNudgeCommittedRef.current = true;
     setProUpgradeNudgeVisible(true);
-  }, [msgs, accessTier, onUpgradePromptClick]);
+  }, [msgs, accessTier, onUpgradePromptClick, paywallPushBlocked, focusSession]);
 
   const last = msgs?.length ? msgs[msgs.length - 1] : null;
   const showFreeFollowUpCue =
     !focusSession &&
+    !paywallPushBlocked &&
     accessTier === "free" &&
     dailyUsed === FREE_QUESTION_LIMIT - 1 &&
     last &&
@@ -2990,9 +3054,9 @@ export function ChatThread({
           <button
             type="button"
             className="ur-thread-upgrade-nudge-btn"
-            onClick={() => onUpgradePromptClick?.()}
+            onClick={() => (onValueTrialClick || onUpgradePromptClick)?.()}
           >
-            Upgrade
+            {THREAD_UPGRADE_NUDGE_CTA}
           </button>
         </div>
       ) : null}
@@ -3009,7 +3073,7 @@ export function ChatThread({
             padding: "8px 16px",
           }}
         >
-          ⚡ One free take left — Pro gives the full read with THE PLAY
+          ⚡ One free take left — try Pro free for 7 days (THE PLAY + tracking)
         </div>
       ) : null}
       <div ref={bottomAnchorRef} className="ur-chat-thread-anchor" aria-hidden="true" />

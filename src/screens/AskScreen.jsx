@@ -185,6 +185,7 @@ export default function AskScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
   fileInputRef = null,
   savedTakes = [],
   onSaveLastUrTake = null,
@@ -282,6 +283,7 @@ export default function AskScreen({
                       accessTier={accessTier}
                       onUrTakeFollowUpPick={onUrTakeFollowUpPick}
                       onUpgradePromptClick={onUpgradePromptClick}
+                      onValueTrialClick={onValueTrialClick}
                       hideFollowUpDock
                       focusSession={focusSession}
                       golfSessionBoard={golfSessionBoard}

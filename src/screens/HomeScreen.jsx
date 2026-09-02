@@ -13,7 +13,7 @@ import LiveEdgeAlert from "../components/LiveEdgeAlert.jsx";
 import TickerRail from "../components/TickerRail.jsx";
 import TodaySlatePanel from "../components/TodaySlatePanel.jsx";
 import WcXiConfirmedHomeBanner from "../components/WcXiConfirmedHomeBanner.jsx";
-import { HOME_PROMPT_FALLBACKS } from "../features/home/buildDynamicHomeQuestions.js";
+import { FREE_TIER_HOME_FOOTNOTE_PRIMARY, FREE_TIER_HOME_FOOTNOTE_SECONDARY } from "../../shared/freeTierCopy.js";
 import { buildWcXiConfirmedHomeStarter } from "../features/home/buildWcHomePromoCard.js";
 import { buildHomeDailyEdgeView } from "../features/home/buildHomeDailyEdgeView.js";
 import { isWcHomePromoWindow } from "../../shared/wc2026Constants.js";
@@ -23,9 +23,9 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
-/** Home hero copy — value-first headline + product promise. */
-const HOME_HEADLINE = "Before you bet, know why.";
-const HOME_SUBHEAD = "Spreads, totals, and props on today's board.";
+/** Home hero copy — NFL + La Liga weekend ICP. */
+const HOME_HEADLINE = "Your NFL + La Liga weekend companion.";
+const HOME_SUBHEAD = "Posted lines, matchup reads, and prop angles before kickoff.";
 const HOME_ASK_PROMISE = `${HOME_HEADLINE} ${HOME_SUBHEAD}`;
 
 const HOME_ASK_PLACEHOLDER = "Ask, then follow up like a group chat…";
@@ -232,10 +232,10 @@ export default function HomeScreen({
             ))}
           </div>
           <p className="ur-first-session-foot">
-            3 free questions · No card · No signup
+            {FREE_TIER_HOME_FOOTNOTE_PRIMARY}
             <br />
             <span className="ur-first-session-foot-secondary">
-              Email for 3 more per day (resets midnight UTC)
+              {FREE_TIER_HOME_FOOTNOTE_SECONDARY}
             </span>
           </p>
         </div>

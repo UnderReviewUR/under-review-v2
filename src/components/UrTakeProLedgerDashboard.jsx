@@ -3,7 +3,8 @@ import {
   normalizeConfidenceTier,
   sportDisplayLabel,
 } from "../lib/urTakePerformance.js";
-import { LEDGER_TEASER_UNLOCK } from "../lib/proUpgradeCopy.js";
+import { LEDGER_TEASER_UNLOCK, LEDGER_RENEWAL_HEADLINE, LEDGER_RENEWAL_BODY } from "../lib/proUpgradeCopy.js";
+import { shouldShowLedgerRenewalPitch } from "../../shared/valueConversion.js";
 
 function mergeSportSnapshots(a, b) {
   if (!a && !b) return null;
@@ -30,6 +31,8 @@ function mergeSportSnapshots(a, b) {
 }
 
 const SPORT_ROWS = [
+  { keys: ["nfl"], label: "NFL" },
+  { keys: ["laliga"], label: "La Liga" },
   { keys: ["nba"], label: "NBA" },
   { keys: ["mlb"], label: "MLB" },
   { keys: ["golf"], label: "PGA" },
@@ -204,6 +207,7 @@ export default function UrTakeProLedgerDashboard({
   const roi = Number(summary.roiUnits) || 0;
   const tiers = mergeTierSnapshots(performanceData.byConfidence);
   const bySport = performanceData.bySport || {};
+  const showRenewalPitch = shouldShowLedgerRenewalPitch(summary);
 
   const sportBlocks = SPORT_ROWS.map(({ keys, label }) => {
     let snap = null;
@@ -241,6 +245,37 @@ export default function UrTakeProLedgerDashboard({
 
   return (
     <div className="ur-record-dashboard-wrap">
+      {showRenewalPitch ? (
+        <div
+          className="ur-record-renewal-pitch"
+          style={{
+            marginBottom: 16,
+            padding: "14px 16px",
+            borderRadius: 12,
+            border: "1px solid rgba(201,162,39,0.35)",
+            background: "rgba(201,162,39,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontFamily: "var(--mono-font)",
+              fontSize: 10,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              color: "#C9A227",
+              marginBottom: 6,
+            }}
+          >
+            {LEDGER_RENEWAL_HEADLINE}
+          </div>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: "var(--soft)" }}>
+            {LEDGER_RENEWAL_BODY(wins, losses, pushes, roi)}
+            {ee?.overall?.avgMissDistanceWhenProjectionPresent != null
+              ? ` · structure miss proxy ${formatNum(ee.overall.avgMissDistanceWhenProjectionPresent)}`
+              : ""}
+          </p>
+        </div>
+      ) : null}
       <div className="ur-record-dashboard-head">
         <div className="ur-record-heading">Win–loss record</div>
         <div className="ur-record-head-actions">

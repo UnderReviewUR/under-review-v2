@@ -17,6 +17,7 @@ export default function LaligaScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
   laligaMatches = [],
   laligaPropLines = [],
   laligaStandings = [],
@@ -31,6 +32,7 @@ export default function LaligaScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
 

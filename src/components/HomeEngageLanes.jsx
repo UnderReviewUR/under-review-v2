@@ -38,7 +38,7 @@ export default function HomeEngageLanes({
       <div className="ur-home-board-lanes__head">
         <div className="ur-home-board-lanes__kicker">On the board</div>
         <h2 className="ur-home-board-lanes__title">Team bets &amp; player props</h2>
-        <p className="ur-home-board-lanes__sub">Posted lines — tap for bet, fade, or pass</p>
+        <p className="ur-home-board-lanes__sub">NFL &amp; La Liga — posted lines before kickoff</p>
       </div>
 
       <div className="ur-home-board-lanes__grid">

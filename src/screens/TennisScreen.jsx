@@ -37,6 +37,7 @@ export default function TennisScreen({
   accessTier,
   onUrTakeFollowUpPick = null,
   onUpgradePromptClick = null,
+  onValueTrialClick = null,
 }) {
   const tennisQuickPrompts = getQuickPromptsForState("tennis", deriveTennisBoardState(liveMatches));
   const urDockedChat = hasDockedBar && tennisMsgs.length > 0;
@@ -46,6 +47,8 @@ export default function TennisScreen({
     accessTier,
     onUrTakeFollowUpPick,
     onUpgradePromptClick,
+
+    onValueTrialClick,
     hideFollowUpDock: true,
   };
   const tennisBoardBelow = (
