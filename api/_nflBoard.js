@@ -17,6 +17,7 @@ import {
 } from "./_nflPropsFetch.js";
 import { normalizeNflScoreboardGame } from "./_nflBoardNormalize.js";
 import { getNflPropsForBoard } from "./_nflProps.js";
+import { pickNflGamesForScope } from "../shared/nflAskPropTrim.js";
 
 export {
   normalizeNflMoneylineMarket,
@@ -132,6 +133,7 @@ export function nflPropsPayloadToPropLines(propsPayload, game = {}) {
  *   gameId?: number | string,
  *   includeProps?: boolean,
  *   maxPropGames?: number,
+ *   scopeAbbrs?: Set<string>|string[],
  * }} [opts]
  */
 export async function buildNflLiveBoard(opts = {}) {
@@ -149,6 +151,16 @@ export async function buildNflLiveBoard(opts = {}) {
   const wantProps = Boolean(opts.includeProps) || opts.gameId != null;
   if (wantProps) {
     let targets = board.games || [];
+    const scopeSet =
+      opts.scopeAbbrs instanceof Set
+        ? opts.scopeAbbrs
+        : Array.isArray(opts.scopeAbbrs) && opts.scopeAbbrs.length
+          ? new Set(opts.scopeAbbrs.map((x) => String(x || "").toUpperCase()))
+          : null;
+    if (scopeSet?.size) {
+      const scoped = pickNflGamesForScope(targets, scopeSet);
+      if (scoped.length) targets = scoped;
+    }
     if (opts.gameId != null) {
       const gid = Number(opts.gameId);
       targets = targets.filter((g) => Number(g.providerGameId) === gid);
@@ -157,7 +169,10 @@ export async function buildNflLiveBoard(opts = {}) {
       }
     } else {
       const now = Date.now();
-      const maxGames = Math.max(1, Math.min(Number(opts.maxPropGames) || 4, 8));
+      const maxGames = Math.max(
+        1,
+        Math.min(Number(opts.maxPropGames) || (scopeSet?.size ? 1 : 4), 8),
+      );
       targets = targets
         .filter((g) => g.providerGameId && (g.tipoffMs == null || g.tipoffMs > now - 4 * 3600_000))
         .slice(0, maxGames);

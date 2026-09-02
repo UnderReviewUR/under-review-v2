@@ -227,6 +227,7 @@ import {
   fetchUrTakeWithNetworkRetry,
   UR_TAKE_PATH,
 } from "./lib/urTakeFetch.js";
+import { UR_TAKE_CLIENT_ABORT_MS } from "../shared/urTakeClientTimeouts.js";
 import {
   resolveUrTakeFailSoftFromError,
   resolveUrTakeFailSoftFromResponse,
@@ -2010,7 +2011,7 @@ ${themeCss}
     }
 
     const ctrl = new AbortController();
-    const abortTimer = window.setTimeout(() => ctrl.abort(), 75000);
+    const abortTimer = window.setTimeout(() => ctrl.abort(), UR_TAKE_CLIENT_ABORT_MS);
 
     const authHeaders = await getTakeAuthHeaders();
 

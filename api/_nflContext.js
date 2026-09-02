@@ -30,6 +30,7 @@ import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js"
 import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
+import { trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
 
 export { NFL_STADIUM_META };
 
@@ -424,10 +425,15 @@ export async function buildCanonicalNflContext(options = {}) {
   const uiPlayers = Object.fromEntries([...wrteEntries, ...rbEntries, ...qbEntries]);
   const draftBundle = getActiveDraftBundle();
   const draftMeta = getNflDraftMeta(new Date(), draftBundle);
-  const draftBlock = buildNflDraftBoardBlock(draftMeta, draftBundle);
+  const draftBlock =
+    scoped && !/\bdraft\b|\bprospect\b|\brookie class\b/i.test(question)
+      ? ""
+      : buildNflDraftBoardBlock(draftMeta, draftBundle);
   const nflRosterVerificationBanner =
     `NOTE: Verified NFL rosters (${inferNflSeasonYear()} season) from BallDontLie GOAT + ESPN snapshot. Static QB/RB/WR notes below are usage/stats baselines only — resolve player-team from verified roster blocks when they conflict.`;
-  let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock].join("\n\n---\n\n");
+  let promptContext = [nflRosterVerificationBanner, buildPromptContext(uiPlayers), draftBlock]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
 
   const depthData = await getDurableJson("nfl_depth_chart");
   const depthFiltered =
@@ -463,7 +469,8 @@ export async function buildCanonicalNflContext(options = {}) {
     try {
       liveBoard = await buildNflLiveBoard({
         includeProps: true,
-        maxPropGames: scoped ? 6 : 6,
+        maxPropGames: scoped ? 1 : 4,
+        scopeAbbrs: scoped ? scope : undefined,
       });
     } catch (err) {
       console.warn(
@@ -526,8 +533,20 @@ export async function buildCanonicalNflContext(options = {}) {
     uiPlayers,
     includeLiveBoard: false,
     board: liveBoard,
-    maxPropGames: scoped ? 6 : 6,
+    maxPropGames: scoped ? 1 : 4,
+    scopeAbbrs: scoped ? scope : undefined,
   });
+
+  const trimmedPropLines = trimNflPlayerPropsForAsk(
+    liveBoard?.propLines || briefcaseHealth.briefcase?.slate?.playerProps || [],
+    { scope: scoped ? scope : [], question, maxRows: scoped ? 56 : 120 },
+  );
+  if (liveBoard && Array.isArray(liveBoard.propLines)) {
+    liveBoard.propLines = trimmedPropLines;
+  }
+  if (briefcaseHealth.briefcase?.slate) {
+    briefcaseHealth.briefcase.slate.playerProps = trimmedPropLines;
+  }
 
   const liveDefense = briefcaseHealth.briefcase?.league?.teamDefense || {};
   const defenseMerged = mergeNflDefenseMaps(liveDefense, defenses);
@@ -599,7 +618,7 @@ export async function buildCanonicalNflContext(options = {}) {
     scopeTeams: scope,
     homeAbbr: homeFromMatchup,
     games: liveBoard?.games || briefcaseHealth.briefcase?.slate?.games || [],
-    propLines: liveBoard?.propLines || briefcaseHealth.briefcase?.slate?.playerProps || [],
+    propLines: trimmedPropLines,
     injuries: injuryRows,
     depth: depthFiltered || depthData?.depth || null,
     injuryMeta: {
@@ -729,11 +748,7 @@ export async function buildCanonicalNflContext(options = {}) {
       propCatalog: briefcaseHealth.propCatalog || null,
       promptBlock: briefcaseHealth.promptBlock || "",
     },
-    propLines: Array.isArray(liveBoard?.propLines)
-      ? liveBoard.propLines
-      : Array.isArray(briefcaseHealth.briefcase?.slate?.playerProps)
-        ? briefcaseHealth.briefcase.slate.playerProps
-        : [],
+    propLines: trimmedPropLines,
     draft: {
       ...draftMeta,
       bundleYear: draftBundle.year,

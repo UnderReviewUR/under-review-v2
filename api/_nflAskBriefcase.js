@@ -8,6 +8,11 @@ import {
   evaluateBriefcaseForInteraction,
 } from "../shared/nflGoatExtractionContract.js";
 import { buildNflLiveBoard } from "./_nflBoard.js";
+import {
+  nflGameIdsFromGames,
+  pickNflGamesForScope,
+  trimNflPlayerPropsForAsk,
+} from "../shared/nflAskPropTrim.js";
 import { isNflBdlPrimaryEnabled, buildNflGoatBriefcase } from "./_nflBdl.js";
 
 /**
@@ -153,10 +158,18 @@ Operate smoothly: prefer live pockets when present.${passRule} Never refuse the 
  *   includeLiveBoard?: boolean,
  *   maxPropGames?: number,
  *   board?: Record<string, unknown>|null,
+ *   scopeAbbrs?: Set<string>|string[],
  * }} [opts]
  */
 export async function buildNflAskBriefcaseHealth(opts = {}) {
   const question = String(opts.question || "");
+  const scopeSet =
+    opts.scopeAbbrs instanceof Set
+      ? opts.scopeAbbrs
+      : Array.isArray(opts.scopeAbbrs) && opts.scopeAbbrs.length
+        ? new Set(opts.scopeAbbrs.map((x) => String(x || "").toUpperCase()))
+        : null;
+  const scoped = Boolean(scopeSet?.size && scopeSet.size <= 2);
 
   /** @type {Record<string, unknown>|null} */
   let board = opts.board && typeof opts.board === "object" ? opts.board : null;
@@ -164,7 +177,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     try {
       board = await buildNflLiveBoard({
         includeProps: true,
-        maxPropGames: Math.max(1, Math.min(Number(opts.maxPropGames) || 4, 8)),
+        maxPropGames: Math.max(1, Math.min(Number(opts.maxPropGames) || (scoped ? 1 : 4), 8)),
+        ...(scopeSet?.size ? { scopeAbbrs: scopeSet } : {}),
       });
     } catch (err) {
       console.warn(
@@ -178,9 +192,13 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
 
   const week = board?.week ?? null;
   const season = board?.season ?? null;
-  const gameIds = Array.isArray(board?.games)
-    ? board.games.map((g) => g.providerGameId).filter((id) => id != null).slice(0, 16)
-    : [];
+  const scopedGames =
+    scopeSet?.size && Array.isArray(board?.games)
+      ? pickNflGamesForScope(board.games, scopeSet)
+      : [];
+  const gameIds = nflGameIdsFromGames(
+    scopedGames.length ? scopedGames : Array.isArray(board?.games) ? board.games : [],
+  ).slice(0, scoped ? 2 : 16);
   const seedPlayerIds = playerIdsFromPropLines(board?.propLines || []);
 
   let briefcase = createEmptyNflGoatBriefcase({
@@ -202,7 +220,9 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
         playerIds: seedPlayerIds,
         hydrateDefense: true,
         hydrateInjuries: true,
-        hydrateStats: true,
+        hydrateStats: false,
+        hydrateRosters: false,
+        hydrateAllRosters: false,
       });
     } catch (err) {
       console.warn(
@@ -236,6 +256,20 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
         briefcase.slate.playerProps = board.propLines;
       }
     }
+  }
+
+  const propCap = scoped ? 56 : 120;
+  briefcase.slate.playerProps = trimNflPlayerPropsForAsk(briefcase.slate.playerProps || [], {
+    scope: scopeSet || [],
+    question,
+    maxRows: propCap,
+  });
+  if (board?.propLines?.length) {
+    board.propLines = trimNflPlayerPropsForAsk(board.propLines, {
+      scope: scopeSet || [],
+      question,
+      maxRows: propCap,
+    });
   }
 
   if (Array.isArray(opts.injuries) && opts.injuries.length) {
