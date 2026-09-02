@@ -29,8 +29,10 @@ export default function TickerRail({
   goF1,
   goTennis,
   goWorldCup,
+  goLaliga,
   tickerNbaGames,
   wcMatches,
+  laligaMatches = [],
   getSeriesLabel,
   tennisTickerMatches,
   golfData,
@@ -49,6 +51,7 @@ export default function TickerRail({
     f1Data,
     tennisMatchesForTicker: tennisTickerMatches || [],
     wcMatches: wcMatches || [],
+    laligaMatches: laligaMatches || [],
     golfSnapshotKey: () => golfKeyForLiveSnapshot(golfData),
   });
 
@@ -190,6 +193,49 @@ export default function TickerRail({
       <div style={{ fontSize: 10, color: "var(--muted)" }}>Live board →</div>
     </div>
   );
+
+  const renderLaligaTile = (m, i) => {
+    const away = m?.awayAbbr || m?.awayName || "AWAY";
+    const home = m?.homeAbbr || m?.homeName || "HOME";
+    const live = String(m?.statusState || "").toLowerCase() === "in";
+    return (
+      <div
+        key={`laliga-${m?.providerMatchId ?? i}`}
+        onClick={typeof goLaliga === "function" ? goLaliga : undefined}
+        style={{
+          flexShrink: 0,
+          background: "rgba(238,68,68,.08)",
+          border: `1px solid ${live ? "rgba(238,68,68,.45)" : "rgba(238,68,68,.22)"}`,
+          borderRadius: 10,
+          padding: "8px 11px",
+          cursor: typeof goLaliga === "function" ? "pointer" : "default",
+          minWidth: 120,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: "var(--mono-font)",
+            fontSize: 7,
+            letterSpacing: 1.5,
+            color: "#EE4444",
+            marginBottom: 3,
+          }}
+        >
+          LA LIGA{live ? " · LIVE" : ""}
+        </div>
+        <div style={{ fontSize: 12, ...SNAP_PRI }}>
+          {away} @ {home}
+        </div>
+        {live && m?.awayScore != null && m?.homeScore != null ? (
+          <div style={SNAP_SCORE}>
+            {m.awayScore}-{m.homeScore}
+          </div>
+        ) : (
+          <div style={{ fontSize: 10, color: "rgba(226,232,240,0.75)" }}>Posted</div>
+        )}
+      </div>
+    );
+  };
 
   const renderF1Tile = (race) => (
     <div
@@ -504,6 +550,9 @@ export default function TickerRail({
         case "nfl":
           inner = nflTile;
           break;
+        case "laliga":
+          inner = renderLaligaTile(item.laligaMatch, 0);
+          break;
         case "f1":
           inner = renderF1Tile(item.f1Race);
           break;
@@ -529,7 +578,19 @@ export default function TickerRail({
     .filter(Boolean);
 
   const tickerQuiet = tiles.length === 0;
-  const liveCount = tiles.length;
+  const liveTileCount = plan.items.filter((item) => {
+    if (item.kind === "nba") return item.nbaGame?.state === "in";
+    if (item.kind === "mlb") return item.mlbGame?.state === "in";
+    if (item.kind === "worldcup") return isWcLiveStatus(item.wcMatch?.status);
+    if (item.kind === "tennis") {
+      const st = String(item.tennisMatch?.status || "").toLowerCase();
+      return st === "in" || st.includes("live") || st.includes("progress");
+    }
+    return false;
+  }).length;
+  const boardCount = tiles.length;
+  const toggleTitle = liveTileCount > 0 ? "Live now" : "Upcoming";
+  const toggleCount = liveTileCount > 0 ? liveTileCount : boardCount;
 
   const [liveExpanded, setLiveExpanded] = useState(false);
 
@@ -568,8 +629,8 @@ export default function TickerRail({
           onClick={() => setLiveExpanded((v) => !v)}
           aria-expanded={liveExpanded}
         >
-          <span className="ur-home-live-toggle-title">Live now</span>
-          <span className="ur-home-live-toggle-count">({liveCount})</span>
+          <span className="ur-home-live-toggle-title">{toggleTitle}</span>
+          <span className="ur-home-live-toggle-count">({toggleCount})</span>
           <span className="ur-home-live-toggle-chev" aria-hidden>
             {liveExpanded ? "▾" : "▸"}
           </span>

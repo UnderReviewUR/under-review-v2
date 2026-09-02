@@ -479,8 +479,10 @@ export default function HomeScreen({
         goF1={_goF1}
         goTennis={_goTennis}
         goWorldCup={_goWorldCup}
+        goLaliga={goLaliga}
         tickerNbaGames={homeNbaGames}
         wcMatches={wcMatches}
+        laligaMatches={laligaMatches}
         getSeriesLabel={getSeriesLabel}
         tennisTickerMatches={tennisTickerMatches}
         golfData={golfData}
@@ -493,6 +495,8 @@ export default function HomeScreen({
         excludeEventKeys={liveSnapshotEventKeys}
         onDisplayedEventKeysChange={onTodaySlateDisplayedKeys}
         fallbackSports={slateFallbackSports}
+        nflGames={nflGames}
+        laligaMatches={laligaMatches}
       />
 
       {pgaChampionshipOddsCard ? (

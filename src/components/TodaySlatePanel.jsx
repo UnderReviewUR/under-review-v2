@@ -4,10 +4,11 @@ import { isTodaySlateSportVisible } from "../../shared/siteSportVisibility.js";
 const SPORT_COLOR = {
   nba: "#FF6B00",
   mlb: "#1DB954",
-  golf: "#E2E8F0",
+  golf: "#64748B",
   tennis: "#0891B2",
   f1: "#E10600",
   nfl: "#4A90D9",
+  laliga: "#EE4444",
   worldcup: "#00F5E9",
 };
 
@@ -19,6 +20,19 @@ function formatUpdatedLabel(iso) {
   if (min < 60) return `Updated ${min} min ago`;
   const h = Math.round(min / 60);
   return `Updated ${h} hr${h === 1 ? "" : "s"} ago`;
+}
+
+function softSlateError(raw) {
+  const msg = String(raw || "");
+  if (
+    /FUNCTION_INVOCATION_TIMEOUT|timeout|504|503|502|upstream|bad_model_json/i.test(msg)
+  ) {
+    return "Slate angles are warming up — showing posted games below.";
+  }
+  if (msg.includes("bad_model_json") || msg.includes("upstream_error")) {
+    return "Slate is reconnecting — showing posted games below.";
+  }
+  return "Couldn't load slate angles — showing posted games below.";
 }
 
 function SlateRow({ label, item, fallbackSports }) {
@@ -53,7 +67,7 @@ function SlateRow({ label, item, fallbackSports }) {
             textTransform: "uppercase",
           }}
         >
-          {sport === "worldcup" ? "WORLD CUP" : sport}
+          {sport === "worldcup" ? "WORLD CUP" : sport === "laliga" ? "LA LIGA" : sport}
         </span>
         {isFallbackSource ? (
           <span
@@ -63,15 +77,19 @@ function SlateRow({ label, item, fallbackSports }) {
               letterSpacing: 1,
               color: "var(--muted)",
             }}
-            title="Source is a cached or static dataset — verify before betting"
+            title="From the live board — verify before betting"
           >
-            Est.
+            Board
           </span>
         ) : null}
         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{title}</span>
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{angle}</div>
-      <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.45 }}>{why}</div>
+      {angle ? (
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>{angle}</div>
+      ) : null}
+      {why ? (
+        <div style={{ fontSize: 12, color: "var(--soft)", lineHeight: 1.45 }}>{why}</div>
+      ) : null}
     </div>
   );
 }
@@ -83,10 +101,53 @@ const SLATE_ROW_LABEL = {
   contrarian: "Contrarian",
 };
 
+/**
+ * Build board-backed slate rows when /api/today-slate fails or returns empty.
+ * @param {{ nflGames?: Array, laligaMatches?: Array }} boards
+ */
+export function buildTodaySlateBoardFallback(boards = {}) {
+  const rows = [];
+  const nfl = Array.isArray(boards.nflGames) ? boards.nflGames : [];
+  for (const g of nfl.slice(0, 3)) {
+    const away = g?.awayAbbr || g?.awayTeam?.abbr || g?.away || "AWAY";
+    const home = g?.homeAbbr || g?.homeTeam?.abbr || g?.home || "HOME";
+    const line =
+      g?.spread != null
+        ? `${home} ${Number(g.spread) > 0 ? "+" : ""}${g.spread}`
+        : g?.statusDisplay || "Posted";
+    rows.push({
+      sport: "nfl",
+      game: `${away} @ ${home}`,
+      angle: line,
+      why: "From the NFL board — ask UR Take for the full read.",
+      _eventKeys: g?.gameKey || g?.id ? [String(g.gameKey || g.id)] : [],
+    });
+  }
+  const liga = Array.isArray(boards.laligaMatches) ? boards.laligaMatches : [];
+  for (const m of liga.slice(0, 2)) {
+    const away = m?.awayAbbr || m?.awayName || "AWAY";
+    const home = m?.homeAbbr || m?.homeName || "HOME";
+    const ml =
+      m?.awayOdds != null || m?.homeOdds != null
+        ? `${away} ${m.awayOdds ?? "—"} / Draw ${m.drawOdds ?? "—"} / ${home} ${m.homeOdds ?? "—"}`
+        : "Matchweek posted";
+    rows.push({
+      sport: "laliga",
+      game: `${away} @ ${home}`,
+      angle: ml,
+      why: "From the La Liga board — ask UR Take for the full read.",
+      _eventKeys: m?.providerMatchId ? [String(m.providerMatchId)] : [],
+    });
+  }
+  return rows;
+}
+
 export default function TodaySlatePanel({
   excludeEventKeys = [],
   onDisplayedEventKeysChange,
   fallbackSports = [],
+  nflGames = [],
+  laligaMatches = [],
 }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
@@ -96,6 +157,11 @@ export default function TodaySlatePanel({
   const fallbackSportsSet = useMemo(
     () => new Set((fallbackSports || []).map((s) => String(s || "").toLowerCase())),
     [fallbackSports],
+  );
+
+  const boardFallbackRows = useMemo(
+    () => buildTodaySlateBoardFallback({ nflGames, laligaMatches }),
+    [nflGames, laligaMatches],
   );
 
   useEffect(() => {
@@ -112,12 +178,8 @@ export default function TodaySlatePanel({
         if (!cancelled) setData(j);
       } catch (e) {
         if (!cancelled) {
-          const msg = String(e?.message || "Failed to load");
-          if (msg.includes("bad_model_json") || msg.includes("upstream_error")) {
-            setErr("Slate is reconnecting — try again in a minute.");
-          } else {
-            setErr(`Couldn't load Today's slate — ${msg.slice(0, 120)}`);
-          }
+          setErr(softSlateError(e?.message));
+          setData(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -145,14 +207,20 @@ export default function TodaySlatePanel({
   }, [data, excludeSet]);
 
   useEffect(() => {
-    if (!onDisplayedEventKeysChange || !data) return;
+    if (!onDisplayedEventKeysChange) return;
     const keys = new Set();
-    visibleRowKeys.forEach((rk) => {
-      const item = data[rk];
-      (Array.isArray(item?._eventKeys) ? item._eventKeys : []).forEach((k) => keys.add(k));
-    });
+    if (data) {
+      visibleRowKeys.forEach((rk) => {
+        const item = data[rk];
+        (Array.isArray(item?._eventKeys) ? item._eventKeys : []).forEach((k) => keys.add(k));
+      });
+    } else {
+      boardFallbackRows.forEach((row) => {
+        (Array.isArray(row?._eventKeys) ? row._eventKeys : []).forEach((k) => keys.add(k));
+      });
+    }
     onDisplayedEventKeysChange(Array.from(keys));
-  }, [data, visibleRowKeys, onDisplayedEventKeysChange]);
+  }, [data, visibleRowKeys, boardFallbackRows, onDisplayedEventKeysChange]);
 
   const slateRowRenderable = (key) => {
     const item = data?.[key];
@@ -169,6 +237,15 @@ export default function TodaySlatePanel({
   const hasRenderableSlateRows =
     Boolean(data) && visibleRowKeys.some((k) => slateRowRenderable(k));
 
+  const showBoardFallback = !loading && (!hasRenderableSlateRows || Boolean(err));
+  const fallbackVisible = boardFallbackRows.filter((row) => {
+    const sport = String(row.sport || "").toLowerCase();
+    if (!isTodaySlateSportVisible(sport) && sport !== "laliga" && sport !== "nfl") return false;
+    const ek = Array.isArray(row._eventKeys) ? row._eventKeys : [];
+    if (ek.length === 0) return true;
+    return !ek.some((k) => excludeSet.has(k));
+  });
+
   return (
     <div
       className="today-slate-panel"
@@ -176,13 +253,13 @@ export default function TodaySlatePanel({
         marginTop: 10,
         marginBottom: 10,
         padding: "14px 14px 12px",
-        background: "linear-gradient(180deg, rgba(0,245,233,.06), rgba(15,23,42,.4))",
+        background: "linear-gradient(180deg, rgba(0,245,233,.06), rgba(15,23,42,.08))",
         border: "1px solid rgba(0,245,233,.2)",
         borderRadius: 14,
       }}
     >
       <div className="today-slate-title" style={{ marginBottom: 4 }}>
-        {"Today's slate"}
+        {showBoardFallback && !hasRenderableSlateRows ? "On the board" : "Today's slate"}
       </div>
       {loading && (
         <div className="today-slate-loading" style={{ fontSize: 12, color: "var(--muted)" }}>
@@ -190,11 +267,11 @@ export default function TodaySlatePanel({
         </div>
       )}
       {err && !loading && (
-        <div className="today-slate-error" style={{ fontSize: 12, color: "#FF6B6B" }}>
+        <div className="today-slate-error" style={{ fontSize: 12, color: "var(--muted)", marginBottom: 6 }}>
           {err}
         </div>
       )}
-      {!loading && !err && data && (
+      {!loading && !err && data && hasRenderableSlateRows ? (
         <>
           {visibleRowKeys.map((key) => (
             <SlateRow
@@ -204,17 +281,28 @@ export default function TodaySlatePanel({
               fallbackSports={fallbackSportsSet}
             />
           ))}
-          {!hasRenderableSlateRows ? (
-            <div className="today-slate-empty">
-              No slate rows in this pass — either boards are thin or everything here is already in Live
-              Snapshot. Ask UR Take on a specific game for a sharper read.
-            </div>
-          ) : null}
           <div className="today-slate-updated" style={{ marginTop: 8 }}>
             {formatUpdatedLabel(data.generatedAt)}
           </div>
         </>
-      )}
+      ) : null}
+      {showBoardFallback && fallbackVisible.length > 0 ? (
+        <>
+          {fallbackVisible.map((row, i) => (
+            <SlateRow
+              key={`board-${row.sport}-${i}`}
+              label={i === 0 ? "Upcoming posted" : "Also posted"}
+              item={row}
+              fallbackSports={new Set([row.sport])}
+            />
+          ))}
+        </>
+      ) : null}
+      {showBoardFallback && fallbackVisible.length === 0 && !loading ? (
+        <div className="today-slate-empty">
+          No posted games in this window yet — ask UR Take on a specific matchup.
+        </div>
+      ) : null}
     </div>
   );
 }

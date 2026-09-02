@@ -638,14 +638,25 @@ export const THEMES = {
         backdrop-filter: none;
       }
 
+      .theme-broadsheet .logo-under {
+        font-family: 'Playfair Display', serif;
+        font-size: 24px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        color: #FFFFFF;
+        -webkit-text-fill-color: #FFFFFF;
+      }
+
       .theme-broadsheet .logo-review {
         font-family: 'Playfair Display', serif;
-        font-size: 22px;
+        font-size: 24px;
         font-weight: 900;
-        letter-spacing: .5px;
+        letter-spacing: 0.5px;
         line-height: 1;
-        color: #1a1a1a;
-        -webkit-text-fill-color: #1a1a1a;
+        background: linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
 
       .theme-broadsheet .hdr {
@@ -674,11 +685,14 @@ export const THEMES = {
       .theme-broadsheet .docked-bar-label,
       .theme-broadsheet .banner-sub,
       .theme-broadsheet .ask-hint,
-      .theme-broadsheet .nav-btn,
       .theme-broadsheet .ticker-status,
       .theme-broadsheet .home-live-label {
         font-family: 'DM Mono', monospace;
         color: #6b6054;
+      }
+
+      .theme-broadsheet .nav-btn {
+        font-family: 'DM Mono', monospace;
       }
 
       .theme-broadsheet .home-live-label {
@@ -787,7 +801,7 @@ export const THEMES = {
       }
 
       .theme-broadsheet .nav-btn {
-        color: rgba(107, 96, 84, 0.55);
+        color: rgba(247, 244, 238, 0.72);
         font-size: 15px;
         font-weight: 700;
         letter-spacing: 1.5px;
@@ -1002,13 +1016,22 @@ export const THEMES = {
         backdrop-filter: none;
       }
 
+      .theme-crisp .logo-under {
+        font-family: 'Barlow Condensed', sans-serif;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        color: #FFFFFF;
+        -webkit-text-fill-color: #FFFFFF;
+      }
+
       .theme-crisp .logo-review {
         font-family: 'Barlow Condensed', sans-serif;
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 800;
-        letter-spacing: 2px;
+        letter-spacing: 1px;
         line-height: 1;
-        background: linear-gradient(90deg, #FFFFFF 20%, #38BDF8 85%);
+        background: linear-gradient(90deg, #00F5E9 0%, #FF2D6B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -1040,11 +1063,14 @@ export const THEMES = {
       .theme-crisp .docked-bar-label,
       .theme-crisp .banner-sub,
       .theme-crisp .ask-hint,
-      .theme-crisp .nav-btn,
       .theme-crisp .ticker-status,
       .theme-crisp .home-live-label {
         font-family: 'DM Mono', monospace;
         color: #64748B;
+      }
+
+      .theme-crisp .nav-btn {
+        font-family: 'DM Mono', monospace;
       }
 
       .theme-crisp .home-live-label {
@@ -1158,7 +1184,7 @@ export const THEMES = {
       }
 
       .theme-crisp .nav-btn {
-        color: rgba(71, 85, 105, 0.65);
+        color: rgba(248, 250, 252, 0.68);
         font-size: 15px;
         font-weight: 700;
         letter-spacing: 1.5px;
@@ -1240,7 +1266,10 @@ export const THEMES = {
       .app.theme-crisp .ur-home-board-lanes__kicker,
       .app.theme-crisp .ur-home-board-lanes__sub,
       .app.theme-crisp .ur-home-starters-option-a .ur-home-starters-heading {
-        color: #64748B;
+        color: #475569;
+      }
+      .app.theme-crisp .ur-home-board-lane__meta {
+        color: #475569;
       }
       .app.theme-crisp .ur-home-board-lanes__title {
         color: #0F172A;

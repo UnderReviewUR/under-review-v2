@@ -1110,7 +1110,7 @@ export const baseCss = `
     font-size:10px;
     letter-spacing:0.16em;
     text-transform:uppercase;
-    color:rgba(255,255,255,0.42);
+    color:rgba(255,255,255,0.55);
     margin-bottom:6px;
     font-weight:600;
   }
@@ -1457,7 +1457,7 @@ export const baseCss = `
     margin:0 0 14px;
     font-size:12px;
     line-height:1.45;
-    color:var(--soft);
+    color:rgba(226,232,240,0.72);
   }
   .nfl-slate-takes__lanes{
     list-style:none;
@@ -1502,8 +1502,10 @@ export const baseCss = `
   .nfl-slate-takes__lane--watch .nfl-slate-takes__label{color:#C9A227;}
   .nfl-slate-takes__matchup{
     font-family:var(--mono-font);
-    font-size:10px;
-    color:var(--muted);
+    font-size:11px;
+    font-weight:600;
+    letter-spacing:0.04em;
+    color:rgba(241,245,249,0.92);
   }
   .nfl-slate-takes__lean{
     font-size:15px;
@@ -1515,7 +1517,7 @@ export const baseCss = `
     margin:0;
     font-size:12px;
     line-height:1.45;
-    color:var(--soft);
+    color:rgba(226,232,240,0.78);
   }
   .nfl-slate-takes__ask,
   .nfl-slate-takes__cta,
@@ -1560,7 +1562,7 @@ export const baseCss = `
     margin:0 0 8px;
     font-size:12px;
     line-height:1.45;
-    color:var(--soft);
+    color:rgba(226,232,240,0.72);
   }
   .nfl-slate-takes__cta{
     display:inline-block;
@@ -1569,7 +1571,7 @@ export const baseCss = `
   .nfl-slate-takes__board{
     display:block;
     margin-top:12px;
-    color:var(--muted);
+    color:rgba(148,163,184,1);
     text-decoration:none;
   }
   .nfl-home-scores{
@@ -1640,7 +1642,7 @@ export const baseCss = `
     flex-shrink:0;
     font-family:var(--mono-font);
     font-size:11px;
-    color:var(--soft);
+    color:rgba(226,232,240,0.88);
     white-space:nowrap;
     font-variant-numeric:tabular-nums;
   }
