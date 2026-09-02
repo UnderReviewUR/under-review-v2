@@ -942,7 +942,7 @@ export const baseCss = `
 
   /* ── Option A home (home-surface-option-a) ── */
   .home-surface-option-a.home-surface-premium.screen{
-    background:#000;
+    background:var(--bg);
     padding:6px 20px 28px;
     padding-bottom:calc(var(--bottom-nav-height) + var(--keyboard-height, 0px) + env(safe-area-inset-bottom));
   }

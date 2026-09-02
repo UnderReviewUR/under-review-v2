@@ -823,6 +823,95 @@ export const THEMES = {
       .theme-broadsheet .sport-pill {
         font-family: 'Playfair Display', serif;
       }
+
+      /* Home surface paper remap (same hardcodes as crisp). */
+      .app.theme-broadsheet .home-surface-option-a.home-surface-premium.screen {
+        background: #E0D8CC;
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ur-home-promise,
+      .app.theme-broadsheet .ur-home-promise {
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ur-home-promise-line--soft,
+      .app.theme-broadsheet .ur-home-promise--stripped,
+      .app.theme-broadsheet .home-surface-option-a .ur-home-ask-hint,
+      .app.theme-broadsheet .ur-home-ask-hint {
+        color: #4a3e2e;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-home-hero-frame {
+        background: #FFFFFF;
+        border-color: #0F0D0A;
+        border-radius: 0;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-bar--home-hero {
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-bar--home-hero::placeholder {
+        color: #8a7a6a;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-home-hero-paste-hint {
+        color: #9a8b7a;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-home-hero-attach {
+        color: #6b6054;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-home-hero-send {
+        background: #0F0D0A;
+        border-color: #0F0D0A;
+        color: #F7F4EE;
+        border-radius: 0;
+      }
+      .app.theme-broadsheet .home-surface-option-a .ask-home-hero-send:disabled {
+        background: #d8d0c4;
+        border-color: #d8d0c4;
+        color: #8a7a6a;
+      }
+      .app.theme-broadsheet .ur-home-board-lanes__kicker,
+      .app.theme-broadsheet .ur-home-board-lanes__sub,
+      .app.theme-broadsheet .ur-home-starters-option-a .ur-home-starters-heading {
+        color: #6b6054;
+      }
+      .app.theme-broadsheet .ur-home-board-lanes__title {
+        color: #0F0D0A;
+      }
+      .app.theme-broadsheet .ur-home-board-lane {
+        background: #F7F4EE;
+        border-color: #d8d0c4;
+      }
+      .app.theme-broadsheet .ur-home-board-lane__head {
+        border-bottom-color: #d8d0c4;
+      }
+      .app.theme-broadsheet .ur-home-board-lane__head:not(:disabled):hover {
+        background: #FFFCF7;
+      }
+      .app.theme-broadsheet .ur-home-board-lane__meta,
+      .app.theme-broadsheet .ur-home-board-lane__line,
+      .app.theme-broadsheet .ur-home-board-lane__kind {
+        color: #6b6054;
+      }
+      .app.theme-broadsheet .ur-home-board-lane__matchup,
+      .app.theme-broadsheet .ur-home-board-lane__ask-text,
+      .app.theme-broadsheet .ur-home-board-lane__ask {
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .ur-home-board-lane__asks li + li {
+        border-top-color: #d8d0c4;
+      }
+      .app.theme-broadsheet .ur-home-board-lane__ask:hover {
+        background: #FFFCF7;
+      }
+      .app.theme-broadsheet .home-compact-ticker {
+        border-bottom-color: #d8d0c4;
+      }
+      .app.theme-broadsheet .home-compact-ticker-chip {
+        background: #F7F4EE;
+        border-color: #d8d0c4;
+        color: #1A1410;
+      }
+      .app.theme-broadsheet .home-surface-premium .home-live-label {
+        color: #6b6054;
+      }
     `,
   },
 
@@ -1089,6 +1178,98 @@ export const THEMES = {
 
       .theme-crisp .sport-pill {
         font-family: 'Barlow Condensed', sans-serif;
+      }
+
+      /* Home surface was authored for dark Absolute Black — remap to paper. */
+      .app.theme-crisp .home-surface-option-a.home-surface-premium.screen {
+        background: #CBD5E1;
+        color: #0F172A;
+      }
+      .app.theme-crisp .home-surface-option-a .ur-home-promise,
+      .app.theme-crisp .ur-home-promise {
+        color: #0F172A;
+      }
+      .app.theme-crisp .home-surface-option-a .ur-home-promise-line--soft,
+      .app.theme-crisp .ur-home-promise--stripped,
+      .app.theme-crisp .home-surface-option-a .ur-home-ask-hint,
+      .app.theme-crisp .ur-home-ask-hint {
+        color: #475569;
+      }
+      .app.theme-crisp .home-surface-option-a .ask-home-hero-frame {
+        background: #FFFFFF;
+        border-color: #CBD5E1;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      }
+      .app.theme-crisp .home-surface-option-a .ask-bar--home-hero {
+        color: #0F172A;
+      }
+      .app.theme-crisp .home-surface-option-a .ask-bar--home-hero::placeholder {
+        color: #94A3B8;
+      }
+      .app.theme-crisp .home-surface-option-a .ask-home-hero-paste-hint {
+        color: #94A3B8;
+      }
+      .app.theme-crisp .home-surface-option-a .ask-home-hero-attach {
+        color: #64748B;
+      }
+      .app.theme-crisp .home-surface-option-a .ask-home-hero-send {
+        background: #0F172A;
+        border-color: #0F172A;
+        color: #FFFFFF;
+      }
+      .app.theme-crisp .home-surface-option-a .ask-home-hero-send:disabled {
+        background: #E2E8F0;
+        border-color: #E2E8F0;
+        color: #94A3B8;
+      }
+      .app.theme-crisp .ur-home-board-lanes__kicker,
+      .app.theme-crisp .ur-home-board-lanes__sub,
+      .app.theme-crisp .ur-home-starters-option-a .ur-home-starters-heading {
+        color: #64748B;
+      }
+      .app.theme-crisp .ur-home-board-lanes__title {
+        color: #0F172A;
+      }
+      .app.theme-crisp .ur-home-board-lane {
+        background: #FFFFFF;
+        border-color: #E2E8F0;
+      }
+      .app.theme-crisp .ur-home-board-lane__head {
+        border-bottom-color: #E2E8F0;
+      }
+      .app.theme-crisp .ur-home-board-lane__head:not(:disabled):hover {
+        background: #F8FAFC;
+      }
+      .app.theme-crisp .ur-home-board-lane__meta,
+      .app.theme-crisp .ur-home-board-lane__line,
+      .app.theme-crisp .ur-home-board-lane__kind {
+        color: #64748B;
+      }
+      .app.theme-crisp .ur-home-board-lane__matchup,
+      .app.theme-crisp .ur-home-board-lane__ask-text,
+      .app.theme-crisp .ur-home-board-lane__ask {
+        color: #0F172A;
+      }
+      .app.theme-crisp .ur-home-board-lane__asks li + li {
+        border-top-color: #E2E8F0;
+      }
+      .app.theme-crisp .ur-home-board-lane__ask:hover {
+        background: #F8FAFC;
+      }
+      .app.theme-crisp .home-compact-ticker {
+        border-bottom-color: #CBD5E1;
+      }
+      .app.theme-crisp .home-compact-ticker-chip {
+        background: #FFFFFF;
+        border-color: #E2E8F0;
+        color: #334155;
+      }
+      .app.theme-crisp .home-compact-ticker-chip:hover {
+        border-color: #38BDF8;
+        background: #F0F9FF;
+      }
+      .app.theme-crisp .home-surface-premium .home-live-label {
+        color: #64748B;
       }
     `,
   },
