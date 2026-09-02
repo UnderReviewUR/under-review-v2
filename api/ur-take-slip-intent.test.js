@@ -15,6 +15,10 @@ test("detectIntent — image + empty message → slip_review (vague / image-firs
   assert.equal(detectIntent("", true), "slip_review");
 });
 
+test("detectIntent — image + can you read this routes slip_review", () => {
+  assert.equal(detectIntent("Can you read this?", true), "slip_review");
+});
+
 test("detectIntent — image + who won? → general (not slip_review)", () => {
   assert.equal(detectIntent("who won?", true), "general");
 });

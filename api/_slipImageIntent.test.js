@@ -37,6 +37,13 @@ test("getSlipImageRouteMeta — vague captions + image (incl. empty = image-firs
   assert.deepEqual(getSlipImageRouteMeta("", true), { routesToSlip: true, via: "vague" });
 });
 
+test("getSlipImageRouteMeta — can you read this routes to slip", () => {
+  assert.deepEqual(getSlipImageRouteMeta("Can you read this?", true), {
+    routesToSlip: true,
+    via: "vague",
+  });
+});
+
 test("getSlipImageRouteMeta — exclude non-betting screenshot questions from vague routing", () => {
   assert.deepEqual(getSlipImageRouteMeta("who won the game?", true), {
     routesToSlip: false,

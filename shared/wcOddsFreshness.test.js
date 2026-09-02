@@ -159,6 +159,21 @@ test("formatMatchOddsForPrompt surfaces to-advance prices", () => {
   assert.match(line, /To advance \(CIV \+178 · NOR -186\)/);
 });
 
+test("buildMatchOddsFreshnessPromptBlock renders when odds exist but timestamp missing", () => {
+  const now = Date.parse("2026-07-02T12:00:00.000Z");
+  const block = buildMatchOddsFreshnessPromptBlock(
+    {
+      homeTeam: "POR",
+      awayTeam: "CRO",
+      odds: { home: { moneyline: "-138" }, draw: { moneyline: "+270" }, away: { moneyline: "+488" } },
+    },
+    now,
+  );
+  assert.ok(block);
+  assert.match(block, /POR vs CRO/);
+  assert.match(block, /-138/);
+});
+
 test("formatWcOutrightsStaleChipLabel returns user-facing markets chip", () => {
   const label = formatWcOutrightsStaleChipLabel({
     stale: true,

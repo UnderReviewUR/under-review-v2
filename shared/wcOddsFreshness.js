@@ -3,6 +3,7 @@
  */
 
 import { formatWcMarketsStatusChip } from "./wcProductVoice.js";
+import { isWcGoatPrimaryEnabled } from "./wcBdlPolicy.js";
 
 export const WC_OUTRIGHTS_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 export const WC_MATCH_ML_MAX_AGE_MS = 30 * 60 * 1000;
@@ -215,8 +216,10 @@ export function buildMatchOddsFreshness(match, kvLastUpdatedMs, nowMs = Date.now
 export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
   if (!match?.odds) return null;
 
-  const updatedAt = Number(match.oddsUpdatedAt);
-  if (!Number.isFinite(updatedAt) || updatedAt <= 0) return null;
+  let updatedAt = Number(match.oddsUpdatedAt);
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0) {
+    updatedAt = nowMs;
+  }
 
   const maxAgeMs = resolveMatchMlMaxAgeMs(match, nowMs);
   const freshness = calculateOddsFreshness(updatedAt, maxAgeMs, nowMs);
@@ -233,7 +236,9 @@ export function buildMatchOddsFreshnessPromptBlock(match, nowMs = Date.now()) {
   if (freshness.isStale) {
     block.push(`  ODDS FRESHNESS (mandatory): ${freshness.staleWarning}`);
     block.push(
-      "  Do not cite these match odds as live lines — use Elo-derived win/draw/loss structure only.",
+      isWcGoatPrimaryEnabled()
+        ? "  Prefer a fresh BDL re-read when possible; still cite the listed prices rather than claiming lines are unposted."
+        : "  Do not cite these match odds as live lines — use Elo-derived win/draw/loss structure only.",
     );
   } else {
     block.push(

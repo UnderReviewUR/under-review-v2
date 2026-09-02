@@ -85,11 +85,35 @@ function isVagueImageBettingQuestion(q) {
     /^break (this|it) down\b/i.test(s) ||
     /^look ok\??$/i.test(s) ||
     /^look good\??$/i.test(s) ||
+    /\b(can you read|read this|read the screenshot|what are these lines|what does this say|decode this)\b/i.test(s) ||
     /\b(see attached|attached|paste[sd]?)\b/i.test(s) ||
     /\banalyze\b[\s\S]{0,48}\b(options|lines|markets|screenshot|odds)\b/i.test(s) ||
     /\bwhat'?s best to (play|bet)\b/i.test(s) ||
     /\bbest (?:thing|market|line|bet) to play\b/i.test(s)
   );
+}
+
+function isShortImageCaption(q) {
+  const s = normalizeSlipQuestionText(q).replace(/\s+/g, " ").trim();
+  return s.length <= 96;
+}
+
+function isNonBettingCasualImageCaption(q) {
+  const s = normalizeSlipQuestionText(q).replace(/\s+/g, " ").trim();
+  if (!s) return false;
+  return (
+    /\b(trip|museum|vacation|holiday|photo|picture from|walked a lot|family|selfie)\b/i.test(s) &&
+    !hasBettingSlipKeywordSignals(s) &&
+    !hasExplicitSlipLanguageInQuestion(s)
+  );
+}
+
+function shouldDefaultImageToSlipReview(q) {
+  const s = normalizeSlipQuestionText(q).replace(/\s+/g, " ").trim();
+  if (!s) return true;
+  if (isNonBettingCasualImageCaption(s)) return false;
+  if (!isShortImageCaption(q)) return false;
+  return true;
 }
 
 /**
@@ -100,9 +124,11 @@ function isVagueImageBettingQuestion(q) {
 export function getSlipImageRouteMeta(question, hasImage) {
   const q = normalizeSlipQuestionText(question);
   if (!hasImage) return { routesToSlip: false, via: null };
+  if (hasNonBettingScreenshotQuestionExclusion(q)) return { routesToSlip: false, via: null };
   if (hasExplicitSlipLanguageInQuestion(q)) return { routesToSlip: true, via: "explicit" };
   if (hasBettingSlipKeywordSignals(q)) return { routesToSlip: true, via: "keywords" };
   if (isVagueImageBettingQuestion(q)) return { routesToSlip: true, via: "vague" };
+  if (shouldDefaultImageToSlipReview(q)) return { routesToSlip: true, via: "vague" };
   return { routesToSlip: false, via: null };
 }
 

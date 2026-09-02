@@ -133,7 +133,7 @@ import {
   buildWcStubGuardSliceBlock,
 } from "../_wcUrTakeContext.js";
 import { loadWcPlayerMarketKvBlocksWithRetry, formatWcPlayerMarketsPromptBlock } from "../_wcPlayerUrTakeContext.js";
-import { isWcGoatPrimaryEnabled } from "../../shared/wcBdlPolicy.js";
+import { isWcGoatPrimaryEnabled, WC_BDL_GOAT_MATCH_ML_RULE } from "../../shared/wcBdlPolicy.js";
 import { isWcTournamentWindow } from "../../shared/wc2026Constants.js";
 import {
   prepareWcGroundingPacketForHandler,
@@ -3507,6 +3507,7 @@ export default async function handler(req, res) {
           injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
           wcEventId: wcEventIdTrimmed,
           conversationHistory: normalizedUrTakeHistoryForGate,
+          hasImage,
           liteFollowUp:
             wcTurnPlannerEnabled && wcTurnPlanLiteHint
               ? wcTurnPlanLiteHint.useLiteContext
@@ -3567,6 +3568,7 @@ export default async function handler(req, res) {
           injectStaticRules: wcRelevanceLog.knockoutRulesInjected,
           wcEventId: wcEventIdTrimmed,
           conversationHistory: normalizedUrTakeHistoryForGate,
+          hasImage,
           liteFollowUp: false,
         });
       } catch (err) {
@@ -3644,6 +3646,10 @@ export default async function handler(req, res) {
     if (sportHint === "worldcup" && wcContext && typeof wcContext === "object") {
       if (wcRequiredEntities.length) wcContext.requiredEntities = wcRequiredEntities;
       wcContext.conversationHistory = normalizedUrTakeHistoryForGate;
+      if (hasImage) {
+        wcContext.hasImage = true;
+        wcContext.userAttachedBettingImage = true;
+      }
 
       if (wcTurnPlannerEnabled) {
         wcTurnPlan = resolveWcTurnPlan({
@@ -4589,6 +4595,7 @@ export default async function handler(req, res) {
       sportHint === "nba" && Boolean(nbaInvalidation?.requiresStatusAcknowledgement),
     longFormRequested,
     wcIntent,
+    hasImage,
   });
   const propProjectionModeBlock =
     intent === "prop_projection" && sportHint !== "worldcup"
@@ -6026,6 +6033,7 @@ Confidence guidance:
   } else if (sportHint === "worldcup") {
     const wcLiveProbabilityOpts = {
       isConversationFollowUp,
+      hasImage,
       match:
         wcContext?.matchDetails?.[0] ||
         resolveWcLiveProbabilityMatchFromThread(normalizedUrTakeHistoryForGate),
@@ -6209,7 +6217,7 @@ ${isWcGroupWinnerIntent ? `- GROUP WINNER: cite groupWinPct from TOURNAMENT SIMU
 - Reference strength as Favorite / Contender / Longshot — never cite Elo or numeric power ratings.
 - When claiming a team is "mispriced" you MUST cite the exact odds from the CURRENT OUTRIGHT ODDS block in VERIFIED CONTEXT (team abbreviation + price) and the block must not be marked STALE.
 - If CURRENT OUTRIGHT ODDS is missing, marked STALE, or says no live odds are available, never use the word "mispriced". Use structural language instead (e.g. "Based on group strength...").
-- For match 1X2 moneylines, cite only prices from FIXTURE MATCH ODDS when present and not marked STALE; otherwise use Elo win/draw/loss structure only.
+- For match 1X2 moneylines, ${WC_BDL_GOAT_MATCH_ML_RULE}
 - Only include data relevant to the current tournament phase and the specific question; do not bloat with irrelevant groups or matches.
 - In knockout phases, follow KNOCKOUT STAGE RULES in VERIFIED CONTEXT — 90-minute moneylines do not settle advancement; ET/pens apply if level.
 - For "can X still win the tournament?" use CITED TEAM PATH — if a team is eliminated, state that clearly.
@@ -6341,10 +6349,8 @@ ${continuationRule}`;
     userPrompt = `${userPrompt}\n\n${wcImageReference}`;
   }
 
-  // WC image question that didn't take the slip-review prompt (e.g. "can you read this?"):
-  // ensure the model reads and uses the posted markets in the screenshot instead of replying
-  // "no actionable line" / defaulting to Pass because the odds aren't repeated in text context.
-  if (hasImage && sportHint === "worldcup" && intent !== "slip_review") {
+  // WC image: read posted markets from screenshot (slip_review or general caption).
+  if (hasImage && sportHint === "worldcup") {
     userPrompt = `${userPrompt}
 
 IMAGE MARKETS (binding): The user attached a World Cup screenshot that shows posted markets (e.g. To Advance, Moneyline, Total Goals, BTTS, spread). READ the visible odds and analyze which line is the best play. Treat the posted prices in the image as the authoritative offered lines for this fixture — do NOT respond "no actionable line yet" or default to Pass merely because those odds are not repeated in the text context.`;
@@ -6411,7 +6417,8 @@ IMAGE MARKETS (binding): The user attached a World Cup screenshot that shows pos
       !isConversationFollowUp &&
       !draftTeamSimulationInject;
 
-    const proDepthAppendix = shouldApplyProDepthAppendix ? `
+    const proDepthAppendix = shouldApplyProDepthAppendix
+      ? `
 
 [PRO SESSION — DEPTH UNLOCKED]
 You are responding to a Pro subscriber. Apply the following:
@@ -6421,13 +6428,22 @@ You are responding to a Pro subscriber. Apply the following:
   If odds ARE available:
   THE PLAY: [lean/fade/pass] · [High/Medium/Speculative] confidence · [one sharp sentence on why]
 
-  If odds are NOT available (no live lines in context):
-  THE PLAY: [lean/fade/pass] · [High/Medium/Speculative] confidence · [one sharp sentence on why] — when the line posts, watch for [specific player + specific stat threshold]
+${
+  sportHint === "worldcup" && isWcGoatPrimaryEnabled()
+    ? `  World Cup: BDL GOAT posts match lines for every fixture — cite FIXTURE MATCH ODDS (or visible screenshot prices). Never say lines are unavailable or "when the line posts."`
+    : `  If odds are NOT available (no live lines in context):
+  THE PLAY: [lean/fade/pass] · [High/Medium/Speculative] confidence · [one sharp sentence on why] — when the line posts, watch for [specific player + specific stat threshold]`
+}
 
 - If session history exists, open with one sentence that connects this query to the prior take before building the new card. Do not repeat full prior reasoning — reference it, then advance.
 - If evidence is thin, say so plainly in the verdict block rather than omitting it. Thin context, capped confidence, honest close is better than a padded card.
-- Never fabricate a line, spread, or total that is not present in the context payload. If odds are unavailable, the verdict close must be directional only — no invented numbers.
-` : "";
+- Never fabricate a line, spread, or total that is not present in the context payload${
+        sportHint === "worldcup" && isWcGoatPrimaryEnabled()
+          ? " (BDL GOAT fixture odds or user screenshot prices are always in scope for WC)."
+          : ". If odds are unavailable, the verdict close must be directional only — no invented numbers"
+      }.
+`
+      : "";
 
     const systemPromptWithProAppendix = `${systemPromptForModel}${proDepthAppendix}`;
 

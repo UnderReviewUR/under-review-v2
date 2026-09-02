@@ -592,6 +592,13 @@ export function buildWcTurnScopeBlock(question, wcIntent, opts = {}) {
       resolveWcLiveProbabilityMatchFromThread(opts.history) ||
       null,
   };
+  if (opts.hasImage) {
+    return `TURN SCOPE (binding):
+- User attached a sportsbook screenshot — read visible fixture markets and American prices from the image first (To Advance, 90-min ML, totals, BTTS, props).
+- NEVER "Pass until verified lines post", "no actionable line yet", or "Same-script legs — Pass" when prices are visible on screen.
+- Treat image-posted prices as authoritative for this turn even if FIXTURE MATCH ODDS text feed is empty.
+- Recommend the cleanest single-market or small combo from what's posted; cite the numbers you see.`;
+  }
   if (isWcOddsLineMovementQuestion(routingQuestion)) {
     const cited = extractFirstAmericanOddsToken(routingQuestion);
     const citedLine = cited

@@ -19,6 +19,7 @@ export const WC_SCRIPT_PRICE_CORE_PROMPT = `WC SCRIPT + PRICE PHILOSOPHY (mandat
 - When legs share one game script (SGP, ML + team total, scorer + first goal), call correlation out loud — do not price legs as independent.
 - Group opener / host / path context matters: same team plays different in Game 1 vs must-win — use tournament phase from VERIFIED CONTEXT.
 - Cite only prices and stats from VERIFIED CONTEXT; when thin, say what is missing — never invent book lines or Opta settlement rules.
+- BDL GOAT posts match odds for every World Cup fixture — never tell the user that book lines are unavailable or waiting to post.
 - PLAYER PROPS: frame every named player as their NATIONAL TEAM at World Cup 2026 — never cite club teams, domestic leagues (Premier League, La Liga, etc.), or club form from memory. Use tournament/fixture stats from VERIFIED CONTEXT only.`;
 
 /** Tier 2.5 appendix for WC player/match prop card face (maps to existing fields). */
@@ -53,6 +54,7 @@ export function isWcBettingScreenshotAnalyzeQuestion(question) {
   if (!q) return false;
   return (
     /\b(screenshot|see attached|attached|paste[sd]?)\b/i.test(q) ||
+    /\b(can you read|read this|read the screenshot|what are these lines|what does this say|decode this)\b/i.test(q) ||
     /\banalyze\b[\s\S]{0,48}\b(options|lines|markets|screenshot|odds|this)\b/i.test(q) ||
     /\bwhat'?s best to (play|bet)\b/i.test(q) ||
     /\bbest (?:thing|market|line|bet) to play\b/i.test(q) ||
