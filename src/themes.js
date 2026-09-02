@@ -31,12 +31,13 @@ export function validateThemeForTier(themeId, tier) {
 export function resolveInitialTheme() {
   if (typeof window === "undefined") return DEFAULT_THEME;
   try {
-    // One-time migrate: free users who still have the old dark default → paper.
-    if (localStorage.getItem("ur_theme_paper_default_v1") !== "1") {
+    // Force paper default for anyone still on the old Authority dark default.
+    // Dark remains available via the Pro display picker after this one-time flip.
+    if (localStorage.getItem("ur_theme_paper_default_v2") !== "1") {
+      localStorage.setItem("ur_theme_paper_default_v2", "1");
       localStorage.setItem("ur_theme_paper_default_v1", "1");
       const prior = localStorage.getItem("ur_theme");
-      const tier = getStoredAccessTier();
-      if ((!prior || prior === "epilogue") && !canUseProThemes(tier)) {
+      if (!prior || prior === "epilogue") {
         localStorage.setItem("ur_theme", DEFAULT_THEME);
       }
     }

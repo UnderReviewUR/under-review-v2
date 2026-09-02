@@ -253,7 +253,6 @@ import {
 import WcXiConfirmedHomeBanner from "./components/WcXiConfirmedHomeBanner.jsx";
 import BookmakerOddsPanel from "./components/BookmakerOddsPanel.jsx";
 import UrTakeOnboardingOverlay from "./components/UrTakeOnboardingOverlay.jsx";
-import NbaChampionsBanner from "./components/NbaChampionsBanner.jsx";
 import { isUrFocusSession } from "./lib/urFocusSession.js";
 
 /** Renders follow-up pills above the docked Ask bar (single place for Ask + sport tabs). */
@@ -7117,8 +7116,6 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
             </div>
           </div>
         )}
-
-        <NbaChampionsBanner enabled={screen === "home" || screen === "nba"} />
 
         {/* ══ NAV ══ Home · NFL · [CFB] · La Liga · PRO */}
         <nav className="bottom-nav bottom-nav--five" aria-label="Primary">

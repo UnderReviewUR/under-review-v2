@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+<script>
+  (function () {
+    try {
+      // One-time: flip stored Authority/dark default to crisp paper before paint.
+      if (localStorage.getItem("ur_theme_paper_default_v2") !== "1") {
+        localStorage.setItem("ur_theme_paper_default_v2", "1");
+        localStorage.setItem("ur_theme_paper_default_v1", "1");
+        var prior = localStorage.getItem("ur_theme");
+        if (!prior || prior === "epilogue") {
+          localStorage.setItem("ur_theme", "crisp");
+        }
+      }
+      // Never show the retired Knicks champs modal.
+      localStorage.setItem("ur_nba_knicks_champs_2026_seen", "1");
+    } catch (e) {}
+  })();
+</script>
     <meta charset="UTF-8" />
 
     <!-- Mobile + viewport -->
