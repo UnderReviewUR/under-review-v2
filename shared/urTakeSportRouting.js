@@ -4,6 +4,7 @@
 
 import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
 import { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
+import { coerceUrAskSportToLiveSurface, isNavSportVisible } from "./siteSportVisibility.js";
 
 export { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
 
@@ -578,6 +579,14 @@ export function hasNflAskLexicon(question) {
   ) {
     return true;
   }
+  // Home / Ask: "best player props for week 1" is NFL week language, not WC.
+  if (
+    /\bweek\s*(?:[1-9]|1[0-8]|one|two)\b/.test(q) &&
+    /\b(player\s+)?props?\b/.test(q) &&
+    !hasStrongNbaOnlyLexicon(q)
+  ) {
+    return true;
+  }
   if (/\b(spread|moneyline|\bml\b|ats|cover)\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
     return true;
   }
@@ -605,11 +614,25 @@ export function hasStrongNbaOnlyLexicon(question) {
 
 /**
  * Keyword inference from question (+ optional matchup card). Returns a sport slug or null.
+ * Inactive product sports (e.g. World Cup off) are coerced to the live surface.
  * @param {string} question
  * @param {{ league?: string } | null} [matchupContext]
  * @param {boolean} [hasImage]
  */
 export function inferSportFromQuestionText(question, matchupContext, hasImage) {
+  const raw = inferSportFromQuestionTextRaw(question, matchupContext, hasImage);
+  if (!raw) return null;
+  const live = coerceUrAskSportToLiveSurface(raw, question);
+  if (!live || live === "generic") return null;
+  return live;
+}
+
+/**
+ * @param {string} question
+ * @param {{ league?: string } | null} [matchupContext]
+ * @param {boolean} [hasImage]
+ */
+function inferSportFromQuestionTextRaw(question, matchupContext, hasImage) {
   const q = normalizeText(extractLatestUserTurnForRouting(question));
 
   // College football before NFL yardage lexicon (shared prop language).
@@ -805,19 +828,28 @@ export function resolveSportHint({
 }) {
   const routingQuestion = extractLatestUserTurnForRouting(question);
   const textualSport = inferSportFromQuestionText(routingQuestion, matchupContext, hasImage);
-  const historySport = inferSportFromChatHistory(chatHistory);
-  const h =
+  const historySportRaw = inferSportFromChatHistory(chatHistory);
+  const historySport = historySportRaw
+    ? coerceUrAskSportToLiveSurface(historySportRaw, routingQuestion)
+    : null;
+  const historySportLive =
+    historySport && historySport !== "generic" ? historySport : null;
+  const hRaw =
     typeof incomingSportHint === "string" && incomingSportHint.trim()
       ? incomingSportHint.trim()
       : "";
+  const hCoerced = hRaw ? coerceUrAskSportToLiveSurface(hRaw, routingQuestion) : "";
+  const h = hCoerced && hCoerced !== "generic" ? hCoerced : hRaw && isNavSportVisible(hRaw) ? hRaw : "";
 
-  if (h === "worldcup") return "worldcup";
+  // Explicit WC tab hint only when World Cup is a live product surface.
+  if (hRaw === "worldcup" && isNavSportVisible("worldcup")) return "worldcup";
 
   if (
+    isNavSportVisible("worldcup") &&
     shouldLockWorldCupThreadSport({
       question,
       textualSport,
-      historySport,
+      historySport: historySportRaw,
       chatHistory,
     })
   ) {
@@ -840,12 +872,12 @@ export function resolveSportHint({
   }
 
   if (
-    historySport &&
+    historySportLive &&
     Array.isArray(chatHistory) &&
     chatHistory.length > 1 &&
     !inferSportFromQuestionText(routingQuestion, matchupContext, hasImage)
   ) {
-    return historySport;
+    return historySportLive;
   }
 
   if (h && h !== "generic" && h !== "image_review") return h;

@@ -88,12 +88,19 @@ test("Giants from home → mlb before nfl keyword overlap", () => {
   assert.equal(detectSportFromQuestion("best Giants play tonight?", "home"), "mlb");
 });
 
-test("Paraguay on home tab resolves to worldcup", () => {
-  assert.equal(detectSportFromQuestion("Will Paraguay advance from Group D?", "home"), "worldcup");
+test("Paraguay on home tab does not route to World Cup while WC is off", () => {
+  assert.notEqual(detectSportFromQuestion("Will Paraguay advance from Group D?", "home"), "worldcup");
 });
 
-test("USA soccer on NBA tab resolves to worldcup", () => {
-  assert.equal(detectSportFromQuestion("Best USA soccer bet in group stage?", "nba"), "worldcup");
+test("USA soccer group-stage ask does not force World Cup while WC is off", () => {
+  assert.notEqual(detectSportFromQuestion("Best USA soccer bet in group stage?", "nba"), "worldcup");
+});
+
+test("home + week 1 player props resolves to nfl not worldcup", () => {
+  assert.equal(
+    detectSportFromQuestion("what are the best player props to watch for week 1?", "home"),
+    "nfl",
+  );
 });
 
 test("detectWtaFromQuestion true for explicit wta", () => {

@@ -62,10 +62,7 @@ const WC_TOURNAMENT_TERMS = [
   "highest scorer",
   "player with most goals",
   "golden boot winner",
-  "player props",
-  "player prop",
-  "player parlays",
-  "player parlay",
+  // Do NOT list bare "player props" — that steals NFL/NBA home asks to WC.
   "remaining matches",
 ];
 
@@ -130,10 +127,45 @@ const WC_NFL_EXCLUDE_RE =
 
 /** FanDuel/DK-style soccer prop phrasing without "world cup" or nation names (e.g. "Jimenez 2+ shots?", "Son 2.5 shots?"). */
 const WC_SOCCER_PROP_LINE_RE =
-  /\b(\d+\+\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|\d+\.5\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|(?:over|under)\s*\d+\.5\s*shots?(?:\s+on\s+target)?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|to\s+score\s+or\s+assist|score\s+or\s+assist|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?|shots?\s+on\s+target|sot\s*(?:prop|o\/u|over|under)|anytime\s+(?:goal\s*)?scorer|first\s+goal\s*scorer|player\s+props?|player\s+parlays?|parlay\s+props?)\b/i;
+  /\b(\d+\+\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|\d+\.5\s*shots?(?:\s+on\s+target|\s*on\s*goal)?|(?:over|under)\s*\d+\.5\s*shots?(?:\s+on\s+target)?|\d+\s*or\s+more\s+shots?|player\s+to\s+have\s+\d+\s*or\s+more\s+shots?|to\s+score\s+or\s+assist|score\s+or\s+assist|team\s+to\s+score\s+(?:the\s+)?first\s+goal|most\s+corners?|shots?\s+on\s+target|sot\s*(?:prop|o\/u|over|under)|anytime\s+(?:goal\s*)?scorer|first\s+goal\s*scorer)\b/i;
+
+/** NFL/CFB week language + props — home board season asks, not WC. */
+const NFL_OR_CFB_WEEK_PROPS_RE =
+  /\bweek\s*(?:[1-9]|1[0-8]|one|two)\b/i;
 
 const WC_OTHER_SPORT_EXCLUDE_RE =
-  /\b(nba|nfl|mlb|nhl|basketball|baseball|hockey|touchdown|quarterback|strikeout|pitcher|pra|rebounds|lakers|celtics|spurs|warriors|yankees|dodgers)\b/i;
+  /\b(nba|nfl|mlb|nhl|ncaaf|cfb|college football|basketball|baseball|hockey|touchdown|quarterback|strikeout|pitcher|pra|rebounds|lakers|celtics|spurs|warriors|yankees|dodgers|passing tds?|rush(?:ing)? yards?|receiv(?:ing|er)? yards?)\b/i;
+
+/**
+ * Soccer / WC co-signal without bare "player props" (shared with every sport).
+ * @param {string} q normalized question
+ */
+function hasWcSoccerOrTournamentCoSignal(q) {
+  if (!q) return false;
+  if (WC_GROUP_STAGE_RE.test(q) || WC_GROUP_STAGE_PHASE_RE.test(q)) return true;
+  if (/\b(world cup|fifa|soccer|usmnt|golden boot|knockout|anytime (?:goal\s*)?scorer|first goal|goalscorer|btts|both teams to score|remaining matches)\b/i.test(q)) {
+    return true;
+  }
+  if (WC_SOCCER_FOOTBALL_RE.test(q) && !WC_NFL_EXCLUDE_RE.test(q)) return true;
+  for (const phrase of WC_TEAM_PHRASES) {
+    if (!containsPhrase(q, phrase)) continue;
+    if (WC_AMBIGUOUS_TEAM_PHRASES.has(phrase)) {
+      if (
+        !WC_GROUP_STAGE_RE.test(q) &&
+        !q.includes("world cup") &&
+        !q.includes("fifa") &&
+        !q.includes("soccer") &&
+        !q.includes("group stage") &&
+        !q.includes("knockout") &&
+        !/\bvs\.?\b/.test(q)
+      ) {
+        continue;
+      }
+    }
+    return true;
+  }
+  return false;
+}
 
 /**
  * Soccer match/player prop slip language — routes home-page UR Take to WC during the tournament.
@@ -147,16 +179,22 @@ export function questionImpliesWcSoccerPlayerProp(question) {
 }
 
 /**
- * Route generic player-prop / parlay asks to World Cup during the tournament
- * even when the question omits "World Cup" (e.g. home tab or WC screen).
+ * Route soccer/WC player-market asks when the question omits "World Cup".
+ * Bare "player props" alone is NOT enough — that language is shared with NFL/NBA.
  * @param {string} question
  */
 export function inferWorldCupFromPlayerMarketQuestion(question) {
   const q = normalizeText(question);
   if (!q || WC_OTHER_SPORT_EXCLUDE_RE.test(q)) return false;
-  if (/\b(player props?|player parlays?|parlay props?)\b/i.test(q)) return true;
-  if (/\bparlays?\b/i.test(q) && /\b(player|scorer|props?|goalscorer)\b/i.test(q)) {
-    return true;
+  // "week 1 player props" on home = NFL/CFB slate, not WC.
+  if (NFL_OR_CFB_WEEK_PROPS_RE.test(q) && /\bprops?\b/i.test(q)) return false;
+
+  const hasPlayerMarketPhrase =
+    /\b(player props?|player parlays?|parlay props?)\b/i.test(q) ||
+    (/\bparlays?\b/i.test(q) && /\b(player|scorer|props?|goalscorer)\b/i.test(q));
+
+  if (hasPlayerMarketPhrase) {
+    return hasWcSoccerOrTournamentCoSignal(q);
   }
   return questionImpliesWcSoccerPlayerProp(question);
 }

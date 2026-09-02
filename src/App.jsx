@@ -4323,12 +4323,15 @@ ${themeCss}
       const text = String(prompt ?? "").trim();
       if (!text) return;
       if (!canAsk()) return;
-      const resolvedHint =
+      const rawHint =
         typeof sportHint === "string" && sportHint.trim() && sportHint.trim() !== "generic"
           ? sportHint.trim()
-          : questionMentionsWorldCup(text) || inferWorldCupFromPlayerMarketQuestion(text)
+          : isNavSportVisible("worldcup") &&
+              (questionMentionsWorldCup(text) || inferWorldCupFromPlayerMarketQuestion(text))
             ? "worldcup"
             : null;
+      const resolvedHint =
+        rawHint === "worldcup" && !isNavSportVisible("worldcup") ? null : rawHint;
       if (screen !== "ask" || tab !== "ask") {
         setNavHistory((h) => [...h, { screen, tab }]);
       }
@@ -4377,7 +4380,8 @@ ${themeCss}
     setTab("ask");
     setScreen("ask");
     const homeSportHint =
-      questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t)
+      isNavSportVisible("worldcup") &&
+      (questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t))
         ? "worldcup"
         : undefined;
     askUrTake({
@@ -4396,7 +4400,8 @@ ${themeCss}
     if (!t || isAsking) return;
     setAskInput("");
     const askSportHint =
-      questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t)
+      isNavSportVisible("worldcup") &&
+      (questionMentionsWorldCup(t) || inferWorldCupFromPlayerMarketQuestion(t))
         ? "worldcup"
         : undefined;
     askUrTake({

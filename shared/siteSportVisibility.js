@@ -12,7 +12,8 @@
 export const SITE_SPORT_VISIBILITY = Object.freeze({
   nav: Object.freeze({
     home: true,
-    worldcup: true,
+    // WC 2026 tournament window closed — keep routes, hide product surface.
+    worldcup: false,
     nba: false,
     nfl: true,
     cfb: false,
@@ -37,8 +38,8 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
   homeCards: Object.freeze({
     mlb: false,
     tennis: false,
-    f1: true,
-    golf: true,
+    f1: false,
+    golf: false,
     nflDraft: true,
   }),
   homePrompts: Object.freeze({
@@ -52,7 +53,7 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
   }),
   dailyTake: Object.freeze({
     nba: false,
-    worldcup: true,
+    worldcup: false,
     mlb: false,
     tennis: false,
   }),
@@ -65,6 +66,37 @@ export function isNavSportVisible(slug) {
   const key = String(slug || "").toLowerCase();
   if (!key) return false;
   return SITE_SPORT_VISIBILITY.nav[key] !== false;
+}
+
+/**
+ * Sports that may own a Home / Ask UR Take when no explicit sport tab is open.
+ * @param {string} slug
+ */
+export function isUrAskSportActive(slug) {
+  const key = String(slug || "").toLowerCase();
+  if (key === "nfl" || key === "laliga") return isNavSportVisible(key);
+  return false;
+}
+
+/**
+ * Remap World Cup detections off the live product surface.
+ * Other sports keep their text identity (deep-link / explicit asks); only WC is killed.
+ * Club-soccer prop language → La Liga when live.
+ * @param {string | null | undefined} sport
+ * @param {string} [question]
+ */
+export function coerceUrAskSportToLiveSurface(sport, question = "") {
+  const s = String(sport || "").toLowerCase().trim();
+  if (!s || s === "generic") return s || null;
+  if (s !== "worldcup") return s;
+  if (isNavSportVisible("worldcup")) return "worldcup";
+  const q = String(question || "").toLowerCase();
+  const clubSoccerProp =
+    /\b(anytime\s+(?:goal\s*)?scorer|first\s+goal|shots?(?:\s+on\s+target)?|sot\b|btts|both teams to score|goalscorer|la liga|laliga)\b/i.test(
+      q,
+    );
+  if (clubSoccerProp && isNavSportVisible("laliga")) return "laliga";
+  return "generic";
 }
 
 /**
@@ -128,4 +160,8 @@ export function isCfbUrTakeGated(_opts = {}) {
 
 export function isLaligaUrTakeGated(_opts = {}) {
   return !isNavSportVisible("laliga");
+}
+
+export function isWorldCupUrTakeGated(_opts = {}) {
+  return !isNavSportVisible("worldcup");
 }

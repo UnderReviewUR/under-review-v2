@@ -131,7 +131,11 @@ export default function WcTakeCard({
     predictionSlots: slots,
     slateListFace,
   });
-  const fallbackBody = String(fallbackSummary || "").trim();
+  const fallbackBody =
+    String(fallbackSummary || "").trim() ||
+    (!cardHasContent
+      ? "No lean posted for this ask — name a match, market, or prop line and try again."
+      : "");
 
   if (showCollapsed) {
     const collapsedWhyRaw = String(sections?.why || "").trim();

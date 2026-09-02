@@ -154,17 +154,17 @@ describe("resolveSportHint WC thread lock", () => {
     { role: "assistant", content: "Live spread read", sport: "worldcup" },
   ];
 
-  it("keeps worldcup on bucks recreational follow-up", () => {
+  it("does not keep worldcup on bucks follow-up while WC product is off", () => {
     const hint = resolveSportHint({
       incomingSportHint: "nba",
       question: "I don't need an edge. I'm fine with making a few bucks tops",
       chatHistory: wcHistory,
     });
-    assert.equal(hint, "worldcup");
+    assert.notEqual(hint, "worldcup");
   });
 });
 
-describe("resolveSportHint cross-tab WC guarantee (entry point must not matter)", () => {
+describe("resolveSportHint — WC off: live surface is NFL / La Liga", () => {
   const wcQuestions = [
     "best bets for the Netherlands match?",
     "Who wins the World Cup final?",
@@ -176,14 +176,21 @@ describe("resolveSportHint cross-tab WC guarantee (entry point must not matter)"
 
   for (const question of wcQuestions) {
     for (const incomingSportHint of nonWcTabHints) {
-      it(`routes "${question}" to worldcup even with hint="${incomingSportHint || "(none)"}"`, () => {
+      it(`does not route "${question}" to worldcup with hint="${incomingSportHint || "(none)"}"`, () => {
         const hint = resolveSportHint({ incomingSportHint, question });
-        assert.equal(hint, "worldcup");
+        assert.notEqual(hint, "worldcup");
       });
     }
   }
 
-  it("vague WC follow-up with no textual sport inherits worldcup from history (nba hint)", () => {
+  it("anytime scorer lands on La Liga while WC is off", () => {
+    assert.equal(
+      resolveSportHint({ incomingSportHint: "generic", question: "Mbappe anytime scorer odds tonight" }),
+      "laliga",
+    );
+  });
+
+  it("vague WC follow-up does not inherit inactive worldcup history", () => {
     const hint = resolveSportHint({
       incomingSportHint: "nba",
       question: "what about the other side?",
@@ -192,7 +199,7 @@ describe("resolveSportHint cross-tab WC guarantee (entry point must not matter)"
         { role: "assistant", content: "Lean Under 2.5", sport: "worldcup" },
       ],
     });
-    assert.equal(hint, "worldcup");
+    assert.notEqual(hint, "worldcup");
   });
 
   it("does NOT hijack a real NBA question typed on a WC-less generic tab", () => {
