@@ -20,6 +20,10 @@ import {
   inferNflOpponentFromSlate,
 } from "../shared/nflBdlDefenseNormalize.js";
 import {
+  formatNflDefenseTierLabel,
+  isNflDefensePriorRow,
+} from "../shared/nflDefenseScoringPriors2025.js";
+import {
   buildNflAskDisciplinePromptBlock,
   buildNflGameScriptLine,
   buildNflInjuryTimingNote,
@@ -426,13 +430,17 @@ export function buildNflMatchupThesis({
   player,
   opponent,
   defenseTier,
+  defenseLabel,
   liveLine,
   injuryLine,
   homeAbbr,
 }) {
   if (!player) return "";
   const bits = [`${player.name}`];
-  if (opponent) bits.push(`vs ${opponent}${defenseTier ? ` (${defenseTier} D)` : ""}`);
+  const dLabel =
+    String(defenseLabel || "").trim() ||
+    (defenseTier ? `${defenseTier} D` : "");
+  if (opponent) bits.push(`vs ${opponent}${dLabel ? ` (${dLabel})` : ""}`);
   if (homeAbbr) bits.push(`@ ${homeAbbr}`);
   if (liveLine?.line != null) {
     bits.push(
@@ -576,8 +584,12 @@ export function buildNflMatchupCard(opts = {}) {
   if (seasonTypeWarning) lines.push(seasonTypeWarning);
 
   if (opponent && def) {
+    const tierLabel = formatNflDefenseTierLabel(def) || `${def.tier || "?"} D`;
+    const priorBit = isNflDefensePriorRow(def)
+      ? " 2025 scoring prior — early-season context only; not a 2026 live sample. Do not treat last year as this year's floor."
+      : " Live/current sample.";
     lines.push(
-      `Opponent D: ${opponent} — ${def.tier || "?"} (pts/g allowed ${def.overall?.ptsAllowed ?? "?"}).`,
+      `Opponent D: ${opponent} — ${tierLabel} (pts/g allowed ${def.overall?.ptsAllowed ?? "?"}).${priorBit}`,
     );
     if (impact) lines.push(`Prop impact (${impactKey.toUpperCase()}): ${impact}`);
     else lines.push(`Prop impact: no position note for ${player.pos} vs ${opponent} — use tier + structure.`);
@@ -675,6 +687,7 @@ export function buildNflMatchupCard(opts = {}) {
     player: { name: player.name, pos: player.pos, team: player.team },
     opponent,
     defenseTier: def?.tier || null,
+    defenseLabel: formatNflDefenseTierLabel(def) || null,
     liveLine,
     injuryLine,
     homeAbbr,
@@ -689,6 +702,7 @@ export function buildNflMatchupCard(opts = {}) {
     player: { name: player.name, pos: player.pos, team: player.team },
     opponent,
     defenseTier: def?.tier || null,
+    defensePrior: isNflDefensePriorRow(def),
     homeAbbr,
     liveLine,
     injuryLine,

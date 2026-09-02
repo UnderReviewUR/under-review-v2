@@ -5661,6 +5661,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
             opponent: canonicalNfl.matchup.opponent || null,
             homeAbbr: canonicalNfl.matchup.homeAbbr || null,
             defenseTier: canonicalNfl.matchup.defenseTier || null,
+            defensePrior: Boolean(canonicalNfl.matchup.defensePrior),
             liveLine: canonicalNfl.matchup.liveLine || null,
             injuryFlag: Boolean(canonicalNfl.matchup.injuryFlag),
           }
@@ -7500,6 +7501,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                 question,
                 liveLine,
                 defenseTier: nflMatchupMetaOut?.defenseTier,
+                defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
                 playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
               });
             }
@@ -7556,6 +7558,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                     question,
                     liveLine,
                     defenseTier: nflMatchupMetaOut?.defenseTier,
+                    defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
                     playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
                   }),
                   sportHint,
@@ -7613,6 +7616,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                         question,
                         liveLine,
                         defenseTier: nflMatchupMetaOut?.defenseTier,
+                        defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
                         playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
                       }),
                       sportHint,

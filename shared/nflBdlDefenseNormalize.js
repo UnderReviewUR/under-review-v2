@@ -138,6 +138,11 @@ export function mergeNflDefenseMaps(live, staticMap) {
     out[abbr] = {
       ...prev,
       ...row,
+      // Live season sample replaces last-year prior tags.
+      priorSeason: undefined,
+      priorBasis: undefined,
+      priorVintage: undefined,
+      liveDeferred: false,
       // Keep richer static propImpact prose when live only has short templates
       propImpact:
         row.propImpact && hasRichPropImpact(row.propImpact)

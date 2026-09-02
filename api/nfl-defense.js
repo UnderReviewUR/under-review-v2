@@ -18,8 +18,10 @@ export const config = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { applyCors } from "./_cors.js";
+import { applyNfl2025ScoringDefensePriors } from "../shared/nflDefenseScoringPriors2025.js";
 
-export const defenses = {
+/** @type {Record<string, Record<string, unknown>>} */
+const DEFENSES_RAW = {
 
     // ═══════════════════════════════════════
     // ELITE DEFENSES — 2025 SEASON
@@ -648,20 +650,28 @@ export const defenses = {
     },
 };
 
+/**
+ * Static defense map with 2025 scoring ranks overlaid.
+ * Personnel/angles prose may still be narrative; tier/rank/pts are the scoring prior.
+ * Matchup card stamps these as '25 prior until a real 2026 sample exists.
+ */
+export const defenses = applyNfl2025ScoringDefensePriors(DEFENSES_RAW);
+
 export default async function handler(req, res) {
   if (!applyCors(req, res)) return;
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   return res.status(200).json({
     defenses,
-    updated_at: "2026-03-30",
+    updated_at: "2026-09-02",
     season: 2025,
     dataFreshness: {
-      generatedFor: "2025 season",
-      lastVerified: "2026-03-30",
+      generatedFor: "2025 season scoring prior",
+      lastVerified: "2026-09-02",
       isCurrentSeason: false,
+      priorBasis: "points_allowed",
       stalenessWarning:
-        "Defense tiers and DVOA values are offseason snapshots from the 2025 season. Not live 2026 data. Treat tier assignments as directional, not current-week gospel.",
+        "Defense tiers are 2025 full-season scoring priors for early-2026 context only. Not live 2026 samples. Prefer live ranks once gamesPlayed >= 4; do not treat last year as this year's floor.",
     },
   });
 }

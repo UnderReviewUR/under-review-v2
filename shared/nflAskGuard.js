@@ -133,10 +133,14 @@ export function buildNflLivePropBoardTake(opts = {}) {
   const band = confidenceForNflMarket(detected.marketId).band;
   const tierRaw = String(opts.defenseTier || "").trim();
   const tier = tierRaw.toUpperCase() || "UNKNOWN";
+  const defenseIsPrior = Boolean(opts.defensePrior);
   const who = String(opts.playerName || liveLine.player || "Player").trim() || "Player";
   const prop = String(liveLine.prop || liveLine.propRaw || detected.label || "prop").trim();
-  const book = String(liveLine.book || "board").trim() || "board";
+  const book = String(liveLine.book || "board").trim() || "book";
   const marketLabel = String(detected.label || prop).trim() || "prop";
+  const dContext = defenseIsPrior
+    ? `${tierRaw || tier} D ('25 scoring prior — not a 2026 live sample)`
+    : `${tierRaw || tier} D`;
 
   const tough = /\b(ELITE|TOP|LOCK|SHUT|TOUGH|GOOD|STOUT)\b/.test(tier);
   const softD = /\b(SOFT|BOTTOM|BAD|POOR|LEAKY|WORST|WEAK)\b/.test(tier);
@@ -157,14 +161,12 @@ export function buildNflLivePropBoardTake(opts = {}) {
   if (softD && !tough) {
     call = `OVER ${line}`;
     lean = `Lean: Over ${line}. ${marketLabel} vs ${tierRaw || tier} D — pay the over.`;
-    whyNow = `${who} ${prop} is live at ${line} (${book}). ${tierRaw || tier} D is a green light at the posted number — over is the lean.`;
+    whyNow = `${who} ${prop} is live at ${line} (${book}). ${dContext} is a green light at the posted number — over is the lean.`;
     edge = `Posted ${line} into a soft defense look. Soft markets stay speculative — this is a lean off matchup + board, not a lock.`;
   } else if (tough || softMarket) {
-    // Lumpy TD / rare-event markets: fade the over unless defense is soft.
-    // AVERAGE / tough / unknown → Under at the live number.
     call = `UNDER ${line}`;
     lean = `Lean: Under ${line}. ${marketLabel} is lumpy — fade the over at ${line}.`;
-    whyNow = `${who} ${prop} is live at ${line} (${book}). ${tierRaw || "This"} D is not a smash-over green light on a soft market — under is the one lean.`;
+    whyNow = `${who} ${prop} is live at ${line} (${book}). ${dContext} is not a smash-over green light on a soft market — under is the one lean.`;
     edge = `Live board is ${line}. Soft/lumpy props need a script reason to pay the over; without one, fade is the call at Speculative.`;
     confidence = "Speculative";
   } else {
@@ -193,14 +195,18 @@ export function buildNflLivePropBoardTake(opts = {}) {
         "Confirm inactives and OL/skill availability before locking — this lean is board + defense tier only.",
       marketContext: `Verified live ${marketLabel} at ${line} (${book}). Recovery lean from board after the model take failed validation.`,
       lineMovement: `Shop ${book} and peers around ${line}; do not invent a different number.`,
-      statisticalEdge:
-        "Defense tier + posted line drive this recovery lean. Season pace alone is not the ticket.",
+      statisticalEdge: defenseIsPrior
+        ? "Defense tier is last-season scoring context only. Season pace alone is not the ticket."
+        : "Defense tier + posted line drive this recovery lean. Season pace alone is not the ticket.",
     },
     caveats: [
       `Live ${marketLabel} ${line} from ${book}.`,
       softMarket
         ? "Soft market — Speculative only; do not lock language."
         : "Re-check the number closer to kick if the board moves.",
+      ...(defenseIsPrior
+        ? ["Defense tier is a 2025 scoring prior — re-check once 2026 sample posts."]
+        : []),
     ],
     timestamp: new Date().toISOString(),
   };
