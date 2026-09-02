@@ -39,11 +39,49 @@ function filterDefensesForScope(scope) {
 }
 
 function formatDefenseFast(defMap) {
-  const lines = Object.entries(defMap).map(
-    ([abbr, d]) =>
-      `${abbr} (${d.tier}): ${d.overall?.ptsAllowed ?? "?"} pts/g | pass ${d.pass?.rank ?? "?"} | rush ${d.rush?.rank ?? "?"}`,
-  );
+  const lines = Object.entries(defMap).map(([abbr, d]) => {
+    const prior = d?.priorVintage || d?.priorSeason ? " · '25 prior" : "";
+    return `${abbr} (${d.tier}${prior}): ${d.overall?.ptsAllowed ?? "?"} pts/g | pass ${d.pass?.rank ?? "?"} | rush ${d.rush?.rank ?? "?"}`;
+  });
   return lines.length ? `DEFENSE (static prior):\n${lines.join("\n")}` : "";
+}
+
+function formatFastGameLine(game) {
+  if (!game) return "";
+  const bits = [`${game.awayAbbr || "?"} @ ${game.homeAbbr || "?"}`];
+  if (game.week != null) bits.push(`week ${game.week}`);
+  if (game.status) bits.push(String(game.status));
+  const spread =
+    game.spread?.displayLine ||
+    (game.spread?.favoriteAbbr && game.spread?.favoritePoint != null
+      ? `${game.spread.favoriteAbbr} -${game.spread.favoritePoint}`
+      : null);
+  const total = game.total?.line ?? game.totalLine ?? null;
+  const mlHome = game.moneyline?.home ?? game.mlHome ?? null;
+  const mlAway = game.moneyline?.away ?? game.mlAway ?? null;
+  if (spread) bits.push(`spread ${spread}`);
+  if (total != null && total !== "") bits.push(`total ${total}`);
+  if (mlHome != null || mlAway != null) {
+    bits.push(`ml ${game.awayAbbr || "AWAY"} ${mlAway ?? "—"} / ${game.homeAbbr || "HOME"} ${mlHome ?? "—"}`);
+  }
+  return bits.join(" | ");
+}
+
+function gamePricesToOddsStub(game) {
+  if (!game) return [];
+  const spread = game.spread?.displayLine || null;
+  const total = game.total?.line ?? null;
+  if (spread == null && total == null) return [];
+  return [
+    {
+      game_id: game.providerGameId ?? game.id ?? null,
+      awayAbbr: game.awayAbbr,
+      homeAbbr: game.homeAbbr,
+      spread,
+      total,
+      source: "fast_board_game",
+    },
+  ];
 }
 
 function formatPostedPropsForAsk(props, max = 18) {
@@ -129,12 +167,29 @@ export async function buildNflFastAskContext(options = {}) {
   });
 
   const market = detectNflAskMarket(question);
+  const oddsStub = gamePricesToOddsStub(game);
+  const hasGamePrice = oddsStub.length > 0;
+  const hasLiveForMarket =
+    (Array.isArray(market.propTypeHints) && market.propTypeHints.length > 0
+      ? propLines.length > 0
+      : hasGamePrice) || propLines.length > 0;
   const lines = [
-    `NFL FAST BOARD (${[...scope].sort().join(" vs ")})`,
-    `${game.awayAbbr} @ ${game.homeAbbr} | week ${game.week ?? "?"} | ${game.status || "scheduled"}`,
+    `NFL FAST BOARD (${[...scope].sort().join(" vs ")}) — live GOAT/board prices when present`,
+    formatFastGameLine(game),
+    hasGamePrice
+      ? `POSTED GAME PRICES:\n- ${oddsStub
+          .map((o) =>
+            [o.spread ? `spread ${o.spread}` : null, o.total != null ? `total ${o.total}` : null]
+              .filter(Boolean)
+              .join(" · "),
+          )
+          .join("\n- ")}`
+      : "POSTED GAME PRICES: none on cached board — do not invent a spread/total.",
     propLines.length
       ? `POSTED PROPS (matchup):\n${formatPostedPropsForAsk(propLines)}`
-      : "POSTED PROPS: none cached — lean from matchup card only.",
+      : market.propTypeHints?.length
+        ? "POSTED PROPS: none cached — PASS the prop if no live row; do not invent."
+        : "POSTED PROPS: none loaded (not required for spread/total/opinion).",
     formatDefenseFast(filterDefensesForScope(scope)),
     injuryRows.length
       ? `INJURIES:\n${injuryRows.map((i) => `- ${i.player} (${i.team}): ${i.status}`).join("\n")}`
@@ -145,12 +200,12 @@ export async function buildNflFastAskContext(options = {}) {
           .join("\n")}`
       : "",
     matchupCard.cardBlock || matchupCard.promptBlock || "",
-    buildNflSeasonTypeWarning({ phase: matchupCard.phase }),
+    buildNflSeasonTypeWarning(scopedGames),
     buildNflAskDisciplinePromptBlock({
       question,
       marketId: matchupCard.marketId || market.marketId,
       phase: matchupCard.phase,
-      hasLiveLine: propLines.length > 0,
+      hasLiveLine: hasLiveForMarket,
       injuryFlag: injuryRows.length > 0,
       ambiguousPlayer: matchupCard.ambiguous ? (matchupCard.candidates || []).join(" / ") : null,
     }),
@@ -162,7 +217,7 @@ export async function buildNflFastAskContext(options = {}) {
   }
 
   const stubBriefcase = {
-    slate: { games: scopedGames, odds: [], playerProps: propLines },
+    slate: { games: scopedGames, odds: oddsStub, playerProps: propLines },
     league: { injuries: injuryRows, rostersByTeam: {} },
   };
   const interaction = evaluateBriefcaseForInteraction(stubBriefcase, question);

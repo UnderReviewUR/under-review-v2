@@ -6,6 +6,7 @@
 import { detectNflAskMarket, NFL_TOP_25_BET_MARKETS } from "./nflGoatExtractionContract.js";
 import { shouldSkipNflLiveBoardForAsk } from "./nflAskBoardPolicy.js";
 import { isNflConditionalSnapAsk } from "./nflAskGuard.js";
+import { buildNflAskComposePromptBlock } from "./nflAskComposeRule.js";
 
 /** @typedef {'draft'|'futures'|'weekly_props'|'game_core'|'live'|'exotic'|'mixed'} NflAskPhase */
 
@@ -42,6 +43,7 @@ export const NFL_MARKET_CONFIDENCE = Object.freeze({
   defense_st: { band: "soft", note: "D/ST props — soft/thin." },
   method_exact: { band: "lottery", note: "Exotic / exact margin — lottery only." },
   general: { band: "medium", note: "General — stay medium until market clears." },
+  opinion: { band: "medium", note: "Opinion lean — medium; no invented ticket number." },
 });
 
 /**
@@ -278,6 +280,7 @@ export function buildNflAskDisciplinePromptBlock(opts = {}) {
     .join("; ");
 
   const lines = [
+    buildNflAskComposePromptBlock(),
     "NFL ASK DISCIPLINE (anti-blur — mandatory)",
     `Phase lane: ${phase}. Do NOT mix draft capital, weekly props, futures, and exotics in one blurry answer unless the user asked for multiple.`,
     `Primary market: ${detected.label} (${marketId}). Lead with that market; secondary markets only if asked or needed for script (spread/total as context).`,

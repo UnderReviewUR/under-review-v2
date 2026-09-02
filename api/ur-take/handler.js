@@ -5668,10 +5668,14 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
         : null;
     const briefcaseHealthBlock = String(canonicalNfl?.briefcase?.promptBlock || "").trim();
     const matchupCardBlock = String(canonicalNfl?.matchup?.promptBlock || "").trim();
+    // This-turn GOAT/canonical context wins over a stale client league dump.
+    // One suitcase per ask — prompt and guard must see the same pockets.
     const nflContextEffective =
-      nflContext && String(nflContext).trim()
-        ? nflContext
-        : canonicalNfl.promptContext;
+      canonicalNfl?.promptContext && String(canonicalNfl.promptContext).trim()
+        ? canonicalNfl.promptContext
+        : nflContext && String(nflContext).trim()
+          ? nflContext
+          : "";
 
     const nflDataFreshness =
       typeof nflContext === "object" &&
@@ -5749,12 +5753,24 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       typeof nflContextEffective === "string"
         ? nflContextEffective
         : contextJsonForModel(nflContextEffective);
-    const nflContextNeedsHealth =
-      briefcaseHealthBlock && !String(nflContextBase).includes("NFL SUITCASE HEALTH");
-    const nflContextNeedsMatchup =
-      matchupCardBlock && !String(nflContextBase).includes("NFL MATCHUP CARD");
+    // Always append this-turn matchup + suitcase so a cached GET dump cannot hide them.
+    const nflContextNeedsHealth = Boolean(briefcaseHealthBlock);
+    const nflContextNeedsMatchup = Boolean(matchupCardBlock);
+    let nflContextSanitized = String(nflContextBase || "");
+    if (nflContextNeedsMatchup) {
+      nflContextSanitized = nflContextSanitized.replace(
+        /\n*NFL MATCHUP CARD[\s\S]*?(?=\n\nNFL |\n\nUR COMPOSE|\n\nDATA |\n\n---|\s*$)/i,
+        "\n",
+      );
+    }
+    if (nflContextNeedsHealth) {
+      nflContextSanitized = nflContextSanitized.replace(
+        /\n*NFL SUITCASE HEALTH[\s\S]*?(?=\n\nNFL |\n\nUR COMPOSE|\n\nDATA |\n\n---|\s*$)/i,
+        "\n",
+      );
+    }
     const nflContextForPrompt =
-      nflContextBase +
+      nflContextSanitized.trim() +
       (nflContextNeedsMatchup ? `\n\n${matchupCardBlock}` : "") +
       (nflContextNeedsHealth ? `\n\n${briefcaseHealthBlock}` : "") +
       (teamCapitalBlock ? `\n\n---\n\n${teamCapitalBlock}` : "");

@@ -6,6 +6,8 @@
  * Ask still answers — it just says what was missing. Prefer live > static.
  */
 
+import { nflAskGradeExemptPockets } from "./nflAskComposeRule.js";
+
 /** @typedef {'core'|'props'|'futures'|'sgp'|'live'} NflBetBucket */
 
 /**
@@ -533,9 +535,10 @@ export function detectNflAskMarket(question) {
     { id: "rush_yds", label: "Rushing yards", re: /\brush(?:ing)?\s+yards?\b/, paths: ["slate.playerProps", "league.injuries", "league.rosters", "players.recentStats"], props: ["rushing_yards"] },
     { id: "rec_yds", label: "Receiving yards", re: /\breceiv(?:ing|er)?\s+yards?\b|\brec\s+yards?\b|\breceiving\b/, paths: ["slate.playerProps", "league.injuries", "players.recentStats"], props: ["receiving_yards"] },
     { id: "receptions", label: "Receptions", re: /\breceptions?\b|\brec(?:eptions)?\b(?!\s+yards?\b)/, paths: ["slate.playerProps", "players.recentStats"], props: ["receptions"] },
-    { id: "spread", label: "Spread", re: /\bspread\b|\bats\b|\bcover\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
-    { id: "total", label: "Game total", re: /\b(?:game\s+)?total\b|\bover\/under\b|\bo\/u\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
-    { id: "moneyline", label: "Moneyline", re: /\bmoneyline\b|\bml\b/, paths: ["slate.odds", "slate.games"], props: [] },
+    { id: "spread", label: "Spread", re: /\bspread\b|\bats\b|\bcover\b|\b(?:the\s+)?(?:dog|favorite|fav)\b|\bpick'?em\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
+    // Game totals: prefer explicit total/o/u, or over/under with a 2-digit line (avoids 1.5 prop lines).
+    { id: "total", label: "Game total", re: /\b(?:game\s+)?total\b|\bover\/under\b|\bo\/u\b|(?:\bover|\bunder)\s+(?:the\s+)?(?:total\s+)?\d{2}(?:\.\d)?\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
+    { id: "moneyline", label: "Moneyline", re: /\bmoneyline\b|\bml\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
   ];
 
   for (const rule of rules) {
@@ -549,10 +552,24 @@ export function detectNflAskMarket(question) {
     }
   }
 
+  // Opinion / lean / prediction — games + injuries; do not require player props.
+  if (
+    /\b(lean|fade|play|hammer|love|hate|prediction|predict|who\s+wins?\b|who\s+do\s+you\s+(like|take)|give\s+me\s+a\s+(lean|play)|what'?s?\s+your\s+(lean|take))\b/.test(
+      q,
+    )
+  ) {
+    return {
+      marketId: "opinion",
+      label: "Opinion / lean",
+      neededPaths: ["slate.games", "league.injuries"],
+      propTypeHints: [],
+    };
+  }
+
   return {
     marketId: "general",
     label: "General NFL",
-    neededPaths: ["slate.games", "slate.odds", "slate.playerProps", "league.injuries"],
+    neededPaths: ["slate.games", "league.injuries"],
     propTypeHints: [],
   };
 }
@@ -606,20 +623,26 @@ export function evaluateBriefcaseForInteraction(briefcase, question = "") {
     detected.marketId === "moneyline" ||
     detected.marketId === "sgp";
   const isGamePriceAsk = Boolean(priced && detected.propTypeHints.length === 0);
-  const GAME_PRICE_GAP_POCKETS = new Set(["slate.playerProps", "league.rosters"]);
-  const alwaysMissingForGrade = isGamePriceAsk
-    ? alwaysMissing.filter((p) => !GAME_PRICE_GAP_POCKETS.has(p))
-    : alwaysMissing;
+  const isOpinionAsk =
+    detected.marketId === "general" || detected.marketId === "opinion";
+  const exempt = nflAskGradeExemptPockets(detected);
+  const alwaysMissingForGrade = alwaysMissing.filter((p) => !exempt.has(p));
+  const missingNeededForGrade = missingNeeded.filter((p) => !exempt.has(p));
 
   let grade = "green";
-  if (alwaysMissingForGrade.length || missingNeeded.length >= 2) grade = "red";
-  else if (missingNeeded.length === 1 || (detected.propTypeHints.length && propMatch.matched === 0))
+  if (alwaysMissingForGrade.length || missingNeededForGrade.length >= 2) grade = "red";
+  else if (
+    missingNeededForGrade.length === 1 ||
+    (detected.propTypeHints.length && propMatch.matched === 0)
+  )
     grade = "yellow";
 
-  const corePriceMissing = missingNeeded.some(
+  const corePriceMissing = missingNeededForGrade.some(
     (p) => p === "slate.odds" || p === "slate.games" || p === "slate.playerProps",
   );
-  const forcePass = Boolean(priced && (noLiveProp || (detected.propTypeHints.length === 0 && corePriceMissing)));
+  const forcePass = Boolean(
+    priced && (noLiveProp || (detected.propTypeHints.length === 0 && corePriceMissing)),
+  );
 
   let guidance;
   if (forcePass) {
@@ -628,6 +651,9 @@ export function evaluateBriefcaseForInteraction(briefcase, question = "") {
   } else if (isGamePriceAsk) {
     guidance =
       "Game prices are posted. Empty player-prop or roster pockets do not force PASS. Lean the posted spread/total or pass on script — never invent a prop number.";
+  } else if (isOpinionAsk) {
+    guidance =
+      "Opinion / lean ask — answer a side or script lean. Empty player props do not force PASS. Do not invent a posted number.";
   } else if (grade === "green") {
     guidance = "Suitcase organized for this ask — prefer live pockets, answer fully.";
   } else if (grade === "yellow") {

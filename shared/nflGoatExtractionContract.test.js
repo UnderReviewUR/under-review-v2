@@ -122,6 +122,24 @@ test("evaluateBriefcaseForInteraction does not PASS a posted spread when only pr
   assert.doesNotMatch(ev.guidance, /Priced market missing/);
 });
 
+test("detectNflAskMarket routes over 42.5 as game total and who-wins as opinion", () => {
+  assert.equal(detectNflAskMarket("NE @ SEA over 42.5?").marketId, "total");
+  assert.equal(detectNflAskMarket("Who wins NE @ SEA?").marketId, "opinion");
+  assert.equal(detectNflAskMarket("Give me a lean on DET @ CIN").marketId, "opinion");
+  assert.deepEqual(detectNflAskMarket("Who wins NE @ SEA?").propTypeHints, []);
+});
+
+test("evaluateBriefcaseForInteraction does not tax opinion asks with empty props", () => {
+  const b = createEmptyNflGoatBriefcase();
+  b.slate.games = [{ id: 1, awayAbbr: "NE", homeAbbr: "SEA" }];
+  b.league.injuries = [{ player: "Y" }];
+  const ev = evaluateBriefcaseForInteraction(b, "Who wins NE @ SEA?");
+  assert.equal(ev.detected.marketId, "opinion");
+  assert.equal(ev.forcePass, false);
+  assert.notEqual(ev.grade, "red");
+  assert.match(ev.guidance, /Opinion/);
+});
+
 test("evaluateBriefcaseForInteraction PASSes a prop ask with no live row", () => {
   const b = createEmptyNflGoatBriefcase();
   b.slate.games = [{ id: 1 }];

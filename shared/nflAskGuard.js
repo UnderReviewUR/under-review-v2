@@ -5,6 +5,7 @@
  */
 
 import { confidenceForNflMarket, detectNflAskPhase } from "./nflAskDiscipline.js";
+import { nflAskGradeExemptPockets } from "./nflAskComposeRule.js";
 import { detectNflAskMarket } from "./nflGoatExtractionContract.js";
 import {
   findNflInactivePlayer,
@@ -72,9 +73,11 @@ export function resolveNflSuitcaseGuard(briefcase, question = "") {
     !(matched > 0);
   const priced = isNflPricedAskMarket(detected);
   const missingNeeded = Array.isArray(briefcase?.missingNeeded) ? briefcase.missingNeeded : [];
-  const corePriceMissing = missingNeeded.some(
-    (p) => p === "slate.odds" || p === "slate.games" || p === "slate.playerProps",
-  );
+  const exempt = nflAskGradeExemptPockets(detected);
+  // Spread/total/ML/opinion: empty playerProps/rosters are not a priced-market miss.
+  const corePriceMissing = missingNeeded
+    .filter((p) => !exempt.has(p))
+    .some((p) => p === "slate.odds" || p === "slate.games" || p === "slate.playerProps");
   const isPropAsk = Array.isArray(detected.propTypeHints) && detected.propTypeHints.length > 0;
   const forcePass = Boolean(priced && (noLiveProp || (!isPropAsk && corePriceMissing)));
 
