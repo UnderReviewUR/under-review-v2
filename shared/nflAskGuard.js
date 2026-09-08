@@ -681,8 +681,36 @@ export function applyNflAskGuard(opts = {}) {
     const posted = collectNflPostedNumbers(games, propLines);
     const invented = detectNflInventedLine(cited, posted);
     if (invented && (posted.length === 0 || invented.invented)) {
-      codes.push("invented_line");
-      rewriteStructuredToPass(structured, "invented_line");
+      const marketId = String(suitcase.detected?.marketId || "");
+      // Broad "best player props" asks: recover from live GOAT rows instead of blank PASS.
+      if (marketId === "props_board" && propLines.length > 0) {
+        codes.push("props_board_recover");
+        const top = propLines
+          .filter((p) => p && p.player && p.line != null && p.underOdds != null)
+          .slice(0, 4);
+        if (top.length) {
+          const lines = top
+            .map(
+              (p) =>
+                `${p.player} ${p.prop || p.propRaw} ${p.line} (${p.book || "board"})`,
+            )
+            .join("; ");
+          structured.call = `BOARD · ${top[0].player} ${top[0].prop || top[0].propRaw} ${top[0].line}`;
+          structured.callType = "prop";
+          structured.confidence = "Speculative";
+          structured.lean = `Lean: shop these live props — ${lines}.`.slice(0, 220);
+          structured.whyNow =
+            "GOAT posted these matchup props live. Pick one ticket from the board — do not invent a different number.";
+          structured.edge =
+            "Live board owns the number. Matchup notes are why, not a substitute line.";
+        } else {
+          codes.push("invented_line");
+          rewriteStructuredToPass(structured, "invented_line", undefined, question);
+        }
+      } else {
+        codes.push("invented_line");
+        rewriteStructuredToPass(structured, "invented_line", undefined, question);
+      }
     }
   }
 
