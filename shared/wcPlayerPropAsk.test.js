@@ -21,7 +21,17 @@ import {
   sanitizeWcExtractedPlayerName,
 } from "./wcUrTakePlayerMarket.js";
 
-/** @type {Array<{ q: string, intent: "sot"|"shots"|"both"|null, keys?: string[] | null, count?: number, named?: string | null, legs?: number }>} */
+test("classifyWcQuestionIntent ignores NFL nicknames on player-props asks", () => {
+  assert.equal(
+    classifyWcQuestionIntent("Best player props for the patriots vs Seahawks?"),
+    WC_INTENT.UNCLASSIFIED,
+  );
+  assert.equal(
+    classifyWcQuestionIntent("Best player props for Brazil vs Argentina?"),
+    WC_INTENT.PLAYER_PROP,
+  );
+});
+
 const BOARD_CASES = [
   { q: "best shots on target bets?", intent: "sot", keys: ["player_sot_ou", "player_shots_ou"] },
   { q: "give me the 5 shots on target bets", intent: "sot", count: 5 },

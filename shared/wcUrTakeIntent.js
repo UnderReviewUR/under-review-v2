@@ -5,7 +5,13 @@
 import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
-import { extractLatestUserTurnForRouting } from "./urTakeSportRouting.js";
+import {
+  extractLatestUserTurnForRouting,
+  hasCfbAskLexicon,
+  hasLaligaAskLexicon,
+  hasNflAskLexicon,
+  hasStrongNbaOnlyLexicon,
+} from "./urTakeSportRouting.js";
 import { detectParlayIntent, extractParlayLegCount } from "./detectParlayIntent.js";
 import { classifyWcFollowUpIntent } from "./wcFollowUpExplain.js";
 import { isWcLiveBetTimingQuestion, isWcLiveBetsQuestion } from "./wcLiveMatchQuestion.js";
@@ -32,6 +38,22 @@ import {
 import { isWcBettingScreenshotAnalyzeQuestion } from "./wcUrTakePhilosophy.js";
 import { extractFirstAmericanOddsToken } from "./formatOddsAmerican.js";
 import { isWcBttsQuestion } from "./wcMatchBettingPrompt.js";
+
+/**
+ * NFL / NBA / CFB / La Liga asks must never become WC player-market intents —
+ * "player props" is shared vocabulary across sports.
+ * @param {string} question
+ */
+function isNonWorldCupSportAsk(question) {
+  const q = String(question || "");
+  if (!q.trim()) return false;
+  return (
+    hasNflAskLexicon(q) ||
+    hasLaligaAskLexicon(q) ||
+    hasCfbAskLexicon(q) ||
+    hasStrongNbaOnlyLexicon(q)
+  );
+}
 
 /** @typedef {"RULES"|"ENTITY_PRICING"|"MATCHUP"|"PARLAY"|"STRUCTURAL"|"GENERAL"|"CONTINUATION"|"PLAYER_PROP"|"GOLDEN_BOOT"|"TOP_SCORER"|"TOP_GOALSCORERS_LIST"|"SCORE_PREDICTION"|"PREDICTIONS_ROUNDUP"|"UNCLASSIFIED"} WcUrTakeIntent */
 
@@ -331,6 +353,8 @@ export function classifyWcPlayerMarketIntent(question) {
   const q = String(question || "").trim();
   const ql = q.toLowerCase();
   if (!q) return null;
+  // Patriots / Seahawks / NBA / La Liga props are not World Cup player markets.
+  if (isNonWorldCupSportAsk(q)) return null;
   if (isWcBttsQuestion(q)) return null;
   if (isWcMatchTotalsQuestion(q)) return null;
   if (WC_TEAM_GOALS_RE.test(ql) && !/\b(player parlays?|parlay props?)\b/i.test(ql)) return null;
@@ -427,6 +451,8 @@ export function classifyWcQuestionIntent(question, history = []) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   const ql = q.toLowerCase();
   if (!q) return WC_INTENT.UNCLASSIFIED;
+  // Shared "player props" language on NFL/NBA/CFB/La Liga must not become WC intents.
+  if (isNonWorldCupSportAsk(q)) return WC_INTENT.UNCLASSIFIED;
 
   const mentioned = extractMentionedWcTeams(q);
   const hasPricingCue =

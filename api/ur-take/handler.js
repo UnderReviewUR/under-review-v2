@@ -391,7 +391,13 @@ import {
   sportsContextSwitched,
   stripUrTakeDeadEndCopy,
   hasStrongNbaOnlyLexicon,
+  hasNflAskLexicon,
+  hasLaligaAskLexicon,
 } from "../../shared/urTakeSportRouting.js";
+import {
+  coerceUrAskSportToLiveSurface,
+  isNavSportVisible,
+} from "../../shared/siteSportVisibility.js";
 import { autocorrectUrTakeQuestion } from "../../shared/urTakeQuestionAutocorrect.js";
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
 import { appendTakeForUser, extractTakeFromResponse } from "../_takeLedger.js";
@@ -2911,6 +2917,19 @@ export default async function handler(req, res) {
     (questionMentionsWorldCup(question) || inferWorldCupFromPlayerMarketQuestion(routingQuestion))
   ) {
     sportHint = "worldcup";
+  }
+
+  // Product surface: WC is offline — never leave sportHint on worldcup for live NFL/La Liga asks.
+  if (sportHint === "worldcup" && !isNavSportVisible("worldcup")) {
+    const live = coerceUrAskSportToLiveSurface("worldcup", routingQuestion);
+    sportHint =
+      live && live !== "generic"
+        ? live
+        : hasNflAskLexicon(routingQuestion)
+          ? "nfl"
+          : hasLaligaAskLexicon(routingQuestion)
+            ? "laliga"
+            : "nfl";
   }
 
   const detectedSport = sportHint;

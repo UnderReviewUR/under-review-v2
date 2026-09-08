@@ -65,4 +65,8 @@ test("coerce WC club props to La Liga; tournament asks stay generic", () => {
     "generic",
   );
   assert.equal(coerceUrAskSportToLiveSurface("nfl", "week 1 props"), "nfl");
+  assert.equal(
+    coerceUrAskSportToLiveSurface("worldcup", "Best player props for the patriots vs Seahawks?"),
+    "nfl",
+  );
 });

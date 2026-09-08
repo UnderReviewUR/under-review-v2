@@ -539,6 +539,22 @@ export function detectNflAskMarket(question) {
     // Game totals: prefer explicit total/o/u, or over/under with a 2-digit line (avoids 1.5 prop lines).
     { id: "total", label: "Game total", re: /\b(?:game\s+)?total\b|\bover\/under\b|\bo\/u\b|(?:\bover|\bunder)\s+(?:the\s+)?(?:total\s+)?\d{2}(?:\.\d)?\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
     { id: "moneyline", label: "Moneyline", re: /\bmoneyline\b|\bml\b/, paths: ["slate.odds", "slate.games", "league.injuries"], props: [] },
+    // Broad props board asks (home / Ask) — need live GOAT props, not a WC/general PASS.
+    {
+      id: "props_board",
+      label: "Player props board",
+      re: /\b(?:best\s+)?(?:player\s+)?props?\b|\bprop\s+bets?\b|\bprop\s+board\b/,
+      paths: ["slate.playerProps", "slate.games", "league.injuries"],
+      props: [
+        "passing_yards",
+        "passing_tds",
+        "rushing_yards",
+        "receiving_yards",
+        "receptions",
+        "anytime_td",
+        "sacks",
+      ],
+    },
   ];
 
   for (const rule of rules) {

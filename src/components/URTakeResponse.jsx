@@ -37,6 +37,7 @@ import {
 } from "../../shared/wcAdvancementMarket.js";
 import { shouldAutoExpandWcBreakdown } from "../../shared/wcFollowUpExplain.js";
 import { isKnockoutPhase } from "../../shared/wcPhaseUtils.js";
+import { isNavSportVisible } from "../../shared/siteSportVisibility.js";
 
 function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
   const tag = String(combinedAmerican || "").trim() || "this price";
@@ -191,12 +192,18 @@ export default function URTakeResponse({
   const wcCautionText = wcDataConfidenceCautionBanner(dataConfidence, userQuestion);
   const callTypeLower = String(callType || "").toLowerCase();
   const playerMarketTierKey = String(playerMarketTier || "").toLowerCase();
-  const isWcPredictionsRoundup = sportLower === "worldcup" && callTypeLower === "predictions_roundup";
+  const isWcPredictionsRoundup =
+    sportLower === "worldcup" &&
+    isNavSportVisible("worldcup") &&
+    callTypeLower === "predictions_roundup";
   const isWcPlayerMarketCard =
     sportLower === "worldcup" &&
+    isNavSportVisible("worldcup") &&
     !isWcPredictionsRoundup &&
     (callTypeLower.startsWith("player_market_") || Boolean(playerMarketTierKey));
-  const isWcDirectCard = sportLower === "worldcup" && !rulesCallType;
+  // WC product surface is off — never treat NFL/La Liga asks as WC cards.
+  const isWcDirectCard =
+    sportLower === "worldcup" && !rulesCallType && isNavSportVisible("worldcup");
   const deepRaw = sanitizeUrTakeUserFacingProse(String(wcDeep || "").trim());
   const showDeepBreakdown = !isWcDirectCard && Boolean(breakdownAvailable && deepRaw);
   const wcPredictionSlotRows = Array.isArray(predictionSlots)

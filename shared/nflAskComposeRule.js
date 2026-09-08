@@ -48,6 +48,9 @@ export function nflAskGradeExemptPockets(detected) {
   if (id === "general" || id === "opinion") {
     return new Set(["slate.playerProps", "league.rosters", "slate.odds"]);
   }
+  if (id === "props_board") {
+    return new Set(["league.rosters"]);
+  }
   // Game prices: props/rosters optional; posted odds/games still required.
   if (id === "spread" || id === "total" || id === "moneyline" || id === "sgp") {
     return new Set(["slate.playerProps", "league.rosters"]);

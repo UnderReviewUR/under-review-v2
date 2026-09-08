@@ -122,6 +122,12 @@ test("evaluateBriefcaseForInteraction does not PASS a posted spread when only pr
   assert.doesNotMatch(ev.guidance, /Priced market missing/);
 });
 
+test("detectNflAskMarket routes best player props to props_board", () => {
+  const m = detectNflAskMarket("Best player props for the patriots vs Seahawks?");
+  assert.equal(m.marketId, "props_board");
+  assert.ok(m.propTypeHints.includes("passing_tds"));
+});
+
 test("detectNflAskMarket routes over 42.5 as game total and who-wins as opinion", () => {
   assert.equal(detectNflAskMarket("NE @ SEA over 42.5?").marketId, "total");
   assert.equal(detectNflAskMarket("Who wins NE @ SEA?").marketId, "opinion");

@@ -91,6 +91,13 @@ export function coerceUrAskSportToLiveSurface(sport, question = "") {
   if (s !== "worldcup") return s;
   if (isNavSportVisible("worldcup")) return "worldcup";
   const q = String(question || "").toLowerCase();
+  // NFL nicknames / week props while WC is off → NFL (not blank WC card).
+  if (
+    isNavSportVisible("nfl") &&
+    /\b(patriots|seahawks|nfl|week\s*[1-9]|passing|rushing|touchdown|qb\b)\b/i.test(q)
+  ) {
+    return "nfl";
+  }
   const clubSoccerProp =
     /\b(anytime\s+(?:goal\s*)?scorer|first\s+goal|shots?(?:\s+on\s+target)?|sot\b|btts|both teams to score|goalscorer|la liga|laliga)\b/i.test(
       q,

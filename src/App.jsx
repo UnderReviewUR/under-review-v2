@@ -127,6 +127,14 @@ import { buildHomeEventPipeline } from "../shared/homeEventPipeline/index.js";
 import { trimToCompleteSentence } from "./lib/textUtils.js";
 import { HOME_SURFACE_STACK_ORDER } from "../shared/homeEventPipeline/presentationOrder.js";
 import {
+  inferSportFromChatHistory,
+  inferSportFromQuestionText,
+  hasNflAskLexicon,
+  hasLaligaAskLexicon,
+  hasCfbAskLexicon,
+  hasStrongNbaOnlyLexicon,
+} from "../shared/urTakeSportRouting.js";
+import {
   isHomeCardSportVisible,
   isNavSportVisible,
   isCfbUrTakeGated,
@@ -134,10 +142,6 @@ import {
   isNflUrTakeGated,
 } from "../shared/siteSportVisibility.js";
 import { detectNflTeamHint, detectSportFromQuestion } from "./lib/detectSportFromQuestion.js";
-import {
-  inferSportFromChatHistory,
-  inferSportFromQuestionText,
-} from "../shared/urTakeSportRouting.js";
 import { ensureUrTakeSportContext } from "./lib/ensureUrTakeSportContext.js";
 import { urTakeLoadingLabelForSport, isUrTakeLoadingPlaceholder } from "../shared/wcNamedLegCardUi.js";
 import {
@@ -317,7 +321,29 @@ function structuredPayloadFromApi(data) {
   return null;
 }
 
-function resolveWcIntentForBubble(question, apiIntent = "") {
+function resolveWcIntentForBubble(question, apiIntent = "", apiSport = "") {
+  const sport = String(apiSport || "").toLowerCase().trim();
+  const liveSport =
+    sport === "nfl" ||
+    sport === "laliga" ||
+    sport === "nba" ||
+    sport === "cfb" ||
+    sport === "mlb" ||
+    sport === "tennis" ||
+    sport === "f1" ||
+    sport === "golf";
+  if (liveSport || !isNavSportVisible("worldcup")) {
+    if (
+      liveSport ||
+      hasNflAskLexicon(question) ||
+      hasLaligaAskLexicon(question) ||
+      hasCfbAskLexicon(question) ||
+      hasStrongNbaOnlyLexicon(question)
+    ) {
+      return "";
+    }
+  }
+  if (!isNavSportVisible("worldcup")) return "";
   return (
     resolveWcIntentFromMessage({ wcIntent: apiIntent }, question) ||
     classifyWcQuestionIntent(extractLatestUserTurnForRouting(question)) ||
@@ -328,12 +354,30 @@ function resolveWcIntentForBubble(question, apiIntent = "") {
 /** Prevent React crashes / stringify failures from odd API `structured` shapes (common after golf reads). */
 function sanitizeStructuredBubbleShape(raw, opts = {}) {
   if (!raw || typeof raw !== "object") return null;
-  const wcIntent = String(opts.wcIntent || "").toUpperCase();
+  const apiSport = String(opts.apiSport || raw.sport || "")
+    .toLowerCase()
+    .trim();
+  const wcSurfaceLive = isNavSportVisible("worldcup");
+  const forceNonWc =
+    !wcSurfaceLive ||
+    apiSport === "nfl" ||
+    apiSport === "laliga" ||
+    apiSport === "nba" ||
+    apiSport === "cfb" ||
+    apiSport === "mlb" ||
+    apiSport === "tennis" ||
+    apiSport === "f1" ||
+    apiSport === "golf" ||
+    hasNflAskLexicon(opts.question || "") ||
+    hasLaligaAskLexicon(opts.question || "") ||
+    hasCfbAskLexicon(opts.question || "") ||
+    hasStrongNbaOnlyLexicon(opts.question || "");
+  const wcIntent = forceNonWc ? "" : String(opts.wcIntent || "").toUpperCase();
   const nbaIntent = String(opts.nbaIntent || "").toUpperCase();
   const callType = String(raw.callType || "").toLowerCase();
-  const isRules = wcIntent === WC_INTENT.RULES || callType === "rules";
-  const isMatchup = wcIntent === WC_INTENT.MATCHUP || callType === "matchup";
-  const isAnalysis = wcIntent === WC_INTENT.ENTITY_PRICING || callType === "analysis";
+  const isRules = !forceNonWc && (wcIntent === WC_INTENT.RULES || callType === "rules");
+  const isMatchup = !forceNonWc && (wcIntent === WC_INTENT.MATCHUP || callType === "matchup");
+  const isAnalysis = !forceNonWc && (wcIntent === WC_INTENT.ENTITY_PRICING || callType === "analysis");
   const isNbaLive = nbaIntent === "LIVE_IN_GAME" || Boolean(opts.nbaLiveMode);
   const isNbaExtended =
     isNbaLive ||
@@ -341,19 +385,21 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     nbaIntent === "SERIES_WINNER" ||
     nbaIntent === "FINALS_MVP";
   const isWcPlayerMarket =
-    wcIntent === WC_INTENT.PLAYER_PROP ||
-    wcIntent === WC_INTENT.GOLDEN_BOOT ||
-    wcIntent === WC_INTENT.TOP_SCORER ||
-    callType.startsWith("player_market") ||
-    callType === "player_prop" ||
-    Boolean(raw.playerMarketTier);
+    !forceNonWc &&
+    (wcIntent === WC_INTENT.PLAYER_PROP ||
+      wcIntent === WC_INTENT.GOLDEN_BOOT ||
+      wcIntent === WC_INTENT.TOP_SCORER ||
+      callType.startsWith("player_market") ||
+      callType === "player_prop" ||
+      Boolean(raw.playerMarketTier));
   const isWcBubble =
-    wcIntent === WC_INTENT.STRUCTURAL ||
-    wcIntent === WC_INTENT.ENTITY_PRICING ||
-    wcIntent === WC_INTENT.MATCHUP ||
-    wcIntent === WC_INTENT.RULES ||
-    isWcPlayerMarket ||
-    String(raw.sport || "").toLowerCase() === "worldcup";
+    !forceNonWc &&
+    (wcIntent === WC_INTENT.STRUCTURAL ||
+      wcIntent === WC_INTENT.ENTITY_PRICING ||
+      wcIntent === WC_INTENT.MATCHUP ||
+      wcIntent === WC_INTENT.RULES ||
+      isWcPlayerMarket ||
+      String(raw.sport || "").toLowerCase() === "worldcup");
   const extendedLean = isRules || isMatchup || isAnalysis || isNbaExtended;
   const clip = (v, max) => {
     if (v == null) return "";
@@ -397,7 +443,15 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     s.whyNow = clip(s.whyNow, 8000);
     s.edge = clip(s.edge, 8000);
     s.confidence = clip(s.confidence, 120) || "Medium";
-    s.sport = clip(s.sport, 80).toLowerCase() || (isWcBubble ? "worldcup" : "generic");
+    const sportFallback = forceNonWc
+      ? apiSport && apiSport !== "worldcup"
+        ? apiSport
+        : "generic"
+      : isWcBubble
+        ? "worldcup"
+        : "generic";
+    s.sport = clip(s.sport, 80).toLowerCase() || sportFallback;
+    if (forceNonWc && s.sport === "worldcup") s.sport = apiSport || "generic";
     if (isMatchup) s.callType = "matchup";
     else if (isAnalysis) s.callType = "analysis";
     else s.callType = clip(s.callType, 48).toLowerCase() || "single";
@@ -2411,12 +2465,14 @@ ${themeCss}
     const normalizedDisplay = normalizeUrTakeDisplay(data);
     const structuredRaw = structuredPayloadFromApi(data);
     const wcIntentFromApi = String(data.wcIntent || "").toUpperCase();
-    const resolvedWcIntent = resolveWcIntentForBubble(text, wcIntentFromApi);
+    const resolvedWcIntent = resolveWcIntentForBubble(text, wcIntentFromApi, resolvedSport);
     const isTalkDelivery = String(data.deliveryMode || "").toLowerCase() === "talk";
 
     let structuredForBubble = structuredRaw
       ? sanitizeStructuredBubbleShape(structuredRaw, {
           wcIntent: resolvedWcIntent,
+          apiSport: resolvedSport,
+          question: text,
           nbaIntent: String(data.nbaRelevance?.nbaIntent || "").toUpperCase(),
           nbaLiveMode:
             Boolean(data.liveMode) ||
@@ -2440,7 +2496,11 @@ ${themeCss}
       structuredForBubble = null;
     }
 
-    if (structuredForBubble && resolvedWcIntent === WC_INTENT.RULES) {
+    const allowWcBubbleForce =
+      isNavSportVisible("worldcup") &&
+      String(resolvedSport || "").toLowerCase() === "worldcup";
+
+    if (allowWcBubbleForce && structuredForBubble && resolvedWcIntent === WC_INTENT.RULES) {
       structuredForBubble = {
         ...structuredForBubble,
         callType: "rules",
@@ -2448,6 +2508,7 @@ ${themeCss}
         edge: structuredForBubble.edge || "Factual tournament rules — not a betting pick.",
       };
     } else if (
+      allowWcBubbleForce &&
       structuredForBubble &&
       resolvedWcIntent === WC_INTENT.MATCHUP &&
       !isWcStructuredPlayerMarketCard(structuredForBubble)
@@ -2457,7 +2518,7 @@ ${themeCss}
         callType: "matchup",
         sport: "worldcup",
       };
-    } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.ENTITY_PRICING) {
+    } else if (allowWcBubbleForce && structuredForBubble && resolvedWcIntent === WC_INTENT.ENTITY_PRICING) {
       const entityCallType = String(structuredForBubble.callType || "").toLowerCase();
       const preserveWcSlateCallType =
         entityCallType === "group_slate" ||
@@ -2469,7 +2530,7 @@ ${themeCss}
         callType: preserveWcSlateCallType ? structuredForBubble.callType : "analysis",
         sport: "worldcup",
       };
-    } else if (structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
+    } else if (allowWcBubbleForce && structuredForBubble && resolvedWcIntent === WC_INTENT.STRUCTURAL) {
       const { playerMarketTier: _drop, ...rest } = structuredForBubble;
       const ct = String(structuredForBubble.callType || "").toLowerCase();
       const slateLike =
@@ -2480,6 +2541,7 @@ ${themeCss}
         callType: slateLike ? ct : ct === "matchup" ? "matchup" : "group_slate",
       };
     } else if (
+      allowWcBubbleForce &&
       structuredForBubble &&
       (resolvedWcIntent === WC_INTENT.GOLDEN_BOOT ||
         resolvedWcIntent === WC_INTENT.TOP_SCORER ||
@@ -2568,6 +2630,7 @@ ${themeCss}
 
     const bubbleResponseTextRaw =
       structuredForBubble &&
+      isNavSportVisible("worldcup") &&
       String(structuredForBubble.sport || sportForBubble || "").toLowerCase() === "worldcup"
         ? formatWcCompactDisplayText(structuredForBubble, normalizedDisplay.response)
         : normalizedDisplay.response;
@@ -2579,22 +2642,28 @@ ${themeCss}
     const bubbleSport =
       String(structuredForBubble?.sport || "").trim().toLowerCase() ||
       (sportForBubble ? String(sportForBubble).trim().toLowerCase() : "") ||
-      (effectiveSportHint === "worldcup" ? "worldcup" : "") ||
+      (isNavSportVisible("worldcup") && effectiveSportHint === "worldcup" ? "worldcup" : "") ||
+      (isNavSportVisible("worldcup") &&
       (String(data.wcIntent || "").toUpperCase() === WC_INTENT.PLAYER_PROP ||
-      isWcPlayerMarketIntent(String(data.wcIntent || "").toUpperCase())
+        isWcPlayerMarketIntent(String(data.wcIntent || "").toUpperCase()))
         ? "worldcup"
         : "") ||
-      (resolvedWcIntent &&
+      (isNavSportVisible("worldcup") &&
+      resolvedWcIntent &&
       resolvedWcIntent !== WC_INTENT.UNCLASSIFIED &&
       resolvedWcIntent !== WC_INTENT.CONTINUATION
         ? "worldcup"
         : "");
+    const bubbleSportSafe =
+      bubbleSport === "worldcup" && !isNavSportVisible("worldcup")
+        ? String(sportForBubble || resolvedSport || "nfl").toLowerCase()
+        : bubbleSport;
 
     const completeBubble = {
       role: "ai",
       msgId: pendingMsgId,
       text: bubbleResponseText,
-      sport: bubbleSport || undefined,
+      sport: bubbleSportSafe || undefined,
       ...(resolvedWcEventId ? { wcEventId: resolvedWcEventId } : {}),
       ...(lastUserWcMatchTeams &&
       typeof lastUserWcMatchTeams === "object" &&
