@@ -9,11 +9,10 @@ import {
 } from "../shared/nflGoatExtractionContract.js";
 import { buildNflLiveBoard } from "./_nflBoard.js";
 import {
-  nflGameIdsFromGames,
-  pickNflGamesForScope,
   trimNflPlayerPropsForAsk,
 } from "../shared/nflAskPropTrim.js";
 import { isNflBdlPrimaryEnabled, buildNflGoatBriefcase } from "./_nflBdl.js";
+import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 
 /**
  * @param {Array<Record<string, unknown>>} games
@@ -190,20 +189,15 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     }
   }
 
-  const week = board?.week ?? null;
-  const season = board?.season ?? null;
-  const scopedGames =
-    scopeSet?.size && Array.isArray(board?.games)
-      ? pickNflGamesForScope(board.games, scopeSet)
-      : [];
-  const gameIds = nflGameIdsFromGames(
-    scopedGames.length ? scopedGames : Array.isArray(board?.games) ? board.games : [],
-  ).slice(0, scoped ? 2 : 16);
+  const week = board?.week != null ? Number(board.week) : null;
+  const season =
+    board?.season != null ? Number(board.season) : isNflBdlPrimaryEnabled() ? inferNflSeasonYear() : null;
+  // AN board game ids must not be passed into BDL prop fetches.
   const seedPlayerIds = playerIdsFromPropLines(board?.propLines || []);
 
   let briefcase = createEmptyNflGoatBriefcase({
-    week,
-    season,
+    week: Number.isFinite(week) ? week : null,
+    season: Number.isFinite(season) ? season : null,
     asOf: board?.asOf || new Date().toISOString(),
     primarySource: isNflBdlPrimaryEnabled() ? "balldontlie_nfl" : "action_network",
   });
@@ -214,9 +208,10 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
   if (isNflBdlPrimaryEnabled()) {
     try {
       briefcase = await buildNflGoatBriefcase({
-        week,
-        season,
-        gameIds,
+        week: Number.isFinite(week) ? week : 1,
+        season: Number.isFinite(season) ? season : inferNflSeasonYear(),
+        scopeAbbrs: scopeSet || undefined,
+        maxPropGames: scoped ? 2 : 4,
         playerIds: seedPlayerIds,
         hydrateDefense: true,
         hydrateInjuries: true,

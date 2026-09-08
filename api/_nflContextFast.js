@@ -6,7 +6,12 @@ import { defenses } from "./nfl-defense.js";
 import { getNflBoardCached, nflPropsPayloadToPropLines } from "./_nflBoard.js";
 import { getNflPropsForBoard } from "./_nflProps.js";
 import { buildNflMatchupCard } from "./_nflMatchupCard.js";
-import { fetchNflBdlPlayerPropsForGame, isNflBdlPrimaryEnabled } from "./_nflBdl.js";
+import {
+  fetchNflBdlPlayerPropsForGame,
+  fetchNflBdlWeekGames,
+  fetchNflBdlWeekOdds,
+  isNflBdlPrimaryEnabled,
+} from "./_nflBdl.js";
 import { resolveNflScopeTeamAbbrevSet } from "./_nflContext.js";
 import { pickNflGamesForScope, trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
@@ -15,6 +20,7 @@ import {
   buildNflAskDisciplinePromptBlock,
   buildNflSeasonTypeWarning,
 } from "../shared/nflAskDiscipline.js";
+import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 
 const FAST_PROMPT_BUDGET = 6500;
 
@@ -113,25 +119,78 @@ export async function buildNflFastAskContext(options = {}) {
   ]);
 
   const scopedGames = pickNflGamesForScope(board.games || [], scope);
-  const game = scopedGames[0];
-  if (!game?.providerGameId) return null;
-
+  let game = scopedGames[0] || null;
+  /** @type {Array<Record<string, unknown>>} */
   let propLines = [];
-  const cachedProps = await getNflPropsForBoard(game.providerGameId, {
-    tipoffMs: game.tipoffMs,
-    cacheOnly: true,
-  });
-  if (cachedProps) {
-    propLines = nflPropsPayloadToPropLines(cachedProps, game);
-  } else if (isNflBdlPrimaryEnabled()) {
+  /** @type {Array<Record<string, unknown>>} */
+  let gamesForCard = scopedGames;
+  let propsSource = "none";
+
+  // GOAT primary: resolve BDL game ids by abbr (never feed Action Network ids to /odds/player_props).
+  if (isNflBdlPrimaryEnabled()) {
     try {
-      propLines = await fetchNflBdlPlayerPropsForGame(game.providerGameId, {
-        gameLabel: `${game.awayAbbr} @ ${game.homeAbbr}`,
-      });
+      const season = board.season != null ? Number(board.season) : inferNflSeasonYear();
+      const week = board.week != null ? Number(board.week) : 1;
+      const bdlWeek = await fetchNflBdlWeekGames({ season, week });
+      const bdlScoped = pickNflGamesForScope(bdlWeek.games || [], scope);
+      const bdlGame = bdlScoped[0];
+      if (bdlGame?.providerGameId) {
+        game = bdlGame;
+        gamesForCard = bdlScoped.length ? bdlScoped : [bdlGame];
+        propLines = await fetchNflBdlPlayerPropsForGame(bdlGame.providerGameId, {
+          gameLabel: `${bdlGame.awayAbbr} @ ${bdlGame.homeAbbr}`,
+        });
+        if (propLines.length) propsSource = "balldontlie_nfl";
+
+        // Overlay BDL week odds onto the game line when AN board is thin / mismatched ids.
+        const oddsRes = await fetchNflBdlWeekOdds({ season, week });
+        const oddsRow = (oddsRes.rows || []).find(
+          (r) => String(r.game_id) === String(bdlGame.providerGameId),
+        );
+        if (oddsRow && game && typeof game === "object") {
+          game = {
+            ...game,
+            spread:
+              game.spread ||
+              (oddsRow.spread?.home != null
+                ? {
+                    favoriteAbbr: Number(oddsRow.spread.home) < 0 ? bdlGame.homeAbbr : bdlGame.awayAbbr,
+                    favoritePoint: Math.abs(Number(oddsRow.spread.home)),
+                    displayLine:
+                      Number(oddsRow.spread.home) < 0
+                        ? `${bdlGame.homeAbbr} ${oddsRow.spread.home}`
+                        : `${bdlGame.awayAbbr} ${oddsRow.spread.away}`,
+                  }
+                : game.spread),
+            total:
+              game.total ||
+              (oddsRow.total?.line != null ? { line: Number(oddsRow.total.line) } : game.total),
+            moneyline:
+              game.moneyline ||
+              (oddsRow.moneyline
+                ? { home: oddsRow.moneyline.home, away: oddsRow.moneyline.away }
+                : game.moneyline),
+          };
+          gamesForCard = [game];
+        }
+      }
     } catch {
-      propLines = [];
+      /* fall through to AN cache */
     }
   }
+
+  if (!propLines.length && game?.providerGameId) {
+    const cachedProps = await getNflPropsForBoard(game.providerGameId, {
+      tipoffMs: game.tipoffMs,
+      cacheOnly: true,
+    });
+    if (cachedProps) {
+      propLines = nflPropsPayloadToPropLines(cachedProps, game);
+      if (propLines.length) propsSource = "action_network_cache";
+    }
+  }
+
+  if (!game?.providerGameId && !propLines.length) return null;
 
   propLines = trimNflPlayerPropsForAsk(propLines, { scope, question, maxRows: 24 });
 
@@ -157,7 +216,7 @@ export async function buildNflFastAskContext(options = {}) {
     question,
     scopeTeams: scope,
     homeAbbr: String(game.homeAbbr || "").toUpperCase() || null,
-    games: scopedGames,
+    games: gamesForCard,
     propLines,
     injuries: injuryRows,
     depth: depthSlice,
@@ -186,7 +245,7 @@ export async function buildNflFastAskContext(options = {}) {
           .join("\n- ")}`
       : "POSTED GAME PRICES: none on cached board — do not invent a spread/total.",
     propLines.length
-      ? `POSTED PROPS (matchup):\n${formatPostedPropsForAsk(propLines)}`
+      ? `POSTED PROPS (matchup · ${propsSource}):\n${formatPostedPropsForAsk(propLines)}`
       : market.propTypeHints?.length
         ? "POSTED PROPS: none cached — PASS the prop if no live row; do not invent."
         : "POSTED PROPS: none loaded (not required for spread/total/opinion).",
@@ -200,7 +259,7 @@ export async function buildNflFastAskContext(options = {}) {
           .join("\n")}`
       : "",
     matchupCard.cardBlock || matchupCard.promptBlock || "",
-    buildNflSeasonTypeWarning(scopedGames),
+    buildNflSeasonTypeWarning(gamesForCard),
     buildNflAskDisciplinePromptBlock({
       question,
       marketId: matchupCard.marketId || market.marketId,
@@ -217,7 +276,7 @@ export async function buildNflFastAskContext(options = {}) {
   }
 
   const stubBriefcase = {
-    slate: { games: scopedGames, odds: oddsStub, playerProps: propLines },
+    slate: { games: gamesForCard, odds: oddsStub, playerProps: propLines },
     league: { injuries: injuryRows, rostersByTeam: {} },
   };
   const interaction = evaluateBriefcaseForInteraction(stubBriefcase, question);
@@ -228,9 +287,11 @@ export async function buildNflFastAskContext(options = {}) {
       event: "nfl_context_fast_path",
       buildMs,
       propRows: propLines.length,
+      propsSource,
       promptChars: promptContext.length,
       scope: [...scope],
       gameId: game.providerGameId,
+      bdlPrimary: isNflBdlPrimaryEnabled(),
     }),
   );
 
@@ -268,9 +329,10 @@ export async function buildNflFastAskContext(options = {}) {
       matchupThesis: matchupCard.thesis || null,
       skipLiveBoard: false,
       fastPath: true,
+      propsSource,
       buildMs,
     },
-    games: scopedGames,
+    games: gamesForCard,
     inactives: { postedCount: 0, asOf: null, source: "fast_skip", games: [] },
     matchup: {
       thesis: matchupCard.thesis || "",

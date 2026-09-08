@@ -13,6 +13,7 @@ import {
 import {
   buildDefenseMapFromBdlTeamSeasonStats,
 } from "../shared/nflBdlDefenseNormalize.js";
+import { pickNflGamesForScope, nflGameIdsFromGames } from "../shared/nflAskPropTrim.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 
@@ -350,7 +351,7 @@ export function normalizeNflBdlOddsRows(rows, opts = {}) {
       byGame.set(gid, row);
     }
   }
-  return [...byGame.values(), ...normalized.filter((r) => r.game_id == null || !byGame.has(r.game_id))];
+  return [...byGame.values()];
 }
 
 /**
@@ -446,6 +447,40 @@ export function isNflBdlLiveGameStatus(statusState, status) {
   return /\b(in progress|live|halftime|delayed|overtime)\b/.test(s);
 }
 
+/**
+ * Resolve player_id → "First Last" for props that omit nested player objects.
+ * @param {Array<number|string>} playerIds
+ * @param {{ apiKey?: string }} [opts]
+ * @returns {Promise<Map<number, string>>}
+ */
+export async function fetchNflBdlPlayerNameMap(playerIds, opts = {}) {
+  /** @type {Map<number, string>} */
+  const map = new Map();
+  const ids = [
+    ...new Set(
+      (playerIds || [])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0),
+    ),
+  ];
+  for (let i = 0; i < ids.length; i += 50) {
+    const slice = ids.slice(i, i + 50);
+    const res = await nflBdlFetch(
+      "/players",
+      { player_ids: slice, per_page: Math.min(100, slice.length) },
+      { apiKey: opts.apiKey, timeoutMs: 15000 },
+    );
+    if (!res.ok || !Array.isArray(res.data?.data)) continue;
+    for (const p of res.data.data) {
+      const name = String(
+        p?.full_name || [p?.first_name, p?.last_name].filter(Boolean).join(" ") || "",
+      ).trim();
+      if (p?.id != null && name) map.set(Number(p.id), name);
+    }
+  }
+  return map;
+}
+
 export async function fetchNflBdlPlayerPropsForGame(gameId, opts = {}) {
   const gid = Number(gameId);
   if (!Number.isFinite(gid)) return [];
@@ -455,47 +490,78 @@ export async function fetchNflBdlPlayerPropsForGame(gameId, opts = {}) {
     { apiKey: opts.apiKey, timeoutMs: 20000 },
   );
   if (!res.ok || !Array.isArray(res.data?.data)) return [];
-  return normalizeNflBdlPlayerPropRows(res.data.data, {
+  const rows = normalizeNflBdlPlayerPropRows(res.data.data, {
     gameLabel: opts.gameLabel,
     eventId: gid,
   });
+  if (opts.resolveNames === false || !rows.length) return rows;
+
+  const needIds = rows
+    .filter((r) => /^player_\d+$/i.test(String(r.player || "")))
+    .map((r) => r.playerId)
+    .filter((id) => id != null);
+  if (!needIds.length) return rows;
+
+  const nameMap = await fetchNflBdlPlayerNameMap(needIds, { apiKey: opts.apiKey });
+  if (!nameMap.size) return rows;
+  for (const row of rows) {
+    const id = Number(row.playerId);
+    if (!Number.isFinite(id)) continue;
+    const name = nameMap.get(id);
+    if (name) row.player = name;
+  }
+  return rows;
 }
 
 export async function fetchNflBdlWeekOdds(opts) {
-  const res = await nflBdlFetch(
+  const res = await nflBdlFetchAllPages(
     "/odds",
     { season: opts.season, week: opts.week },
-    { apiKey: opts.apiKey, timeoutMs: 20000 },
+    { apiKey: opts.apiKey, timeoutMs: 20000, maxPages: 4, perPage: 100 },
   );
-  if (!res.ok || !Array.isArray(res.data?.data)) return { rows: [], ok: false, status: res.status, error: res.error };
-  const rows = normalizeNflBdlOddsRows(res.data.data, { preferVendor: true });
+  if (!res.ok || !Array.isArray(res.data)) {
+    return { rows: [], ok: false, status: res.status, error: res.error };
+  }
+  const rows = normalizeNflBdlOddsRows(res.data, { preferVendor: true });
   return { rows, ok: true, status: res.status, error: null };
 }
 
 export async function fetchNflBdlOpeningOdds(opts) {
-  const res = await nflBdlFetch(
+  const res = await nflBdlFetchAllPages(
     "/odds/opening",
     { season: opts.season, week: opts.week },
-    { apiKey: opts.apiKey, timeoutMs: 20000 },
+    { apiKey: opts.apiKey, timeoutMs: 20000, maxPages: 4, perPage: 100 },
   );
-  if (!res.ok || !Array.isArray(res.data?.data)) return { rows: [], ok: false, status: res.status, error: res.error };
-  const rows = normalizeNflBdlOddsRows(res.data.data, { opening: true, preferVendor: true });
+  if (!res.ok || !Array.isArray(res.data)) {
+    return { rows: [], ok: false, status: res.status, error: res.error };
+  }
+  const rows = normalizeNflBdlOddsRows(res.data, { opening: true, preferVendor: true });
   return { rows, ok: true, status: res.status, error: null };
 }
 
 export async function fetchNflBdlWeekGames(opts) {
+  // BDL NFL /games ignores singular `season` and returns ancient week-1 history.
+  // Use `seasons[]` (via nflBdlQueryParams) for the requested year.
+  const seasonNum = opts.season != null ? Number(opts.season) : NaN;
   const res = await nflBdlFetchAllPages(
     "/games",
     {
-      season: opts.season,
-      week: opts.week,
+      ...(Number.isFinite(seasonNum) ? { seasons: [seasonNum] } : {}),
+      ...(opts.week != null ? { week: opts.week } : {}),
       ...(opts.seasonType != null ? { season_type: opts.seasonType } : {}),
       ...(opts.postseason != null ? { postseason: opts.postseason } : {}),
     },
     { apiKey: opts.apiKey, timeoutMs: 20000, maxPages: 3 },
   );
   if (!res.ok) return { games: [], ok: false, status: res.status, error: res.error };
-  const games = normalizeNflBdlGames(/** @type {Array<Record<string, unknown>>} */ (res.data));
+  let games = normalizeNflBdlGames(/** @type {Array<Record<string, unknown>>} */ (res.data));
+  if (Number.isFinite(seasonNum)) {
+    games = games.filter((g) => Number(g.season) === seasonNum);
+  }
+  if (opts.week != null && Number.isFinite(Number(opts.week))) {
+    const weekNum = Number(opts.week);
+    games = games.filter((g) => Number(g.week) === weekNum);
+  }
   return { games, ok: true, status: res.status, error: null };
 }
 
@@ -1065,6 +1131,8 @@ export async function fetchNflBdlFantasyAdp(opts = {}) {
  *   week?: number|null,
  *   season?: number|null,
  *   gameIds?: Array<number|string>,
+ *   scopeAbbrs?: Set<string>|string[],
+ *   maxPropGames?: number,
  *   playerIds?: Array<number|string>,
  *   hydrateDefense?: boolean,
  *   hydrateInjuries?: boolean,
@@ -1132,10 +1200,27 @@ export async function buildNflGoatBriefcase(opts = {}) {
       };
       if (openingRes.rows.length) briefcase.slate.openingOdds = openingRes.rows;
 
-      const gids =
-        opts.gameIds?.length > 0
-          ? opts.gameIds
-          : gamesRes.games.map((g) => g.providerGameId).filter((id) => id != null).slice(0, 16);
+      // Props require BDL game ids. Ignore foreign (Action Network) ids that don't
+      // appear on this week's BDL slate — those used to empty the GOAT prop pocket.
+      const bdlIds = gamesRes.games
+        .map((g) => g.providerGameId)
+        .filter((id) => id != null);
+      const bdlIdSet = new Set(bdlIds.map((id) => String(id)));
+      const maxPropGames = Math.max(
+        1,
+        Math.min(Number(opts.maxPropGames) || (opts.scopeAbbrs ? 2 : 6), 16),
+      );
+      /** @type {Array<number|string>} */
+      let gids = [];
+      if (opts.scopeAbbrs) {
+        const scoped = pickNflGamesForScope(gamesRes.games, opts.scopeAbbrs);
+        gids = nflGameIdsFromGames(scoped).slice(0, maxPropGames);
+      }
+      if (!gids.length && opts.gameIds?.length) {
+        gids = opts.gameIds.filter((id) => bdlIdSet.has(String(id))).slice(0, maxPropGames);
+      }
+      if (!gids.length) gids = bdlIds.slice(0, maxPropGames);
+
       let propCount = 0;
       let propsOk = true;
       for (const gid of gids) {
@@ -1150,7 +1235,7 @@ export async function buildNflGoatBriefcase(opts = {}) {
         ok: propsOk || briefcase.slate.playerProps.length > 0,
         count: briefcase.slate.playerProps.length,
         error: briefcase.slate.playerProps.length ? null : "no props returned for sampled games",
-        note: `sampled ${gids.length} game(s)`,
+        note: `sampled ${gids.length} BDL game(s)`,
       };
 
       if (gamesRes.games.length) {
@@ -1209,13 +1294,18 @@ export async function buildNflGoatBriefcase(opts = {}) {
 
   if (opts.hydrateDefense !== false && Number.isFinite(season)) {
     try {
-      const def = await fetchNflBdlDefenseMap({ season, useCache: true });
+      // Early weeks: prefer prior completed season ranks (more stable than thin W1 sample).
+      const defenseSeason =
+        week != null && Number.isFinite(week) && week <= 4 ? season - 1 : season;
+      const def = await fetchNflBdlDefenseMap({ season: defenseSeason, useCache: true });
       briefcase.league.teamDefense = def.defenseByTeam || {};
-      briefcase.league.defenseSource = def.source || "live";
+      briefcase.league.defenseSource = def.source
+        ? `${def.source}:season_${defenseSeason}`
+        : `season_${defenseSeason}`;
       endpoints.team_season_stats = {
         ok: Object.keys(briefcase.league.teamDefense).length > 0,
         count: Object.keys(briefcase.league.teamDefense).length,
-        note: def.source || null,
+        note: briefcase.league.defenseSource,
       };
     } catch (err) {
       console.warn(

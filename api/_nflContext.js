@@ -32,6 +32,7 @@ import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 import { trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
+import { isNflBdlPrimaryEnabled } from "./_nflBdl.js";
 
 export { NFL_STADIUM_META };
 
@@ -544,8 +545,14 @@ export async function buildCanonicalNflContext(options = {}) {
     scopeAbbrs: scoped ? scope : undefined,
   });
 
+  const goatProps = Array.isArray(briefcaseHealth.briefcase?.slate?.playerProps)
+    ? briefcaseHealth.briefcase.slate.playerProps
+    : [];
+  const boardProps = Array.isArray(liveBoard?.propLines) ? liveBoard.propLines : [];
+  // When GOAT primary is on and briefcase hydrated props, those win over Action Network.
+  const preferGoatProps = isNflBdlPrimaryEnabled() && goatProps.length > 0;
   const trimmedPropLines = trimNflPlayerPropsForAsk(
-    liveBoard?.propLines || briefcaseHealth.briefcase?.slate?.playerProps || [],
+    preferGoatProps ? goatProps : boardProps.length ? boardProps : goatProps,
     { scope: scoped ? scope : [], question, maxRows: scoped ? 56 : 120 },
   );
   if (liveBoard && Array.isArray(liveBoard.propLines)) {

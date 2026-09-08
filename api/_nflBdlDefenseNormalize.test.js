@@ -14,6 +14,7 @@ import {
   normalizeNflBdlGames,
   normalizeNflBdlInjuries,
   normalizeNflBdlOddsRows,
+  normalizeNflBdlPlayerPropRows,
   normalizeNflBdlRosterRows,
   nflBdlQueryParams,
   isNflBdlLiveGameStatus,
@@ -219,6 +220,27 @@ test("nflBdlQueryParams bracket-encodes array keys for BDL NFL", () => {
     "team_ids[]": [7, 8],
     season: 2026,
   });
+  assert.deepEqual(nflBdlQueryParams({ seasons: [2026], week: 1 }), {
+    "seasons[]": [2026],
+    week: 1,
+  });
+});
+
+test("normalizeNflBdlPlayerPropRows falls back to player_id placeholder", () => {
+  const rows = normalizeNflBdlPlayerPropRows([
+    {
+      player_id: 279866,
+      vendor: "fanduel",
+      prop_type: "passing_tds",
+      line_value: "1.5",
+      market: { type: "over_under", over_odds: -110, under_odds: -110 },
+      game_id: 1392216,
+    },
+  ]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].player, "player_279866");
+  assert.equal(rows[0].playerId, 279866);
+  assert.equal(rows[0].source, "balldontlie_nfl");
 });
 
 test("normalizeNflBdlOddsRows prefers draftkings per game", () => {
