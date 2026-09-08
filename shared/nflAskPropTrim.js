@@ -130,6 +130,125 @@ export function trimNflPlayerPropsForAsk(props, opts = {}) {
 }
 
 /**
+ * Pretty book label for user-facing copy.
+ * @param {string} book
+ */
+export function formatNflBookLabel(book) {
+  const b = String(book || "").trim().toLowerCase();
+  if (b === "draftkings") return "DraftKings";
+  if (b === "fanduel") return "FanDuel";
+  if (b === "betmgm") return "BetMGM";
+  if (b === "caesars") return "Caesars";
+  if (b === "fanatics") return "Fanatics";
+  if (b === "betrivers") return "BetRivers";
+  if (!b || b === "board" || b === "unknown") return "the board";
+  return String(book).trim();
+}
+
+/**
+ * @param {string} name
+ */
+function normalizePlayerKey(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Pick a short, diverse set of live prop tickets for a "best props" board ask.
+ * Filters to the matchup when possible, drops duplicate player+market lines,
+ * and prefers major books.
+ *
+ * @param {Array<Record<string, unknown>>} props
+ * @param {{
+ *   scope?: Set<string>|string[],
+ *   eventIds?: Array<string|number>,
+ *   rosterNames?: Set<string>|string[],
+ *   question?: string,
+ *   maxTickets?: number,
+ * }} [opts]
+ */
+export function pickNflPropsBoardTickets(props, opts = {}) {
+  const scope = expandScope(opts.scope || []);
+  const eventIds = new Set(
+    (opts.eventIds || []).map((id) => String(id)).filter((id) => id && id !== "null" && id !== "undefined"),
+  );
+  const rosterNames = new Set(
+    [...(opts.rosterNames instanceof Set ? opts.rosterNames : opts.rosterNames || [])]
+      .map(normalizePlayerKey)
+      .filter(Boolean),
+  );
+  const maxTickets = Math.max(2, Math.min(Number(opts.maxTickets) || 4, 6));
+  const tokens = playerTokensFromQuestion(opts.question || "");
+  const hints = propHintsFromQuestion(opts.question || "");
+
+  let rows = (Array.isArray(props) ? props : []).filter(
+    (p) => p && p.player && p.line != null && (p.underOdds != null || p.overOdds != null),
+  );
+
+  if (eventIds.size) {
+    const byEvent = rows.filter((p) => p.eventId != null && eventIds.has(String(p.eventId)));
+    if (byEvent.length) rows = byEvent;
+  }
+
+  rows = rows.filter((p) => rowMatchesScope(p, scope));
+
+  if (rosterNames.size) {
+    const onRoster = rows.filter((p) => {
+      const key = normalizePlayerKey(p.player);
+      if (!key) return false;
+      if (rosterNames.has(key)) return true;
+      const last = key.split(" ").pop();
+      return last && [...rosterNames].some((n) => n === last || n.endsWith(` ${last}`));
+    });
+    if (onRoster.length >= 2) rows = onRoster;
+  }
+
+  rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
+
+  /** @type {Map<string, Record<string, unknown>>} */
+  const bestByMarket = new Map();
+  for (const row of rows) {
+    const propKey = String(row.propRaw || row.prop || "prop")
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    const key = `${normalizePlayerKey(row.player)}|${propKey}`;
+    if (!bestByMarket.has(key)) bestByMarket.set(key, row);
+  }
+
+  /** @type {Array<Record<string, unknown>>} */
+  const picked = [];
+  const seenPlayers = new Set();
+  const seenProps = new Set();
+
+  for (const row of bestByMarket.values()) {
+    if (picked.length >= maxTickets) break;
+    const playerKey = normalizePlayerKey(row.player);
+    const propKey = String(row.propRaw || row.prop || "prop")
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    // Prefer variety: avoid stacking the same player or same market type.
+    if (seenPlayers.has(playerKey) && picked.length >= 2) continue;
+    if (seenProps.has(propKey) && picked.length >= 2) continue;
+    picked.push(row);
+    seenPlayers.add(playerKey);
+    seenProps.add(propKey);
+  }
+
+  if (picked.length < Math.min(2, bestByMarket.size)) {
+    for (const row of bestByMarket.values()) {
+      if (picked.length >= maxTickets) break;
+      if (picked.includes(row)) continue;
+      picked.push(row);
+    }
+  }
+
+  return picked.slice(0, maxTickets);
+}
+
+/**
  * Pick scoreboard games for a scoped Ask (max one matchup when two teams resolved).
  * @param {Array<{ awayAbbr?: string, homeAbbr?: string }>} games
  * @param {Set<string>|string[]} scope

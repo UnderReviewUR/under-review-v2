@@ -229,6 +229,28 @@ test("normalizeNflBdlPlayerPropRows maps over_under + milestone", () => {
   assert.equal(rows.length, 2);
   assert.equal(rows[0].propRaw, "passing_yards");
   assert.equal(rows[0].overOdds, -115);
+  assert.equal(rows[0].team, null);
   assert.equal(rows[1].marketType, "milestone");
   assert.equal(rows[1].book, "fanduel");
+});
+
+test("normalizeNflBdlPlayerPropRows keeps team abbreviation when present", () => {
+  const rows = normalizeNflBdlPlayerPropRows(
+    [
+      {
+        game_id: 2,
+        player: {
+          full_name: "Drake Maye",
+          team: { abbreviation: "NE" },
+        },
+        vendor: "draftkings",
+        prop_type: "passing_yards",
+        line_value: "260.5",
+        market: { type: "over_under", over_odds: -110, under_odds: -110 },
+      },
+    ],
+    { gameLabel: "NE @ SEA" },
+  );
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].team, "NE");
 });

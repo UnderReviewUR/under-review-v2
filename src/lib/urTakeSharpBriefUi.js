@@ -28,10 +28,10 @@ export function deriveSharpBriefDirection(call, lean) {
   if (/\bunder\b/i.test(blob)) return "Under";
   if (/\bover\b/i.test(blob)) return "Over";
   if (/\bpass\b/i.test(blob)) return "Pass";
-  if (/\b(board|shop these|live props?)\b/i.test(blob)) return "Board";
+  if (/\b(board|shop these|live props?|start with)\b/i.test(blob)) return "Play";
   // Named ticket like "Drake Maye passing yards 234.5"
   if (/\b\d+(?:\.\d+)?\b/.test(blob) && /\b(yards?|tds?|receptions?|sacks?)\b/i.test(blob)) {
-    return "Ticket";
+    return "Play";
   }
   return "Side";
 }
@@ -175,7 +175,7 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
       {
         key: "d",
         label: "Lean",
-        value: direction !== "Side" ? direction : "Board",
+        value: direction !== "Side" ? direction : "Play",
         highlight: false,
       },
       { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },

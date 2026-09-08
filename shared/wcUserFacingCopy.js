@@ -38,6 +38,13 @@ function sanitizeWcUserFacingLine(line) {
   t = t.replace(/\bvia BallDontLie\b/gi, "");
   t = t.replace(/\bBDL\s+grounding\b/gi, "");
   t = t.replace(/\bBallDontLie\s+(?:grounding|roster|slate|data)\b/gi, "");
+  t = t.replace(/\b\(GOAT board\)\b/gi, "");
+  t = t.replace(/\bGOAT board\b/gi, "live board");
+  t = t.replace(/\bPick one ticket from the posted numbers[^.]*\.?/gi, "");
+  t = t.replace(/\bdo not invent a different (?:line|number)\b[^.]*\.?/gi, "");
+  t = t.replace(/\bLive board owns the number\b[^.]*\.?/gi, "");
+  t = t.replace(/\bMatchup notes below are why[^.]*\.?/gi, "");
+  t = t.replace(/\bnot a substitute (?:price|line)\b[^.]*\.?/gi, "");
   t = t.replace(/^\[(UR model\s*·\s*10k Poisson\/Elo\s*·\s*[^\]]+)\]\s*/i, "");
   t = t.replace(/\bNo BDL group-winner seed is posted\b/gi, "No group-winner line is posted");
   t = t.replace(/\bNo BDL group-winner price exists\b/gi, "No group-winner line exists");

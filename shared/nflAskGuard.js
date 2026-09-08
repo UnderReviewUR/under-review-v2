@@ -12,6 +12,10 @@ import {
   isNflDressingAsk,
   nflInactivesPostedForAsk,
 } from "./nflEspnInactives.js";
+import {
+  formatNflBookLabel,
+  pickNflPropsBoardTickets,
+} from "./nflAskPropTrim.js";
 
 const CONF_RANK = Object.freeze({ Speculative: 0, Medium: 1, High: 2 });
 const PRICED_MARKET_IDS = new Set(["spread", "total", "moneyline", "sgp"]);
@@ -197,7 +201,7 @@ export function buildNflLivePropBoardTake(opts = {}) {
       injuryContext:
         "Confirm inactives and OL/skill availability before locking — this lean is board + defense tier only.",
       marketContext: `Verified live ${marketLabel} at ${line} (${book}). Recovery lean from board after the model take failed validation.`,
-      lineMovement: `Shop ${book} and peers around ${line}; do not invent a different number.`,
+      lineMovement: `Shop ${book} and peers around ${line} — stick to a posted number.`,
       statisticalEdge: defenseIsPrior
         ? "Defense tier is last-season scoring context only. Season pace alone is not the ticket."
         : "Defense tier + posted line drive this recovery lean. Season pace alone is not the ticket.",
@@ -205,7 +209,7 @@ export function buildNflLivePropBoardTake(opts = {}) {
     caveats: [
       `Live ${marketLabel} ${line} from ${book}.`,
       softMarket
-        ? "Soft market — Speculative only; do not lock language."
+        ? "Soft market — Speculative only; keep the stake small."
         : "Re-check the number closer to kick if the board moves.",
       ...(defenseIsPrior
         ? ["Defense tier is a 2025 scoring prior — re-check once 2026 sample posts."]
@@ -685,35 +689,75 @@ export function applyNflAskGuard(opts = {}) {
       // Broad "best player props" asks: recover from live GOAT rows instead of blank PASS.
       if (marketId === "props_board" && propLines.length > 0) {
         codes.push("props_board_recover");
-        const top = propLines
-          .filter((p) => p && p.player && p.line != null && (p.underOdds != null || p.overOdds != null))
-          .slice(0, 4);
+        /** @type {Set<string>} */
+        const scope = new Set();
+        /** @type {Array<string|number>} */
+        const eventIds = [];
+        for (const g of games) {
+          const home = String(g?.homeAbbr || "").toUpperCase().trim();
+          const away = String(g?.awayAbbr || "").toUpperCase().trim();
+          if (home) scope.add(home);
+          if (away) scope.add(away);
+          if (g?.providerGameId != null) eventIds.push(g.providerGameId);
+          if (g?.eventId != null) eventIds.push(g.eventId);
+        }
+        /** @type {string[]} */
+        const rosterNames = [];
+        const rosters = opts.briefcase?.league?.rostersByTeam;
+        if (rosters && typeof rosters === "object" && scope.size) {
+          for (const ab of scope) {
+            const list = rosters[ab] || rosters[String(ab).toUpperCase()] || [];
+            for (const p of Array.isArray(list) ? list : []) {
+              const name = String(p?.name || p?.player || "").trim();
+              if (name) rosterNames.push(name);
+            }
+          }
+        }
+        const top = pickNflPropsBoardTickets(propLines, {
+          scope,
+          eventIds,
+          rosterNames,
+          question,
+          maxTickets: 4,
+        });
         if (top.length) {
           const primary = top[0];
           const propLabel = String(primary.prop || primary.propRaw || "prop").trim();
-          const book = String(primary.book || "board").trim() || "board";
-          const numbered = top
-            .map((p, i) => {
-              const pl = String(p.prop || p.propRaw || "prop").trim();
-              const bk = String(p.book || "board").trim() || "board";
-              return `${i + 1}. ${p.player} ${pl} ${p.line} (${bk})`;
-            })
-            .join("\n");
+          const bookLabel = formatNflBookLabel(String(primary.book || ""));
+          const ticketLine = (p) => {
+            const pl = String(p.prop || p.propRaw || "prop").trim();
+            const bk = formatNflBookLabel(String(p.book || ""));
+            return `${p.player} ${pl} ${p.line} (${bk})`;
+          };
+          const numbered = top.map((p, i) => `${i + 1}. ${ticketLine(p)}`).join("\n");
+          const primaryTicket = ticketLine(primary);
           structured.sport = "NFL";
           structured.call = `${primary.player} ${propLabel} ${primary.line}`;
           structured.callType = "prop";
           structured.confidence = "Speculative";
           // Keep lean short for the card face — full board list lives in whyNow.
-          structured.lean = `Lean: ${primary.player} ${propLabel} ${primary.line} (${book}).`;
-          structured.whyNow = `Best live props on this matchup (GOAT board):\n${numbered}\n\nPick one ticket from the posted numbers — do not invent a different line.`;
-          structured.edge =
-            "Live board owns the number. Matchup notes below are why, not a substitute price.";
+          structured.lean = `Lean: Start with ${primary.player} ${propLabel} ${primary.line} at ${bookLabel}.`;
+          structured.whyNow = [
+            `I'd put one ticket on ${primaryTicket}.`,
+            "",
+            "Other live numbers on this game worth a look:",
+            numbered,
+            "",
+            "Grab one of those posted prices and move on — Speculative, not a lock.",
+          ].join("\n");
+          structured.edge = `Action: bet ${primaryTicket} if you want a single shot tonight. Skip stacking until you like the price better.`;
           structured.analysis = {
-            ...(structured.analysis && typeof structured.analysis === "object"
-              ? structured.analysis
-              : {}),
-            marketContext: `Posted props:\n${numbered}`,
+            matchupAnalysis: `Cleanest live ticket on the board is ${primaryTicket}.`,
+            injuryContext: "Confirm inactives before you lock anything.",
+            marketContext: `Live props on this matchup:\n${numbered}`,
+            lineMovement: "Stick to a posted book number.",
+            statisticalEdge: "Board + matchup only. No smash case baked in.",
           };
+          structured.caveats = [
+            "These are live book numbers — Speculative until you shop juice.",
+            "Game script can kill pass volume either way.",
+            "If your book is off these prices, pass or wait.",
+          ];
         } else {
           codes.push("invented_line");
           rewriteStructuredToPass(structured, "invented_line", undefined, question);

@@ -73,9 +73,9 @@ Examples:
    - If \`callType === "parlay"\`: parlayLegs and parlayTotalOdds MUST be arrays/strings (not null)
    - If \`callType !== "parlay"\`: parlayLegs and parlayTotalOdds MUST be null
 4. **Confidence must match registry tiers:** "High", "Medium", "Speculative" (exact case)
-5. **whyNow answers "why now?"** not "why this player is good?" (that's generic)
-6. **edge explains market mistake**, not the play itself — bro voice: short sentences, no "structural angle," "rotation vacancy," or injury-report tone
-7. **whyNow / edge / analysis fields**: plain conversational English — like texting a friend who bets, not a press release
+5. **whyNow answers "why now?"** not "why this player is good?" (that's generic) — and ends with a clear next step (bet X / pass / wait for Y)
+6. **edge explains market mistake**, not the play itself — bro voice: short sentences, no "structural angle," "rotation vacancy," or injury-report tone. Lead with the action when you can ("Bet …" / "Skip …" / "Wait for …").
+7. **whyNow / edge / analysis fields**: plain conversational English — like texting a friend who bets, not a press release. Never write system instructions ("do not invent a line," "board owns the number," "GOAT," "payload").
 8. **caveats are mandatory.** Always include at least one realistic risk factor.
 9. **odds escape hatch:** If book odds unknown, use \`"TBD"\` instead of inventing
 10. **Data-aware fields:** If a feed is down, use sentinel text:

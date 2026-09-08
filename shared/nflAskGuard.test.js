@@ -375,3 +375,88 @@ test("unattributed yds/g is vintage when not current season", () => {
   assert.equal(structured.confidence, "Speculative");
   assert.match(String(structured.analysis.statisticalEdge), /prior/);
 });
+
+test("props_board recover is casual with clear action and drops wrong-team caveats", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "Best player props for patriots vs Seahawks?",
+    structured: {
+      call: "OVER 99.5",
+      lean: "Lean: Over 99.5. Smash.",
+      confidence: "Medium",
+      whyNow: "Model junk.",
+      edge: "Live board owns the number.",
+      caveats: [
+        "If Darnold is limited, JSN suffers.",
+        "NE may bracket JSN and Kupp sees targets.",
+      ],
+      analysis: {
+        matchupAnalysis: "Kupp and Darnold dominate this script.",
+      },
+    },
+    games: [
+      {
+        awayAbbr: "NE",
+        homeAbbr: "SEA",
+        providerGameId: 1,
+        seasonType: "reg",
+      },
+    ],
+    propLines: [
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 260.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Sam Darnold",
+        team: "MIN",
+        prop: "passing tds",
+        propRaw: "passing_tds",
+        line: 1.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Jaxon Smith-Njigba",
+        team: "SEA",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 75.5,
+        book: "fanduel",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: {
+      grade: "green",
+      detected: { marketId: "props_board", propTypeHints: [] },
+      propMatch: { matched: 3 },
+      league: {
+        rostersByTeam: {
+          NE: [{ name: "Drake Maye" }],
+          SEA: [{ name: "Jaxon Smith-Njigba" }],
+        },
+      },
+    },
+  });
+  assert.ok(codes.includes("props_board_recover"));
+  assert.match(String(structured.lean), /Start with Drake Maye/i);
+  assert.match(String(structured.edge), /^Action:/i);
+  assert.doesNotMatch(String(structured.whyNow), /GOAT|do not invent|board owns/i);
+  assert.doesNotMatch(String(structured.whyNow), /Sam Darnold/);
+  assert.match(String(structured.whyNow), /1\.\s+Drake Maye/);
+  assert.ok(Array.isArray(structured.caveats));
+  assert.ok(!structured.caveats.some((c) => /Kupp|Darnold/i.test(String(c))));
+});

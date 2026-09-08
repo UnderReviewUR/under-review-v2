@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   nflGameIdsFromGames,
   pickNflGamesForScope,
+  pickNflPropsBoardTickets,
   trimNflPlayerPropsForAsk,
 } from "./nflAskPropTrim.js";
 
@@ -71,4 +72,68 @@ test("pickNflGamesForScope aliases LA to LAR", () => {
 
 test("nflGameIdsFromGames", () => {
   assert.deepEqual(nflGameIdsFromGames([{ providerGameId: 9 }, { providerGameId: null }]), [9]);
+});
+
+test("pickNflPropsBoardTickets drops off-matchup players and duplicate Maye yards", () => {
+  const props = [
+    {
+      game: "NE @ SEA",
+      player: "Drake Maye",
+      team: "NE",
+      prop: "passing yards",
+      propRaw: "passing_yards",
+      line: 260.5,
+      book: "draftkings",
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+    {
+      game: "NE @ SEA",
+      player: "Drake Maye",
+      team: "NE",
+      prop: "passing yards",
+      propRaw: "passing_yards",
+      line: 232.5,
+      book: "draftkings",
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+    {
+      game: "NE @ SEA",
+      player: "Sam Darnold",
+      team: "MIN",
+      prop: "passing tds",
+      propRaw: "passing_tds",
+      line: 1.5,
+      book: "draftkings",
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+    {
+      game: "NE @ SEA",
+      player: "Jaxon Smith-Njigba",
+      team: "SEA",
+      prop: "receiving yards",
+      propRaw: "receiving_yards",
+      line: 75.5,
+      book: "fanduel",
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+  ];
+  const out = pickNflPropsBoardTickets(props, {
+    scope: new Set(["NE", "SEA"]),
+    eventIds: ["1"],
+    rosterNames: ["Drake Maye", "Jaxon Smith-Njigba", "Geno Smith"],
+    question: "Best player props for patriots vs Seahawks?",
+    maxTickets: 4,
+  });
+  assert.ok(out.every((p) => p.player !== "Sam Darnold"));
+  assert.equal(out.filter((p) => p.player === "Drake Maye").length, 1);
+  assert.equal(out[0].line, 260.5);
+  assert.ok(out.some((p) => p.player === "Jaxon Smith-Njigba"));
 });

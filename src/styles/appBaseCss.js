@@ -4839,7 +4839,8 @@ export const baseCss = `
   }
   .ur-v2-body-prose-wrap--clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
   button.ur-v2-body-expand{margin:6px 16px 0;padding:0;border:none;background:none;color:#00F5E9;font-family:var(--mono-font);font-size:11px;letter-spacing:0.08em;cursor:pointer;text-align:left;touch-action:manipulation;}
-  .ur-v2-body-p{margin:0 0 12px;color:#e5e7eb;}
+  .ur-v2-body-p{margin:0 0 12px;color:#e5e7eb;white-space:pre-line;}
+  .ur-v2-body-p--edge{color:rgba(255,255,255,.78);font-weight:600;}
   .chat-thread--ur-chat-dock .ur-take-response-v2.ur-v2-card,
   .chat-thread--ur-chat-dock .wc-take-card.ur-v2-card{
     color:#e5e7eb;

@@ -130,11 +130,21 @@ export function normalizeNflBdlPlayerPropRows(rows, ctx = {}) {
     const eventId = ctx.eventId ?? row.game_id ?? null;
     const game = ctx.gameLabel || "NFL";
 
+    const teamAbbr = String(
+      row?.team?.abbreviation ||
+        row?.player?.team?.abbreviation ||
+        row?.team_abbreviation ||
+        "",
+    )
+      .toUpperCase()
+      .trim();
+
     if (market.type === "over_under" && Number.isFinite(lineVal)) {
       out.push({
         game,
         player: player || `player_${row.player_id}`,
         playerId: row.player_id ?? null,
+        team: teamAbbr || null,
         prop,
         propRaw,
         line: lineVal,
@@ -149,6 +159,7 @@ export function normalizeNflBdlPlayerPropRows(rows, ctx = {}) {
         game,
         player: player || `player_${row.player_id}`,
         playerId: row.player_id ?? null,
+        team: teamAbbr || null,
         prop,
         propRaw,
         line: Number.isFinite(lineVal) ? lineVal : 0.5,
