@@ -14,12 +14,12 @@ function isBlankFaceCall(call) {
  * from the lean line so UR Read is never blank while the headline has a side.
  */
 export function deriveSharpBriefUrRead(call, lean, lineField) {
-  if (!isBlankFaceCall(call)) return String(call).trim().slice(0, 80);
+  if (!isBlankFaceCall(call)) return String(call).trim().slice(0, 120);
   const l = String(lean || "").trim();
   const m = l.match(/^Lean:\s*(.+?)(?:\.\s+|\.\s*$|$)/i);
-  if (m && m[1].trim()) return m[1].trim().slice(0, 80);
-  if (l) return l.replace(/^Lean:\s*/i, "").slice(0, 80);
-  if (nonEmpty(lineField)) return String(lineField).trim().slice(0, 80);
+  if (m && m[1].trim()) return m[1].trim().slice(0, 120);
+  if (l) return l.replace(/^Lean:\s*/i, "").slice(0, 120);
+  if (nonEmpty(lineField)) return String(lineField).trim().slice(0, 120);
   return "See lean";
 }
 
@@ -28,6 +28,11 @@ export function deriveSharpBriefDirection(call, lean) {
   if (/\bunder\b/i.test(blob)) return "Under";
   if (/\bover\b/i.test(blob)) return "Over";
   if (/\bpass\b/i.test(blob)) return "Pass";
+  if (/\b(board|shop these|live props?)\b/i.test(blob)) return "Board";
+  // Named ticket like "Drake Maye passing yards 234.5"
+  if (/\b\d+(?:\.\d+)?\b/.test(blob) && /\b(yards?|tds?|receptions?|sacks?)\b/i.test(blob)) {
+    return "Ticket";
+  }
   return "Side";
 }
 
@@ -167,7 +172,12 @@ export function buildSharpBriefStatGrid({ estimatedEdge, takeMeta, structured, p
     mode: "structural",
     slots: [
       { key: "p", label: "UR read", value: proj, highlight: false },
-      { key: "d", label: "Lean", value: direction !== "Side" ? direction : "See body", highlight: false },
+      {
+        key: "d",
+        label: "Lean",
+        value: direction !== "Side" ? direction : "Board",
+        highlight: false,
+      },
       { key: "c", label: "Confidence", value: conf || "Medium", highlight: false },
     ],
   };

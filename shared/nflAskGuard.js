@@ -686,23 +686,34 @@ export function applyNflAskGuard(opts = {}) {
       if (marketId === "props_board" && propLines.length > 0) {
         codes.push("props_board_recover");
         const top = propLines
-          .filter((p) => p && p.player && p.line != null && p.underOdds != null)
+          .filter((p) => p && p.player && p.line != null && (p.underOdds != null || p.overOdds != null))
           .slice(0, 4);
         if (top.length) {
-          const lines = top
-            .map(
-              (p) =>
-                `${p.player} ${p.prop || p.propRaw} ${p.line} (${p.book || "board"})`,
-            )
-            .join("; ");
-          structured.call = `BOARD · ${top[0].player} ${top[0].prop || top[0].propRaw} ${top[0].line}`;
+          const primary = top[0];
+          const propLabel = String(primary.prop || primary.propRaw || "prop").trim();
+          const book = String(primary.book || "board").trim() || "board";
+          const numbered = top
+            .map((p, i) => {
+              const pl = String(p.prop || p.propRaw || "prop").trim();
+              const bk = String(p.book || "board").trim() || "board";
+              return `${i + 1}. ${p.player} ${pl} ${p.line} (${bk})`;
+            })
+            .join("\n");
+          structured.sport = "NFL";
+          structured.call = `${primary.player} ${propLabel} ${primary.line}`;
           structured.callType = "prop";
           structured.confidence = "Speculative";
-          structured.lean = `Lean: shop these live props — ${lines}.`.slice(0, 220);
-          structured.whyNow =
-            "GOAT posted these matchup props live. Pick one ticket from the board — do not invent a different number.";
+          // Keep lean short for the card face — full board list lives in whyNow.
+          structured.lean = `Lean: ${primary.player} ${propLabel} ${primary.line} (${book}).`;
+          structured.whyNow = `Best live props on this matchup (GOAT board):\n${numbered}\n\nPick one ticket from the posted numbers — do not invent a different line.`;
           structured.edge =
-            "Live board owns the number. Matchup notes are why, not a substitute line.";
+            "Live board owns the number. Matchup notes below are why, not a substitute price.";
+          structured.analysis = {
+            ...(structured.analysis && typeof structured.analysis === "object"
+              ? structured.analysis
+              : {}),
+            marketContext: `Posted props:\n${numbered}`,
+          };
         } else {
           codes.push("invented_line");
           rewriteStructuredToPass(structured, "invented_line", undefined, question);

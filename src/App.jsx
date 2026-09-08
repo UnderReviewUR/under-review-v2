@@ -438,7 +438,10 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
       s.playerMarketTier = clip(s.playerMarketTier, 24);
     }
   } else {
-    s.lean = clip(s.lean, isNbaLive ? 220 : extendedLean ? 800 : 120);
+    // NFL/La Liga prop faces need room for a full Lean sentence; WC lists use 800 via other path.
+    const leanMax =
+      isNbaLive || forceNonWc || String(raw.callType || "").toLowerCase() === "prop" ? 220 : extendedLean ? 800 : 120;
+    s.lean = clip(s.lean, leanMax);
     s.call = clip(s.call, 8000) || "—";
     s.whyNow = clip(s.whyNow, 8000);
     s.edge = clip(s.edge, 8000);
@@ -446,12 +449,16 @@ function sanitizeStructuredBubbleShape(raw, opts = {}) {
     const sportFallback = forceNonWc
       ? apiSport && apiSport !== "worldcup"
         ? apiSport
-        : "generic"
+        : hasNflAskLexicon(opts.question || "")
+          ? "nfl"
+          : "generic"
       : isWcBubble
         ? "worldcup"
         : "generic";
     s.sport = clip(s.sport, 80).toLowerCase() || sportFallback;
-    if (forceNonWc && s.sport === "worldcup") s.sport = apiSport || "generic";
+    if (forceNonWc && (s.sport === "worldcup" || !s.sport)) {
+      s.sport = (apiSport && apiSport !== "worldcup" ? apiSport : null) || sportFallback || "nfl";
+    }
     if (isMatchup) s.callType = "matchup";
     else if (isAnalysis) s.callType = "analysis";
     else s.callType = clip(s.callType, 48).toLowerCase() || "single";
