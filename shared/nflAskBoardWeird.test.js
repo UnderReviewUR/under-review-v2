@@ -144,6 +144,19 @@ test("peer lines for Maye pass yards ignore 47.5 / 109.5 / 460.5", () => {
   assert.doesNotMatch(ticket.why, /47\.5|109\.5|460\.5|22\.5/);
 });
 
+test("Maye 290 is treated as a high alt, not a cheap over", async () => {
+  const { inferNflPropTicketSide, preferHighPrintPrimary } = await import("./nflAskPropTrim.js");
+  const rows = [
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 231.5, overOdds: -105, underOdds: -115 },
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 261.5, overOdds: -110, underOdds: -110 },
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 290, overOdds: -102, underOdds: -118 },
+  ];
+  const picked = preferHighPrintPrimary([rows[2]], rows);
+  assert.equal(picked[0].line, 261.5);
+  const lonely = inferNflPropTicketSide(rows[2], [rows[2]], { openerWeek: true });
+  assert.equal(lonely.side, "Under");
+});
+
 test("home tonight-props routes NFL; Lakers stay NBA", () => {
   const q = "player props for the game tonight?";
   assert.equal(looksLikeNflPropsBoardAsk(q), true);

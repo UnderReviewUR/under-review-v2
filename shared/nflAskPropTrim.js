@@ -498,6 +498,13 @@ function dropNflYardLadderAlts(list, market) {
   if (!/yds/.test(String(market || "")) || /long|rush_rec|pass_rush/.test(String(market || ""))) {
     return list;
   }
+  if (/pass_yds/.test(String(market || ""))) {
+    const passMains = list.filter((r) => {
+      const n = Number(r.line);
+      return n >= 180 && n <= 275;
+    });
+    if (passMains.length) return passMains;
+  }
   const mains = list.filter((r) => {
     const n = Number(r.line);
     return n >= 140 && n <= 340;
@@ -564,6 +571,9 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
         return { side: "Over", why: `${range} That's the cheap number.` };
       }
     }
+  }
+  if (nflPropMarketKey(row) === "pass_yds" && Number.isFinite(line) && line >= 275) {
+    return { side: "Under", why: `${line} is a high passing-yards number.` };
   }
   const over = Number(row?.overOdds);
   const under = Number(row?.underOdds);
