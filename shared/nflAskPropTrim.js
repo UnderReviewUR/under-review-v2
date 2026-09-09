@@ -58,7 +58,24 @@ function playerTokensFromQuestion(question) {
     const t = String(m[1] || "").trim();
     if (t.length >= 3) tokens.add(t.toLowerCase());
   }
+  const ou = /\b([a-z][a-z0-9.'\s-]{1,28}?)\s+(?:over|under)\s+\d/gi;
+  while ((m = ou.exec(q))) {
+    const raw = String(m[1] || "")
+      .replace(/^(and|,)\s+/i, "")
+      .trim()
+      .toLowerCase();
+    if (raw.length >= 3 && !/^(the|and|for|game|bet)$/.test(raw)) tokens.add(raw);
+    const last = raw.split(/\s+/).pop();
+    if (last && last.length >= 3) tokens.add(last);
+  }
   return [...tokens];
+}
+
+function looksLikeNflTicketReviewQuestion(question) {
+  const q = String(question || "").toLowerCase();
+  const ou = (q.match(/\b(over|under)\s+\d/g) || []).length;
+  if (ou < 2) return false;
+  return /\b(i\s+bet|i\s+took|my\s+(?:bet|ticket|parlay|slip)|thoughts)\b/.test(q);
 }
 
 /**
@@ -365,8 +382,10 @@ export function filterNflPropsForMatchup(props, opts = {}) {
         .toUpperCase()
         .trim();
       const known = resolveNflPlayerTeamFromIndex(String(p?.player || ""), teamIndex, propTeam);
-      // No roster/team signal and not on allowlist → junk; keep only if no allowlist yet.
-      if (!known) return allow.size < 1;
+      if (!known) {
+        if (allow.size >= 1 && playerNameAllowed(String(p?.player || ""), allow)) return true;
+        return allow.size < 1;
+      }
       const expanded = expandScope([known]);
       for (const ab of expanded) {
         if (scope.has(ab)) return true;
@@ -390,18 +409,45 @@ export function filterNflPropsForMatchup(props, opts = {}) {
  */
 export function trimNflPlayerPropsForAsk(props, opts = {}) {
   const scope = expandScope(opts.scope || []);
-  const maxRows = Math.max(12, Math.min(Number(opts.maxRows) || 56, 120));
+  const ticketReview = looksLikeNflTicketReviewQuestion(opts.question || "");
+  const maxRows = ticketReview
+    ? 120
+    : Math.max(12, Math.min(Number(opts.maxRows) || 56, 120));
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
+  const teamIndex =
+    opts.playerTeamByName && typeof opts.playerTeamByName === "object" ? opts.playerTeamByName : {};
 
   let rows = filterNflPropsForMatchup(Array.isArray(props) ? props : [], {
     scope,
     rosterNames: opts.rosterNames,
     playerTeamByName: opts.playerTeamByName,
   });
-  rows = rows.filter((r) => rowMatchesScope(r, scope));
+  rows = rows.filter((r) => {
+    if (rowMatchesScope(r, scope)) return true;
+    if (!scope.size) return true;
+    const known = resolveNflPlayerTeamFromIndex(String(r?.player || ""), teamIndex, "");
+    if (!known) return false;
+    for (const ab of expandScope([known])) {
+      if (scope.has(ab)) return true;
+    }
+    return false;
+  });
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
-  return rows.slice(0, maxRows);
+  const head = rows.slice(0, maxRows);
+  if (!ticketReview || !tokens.length) return head;
+  const named = rows.filter((r) => {
+    const n = normalizePlayerKey(r?.player);
+    if (!n) return false;
+    const last = n.split(" ").pop();
+    return tokens.some((t) => n === t || n.endsWith(` ${t}`) || last === t || t.endsWith(last || "___"));
+  });
+  const byKey = new Map();
+  for (const r of [...head, ...named]) {
+    const k = `${normalizePlayerKey(r?.player)}|${nflPropMarketKey(r)}|${r?.line}`;
+    if (!byKey.has(k)) byKey.set(k, r);
+  }
+  return [...byKey.values()];
 }
 
 /**

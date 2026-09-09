@@ -91,5 +91,29 @@ test("applyNflTicketReviewToStructured prefers rec yards for Brown 34.5", () => 
   };
   applyNflTicketReviewToStructured(structured, SLIP, games, propLines, briefcase);
   assert.match(String(structured.whyNow), /62\.5/);
+  assert.match(String(structured.whyNow), /Maye/i);
+  assert.match(String(structured.whyNow), /239\.5/);
+  assert.match(String(structured.whyNow), /Doubs/i);
+  assert.doesNotMatch(String(structured.whyNow), /don't have a live row/i);
   assert.doesNotMatch(String(structured.whyNow), /Ambiguous|PHI|Eagles/);
+});
+
+test("ticket review grades unstamped Maye/Brown/Doubs rows", () => {
+  const structured = { call: "PASS", lean: "Lean: Pass.", confidence: "Medium" };
+  applyNflTicketReviewToStructured(
+    structured,
+    SLIP,
+    games,
+    [
+      { player: "Sam Darnold", propRaw: "pass_yds", prop: "passing yards", line: 230.5 },
+      { player: "Drake Maye", propRaw: "pass_yds", prop: "passing yards", line: 231.5 },
+      { player: "AJ Brown", propRaw: "rec_yds", prop: "receiving yards", line: 61.5 },
+      { player: "Romeo Doubs", propRaw: "rec_yds", prop: "receiving yards", line: 27.5 },
+    ],
+    briefcase,
+  );
+  assert.match(String(structured.whyNow), /231\.5/);
+  assert.match(String(structured.whyNow), /61\.5/);
+  assert.match(String(structured.whyNow), /27\.5/);
+  assert.doesNotMatch(String(structured.whyNow), /don't have a live row/i);
 });

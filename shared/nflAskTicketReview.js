@@ -67,16 +67,26 @@ function propBlob(row) {
   return `${row?.propRaw || ""} ${row?.prop || ""}`.toLowerCase();
 }
 
-function playerRows(propLines, rawName) {
+function playerRows(propLines, rawName, teamIndex = {}) {
   const want = normalizePlayerKey(rawName);
   if (!want) return [];
   const wantParts = want.split(" ").filter(Boolean);
   const wantLast = wantParts[wantParts.length - 1];
   const wantFirst = wantParts[0] || "";
+  const rosterHit = Object.keys(teamIndex || {}).find((k) => {
+    const kn = normalizePlayerKey(k);
+    if (!kn) return false;
+    if (kn === want) return true;
+    const last = kn.split(" ").pop();
+    if (wantParts.length === 1 && last === want) return true;
+    if (wantParts.length >= 2 && last === wantLast && kn.split(" ")[0][0] === wantFirst[0]) return true;
+    return false;
+  });
+  const rosterKey = rosterHit ? normalizePlayerKey(rosterHit) : "";
   return (propLines || []).filter((p) => {
     const n = normalizePlayerKey(p?.player);
     if (!n) return false;
-    if (n === want) return true;
+    if (n === want || (rosterKey && n === rosterKey)) return true;
     const nParts = n.split(" ").filter(Boolean);
     const nLast = nParts[nParts.length - 1];
     const nFirst = nParts[0] || "";
@@ -88,13 +98,15 @@ function playerRows(propLines, rawName) {
   });
 }
 
-function pickRowForStatedLine(rows, stated, slipTeams = new Set()) {
+function pickRowForStatedLine(rows, stated, slipTeams = new Set(), teamIndex = {}) {
   if (!rows.length) return null;
   const inGame =
     slipTeams && slipTeams.size
       ? rows.filter((r) => {
           const ts = gameTeamSet([], r.game);
-          return [...ts].some((t) => slipTeams.has(t));
+          if ([...ts].some((t) => slipTeams.has(t))) return true;
+          const known = resolveNflPlayerTeamFromIndex(String(r?.player || ""), teamIndex, r?.team);
+          return Boolean(known && slipTeams.has(String(known).toUpperCase()));
         })
       : rows;
   const pool = inGame.length ? inGame : rows;
@@ -138,6 +150,8 @@ function gameTeamSet(games, liveGame) {
     out.add(m[1]);
     out.add(m[2]);
   }
+  if (out.has("NE")) out.add("NWE");
+  if (out.has("NWE")) out.add("NE");
   return out;
 }
 
@@ -190,9 +204,9 @@ export function gradeNflStatedTicket(question, games = [], propLines = [], brief
       continue;
     }
 
-    const rows = playerRows(propLines, String(leg.raw));
+    const rows = playerRows(propLines, String(leg.raw), teamIndex);
     const slipTeams = gameTeamSet(games, "");
-    const live = pickRowForStatedLine(rows, leg.line, slipTeams);
+    const live = pickRowForStatedLine(rows, leg.line, slipTeams, teamIndex);
     const who = String(live?.player || leg.raw);
     const liveN = live ? Number(live.line) : null;
     const market = String(live?.prop || live?.propRaw || "prop").replace(/_/g, " ");
@@ -295,7 +309,7 @@ export function applyNflTicketReviewToStructured(structured, question, games, pr
   };
   structured.caveats = [
     "First week — last year's D is a prior, not this year's rank.",
-    "If a named player isn't on this matchup's roster, that's the problem — not the QB unders.",
+    "Grade each stated number against the live board — missing a row is a data miss, not a fade.",
   ];
   structured.timestamp = new Date().toISOString();
   return true;

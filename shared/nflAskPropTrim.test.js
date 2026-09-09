@@ -329,6 +329,44 @@ test("inferNflPropTicketSide fades the high print when books disagree", async ()
   assert.equal(picked[0].line, 262.5);
 });
 
+test("ticket-review trim keeps stated legs even when the board is QB-alt spam", () => {
+  const darnoldAlts = Array.from({ length: 30 }, (_, i) => ({
+    game: "NE @ SEA",
+    player: "Sam Darnold",
+    team: "SEA",
+    prop: "passing yards",
+    propRaw: "pass_yds",
+    line: 200.5 + i,
+    overOdds: -110,
+    underOdds: -110,
+  }));
+  const out = trimNflPlayerPropsForAsk(
+    [
+      ...darnoldAlts,
+      { player: "Drake Maye", prop: "passing yards", propRaw: "pass_yds", line: 231.5 },
+      { player: "A.J. Brown", prop: "receiving yards", propRaw: "rec_yds", line: 62.5 },
+      { player: "Romeo Doubs", prop: "receiving yards", propRaw: "rec_yds", line: 28.5 },
+    ],
+    {
+      scope: ["NE", "SEA"],
+      question:
+        "for tonights game, i bet: seahawks win, aj brown over 34.5, darnold under 249.5, doubs over 14.5, and maye under 239.5. thoughts?",
+      maxRows: 24,
+      playerTeamByName: {
+        "drake maye": "NE",
+        "aj brown": "NE",
+        "romeo doubs": "NE",
+        "sam darnold": "SEA",
+      },
+      rosterNames: ["Drake Maye", "A.J. Brown", "Romeo Doubs", "Sam Darnold"],
+    },
+  );
+  const names = out.map((p) => p.player);
+  assert.ok(names.includes("Drake Maye"));
+  assert.ok(names.includes("A.J. Brown"));
+  assert.ok(names.includes("Romeo Doubs"));
+});
+
 test("preferHighPrintPrimary ignores 400+ alts and other Maye markets", async () => {
   const { inferNflPropTicketSide, preferHighPrintPrimary } = await import("./nflAskPropTrim.js");
   const rows = [
