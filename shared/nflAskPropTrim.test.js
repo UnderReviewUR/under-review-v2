@@ -6,6 +6,8 @@ import {
   pickNflPropsBoardTickets,
   filterNflPropsForMatchup,
   buildNflPlayerTeamIndex,
+  mergeNflPlayerTeamIndexesPreferLast,
+  mergeNflRostersByTeamPreferLast,
   trimNflPlayerPropsForAsk,
 } from "./nflAskPropTrim.js";
 
@@ -140,7 +142,7 @@ test("pickNflPropsBoardTickets drops off-matchup players and duplicate Maye yard
   assert.ok(out.some((p) => p.player === "Jaxon Smith-Njigba"));
 });
 
-test("filterNflPropsForMatchup drops PHI Brown and unknown draft RB", () => {
+test("filterNflPropsForMatchup drops PHI-indexed Brown and unknown no-roster RB", () => {
   const teamIndex = buildNflPlayerTeamIndex([
     { name: "Drake Maye", team: "NE" },
     { name: "Jaxon Smith-Njigba", team: "SEA" },
@@ -167,7 +169,48 @@ test("filterNflPropsForMatchup drops PHI Brown and unknown draft RB", () => {
   assert.ok(!names.includes("Jadarian Price"));
 });
 
-test("filterNflPropsForMatchup drops AJ Brown alias and wrong SEA team stamp", () => {
+test("filterNflPropsForMatchup keeps BDL NE Brown and slate roster Price", () => {
+  const teamIndex = buildNflPlayerTeamIndex([
+    { name: "Drake Maye", team: "NE" },
+    { name: "A.J. Brown", team: "NE" },
+    { name: "Jadarian Price", team: "SEA" },
+    { name: "Jaxon Smith-Njigba", team: "SEA" },
+  ]);
+  const props = [
+    { player: "Drake Maye", line: 234.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "A.J. Brown", line: 62.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "Jadarian Price", line: 51.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "Jaxon Smith-Njigba", line: 81.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+  ];
+  const out = filterNflPropsForMatchup(props, {
+    scope: new Set(["NE", "SEA"]),
+    rosterNames: ["Drake Maye", "A.J. Brown", "Jadarian Price", "Jaxon Smith-Njigba"],
+    playerTeamByName: teamIndex,
+  });
+  const names = out.map((p) => p.player);
+  assert.ok(names.includes("A.J. Brown"));
+  assert.ok(names.includes("Jadarian Price"));
+  assert.ok(names.includes("Drake Maye"));
+});
+
+test("BDL team index wins over stale static PHI for A.J. Brown", () => {
+  const staticIdx = buildNflPlayerTeamIndex([{ name: "A.J. Brown", team: "PHI" }]);
+  const bdlIdx = buildNflPlayerTeamIndex([{ name: "A.J. Brown", team: "NE" }]);
+  const merged = mergeNflPlayerTeamIndexesPreferLast(staticIdx, bdlIdx);
+  assert.equal(merged["aj brown"], "NE");
+  const out = filterNflPropsForMatchup(
+    [{ player: "AJ Brown", line: 62.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" }],
+    {
+      scope: ["NE", "SEA"],
+      rosterNames: ["A.J. Brown"],
+      playerTeamByName: merged,
+    },
+  );
+  assert.equal(out.length, 1);
+  assert.equal(out[0].player, "AJ Brown");
+});
+
+test("filterNflPropsForMatchup drops AJ Brown alias when index still says PHI", () => {
   const teamIndex = buildNflPlayerTeamIndex([
     { name: "Drake Maye", team: "NE" },
     { name: "A.J. Brown", team: "PHI" },
@@ -204,6 +247,14 @@ test("filterNflPropsForMatchup does not fail open when allowlist misses everyone
     },
   );
   assert.equal(out.length, 0);
+});
+
+test("mergeNflRostersByTeamPreferLast keeps BDL Brown and ESPN Maye", () => {
+  const espn = { NE: [{ name: "Drake Maye", source: "espn" }] };
+  const bdl = { NE: [{ name: "A.J. Brown", source: "balldontlie_nfl" }] };
+  const merged = mergeNflRostersByTeamPreferLast(espn, bdl);
+  const names = merged.NE.map((r) => r.name).sort();
+  assert.deepEqual(names, ["A.J. Brown", "Drake Maye"]);
 });
 
 test("normalizePlayerKey collapses A.J. / AJ initials", async () => {

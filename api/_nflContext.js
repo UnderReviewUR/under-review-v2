@@ -30,7 +30,7 @@ import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js"
 import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
-import { trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import { trimNflPlayerPropsForAsk, mergeNflPlayerTeamIndexesPreferLast } from "../shared/nflAskPropTrim.js";
 import {
   buildNflStaticPlayerTeamIndex,
   scrubNflMatchupPropLines,
@@ -561,6 +561,11 @@ export async function buildCanonicalNflContext(options = {}) {
       ? boardProps
       : goatProps;
   const staticTeamIndex = buildNflStaticPlayerTeamIndex();
+  // Briefcase already prefers BDL roster assignments; static fills gaps only.
+  const playerTeamByName = mergeNflPlayerTeamIndexesPreferLast(
+    staticTeamIndex,
+    briefcaseHealth.briefcase?.league?.playerTeamByName || {},
+  );
   /** @type {string[]} */
   let rosterNames = [];
   if (scoped && rosterData?.players?.length) {
@@ -570,11 +575,22 @@ export async function buildCanonicalNflContext(options = {}) {
       .filter(Boolean);
   }
   if (scoped) {
-    rosterNames = [...rosterNames, ...staticRosterNamesForScope(scope, staticTeamIndex)];
+    const bdlRosterNames = Object.entries(briefcaseHealth.briefcase?.league?.rostersByTeam || {})
+      .filter(([team]) => scopeMatchesTeam(scope, team))
+      .flatMap(([, rows]) =>
+        (Array.isArray(rows) ? rows : [])
+          .map((r) => String(r?.name || r?.player || "").trim())
+          .filter(Boolean),
+      );
+    rosterNames = [
+      ...rosterNames,
+      ...bdlRosterNames,
+      ...staticRosterNamesForScope(scope, playerTeamByName),
+    ];
     rawPropLines = scrubNflMatchupPropLines(rawPropLines, {
       scope,
       rosterNames,
-      playerTeamByName: staticTeamIndex,
+      playerTeamByName,
     });
   }
   const trimmedPropLines = trimNflPlayerPropsForAsk(rawPropLines, {
@@ -582,7 +598,7 @@ export async function buildCanonicalNflContext(options = {}) {
     question,
     maxRows: scoped ? 56 : 120,
     rosterNames,
-    playerTeamByName: staticTeamIndex,
+    playerTeamByName,
   });
   if (liveBoard && Array.isArray(liveBoard.propLines)) {
     liveBoard.propLines = trimmedPropLines;
@@ -591,16 +607,15 @@ export async function buildCanonicalNflContext(options = {}) {
     briefcaseHealth.briefcase.slate.playerProps = trimmedPropLines;
   }
   if (scoped && briefcaseHealth.briefcase?.league) {
-    const staticTeamIndex = buildNflStaticPlayerTeamIndex();
-    briefcaseHealth.briefcase.league.playerTeamByName = staticTeamIndex;
+    briefcaseHealth.briefcase.league.playerTeamByName = playerTeamByName;
     const existing = briefcaseHealth.briefcase.league.rostersByTeam || {};
     /** @type {Record<string, Array<{ name: string }>>} */
     const merged = { ...existing };
-    for (const name of staticRosterNamesForScope(scope, staticTeamIndex)) {
-      const team = staticTeamIndex[name];
+    for (const name of staticRosterNamesForScope(scope, playerTeamByName)) {
+      const team = playerTeamByName[name];
       if (!team) continue;
       if (!merged[team]) merged[team] = [];
-      if (!merged[team].some((r) => String(r?.name || "").toLowerCase() === name)) {
+      if (!merged[team].some((r) => String(r?.name || "").toLowerCase() === name.toLowerCase())) {
         merged[team].push({ name, role: null });
       }
     }

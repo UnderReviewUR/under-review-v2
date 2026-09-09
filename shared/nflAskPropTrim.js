@@ -130,7 +130,7 @@ export function filterNflPropsToRoster(props, rosterNames) {
   );
   if (!names.size) return Array.isArray(props) ? props : [];
   const rows = Array.isArray(props) ? props : [];
-  // Never fail open to a polluted board when we have an allowlist.
+  // Never fail open when we have an allowlist — empty is better than off-roster noise.
   return rows.filter((p) => playerNameAllowed(String(p?.player || ""), names));
 }
 
@@ -152,7 +152,8 @@ function playerNameAllowed(playerName, allowKeys) {
 }
 
 /**
- * Prefer static/roster team over a vendor-stamped team when we know the player.
+ * Prefer team-index assignment over a vendor-stamped prop team when we know the player.
+ * Callers should build teamIndex with BallDontLie winning conflicts over static/ESPN.
  * @param {string} playerName
  * @param {Record<string, string>} teamIndex
  * @param {string} [propTeam]
@@ -201,8 +202,63 @@ export function buildNflPlayerTeamIndex(source) {
 }
 
 /**
- * Hard hygiene for matchup prop boards: drop known other-team players, then
- * keep allowlisted NE/SEA (etc.) names when we have a real allowlist.
+ * Merge player→team indexes. Later maps win on the same player key so BDL can
+ * override stale static/ESPN assignments (e.g. A.J. Brown → NE).
+ * @param {...Record<string, string>} indexes
+ * @returns {Record<string, string>}
+ */
+export function mergeNflPlayerTeamIndexesPreferLast(...indexes) {
+  /** @type {Record<string, string>} */
+  const out = {};
+  for (const idx of indexes) {
+    if (!idx || typeof idx !== "object") continue;
+    for (const [name, team] of Object.entries(idx)) {
+      const key = normalizePlayerKey(name);
+      const ab = String(team || "").toUpperCase().trim();
+      if (key && ab) out[key] = ab;
+    }
+  }
+  return out;
+}
+
+/**
+ * Merge rostersByTeam maps. Later sources win on the same player within a team;
+ * earlier sources fill gaps (ESPN/depth → BDL).
+ * @param {...Record<string, Array<Record<string, unknown>>>} rosterMaps
+ * @returns {Record<string, Array<Record<string, unknown>>>}
+ */
+export function mergeNflRostersByTeamPreferLast(...rosterMaps) {
+  /** @type {Record<string, Array<Record<string, unknown>>>} */
+  const out = {};
+  for (const map of rosterMaps) {
+    if (!map || typeof map !== "object") continue;
+    for (const [team, rows] of Object.entries(map)) {
+      const ab = String(team || "").toUpperCase().trim();
+      if (!ab) continue;
+      if (!out[ab]) out[ab] = [];
+      /** @type {Map<string, Record<string, unknown>>} */
+      const byKey = new Map();
+      for (const r of out[ab]) {
+        const k = normalizePlayerKey(r?.name || r?.player || "");
+        if (k) byKey.set(k, r);
+      }
+      for (const r of Array.isArray(rows) ? rows : []) {
+        const name = String(r?.name || r?.player || "").trim();
+        if (!name) continue;
+        const k = normalizePlayerKey(name);
+        if (!k) continue;
+        byKey.set(k, { ...r, name });
+      }
+      out[ab] = [...byKey.values()];
+    }
+  }
+  return out;
+}
+
+/**
+ * Hard hygiene for matchup prop boards: drop players whose known team is outside
+ * the matchup, then keep allowlisted names when we have a real allowlist.
+ * Team index should treat BallDontLie as source of truth when NFL_BDL_PRIMARY is on.
  *
  * @param {Array<Record<string, unknown>>} props
  * @param {{
@@ -233,8 +289,8 @@ export function filterNflPropsForMatchup(props, opts = {}) {
     }
   }
 
-  // 1) Drop anyone whose known team is outside the matchup (A.J. Brown → PHI).
-  // Prefer roster/static index over vendor team stamps (BDL sometimes mis-tags).
+  // 1) Drop anyone whose known team is outside the matchup.
+  // Prefer team-index (BDL > ESPN > static when merged that way) over prop stamps.
   let filtered = rows;
   if (scope.size) {
     filtered = rows.filter((p) => {
@@ -242,7 +298,7 @@ export function filterNflPropsForMatchup(props, opts = {}) {
         .toUpperCase()
         .trim();
       const known = resolveKnownTeam(String(p?.player || ""), teamIndex, propTeam);
-      // With an allowlist, unknown-team noise (draft names) must not ride the game label.
+      // No roster/team signal and not on allowlist → junk; keep only if no allowlist yet.
       if (!known) return allow.size < 1;
       const expanded = expandScope([known]);
       for (const ab of expanded) {
@@ -252,8 +308,8 @@ export function filterNflPropsForMatchup(props, opts = {}) {
     });
   }
 
-  // 2) If we have a real allowlist, only ship those players (drops draft noise like Jadarian Price).
-  // Never fail open when the allowlist exists — empty is better than PHI/Brown on NE@SEA.
+  // 2) If we have a real allowlist, only ship those players.
+  // BDL roster membership belongs on the allowlist — do not treat it as pollution.
   if (allow.size >= 1) {
     return filtered.filter((p) => playerNameAllowed(String(p?.player || ""), allow));
   }

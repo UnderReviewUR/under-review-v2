@@ -5,6 +5,7 @@ import {
   formatNflBriefcaseHealthPromptBlock,
 } from "./_nflAskBriefcase.js";
 import { createEmptyNflGoatBriefcase, evaluateBriefcaseForInteraction } from "../shared/nflGoatExtractionContract.js";
+import { mergeNflRostersByTeamPreferLast } from "../shared/nflAskPropTrim.js";
 
 test("formatNflBriefcaseHealthPromptBlock includes grade and guidance", () => {
   const b = createEmptyNflGoatBriefcase();
@@ -57,9 +58,10 @@ test("buildNflAskBriefcaseHealth fills rosters from ESPN players when Ourlads de
   assert.ok(briefcase.league.rostersByTeam.ATL?.some((r) => /Penix/i.test(r.name)));
 });
 
-test("NFL roster merge policy — ESPN preferred over polluted BDL team lists", () => {
+test("NFL roster merge policy — BDL preferred; ESPN fills gaps only", () => {
   const espnRosters = { NE: [{ name: "Drake Maye", source: "espn" }] };
   const bdlRosters = { NE: [{ name: "A.J. Brown", source: "balldontlie_nfl" }] };
-  const merged = { ...bdlRosters, ...espnRosters };
-  assert.equal(merged.NE[0].name, "Drake Maye");
+  const merged = mergeNflRostersByTeamPreferLast(espnRosters, bdlRosters);
+  assert.ok(merged.NE.some((r) => r.name === "A.J. Brown"));
+  assert.ok(merged.NE.some((r) => r.name === "Drake Maye"));
 });

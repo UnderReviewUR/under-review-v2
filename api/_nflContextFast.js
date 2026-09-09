@@ -14,7 +14,12 @@ import {
   isNflBdlPrimaryEnabled,
 } from "./_nflBdl.js";
 import { resolveNflScopeTeamAbbrevSet } from "./_nflContext.js";
-import { pickNflGamesForScope, trimNflPlayerPropsForAsk, normalizePlayerKey } from "../shared/nflAskPropTrim.js";
+import {
+  pickNflGamesForScope,
+  trimNflPlayerPropsForAsk,
+  normalizePlayerKey,
+  mergeNflPlayerTeamIndexesPreferLast,
+} from "../shared/nflAskPropTrim.js";
 import {
   buildNflStaticPlayerTeamIndex,
   scrubNflMatchupPropLines,
@@ -166,22 +171,26 @@ export async function buildNflFastAskContext(options = {}) {
         });
         if (propLines.length) propsSource = "balldontlie_nfl";
 
-        // BDL slate rosters are often polluted (e.g. A.J. Brown as NE WR1).
-        // Only use them as a low-priority team index — never as the exclusive allowlist.
+        // BDL GOAT slate rosters are truth — index + allowlist them (do not defer to ESPN/static).
         try {
           const rosterRes = await fetchNflBdlSlateRosters([bdlGame], { season });
           for (const [team, rows] of Object.entries(rosterRes.rostersByTeam || {})) {
             if (!scopeMatchesTeam(scope, team)) continue;
+            const ab = String(team || "").toUpperCase();
+            if (!rostersByTeam[ab]) rostersByTeam[ab] = [];
             for (const r of rows || []) {
               const name = String(r?.name || r?.player || "").trim();
               if (!name) continue;
+              rosterNames.push(name);
               const key = normalizePlayerKey(name);
-              const ab = String(team || "").toUpperCase();
-              if (key && ab && !bdlTeamIndex[key]) bdlTeamIndex[key] = ab;
+              if (key && ab) bdlTeamIndex[key] = ab;
+              if (!rostersByTeam[ab].some((x) => String(x.name).toLowerCase() === name.toLowerCase())) {
+                rostersByTeam[ab].push({ name, role: r?.position || r?.role || null });
+              }
             }
           }
         } catch {
-          /* ESPN/static still scrub below */
+          /* ESPN/static still fill below */
         }
 
         // Overlay BDL week odds onto the game line when AN board is thin / mismatched ids.
@@ -258,16 +267,20 @@ export async function buildNflFastAskContext(options = {}) {
     const ab = String(p.team || "").toUpperCase();
     if (key && ab) espnTeamIndex[key] = ab;
   }
-  // Trust order: static curated > ESPN > BDL (BDL rosters mis-tag free agents onto the slate).
-  const playerTeamByName = { ...bdlTeamIndex, ...espnTeamIndex, ...staticTeamIndex };
+  // Trust order: BDL > ESPN > static (stale static PHI must not scrub BDL NE Brown).
+  const playerTeamByName = mergeNflPlayerTeamIndexesPreferLast(
+    staticTeamIndex,
+    espnTeamIndex,
+    bdlTeamIndex,
+  );
   const staticNames = staticRosterNamesForScope(scope, playerTeamByName);
   for (const name of staticNames) {
     rosterNames.push(name);
     // Mirror into rostersByTeam so the Ask guard can allowlist without ESPN KV.
-    const team = playerTeamByName[name] || staticTeamIndex[name];
+    const team = playerTeamByName[normalizePlayerKey(name)] || playerTeamByName[name] || staticTeamIndex[name];
     if (team) {
       if (!rostersByTeam[team]) rostersByTeam[team] = [];
-      if (!rostersByTeam[team].some((r) => String(r.name).toLowerCase() === name)) {
+      if (!rostersByTeam[team].some((r) => String(r.name).toLowerCase() === name.toLowerCase())) {
         rostersByTeam[team].push({ name, role: null });
       }
     }

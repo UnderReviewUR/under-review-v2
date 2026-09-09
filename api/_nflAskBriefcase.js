@@ -10,6 +10,8 @@ import {
 import { buildNflLiveBoard } from "./_nflBoard.js";
 import {
   buildNflPlayerTeamIndex,
+  mergeNflPlayerTeamIndexesPreferLast,
+  mergeNflRostersByTeamPreferLast,
   trimNflPlayerPropsForAsk,
 } from "../shared/nflAskPropTrim.js";
 import {
@@ -289,11 +291,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
   const depthRosters = rostersFromDepth(opts.depth);
   const espnRosters = rostersFromEspnPlayers(opts.espnRosterPlayers);
   const bdlRosters = briefcase.league.rostersByTeam || {};
-  // Prefer ESPN/depth over polluted BDL team lists when both exist.
-  const mergedRosters = { ...bdlRosters, ...espnRosters };
-  for (const [team, rows] of Object.entries(depthRosters)) {
-    mergedRosters[team] = [...(mergedRosters[team] || []), ...rows];
-  }
+  // BDL GOAT rosters are truth; ESPN/depth only fill gaps.
+  const mergedRosters = mergeNflRostersByTeamPreferLast(espnRosters, depthRosters, bdlRosters);
   if (Object.keys(mergedRosters).length) {
     briefcase.league.rostersByTeam = mergedRosters;
   }
@@ -309,10 +308,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     }
   }
 
-  // Scrub AFTER roster merge so NE/SEA allowlists + PHI index drop Brown / draft noise.
+  // Scrub AFTER roster merge. Static fills gaps; live BDL/roster assignments win conflicts.
   const staticTeamIndex = buildNflStaticPlayerTeamIndex();
-  // BDL/ESPN roster indexes are useful fillers, but curated static must win conflicts
-  // (BDL currently lists A.J. Brown on NE and Jadarian Price on SEA).
   const rosterTeamIndex = buildNflPlayerTeamIndex(
     Object.entries(briefcase.league.rostersByTeam || {}).flatMap(([team, rows]) =>
       (Array.isArray(rows) ? rows : []).map((r) => ({
@@ -321,24 +318,19 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
       })),
     ),
   );
-  const playerTeamByName = { ...rosterTeamIndex, ...staticTeamIndex };
-  briefcase.league.playerTeamByName = {
-    ...(briefcase.league.playerTeamByName || {}),
-    ...playerTeamByName,
-  };
+  // static < prior goat index < merged live rosters (BDL last in mergeNflRosters…)
+  const playerTeamByName = mergeNflPlayerTeamIndexesPreferLast(
+    staticTeamIndex,
+    briefcase.league.playerTeamByName || {},
+    rosterTeamIndex,
+  );
+  briefcase.league.playerTeamByName = playerTeamByName;
 
   /** @type {string[]} */
   let rosterNames = [];
   if (scopeSet?.size) {
-    // Exclusive allowlist = ESPN/depth/static only — skip polluted BDL-only names.
-    for (const [team, rows] of Object.entries(espnRosters)) {
-      if (!scopeMatchesAbbr(scopeSet, team)) continue;
-      for (const r of rows || []) {
-        const n = String(r?.name || r?.player || "").trim();
-        if (n) rosterNames.push(n);
-      }
-    }
-    for (const [team, rows] of Object.entries(depthRosters)) {
+    // Allowlist includes BDL slate names (truth) plus ESPN/depth/static fillers.
+    for (const [team, rows] of Object.entries(briefcase.league.rostersByTeam || {})) {
       if (!scopeMatchesAbbr(scopeSet, team)) continue;
       for (const r of rows || []) {
         const n = String(r?.name || r?.player || "").trim();
