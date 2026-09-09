@@ -30,7 +30,12 @@ import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js"
 import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
-import { trimNflPlayerPropsForAsk, filterNflPropsToRoster } from "../shared/nflAskPropTrim.js";
+import { trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import {
+  buildNflStaticPlayerTeamIndex,
+  scrubNflMatchupPropLines,
+  staticRosterNamesForScope,
+} from "./_nflMatchupPropHygiene.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 import { isNflBdlPrimaryEnabled } from "./_nflBdl.js";
 
@@ -552,23 +557,51 @@ export async function buildCanonicalNflContext(options = {}) {
   // When GOAT primary is on and briefcase hydrated props, those win over Action Network.
   const preferGoatProps = isNflBdlPrimaryEnabled() && goatProps.length > 0;
   let rawPropLines = preferGoatProps ? goatProps : boardProps.length ? boardProps : goatProps;
+  const staticTeamIndex = buildNflStaticPlayerTeamIndex();
+  /** @type {string[]} */
+  let rosterNames = [];
   if (scoped && rosterData?.players?.length) {
-    const rosterNames = rosterData.players
+    rosterNames = rosterData.players
       .filter((p) => scopeMatchesTeam(scope, p.team))
       .map((p) => String(p.name || "").trim())
       .filter(Boolean);
-    rawPropLines = filterNflPropsToRoster(rawPropLines, rosterNames);
+  }
+  if (scoped) {
+    rosterNames = [...rosterNames, ...staticRosterNamesForScope(scope, staticTeamIndex)];
+    rawPropLines = scrubNflMatchupPropLines(rawPropLines, {
+      scope,
+      rosterNames,
+      playerTeamByName: staticTeamIndex,
+    });
   }
   const trimmedPropLines = trimNflPlayerPropsForAsk(rawPropLines, {
     scope: scoped ? scope : [],
     question,
     maxRows: scoped ? 56 : 120,
+    rosterNames,
+    playerTeamByName: staticTeamIndex,
   });
   if (liveBoard && Array.isArray(liveBoard.propLines)) {
     liveBoard.propLines = trimmedPropLines;
   }
   if (briefcaseHealth.briefcase?.slate) {
     briefcaseHealth.briefcase.slate.playerProps = trimmedPropLines;
+  }
+  if (scoped && briefcaseHealth.briefcase?.league) {
+    const staticTeamIndex = buildNflStaticPlayerTeamIndex();
+    briefcaseHealth.briefcase.league.playerTeamByName = staticTeamIndex;
+    const existing = briefcaseHealth.briefcase.league.rostersByTeam || {};
+    /** @type {Record<string, Array<{ name: string }>>} */
+    const merged = { ...existing };
+    for (const name of staticRosterNamesForScope(scope, staticTeamIndex)) {
+      const team = staticTeamIndex[name];
+      if (!team) continue;
+      if (!merged[team]) merged[team] = [];
+      if (!merged[team].some((r) => String(r?.name || "").toLowerCase() === name)) {
+        merged[team].push({ name, role: null });
+      }
+    }
+    briefcaseHealth.briefcase.league.rostersByTeam = merged;
   }
 
   const liveDefense = briefcaseHealth.briefcase?.league?.teamDefense || {};

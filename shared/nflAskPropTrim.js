@@ -128,20 +128,123 @@ export function filterNflPropsToRoster(props, rosterNames) {
   );
   if (!names.size) return Array.isArray(props) ? props : [];
   const rows = Array.isArray(props) ? props : [];
-  const hit = rows.filter((p) => {
-    const key = normalizePlayerKey(p?.player);
-    if (!key) return false;
-    if (names.has(key)) return true;
-    const last = key.split(" ").pop();
-    return Boolean(last && [...names].some((n) => n === last || n.endsWith(` ${last}`)));
-  });
-  // Sparse roster snapshots should not wipe a live board.
-  return hit.length >= 3 ? hit : rows;
+  const hit = rows.filter((p) => playerNameAllowed(String(p?.player || ""), names));
+  // Prefer roster hits whenever we matched anything — never fail open to a polluted board.
+  return hit.length > 0 ? hit : rows;
+}
+
+/**
+ * @param {string} playerName
+ * @param {Set<string>} allowKeys
+ */
+function playerNameAllowed(playerName, allowKeys) {
+  const key = normalizePlayerKey(playerName);
+  if (!key) return false;
+  if (allowKeys.has(key)) return true;
+  const last = key.split(" ").pop();
+  if (last && last.length >= 4 && [...allowKeys].some((n) => n === last || n.endsWith(` ${last}`))) {
+    return true;
+  }
+  // A.J. Brown ↔ aj brown
+  const compact = key.replace(/\./g, "");
+  if ([...allowKeys].some((n) => n.replace(/\./g, "") === compact)) return true;
+  return false;
+}
+
+/**
+ * Build lowercase player → team abbr index from static / roster rows.
+ * @param {Array<{ name?: string, player?: string, team?: string, teamAbbr?: string }|Record<string, { team?: string, teamAbbr?: string }>>} source
+ * @returns {Record<string, string>}
+ */
+export function buildNflPlayerTeamIndex(source) {
+  /** @type {Record<string, string>} */
+  const out = {};
+  if (Array.isArray(source)) {
+    for (const row of source) {
+      const name = normalizePlayerKey(row?.name || row?.player || "");
+      const team = String(row?.team || row?.teamAbbr || "")
+        .toUpperCase()
+        .trim();
+      if (name && team) out[name] = team;
+    }
+    return out;
+  }
+  if (source && typeof source === "object") {
+    for (const [name, row] of Object.entries(source)) {
+      const key = normalizePlayerKey(name);
+      const team = String(row?.team || row?.teamAbbr || "")
+        .toUpperCase()
+        .trim();
+      if (key && team) out[key] = team;
+    }
+  }
+  return out;
+}
+
+/**
+ * Hard hygiene for matchup prop boards: drop known other-team players, then
+ * keep allowlisted NE/SEA (etc.) names when we have a real allowlist.
+ *
+ * @param {Array<Record<string, unknown>>} props
+ * @param {{
+ *   scope?: Set<string>|string[],
+ *   rosterNames?: Set<string>|string[],
+ *   playerTeamByName?: Record<string, string>,
+ * }} [opts]
+ */
+export function filterNflPropsForMatchup(props, opts = {}) {
+  const scope = expandScope(opts.scope || []);
+  const rows = Array.isArray(props) ? props : [];
+  if (!rows.length) return [];
+
+  const teamIndex = opts.playerTeamByName && typeof opts.playerTeamByName === "object"
+    ? opts.playerTeamByName
+    : {};
+
+  /** @type {Set<string>} */
+  const allow = new Set(
+    [...(opts.rosterNames instanceof Set ? opts.rosterNames : opts.rosterNames || [])]
+      .map(normalizePlayerKey)
+      .filter(Boolean),
+  );
+  if (scope.size) {
+    for (const [name, team] of Object.entries(teamIndex)) {
+      const ab = String(team || "").toUpperCase();
+      if (ab && scope.has(ab)) allow.add(name);
+    }
+  }
+
+  // 1) Drop anyone whose known team is outside the matchup (A.J. Brown → PHI).
+  let filtered = rows;
+  if (scope.size) {
+    filtered = rows.filter((p) => {
+      const key = normalizePlayerKey(p?.player);
+      const known =
+        (key && teamIndex[key]) ||
+        String(p?.team || p?.teamAbbr || "")
+          .toUpperCase()
+          .trim();
+      if (!known) return true;
+      const expanded = expandScope([known]);
+      for (const ab of expanded) {
+        if (scope.has(ab)) return true;
+      }
+      return false;
+    });
+  }
+
+  // 2) If we have a real allowlist, only ship those players (drops draft noise like Jadarian Price).
+  if (allow.size >= 2) {
+    const hit = filtered.filter((p) => playerNameAllowed(String(p?.player || ""), allow));
+    if (hit.length >= 1) return hit;
+  }
+
+  return filtered;
 }
 
 /**
  * @param {Array<Record<string, unknown>>} props
- * @param {{ scope?: Set<string>|string[], question?: string, maxRows?: number }} [opts]
+ * @param {{ scope?: Set<string>|string[], question?: string, maxRows?: number, rosterNames?: Set<string>|string[], playerTeamByName?: Record<string, string> }} [opts]
  */
 export function trimNflPlayerPropsForAsk(props, opts = {}) {
   const scope = expandScope(opts.scope || []);
@@ -149,7 +252,12 @@ export function trimNflPlayerPropsForAsk(props, opts = {}) {
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
 
-  let rows = (Array.isArray(props) ? props : []).filter((r) => rowMatchesScope(r, scope));
+  let rows = filterNflPropsForMatchup(Array.isArray(props) ? props : [], {
+    scope,
+    rosterNames: opts.rosterNames,
+    playerTeamByName: opts.playerTeamByName,
+  });
+  rows = rows.filter((r) => rowMatchesScope(r, scope));
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
   return rows.slice(0, maxRows);
 }
@@ -191,6 +299,7 @@ function normalizePlayerKey(name) {
  *   scope?: Set<string>|string[],
  *   eventIds?: Array<string|number>,
  *   rosterNames?: Set<string>|string[],
+ *   playerTeamByName?: Record<string, string>,
  *   question?: string,
  *   maxTickets?: number,
  * }} [opts]
@@ -218,18 +327,12 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     if (byEvent.length) rows = byEvent;
   }
 
+  rows = filterNflPropsForMatchup(rows, {
+    scope,
+    rosterNames,
+    playerTeamByName: opts.playerTeamByName,
+  });
   rows = rows.filter((p) => rowMatchesScope(p, scope));
-
-  if (rosterNames.size) {
-    const onRoster = rows.filter((p) => {
-      const key = normalizePlayerKey(p.player);
-      if (!key) return false;
-      if (rosterNames.has(key)) return true;
-      const last = key.split(" ").pop();
-      return last && [...rosterNames].some((n) => n === last || n.endsWith(` ${last}`));
-    });
-    if (onRoster.length >= 2) rows = onRoster;
-  }
 
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
 

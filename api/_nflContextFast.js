@@ -13,7 +13,12 @@ import {
   isNflBdlPrimaryEnabled,
 } from "./_nflBdl.js";
 import { resolveNflScopeTeamAbbrevSet } from "./_nflContext.js";
-import { pickNflGamesForScope, trimNflPlayerPropsForAsk, filterNflPropsToRoster } from "../shared/nflAskPropTrim.js";
+import { pickNflGamesForScope, trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import {
+  buildNflStaticPlayerTeamIndex,
+  scrubNflMatchupPropLines,
+  staticRosterNamesForScope,
+} from "./_nflMatchupPropHygiene.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 import { detectNflAskMarket, evaluateBriefcaseForInteraction } from "../shared/nflGoatExtractionContract.js";
 import {
@@ -219,9 +224,32 @@ export async function buildNflFastAskContext(options = {}) {
     if (!rostersByTeam[ab]) rostersByTeam[ab] = [];
     rostersByTeam[ab].push({ name, role: p.position || null });
   }
+  const staticTeamIndex = buildNflStaticPlayerTeamIndex();
+  const staticNames = staticRosterNamesForScope(scope, staticTeamIndex);
+  for (const name of staticNames) {
+    rosterNames.push(name);
+    // Mirror into rostersByTeam so the Ask guard can allowlist without ESPN KV.
+    const team = staticTeamIndex[name];
+    if (team) {
+      if (!rostersByTeam[team]) rostersByTeam[team] = [];
+      if (!rostersByTeam[team].some((r) => String(r.name).toLowerCase() === name)) {
+        rostersByTeam[team].push({ name, role: null });
+      }
+    }
+  }
 
-  propLines = filterNflPropsToRoster(propLines, rosterNames);
-  propLines = trimNflPlayerPropsForAsk(propLines, { scope, question, maxRows: 24 });
+  propLines = scrubNflMatchupPropLines(propLines, {
+    scope,
+    rosterNames,
+    playerTeamByName: staticTeamIndex,
+  });
+  propLines = trimNflPlayerPropsForAsk(propLines, {
+    scope,
+    question,
+    maxRows: 24,
+    rosterNames,
+    playerTeamByName: staticTeamIndex,
+  });
 
   const injuryRows = [];
   for (const p of rosterData?.players || []) {
@@ -306,7 +334,7 @@ export async function buildNflFastAskContext(options = {}) {
 
   const stubBriefcase = {
     slate: { games: gamesForCard, odds: oddsStub, playerProps: propLines },
-    league: { injuries: injuryRows, rostersByTeam },
+    league: { injuries: injuryRows, rostersByTeam, playerTeamByName: staticTeamIndex },
   };
   const interaction = evaluateBriefcaseForInteraction(stubBriefcase, question);
   const buildMs = Date.now() - t0;

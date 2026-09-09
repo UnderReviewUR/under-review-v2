@@ -688,6 +688,10 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     scope,
     eventIds,
     rosterNames,
+    playerTeamByName:
+      briefcase?.league?.playerTeamByName && typeof briefcase.league.playerTeamByName === "object"
+        ? briefcase.league.playerTeamByName
+        : undefined,
     question,
     maxTickets: 4,
   });

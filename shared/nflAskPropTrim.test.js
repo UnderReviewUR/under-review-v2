@@ -4,6 +4,8 @@ import {
   nflGameIdsFromGames,
   pickNflGamesForScope,
   pickNflPropsBoardTickets,
+  filterNflPropsForMatchup,
+  buildNflPlayerTeamIndex,
   trimNflPlayerPropsForAsk,
 } from "./nflAskPropTrim.js";
 
@@ -136,4 +138,31 @@ test("pickNflPropsBoardTickets drops off-matchup players and duplicate Maye yard
   assert.equal(out.filter((p) => p.player === "Drake Maye").length, 1);
   assert.equal(out[0].line, 260.5);
   assert.ok(out.some((p) => p.player === "Jaxon Smith-Njigba"));
+});
+
+test("filterNflPropsForMatchup drops PHI Brown and unknown draft RB", () => {
+  const teamIndex = buildNflPlayerTeamIndex([
+    { name: "Drake Maye", team: "NE" },
+    { name: "Jaxon Smith-Njigba", team: "SEA" },
+    { name: "Cooper Kupp", team: "SEA" },
+    { name: "A.J. Brown", team: "PHI" },
+    { name: "TreVeyon Henderson", team: "NE" },
+  ]);
+  const props = [
+    { player: "Drake Maye", line: 234.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "A.J. Brown", line: 62.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "Jadarian Price", line: 51.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "Jaxon Smith-Njigba", line: 81.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+    { player: "Cooper Kupp", line: 29.5, overOdds: -110, underOdds: -110, game: "NE @ SEA" },
+  ];
+  const out = filterNflPropsForMatchup(props, {
+    scope: new Set(["NE", "SEA"]),
+    rosterNames: Object.keys(teamIndex).filter((k) => ["NE", "SEA"].includes(teamIndex[k])),
+    playerTeamByName: teamIndex,
+  });
+  const names = out.map((p) => p.player);
+  assert.ok(names.includes("Drake Maye"));
+  assert.ok(names.includes("Jaxon Smith-Njigba"));
+  assert.ok(!names.includes("A.J. Brown"));
+  assert.ok(!names.includes("Jadarian Price"));
 });
