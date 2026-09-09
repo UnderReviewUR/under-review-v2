@@ -115,6 +115,11 @@ function scorePropRow(row, tokens, hints) {
   if (book === "draftkings" || book === "fanduel") score += 3;
   if (isNflPeriodPropRow(row)) score -= 80;
   if (/(longest|long(?:est)?\s+(?:pass|rush|rec|play))/.test(blob)) score -= 25;
+  if (isNflHeadlineBoardMarket(row)) score += 45;
+  if (isNflNoveltyBoardProp(row)) score -= 70;
+  const market = nflPropMarketKeyBase(row);
+  if (market === "pass_yds") score += 28;
+  else if (market === "rush_yds" || market === "rec_yds" || market === "pass_tds") score += 12;
   return score;
 }
 
@@ -135,6 +140,47 @@ export function isNflPeriodPropRow(row) {
  */
 export function questionWantsNflPeriodProps(question) {
   return NFL_PERIOD_PROP_RE.test(String(question || ""));
+}
+
+const NFL_HEADLINE_BOARD_MARKETS = new Set([
+  "pass_yds",
+  "pass_tds",
+  "rush_yds",
+  "rec_yds",
+  "rec_tds",
+  "receptions",
+]);
+
+function nflPropMarketKeyBase(row) {
+  return nflPropMarketKey(row).replace(/_period$/, "");
+}
+
+/**
+ * Core skill O/U tickets for a “best props tonight” board.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+export function isNflHeadlineBoardMarket(row) {
+  return NFL_HEADLINE_BOARD_MARKETS.has(nflPropMarketKeyBase(row));
+}
+
+/**
+ * Kicker / defense / 0.5-yard novelty — not a full-game props board unless asked.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+export function isNflNoveltyBoardProp(row) {
+  const blob = `${row?.propRaw || ""} ${row?.prop || ""}`.toLowerCase();
+  if (/(extra\s*points?|kicking|field\s*goals?|\bpat\b|xp\s*made)/.test(blob)) return true;
+  if (/\btackles?\b/.test(blob) && !/\bsacks?\b/.test(blob)) return true;
+  const market = nflPropMarketKeyBase(row);
+  const line = Number(row?.line);
+  if (market === "rush_yds" && Number.isFinite(line) && line <= 8.5) return true;
+  if (market === "rec_yds" && Number.isFinite(line) && line <= 12.5) return true;
+  return false;
+}
+
+function questionWantsNflNoveltyProps(question) {
+  const q = String(question || "").toLowerCase();
+  return /\b(kicker|extra points?|field goals?|tackles?|sacks?)\b/.test(q);
 }
 
 /**
@@ -716,6 +762,9 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   rows = rows.filter((p) => rowMatchesScope(p, scope));
   if (!questionWantsNflPeriodProps(opts.question)) {
     rows = rows.filter((p) => !isNflPeriodPropRow(p));
+  }
+  if (!questionWantsNflNoveltyProps(opts.question)) {
+    rows = rows.filter((p) => !isNflNoveltyBoardProp(p));
   }
 
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
