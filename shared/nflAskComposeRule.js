@@ -7,15 +7,15 @@
  */
 
 export const NFL_ASK_COMPOSE_RULE = Object.freeze({
-  id: "nfl_ask_compose_v1",
+  id: "nfl_ask_compose_v2",
   summary:
-    "Answer the asked market. Live price when priced. Paste for why. PASS only when that market’s price is missing.",
+    "Answer the asked market like a sharp friend. Live GOAT prices are the number. Live GOAT stats, logs, injuries, and defense are the why. PASS only when that market’s price is missing.",
   steps: Object.freeze([
     "Classify: prop | spread | total | ML | opinion.",
-    "Load pockets for THAT market only — do not tax opinions with empty player props.",
-    "GOAT/AN board owns the posted number; hand paste owns angles/H2H/usage/D prior.",
-    "Season O/U and Clay are pace priors — never a substitute for tonight’s live row.",
-    "One lean. Soft markets stay Speculative. Label '25 D priors as priors.",
+    "Load the GOAT analyst packet first — season form, recent logs, injuries, opponent D, posted line.",
+    "GOAT owns the posted number and the football why. Static paste / season O/Us are fallback only.",
+    "Form one logical opinion: does the number look short, long, or fair vs the evidence.",
+    "One lean. Soft markets stay Speculative.",
     "PASS only if the asked priced market has no matching live row.",
   ]),
 });
@@ -28,7 +28,7 @@ export function buildNflAskComposePromptBlock() {
     "UR COMPOSE RULE (non-negotiable — this is how we beat generic chat):",
     `1. ${NFL_ASK_COMPOSE_RULE.summary}`,
     "2. If a live row exists for the asked market, lean that number — do not invent or swap markets (yards ≠ TDs).",
-    "3. Use matchup/paste/H2H/Clay/D-prior for WHY only. Prefer board over season O/Us.",
+    "3. Use the GOAT analyst packet (season stats, recent logs, injuries, live D) for WHY. Static paste is fallback.",
     "4. Opinion / who-wins asks: answer a side lean without requiring player props. Do not PASS just because props are empty.",
     "5. Spread/total/ML: empty player-prop pockets do not force PASS. Missing posted game price does.",
     "6. One primary market per take. Close PASS only when the asked priced market is missing — never to sound clever.",

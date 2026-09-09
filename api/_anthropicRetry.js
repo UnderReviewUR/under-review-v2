@@ -2,6 +2,34 @@
  * POST https://api.anthropic.com/v1/messages with exponential backoff on
  * transient upstream failures (429 rate limit, 529 overloaded, 503 unavailable).
  */
+import { isClaudeSonnet5Model } from "./_anthropicModels.js";
+
+/**
+ * Build a Messages body that Sonnet 5 will accept.
+ * Adaptive thinking is on by default and would eat UR Take max_tokens; disable it.
+ * Sampling params (temperature/top_p/top_k) 400 on Sonnet 5.
+ * @param {{
+ *   model: string,
+ *   max_tokens: number,
+ *   temperature?: number,
+ *   system: unknown,
+ *   messages: unknown,
+ * }} opts
+ */
+export function buildAnthropicMessagesBody(opts) {
+  const body = {
+    model: opts.model,
+    max_tokens: opts.max_tokens,
+    system: opts.system,
+    messages: opts.messages,
+  };
+  if (isClaudeSonnet5Model(opts.model)) {
+    body.thinking = { type: "disabled" };
+    return body;
+  }
+  if (opts.temperature != null) body.temperature = opts.temperature;
+  return body;
+}
 
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 
@@ -66,13 +94,15 @@ export async function fetchAnthropicMessages({
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
         },
-        body: JSON.stringify({
-          model,
-          max_tokens,
-          temperature,
-          system: formatAnthropicSystemParam(system, cacheSystemPrompt),
-          messages,
-        }),
+        body: JSON.stringify(
+          buildAnthropicMessagesBody({
+            model,
+            max_tokens,
+            temperature,
+            system: formatAnthropicSystemParam(system, cacheSystemPrompt),
+            messages,
+          }),
+        ),
       });
 
       lastRequestId =

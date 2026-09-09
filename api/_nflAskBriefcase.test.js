@@ -38,6 +38,7 @@ test("buildNflAskBriefcaseHealth grades offline without live board", async () =>
     uiPlayers: { "Patrick Mahomes": { team: "KC", position: "QB" } },
   });
   assert.ok(promptBlock.includes("NFL SUITCASE HEALTH"));
+  assert.ok(promptBlock.includes("NFL GOAT ANALYST PACKET"));
   assert.equal(interaction.detected.marketId, "spread");
   assert.ok(briefcase.league.injuries.length >= 1);
   assert.ok(Object.keys(briefcase.league.rostersByTeam).length >= 1);

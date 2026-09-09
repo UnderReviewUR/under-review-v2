@@ -42,7 +42,7 @@ import { isNflBdlPrimaryEnabled } from "./_nflBdl.js";
 export { NFL_STADIUM_META };
 
 /** Hard ceiling for `promptContext` text sent with UR Take (Anthropic payload budget). */
-export const NFL_PROMPT_CONTEXT_BUDGET_CHARS = 20000;
+export const NFL_PROMPT_CONTEXT_BUDGET_CHARS = 28000;
 
 /**
  * Extract player names already present in assembled NFL prompt text.
@@ -70,7 +70,7 @@ export function extractNflPlayerNamesFromPromptText(promptText) {
   return [...names];
 }
 
-/** BallDontLie is not used for NFL game-by-game logs in this stack — no NBA-style recentGames sort path here. */
+/** Live GOAT season/game logs hydrate on Ask when NFL_BDL_PRIMARY=1 (see formatNflGoatAnalystPacket). */
 
 /**
  * @param {string} abbr
@@ -628,12 +628,19 @@ export async function buildCanonicalNflContext(options = {}) {
   const defenseLabel = defenseIsLive
     ? "live season ranks (opp yards/pts allowed)"
     : "2025 season static prior";
+  const hasLiveGoatStats = Array.isArray(briefcaseHealth.briefcase?.players?.seasonStats)
+    ? briefcaseHealth.briefcase.players.seasonStats.some(
+        (r) => r?.source && String(r.source).includes("balldontlie"),
+      )
+    : false;
 
   if (scoped) {
-    const rbMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(RBs || {}), scope));
-    const wrMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(WRsAndTEs || {}), scope));
-    promptContext += formatRbDatabasePrompt(rbMap);
-    promptContext += formatWrTeDatabasePrompt(wrMap);
+    if (!hasLiveGoatStats) {
+      const rbMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(RBs || {}), scope));
+      const wrMap = Object.fromEntries(filterObjectEntriesByTeam(Object.entries(WRsAndTEs || {}), scope));
+      promptContext += formatRbDatabasePrompt(rbMap);
+      promptContext += formatWrTeDatabasePrompt(wrMap);
+    }
     promptContext += formatDefensePrompt(filterDefensesMap(scope, defenseMerged), {
       label: defenseLabel,
     });
@@ -718,21 +725,23 @@ export async function buildCanonicalNflContext(options = {}) {
     promptContext += propSlice;
   }
 
-  // ── CLAY VOLUME PRIORS (usage baseline vs Vegas — not fantasy ranks) ──
-  try {
-    const clay = await buildNflClayPromptSlice(question, propPlayerNames);
-    if (clay.block) promptContext += clay.block;
-  } catch (err) {
-    console.warn(
-      JSON.stringify({
-        event: "nfl_context_clay_failed",
-        error: err?.message || String(err),
-      }),
-    );
+  // Clay is a usage prior only when live GOAT season stats did not fill.
+  if (!hasLiveGoatStats) {
+    try {
+      const clay = await buildNflClayPromptSlice(question, propPlayerNames);
+      if (clay.block) promptContext += clay.block;
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          event: "nfl_context_clay_failed",
+          error: err?.message || String(err),
+        }),
+      );
+    }
   }
 
   if (briefcaseHealth.promptBlock) {
-    promptContext += `\n\n${briefcaseHealth.promptBlock}`;
+    promptContext = `${briefcaseHealth.promptBlock}\n\n${promptContext}`;
   }
 
   const liveRosters = briefcaseHealth.briefcase?.league?.rostersByTeam;
@@ -821,6 +830,7 @@ export async function buildCanonicalNflContext(options = {}) {
       requiredPct: briefcaseHealth.interaction?.requiredPct ?? null,
       propCatalog: briefcaseHealth.propCatalog || null,
       promptBlock: briefcaseHealth.promptBlock || "",
+      analystPacket: briefcaseHealth.analystPacket || "",
     },
     propLines: trimmedPropLines,
     draft: {

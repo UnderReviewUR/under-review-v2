@@ -11,6 +11,12 @@ import {
   fetchNflBdlWeekGames,
   fetchNflBdlWeekOdds,
   fetchNflBdlSlateRosters,
+  fetchNflBdlSeasonStats,
+  fetchNflBdlRecentPlayerStats,
+  fetchNflBdlAdvancedStats,
+  fetchNflBdlPlayerInjuries,
+  fetchNflBdlDefenseMap,
+  fetchNflBdlFantasyProjections,
   isNflBdlPrimaryEnabled,
 } from "./_nflBdl.js";
 import { resolveNflScopeTeamAbbrevSet } from "./_nflContext.js";
@@ -32,8 +38,10 @@ import {
   buildNflSeasonTypeWarning,
 } from "../shared/nflAskDiscipline.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
+import { formatNflGoatAnalystPacket, pickNflAskStatPlayerIds } from "../shared/nflGoatAnalystPacket.js";
+import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 
-const FAST_PROMPT_BUDGET = 6500;
+const FAST_PROMPT_BUDGET = 14000;
 
 function scopeMatchesTeam(scope, teamFromRow) {
   const t = String(teamFromRow || "").toUpperCase().trim();
@@ -50,9 +58,9 @@ function scopeMatchesTeam(scope, teamFromRow) {
   return false;
 }
 
-function filterDefensesForScope(scope) {
+function filterDefensesForScope(scope, map = defenses) {
   const out = {};
-  for (const [abbr, row] of Object.entries(defenses || {})) {
+  for (const [abbr, row] of Object.entries(map || {})) {
     if (scopeMatchesTeam(scope, abbr)) out[abbr] = row;
   }
   return out;
@@ -60,10 +68,11 @@ function filterDefensesForScope(scope) {
 
 function formatDefenseFast(defMap) {
   const lines = Object.entries(defMap).map(([abbr, d]) => {
-    const prior = d?.priorVintage || d?.priorSeason ? " · '25 prior" : "";
+    const live = d?.source && String(d.source).includes("balldontlie") && !d.liveDeferred;
+    const prior = !live && (d?.priorVintage || d?.priorSeason) ? " · '25 prior" : live ? " · live" : "";
     return `${abbr} (${d.tier}${prior}): ${d.overall?.ptsAllowed ?? "?"} pts/g | pass ${d.pass?.rank ?? "?"} | rush ${d.rush?.rank ?? "?"}`;
   });
-  return lines.length ? `DEFENSE (static prior):\n${lines.join("\n")}` : "";
+  return lines.length ? `DEFENSE:\n${lines.join("\n")}` : "";
 }
 
 function formatFastGameLine(game) {
@@ -299,10 +308,71 @@ export async function buildNflFastAskContext(options = {}) {
     playerTeamByName,
   });
 
+  const season = board.season != null ? Number(board.season) : inferNflSeasonYear();
+  const week = board.week != null ? Number(board.week) : 1;
+  /** @type {Record<string, unknown>} */
+  const goatPlayers = {
+    seasonStats: [],
+    recentStats: [],
+    advanced: { passing: [], rushing: [], receiving: [] },
+  };
+  /** @type {Array<Record<string, unknown>>} */
+  let goatInjuries = [];
+  /** @type {Record<string, unknown>} */
+  let liveDefense = {};
+  /** @type {unknown[]} */
+  let fantasyProj = [];
+  let defenseSource = "static_2025";
+
+  if (isNflBdlPrimaryEnabled()) {
+    const statIds = pickNflAskStatPlayerIds(propLines, question, 8);
+    try {
+      const [seasonStats, recentStats, advanced, injuries, defMap, proj] = await Promise.all([
+        statIds.length ? fetchNflBdlSeasonStats({ season, playerIds: statIds }) : Promise.resolve([]),
+        statIds.length
+          ? fetchNflBdlRecentPlayerStats({ seasons: [season, season - 1], playerIds: statIds })
+          : Promise.resolve([]),
+        statIds.length
+          ? fetchNflBdlAdvancedStats({
+              season,
+              playerIds: statIds,
+              maxPlayers: 4,
+            })
+          : Promise.resolve({ passing: [], rushing: [], receiving: [] }),
+        fetchNflBdlPlayerInjuries(),
+        fetchNflBdlDefenseMap({ season: week <= 4 ? season - 1 : season, useCache: true }),
+        statIds.length
+          ? fetchNflBdlFantasyProjections({ season, week, playerIds: statIds })
+          : Promise.resolve({ rows: [] }),
+      ]);
+      goatPlayers.seasonStats = seasonStats || [];
+      goatPlayers.recentStats = recentStats || [];
+      goatPlayers.advanced = {
+        passing: advanced?.passing || [],
+        rushing: advanced?.rushing || [],
+        receiving: advanced?.receiving || [],
+      };
+      goatInjuries = (injuries || []).filter((r) => scopeMatchesTeam(scope, r.team));
+      liveDefense = defMap?.defenseByTeam || {};
+      if (Object.keys(liveDefense).length) defenseSource = defMap?.source || "balldontlie_nfl";
+      fantasyProj = proj?.rows || [];
+    } catch {
+      /* static defense + ESPN injuries still fill below */
+    }
+  }
+
   const injuryRows = [];
+  const injurySeen = new Set();
+  for (const row of goatInjuries) {
+    const key = `${row.player}|${row.team}`;
+    injurySeen.add(key);
+    injuryRows.push(row);
+  }
   for (const p of rosterData?.players || []) {
     if (!scopeMatchesTeam(scope, p.team)) continue;
     if (!p?.injuryStatus || p.injuryStatus === "Active") continue;
+    const key = `${p.name}|${p.team}`;
+    if (injurySeen.has(key)) continue;
     injuryRows.push({
       player: p.name,
       team: p.team,
@@ -317,6 +387,12 @@ export async function buildNflFastAskContext(options = {}) {
     if (scopeMatchesTeam(scope, team)) depthSlice[team] = d;
   }
 
+  const defenseMerged = mergeNflDefenseMaps(
+    filterDefensesForScope(scope, liveDefense),
+    filterDefensesForScope(scope),
+  );
+  const defenseForCard = Object.keys(defenseMerged).length ? defenseMerged : filterDefensesForScope(scope);
+
   const matchupCard = buildNflMatchupCard({
     question,
     scopeTeams: scope,
@@ -326,8 +402,8 @@ export async function buildNflFastAskContext(options = {}) {
     injuries: injuryRows,
     depth: depthSlice,
     injuryMeta: { fetchedAt: rosterData?.fetchedAt ?? null, asOf: board.asOf || null },
-    defenseByTeam: filterDefensesForScope(scope),
-    recentStats: [],
+    defenseByTeam: defenseForCard,
+    recentStats: goatPlayers.recentStats,
   });
 
   const market = detectNflAskMarket(question);
@@ -337,8 +413,27 @@ export async function buildNflFastAskContext(options = {}) {
     (Array.isArray(market.propTypeHints) && market.propTypeHints.length > 0
       ? propLines.length > 0
       : hasGamePrice) || propLines.length > 0;
+  const goatPacket = formatNflGoatAnalystPacket({
+    briefcase: {
+      week,
+      season,
+      primarySource: isNflBdlPrimaryEnabled() ? "balldontlie_nfl" : "action_network",
+      slate: { games: gamesForCard, odds: oddsStub, playerProps: propLines, openingOdds: [] },
+      league: {
+        injuries: injuryRows,
+        teamDefense: defenseForCard,
+        standings: [],
+      },
+      players: goatPlayers,
+      fantasy: { projections: fantasyProj },
+    },
+    question,
+    scopeAbbrs: scope,
+    maxChars: 7000,
+  });
   const lines = [
-    `NFL FAST BOARD (${[...scope].sort().join(" vs ")}) — live GOAT/board prices when present`,
+    goatPacket,
+    `NFL FAST BOARD (${[...scope].sort().join(" vs ")}) — live GOAT prices + form when present`,
     formatFastGameLine(game),
     hasGamePrice
       ? `POSTED GAME PRICES:\n- ${oddsStub
@@ -354,7 +449,7 @@ export async function buildNflFastAskContext(options = {}) {
       : market.propTypeHints?.length
         ? "POSTED PROPS: none cached — PASS the prop if no live row; do not invent."
         : "POSTED PROPS: none loaded (not required for spread/total/opinion).",
-    formatDefenseFast(filterDefensesForScope(scope)),
+    formatDefenseFast(defenseForCard),
     injuryRows.length
       ? `INJURIES:\n${injuryRows.map((i) => `- ${i.player} (${i.team}): ${i.status}`).join("\n")}`
       : "",
@@ -382,7 +477,9 @@ export async function buildNflFastAskContext(options = {}) {
 
   const stubBriefcase = {
     slate: { games: gamesForCard, odds: oddsStub, playerProps: propLines },
-    league: { injuries: injuryRows, rostersByTeam, playerTeamByName },
+    league: { injuries: injuryRows, rostersByTeam, playerTeamByName, teamDefense: defenseForCard },
+    players: goatPlayers,
+    fantasy: { projections: fantasyProj },
   };
   const interaction = evaluateBriefcaseForInteraction(stubBriefcase, question);
   const buildMs = Date.now() - t0;
@@ -413,7 +510,7 @@ export async function buildNflFastAskContext(options = {}) {
       eliteReady: interaction.eliteReady,
       requiredPct: interaction.requiredPct,
       propCatalog: null,
-      promptBlock: "",
+      promptBlock: goatPacket || "",
     },
     propLines,
     draft: { phase: "in_season" },
@@ -458,7 +555,7 @@ export async function buildNflFastAskContext(options = {}) {
     },
     dataFreshness: {
       isCurrentSeason: true,
-      warning: "Fast lane — cached props + matchup card; full briefcase skipped for latency.",
+      warning: "Fast lane — GOAT prices + season/recent/advanced for named players.",
       briefcase: {
         grade: interaction.grade,
         smooth: interaction.smooth,
@@ -468,8 +565,8 @@ export async function buildNflFastAskContext(options = {}) {
       },
       skipLiveBoard: false,
       inactivesPosted: false,
-      defenseSource: "static_2025",
-      defenseTeamCount: Object.keys(filterDefensesForScope(scope)).length,
+      defenseSource,
+      defenseTeamCount: Object.keys(defenseForCard).length,
     },
   };
 }

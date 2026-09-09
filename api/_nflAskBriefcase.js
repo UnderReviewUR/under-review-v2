@@ -21,6 +21,7 @@ import {
 } from "./_nflMatchupPropHygiene.js";
 import { isNflBdlPrimaryEnabled, buildNflGoatBriefcase } from "./_nflBdl.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
+import { formatNflGoatAnalystPacket } from "../shared/nflGoatAnalystPacket.js";
 
 /**
  * @param {Set<string>} scope
@@ -236,12 +237,17 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
         season: Number.isFinite(season) ? season : inferNflSeasonYear(),
         scopeAbbrs: scopeSet || undefined,
         maxPropGames: scoped ? 2 : 4,
-        playerIds: seedPlayerIds,
+        // GOAT player ids only — Action Network ids poison /season_stats.
+        playerIds: isNflBdlPrimaryEnabled() ? undefined : seedPlayerIds,
         hydrateDefense: true,
         hydrateInjuries: true,
-        hydrateStats: false,
+        hydrateStats: true,
         hydrateRosters: false,
         hydrateAllRosters: false,
+        hydrateDfs: false,
+        hydrateFantasy: Boolean(scoped),
+        maxStatPlayers: scoped ? 12 : 16,
+        maxAdvancedPlayers: scoped ? 4 : 6,
       });
     } catch (err) {
       console.warn(
@@ -398,6 +404,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
       missingNeeded: interaction.missingNeeded,
       propMatched: interaction.propMatch?.matched ?? 0,
       propRows: briefcase.slate.playerProps?.length ?? 0,
+      seasonStats: briefcase.players?.seasonStats?.length ?? 0,
+      recentStats: briefcase.players?.recentStats?.length ?? 0,
       propsSource,
       gameCount: briefcase.slate.games?.length ?? 0,
       defenseTeams: briefcase.coverage.defenseTeams,
@@ -407,11 +415,18 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     }),
   );
 
+  const healthBlock = formatNflBriefcaseHealthPromptBlock(interaction, propCatalog);
+  const analystPacket = formatNflGoatAnalystPacket({
+    briefcase,
+    question,
+    scopeAbbrs: scopeSet,
+  });
   return {
     briefcase,
     interaction,
     propCatalog,
     audit,
-    promptBlock: formatNflBriefcaseHealthPromptBlock(interaction, propCatalog),
+    analystPacket,
+    promptBlock: [analystPacket, healthBlock].filter(Boolean).join("\n\n"),
   };
 }

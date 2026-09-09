@@ -1115,7 +1115,7 @@ NFL DATA CURRENCY RULE (mandatory):
   CORRECT: "Over the last two seasons Stafford has averaged 4,100+ yards against Cardinals defenses — that structural tendency holds."
   WRONG: "Stafford is throwing for 4,200 yards this season."
 - Coaching staff context is current per ESPN. Use it for scheme reasoning: "In year two of Schotty's offense, the Cowboys emphasize 11-personnel..."
-- Defense data is 2025 season baseline. Present as established tendencies, not guaranteed current performance.
+- Defense data: use LIVE ranks in the analyst packet when present. Static 2025 priors only if the packet says the live sample is thin.
 - Never fabricate coaching tenure, scheme details, or injury status not present in the context payload.
 
 NFL PROP LINE REASONING (when VEGAS 2026 PROP O/Us are present AND live board props are absent):

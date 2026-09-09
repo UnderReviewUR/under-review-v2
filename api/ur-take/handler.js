@@ -400,9 +400,9 @@ import {
 } from "../../shared/siteSportVisibility.js";
 import { autocorrectUrTakeQuestion } from "../../shared/urTakeQuestionAutocorrect.js";
 import { fetchAnthropicMessages } from "../_anthropicRetry.js";
+import { UR_TAKE_SONNET_MODEL_DEFAULT } from "../_anthropicModels.js";
 import { appendTakeForUser, extractTakeFromResponse } from "../_takeLedger.js";
 import { buildCanonicalNflContext } from "../_nflContext.js";
-import { NFL_UR_TAKE_FAST_MODEL_DEFAULT } from "../../shared/nflAskFastPath.js";
 import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
 import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, buildNflPropsBoardFallbackTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
@@ -2668,7 +2668,7 @@ export default async function handler(req, res) {
   }
 
   let ANTHROPIC_API_KEY = getEnv("ANTHROPIC_API_KEY");
-  const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514";
+  const ANTHROPIC_MODEL = getEnv("ANTHROPIC_MODEL") || UR_TAKE_SONNET_MODEL_DEFAULT;
 
   if (
     !ANTHROPIC_API_KEY &&
@@ -5647,10 +5647,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
   } else if (sportHint === "nfl") {
     const canonicalNfl = await buildCanonicalNflContext({ question, matchupContext });
     nflFastPathActive = Boolean(canonicalNfl?.meta?.fastPath);
-    if (nflFastPathActive) {
-      anthropicModelOverride =
-        String(getEnv("NFL_UR_TAKE_FAST_MODEL") || "").trim() || NFL_UR_TAKE_FAST_MODEL_DEFAULT;
-    }
+    // Keep the default UR Take model (Sonnet). Haiku was starving GOAT evidence.
     nflAskGuardGames = Array.isArray(canonicalNfl?.games) ? canonicalNfl.games : [];
     nflAskGuardPropLines = Array.isArray(canonicalNfl?.propLines) ? canonicalNfl.propLines : [];
     nflAskGuardBriefcase =

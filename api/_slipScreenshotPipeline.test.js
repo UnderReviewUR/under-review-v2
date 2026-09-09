@@ -175,7 +175,7 @@ test("optional live fixture — Underdog 5-leg slip (skipped unless fixture + AP
   async function callAnthropic(params) {
     return fetchAnthropicMessages({
       apiKey: key,
-      model: getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514",
+      model: getEnv("ANTHROPIC_MODEL") || "claude-sonnet-5",
       max_tokens: params.max_tokens ?? 2048,
       temperature: params.temperature ?? 0.1,
       system: params.system,
@@ -187,7 +187,7 @@ test("optional live fixture — Underdog 5-leg slip (skipped unless fixture + AP
 
   const out = await runSlipScreenshotPipeline({
     apiKey: key,
-    model: getEnv("ANTHROPIC_MODEL") || "claude-sonnet-4-20250514",
+    model: getEnv("ANTHROPIC_MODEL") || "claude-sonnet-5",
     image: { base64, mediaType: "image/png" },
     callAnthropic,
   });

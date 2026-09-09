@@ -1152,6 +1152,8 @@ export async function fetchNflBdlFantasyAdp(opts = {}) {
  *   hydrateFantasy?: boolean,
  *   hydrateRosters?: boolean,
  *   hydrateAllRosters?: boolean,
+ *   maxStatPlayers?: number,
+ *   maxAdvancedPlayers?: number,
  * }} [opts]
  */
 export async function buildNflGoatBriefcase(opts = {}) {
@@ -1397,7 +1399,7 @@ export async function buildNflGoatBriefcase(opts = {}) {
         .filter((id) => id != null && id !== "");
       const playerIds = [
         ...new Set([...(opts.playerIds || []), ...fromProps].map(String)),
-      ].slice(0, 40);
+      ].slice(0, Math.max(1, Math.min(Number(opts.maxStatPlayers) || 40, 40)));
       if (playerIds.length) {
         briefcase.players.seasonStats = await fetchNflBdlSeasonStats({
           season,
@@ -1424,7 +1426,7 @@ export async function buildNflGoatBriefcase(opts = {}) {
           season,
           playerIds,
           apiKey: getNflBdlApiKey(),
-          maxPlayers: 8,
+          maxPlayers: Math.max(1, Math.min(Number(opts.maxAdvancedPlayers) || 8, 12)),
         });
         briefcase.players.advanced = {
           passing: advanced.passing,
