@@ -5,6 +5,7 @@ import {
   applyNflAskGuard,
   buildNflLivePropBoardTake,
   buildNflPassStructuredTake,
+  buildNflPropsBoardFallbackTake,
   detectNflCallBodyConflict,
   detectNflInventedLine,
   detectNflInventedLineMove,
@@ -558,4 +559,77 @@ test("props_board scout when no live props at all", () => {
     assert.match(String(structured.edge), /^Action:/i);
     assert.match(String(structured.whyNow), /44\.5|SEA -3\.5|Game frame/i);
   }
+});
+
+test("parse-fail lean recovers to live props board tickets", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "what is the best player props for the seahawks and patriots game?",
+    structured: {
+      call: "PASS",
+      lean: "Lean: Pass. Take did not parse cleanly. No invented number.",
+      whyNow: "The priced market for this ask is missing or the take was not safe to ship.",
+      edge: "No priced edge without a verified live number. Role notes are not a substitute.",
+      confidence: "Speculative",
+      callType: "prop",
+      caveats: ["Live Player props board line not in payload."],
+      analysis: {
+        matchupAnalysis: "thin",
+        injuryContext: "n/a",
+        marketContext: "n/a",
+        lineMovement: "n/a",
+        statisticalEdge: "n/a",
+      },
+    },
+    games: [{ awayAbbr: "NE", homeAbbr: "SEA", providerGameId: 1, total: { line: 44.5 } }],
+    propLines: [
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "pass yards",
+        propRaw: "pass_yds",
+        line: 232.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: {
+      grade: "yellow",
+      detected: { marketId: "props_board", propTypeHints: ["passing_yards"] },
+      propMatch: { matched: 1 },
+      league: { rostersByTeam: { NE: [{ name: "Drake Maye" }] } },
+    },
+  });
+  assert.ok(codes.includes("props_board_force_recover"));
+  assert.match(String(structured.lean), /Drake Maye/i);
+  assert.ok(!/did not parse cleanly/i.test(String(structured.lean)));
+  const v = validateStructuredURTakeResponse(structured);
+  assert.equal(v.valid, true, v.errors && v.errors.join("; "));
+});
+
+test("buildNflPropsBoardFallbackTake validates with live rows", () => {
+  const take = buildNflPropsBoardFallbackTake({
+    question: "best player props patriots vs seahawks",
+    games: [{ awayAbbr: "NE", homeAbbr: "SEA", providerGameId: 1 }],
+    propLines: [
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "pass yards",
+        propRaw: "pass_yds",
+        line: 232.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: { league: { rostersByTeam: { NE: [{ name: "Drake Maye" }] } } },
+  });
+  assert.match(String(take.lean), /Drake Maye/i);
+  const v = validateStructuredURTakeResponse(take);
+  assert.equal(v.valid, true, v.errors && v.errors.join("; "));
 });

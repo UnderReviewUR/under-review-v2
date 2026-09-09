@@ -405,7 +405,8 @@ import { buildCanonicalNflContext } from "../_nflContext.js";
 import { NFL_UR_TAKE_FAST_MODEL_DEFAULT } from "../../shared/nflAskFastPath.js";
 import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
-import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
+import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, buildNflPropsBoardFallbackTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
+import { detectNflAskMarket } from "../../shared/nflGoatExtractionContract.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
   extractMentionedPersonFromQuestion,
@@ -7583,8 +7584,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             }
 
             // Invalid structured response — NFL: prefer live-board lean when the
-            // thesis already has a posted number; else suitcase PASS; never claim
-            // "parse failed" while a live prop is on the card.
+            // thesis already has a posted number; else props-board recover/scout;
+            // never claim "parse failed" while live props exist.
             if (sportHint === "nfl") {
               const liveLine = nflMatchupMetaOut?.liveLine;
               if (liveLine && liveLine.line != null) {
@@ -7595,6 +7596,19 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                     defenseTier: nflMatchupMetaOut?.defenseTier,
                     defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
                     playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+                  }),
+                  sportHint,
+                );
+              } else if (
+                detectNflAskMarket(question).marketId === "props_board" ||
+                (Array.isArray(nflAskGuardPropLines) && nflAskGuardPropLines.length > 0)
+              ) {
+                structuredResponse = repairStructuredForDelivery(
+                  buildNflPropsBoardFallbackTake({
+                    question,
+                    games: nflAskGuardGames,
+                    propLines: nflAskGuardPropLines,
+                    briefcase: nflAskGuardBriefcase,
                   }),
                   sportHint,
                 );
@@ -7653,6 +7667,20 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                         defenseTier: nflMatchupMetaOut?.defenseTier,
                         defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
                         playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+                      }),
+                      sportHint,
+                    );
+                  }
+                  if (
+                    detectNflAskMarket(question).marketId === "props_board" ||
+                    (Array.isArray(nflAskGuardPropLines) && nflAskGuardPropLines.length > 0)
+                  ) {
+                    return repairStructuredForDelivery(
+                      buildNflPropsBoardFallbackTake({
+                        question,
+                        games: nflAskGuardGames,
+                        propLines: nflAskGuardPropLines,
+                        briefcase: nflAskGuardBriefcase,
                       }),
                       sportHint,
                     );

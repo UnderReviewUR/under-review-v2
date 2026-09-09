@@ -296,7 +296,7 @@ export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
   const leans = {
     suitcase_red: "Lean: Pass. Live line not in payload. No invented number.",
     no_live_prop: `Lean: Pass. No live ${marketLabel} row on the board.`,
-    structured_parse_failed: "Lean: Pass. Take did not parse cleanly. No invented number.",
+    structured_parse_failed: "Lean: Pass. Couldn't lock a clean ticket from this ask.",
     invented_line: "Lean: Pass. Cited number is not on the live board.",
     call_body_conflict: "Lean: Pass. Call and writeup disagreed on the side.",
     spread_invert: "Lean: Pass. Posted favorite was inverted. Do not bet the flip.",
@@ -309,12 +309,18 @@ export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
 
   const noLineBody =
     reason === "no_live_prop" || reason === "suitcase_red" || reason === "invented_line";
-  const whyNow = noLineBody
-    ? `The live board has no verified ${marketLabel} row for this ask${statedBit}. Pass until books post that market — matchup notes are not a ticket.`
-    : "The priced market for this ask is missing or the take was not safe to ship. Passing is the call until a live number is on the board.";
-  const edge = noLineBody
-    ? `No priced edge without a verified live ${marketLabel} number. Role notes and season pace are not a substitute for a posted prop.`
-    : "No priced edge without a verified live number. Role notes and season pace are not a substitute for a posted prop or spread.";
+  const whyNow =
+    reason === "structured_parse_failed"
+      ? "I couldn't ship a clean lean on that ask. Ask again with the player + market (or wait a beat and retry) — no fake number from me."
+      : noLineBody
+        ? `The live board has no verified ${marketLabel} row for this ask${statedBit}. Pass until books post that market — matchup notes are not a ticket.`
+        : "The priced market for this ask is missing or the take was not safe to ship. Passing is the call until a live number is on the board.";
+  const edge =
+    reason === "structured_parse_failed"
+      ? "Action: re-ask with a specific prop (player + line) or refresh once the board loads."
+      : noLineBody
+        ? `No priced edge without a verified live ${marketLabel} number. Role notes and season pace are not a substitute for a posted prop.`
+        : "No priced edge without a verified live number. Role notes and season pace are not a substitute for a posted prop or spread.";
 
   return {
     sport: "NFL",
@@ -722,7 +728,57 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     "Game script can kill pass volume either way.",
     "If your book is off these prices, pass or wait.",
   ];
+  structured.timestamp = new Date().toISOString();
+  structured.parlayLegs = null;
+  structured.parlayTotalOdds = null;
   return true;
+}
+
+/**
+ * Validation / parse-fail fallback for broad props asks — never ship
+ * "did not parse cleanly" when a live board or scout frame exists.
+ * @param {{
+ *   question?: string,
+ *   games?: Array<Record<string, unknown>>,
+ *   propLines?: Array<Record<string, unknown>>,
+ *   briefcase?: Record<string, unknown>|null,
+ * }} [opts]
+ */
+export function buildNflPropsBoardFallbackTake(opts = {}) {
+  const question = String(opts.question || "");
+  const games = Array.isArray(opts.games) ? opts.games : [];
+  const propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
+  if (propLines.length) {
+    /** @type {Record<string, unknown>} */
+    const structured = {
+      call: "PASS",
+      lean: "Lean: Pass.",
+      confidence: "Speculative",
+      whyNow: "Recovering from live board.",
+      edge: "Recovering from live board for a clear action.",
+      callType: "prop",
+      analysis: {
+        matchupAnalysis: "n/a",
+        injuryContext: "n/a",
+        marketContext: "n/a",
+        lineMovement: "n/a",
+        statisticalEdge: "n/a",
+      },
+      caveats: ["Live board recovery."],
+      sport: "NFL",
+      timestamp: new Date().toISOString(),
+      parlayLegs: null,
+      parlayTotalOdds: null,
+    };
+    if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
+      return structured;
+    }
+  }
+  return buildNflPropsBoardScoutTake({
+    question,
+    games,
+    briefcase: opts.briefcase,
+  });
 }
 
 /**
@@ -830,7 +886,7 @@ export function applyNflAskGuard(opts = {}) {
     (String(structured.call || "").toUpperCase() === "PASS" ||
       String(structured.call || "").toUpperCase() === "WAIT FOR PROPS" ||
       codes.includes("props_board_forcepass_bypass") ||
-      /no posted lines|prop board is thin|not populated/i.test(
+      /no posted lines|prop board is thin|not populated|did not parse cleanly|not safe to ship/i.test(
         `${structured.lean || ""} ${structured.whyNow || ""}`,
       ))
   ) {
