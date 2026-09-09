@@ -4,9 +4,11 @@
 import { QBs } from "./nfl-players.js";
 import RBs from "./nfl-rb.js";
 import WRsAndTEs from "./nfl-wr-te.js";
+import { NFL_BDL_ROSTER_SNAPSHOT } from "./data/nflBdlRosterSnapshot.js";
 import {
   buildNflPlayerTeamIndex,
   filterNflPropsForMatchup,
+  mergeNflPlayerTeamIndexesPreferLast,
 } from "../shared/nflAskPropTrim.js";
 
 const NFL_ABBR_ALIAS = {
@@ -41,11 +43,14 @@ function scopeSet(scope) {
  * @param {Set<string>} scope
  */
 export function buildNflStaticPlayerTeamIndex() {
-  return buildNflPlayerTeamIndex({
-    ...(QBs || {}),
-    ...(RBs || {}),
-    ...(WRsAndTEs || {}),
-  });
+  return mergeNflPlayerTeamIndexesPreferLast(
+    buildNflPlayerTeamIndex({
+      ...(QBs || {}),
+      ...(RBs || {}),
+      ...(WRsAndTEs || {}),
+    }),
+    NFL_BDL_ROSTER_SNAPSHOT?.playerTeamByName || {},
+  );
 }
 
 /**

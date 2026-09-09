@@ -1,0 +1,14 @@
+---
+description: NFL player teams come from live BDL GOAT roster snapshot, never training-data priors.
+alwaysApply: true
+---
+
+# NFL roster truth (BDL GOAT)
+
+Do not assign NFL players to teams from model memory, Wikipedia, or static `api/nfl-wr-te.js` / `api/nfl-players.js` priors.
+
+Source of truth: `api/data/nflBdlRosterSnapshot.js` (`NFL_BDL_ROSTER_SNAPSHOT.playerTeamByName`), then live `briefcase.league.rostersByTeam` / `playerTeamByName` when Ask hydrates.
+
+Refresh with `npm run sync:nfl-bdl-rosters`.
+
+Confirmed on the 2026 snapshot: **A.J. Brown is NE**. **Romeo Doubs is NE**. If a take, ticket review, or board filter treats them as PHI or GB, that is a bug.

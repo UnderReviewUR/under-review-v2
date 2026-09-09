@@ -16,6 +16,7 @@ import {
 } from "./nfl-draft-season.js";
 import { detectNflAskMarket } from "../shared/nflGoatExtractionContract.js";
 import { isNflTicketReviewAsk } from "../shared/nflAskTicketReview.js";
+import { NFL_BDL_ROSTER_SNAPSHOT } from "./data/nflBdlRosterSnapshot.js";
 import { normalizePlayerKey, resolveNflPlayerTeamFromIndex } from "../shared/nflAskPropTrim.js";
 import {
   buildNflH2hNoteFromRecentStats,
@@ -52,6 +53,11 @@ function nflPlayerPool() {
   for (const [name, row] of Object.entries(WRsAndTEs || {})) {
     const pos = String(row?.pos || "WR").toUpperCase() === "TE" ? "TE" : "WR";
     pool.push({ name, pos, team: String(row?.team || "").toUpperCase(), row });
+  }
+  const live = NFL_BDL_ROSTER_SNAPSHOT?.playerTeamByName || {};
+  for (const p of pool) {
+    const t = live[normalizePlayerKey(p.name)];
+    if (t) p.team = String(t).toUpperCase();
   }
   return pool;
 }

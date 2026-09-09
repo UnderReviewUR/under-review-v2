@@ -43,6 +43,7 @@
     "warm:golf-odds": "node scripts/warm-golf-odds-cache.mjs",
     "warm:nba-props": "node scripts/warm-nba-props-cache.mjs",
     "probe:nba-sources": "node scripts/probe-nba-data-sources.mjs",
+    "sync:nfl-bdl-rosters": "node --env-file=.env scripts/sync-nfl-bdl-rosters.mjs",
     "probe:nfl-bdl-goat": "node scripts/probe-nfl-bdl-goat.mjs",
     "probe:ncaaf-bdl-goat": "node scripts/probe-ncaaf-bdl-goat.mjs",
     "probe:laliga-bdl-goat": "node scripts/probe-laliga-bdl-goat.mjs",
