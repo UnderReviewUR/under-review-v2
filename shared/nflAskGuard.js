@@ -708,7 +708,7 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
   const openerWeek = isNflOpenerWeek(briefcase?.week ?? games?.[0]?.week);
   const copy = buildNflSidedPropRecoverCopy({
     primary,
-    boardRows: ranked.slice(0, 5),
+    boardRows: ranked.slice(1, 6),
     allRows: propLines,
     openerWeek,
   });

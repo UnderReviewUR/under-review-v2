@@ -214,13 +214,17 @@ export function inferMarketPill(call, callType) {
   if (ct === "matchup") return "Group stage";
   if (ct === "advancement") return "Knockout path";
   if (ct === "analysis") return "Outright";
+  if (ct === "prop") return "Prop";
+  if (ct === "spread" || ct === "total" || ct === "moneyline") return "Game";
   const t = String(call || "").toLowerCase();
   if (String(callType || "").toLowerCase() === "parlay") return "Parlay";
   if (/\bpra\b|\bpoints\s*\+?\s*rebounds\s*\+?\s*assists\b/i.test(t)) return "PRA";
   if (/\bpoints\b|\bppg\b|\bpts\b/i.test(t)) return "Points";
   if (/\brebounds?\b|\brpg\b/i.test(t)) return "Rebounds";
   if (/\bassists?\b|\bapg\b/i.test(t)) return "Assists";
-  if (/\bspread\b|\bats\b|\bml\b|moneyline|total|over|under/i.test(t)) return "Game";
+  if (/\b(yards?|tds?|touchdowns?|receptions?|sacks?|longest)\b/i.test(t)) return "Prop";
+  if (/\bspread\b|\bats\b|\bml\b|moneyline|\btotal\b/i.test(t)) return "Game";
+  if (/\bover\b|\bunder\b/i.test(t) && !/\b[a-z]{3,}\s+(over|under)\b/i.test(t)) return "Game";
   return "Prop";
 }
 

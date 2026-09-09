@@ -57,13 +57,32 @@ function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
 
 /** User questions that mirror follow-up CTAs — not useful as a “matchup” chip (repeat “parlay” noise). */
 const META_PARLAY_PROMPT = /^build\s+a\s+parlay\b/i;
+const BROAD_ASK_PILL = /\b(best\s+(player\s+)?props?|best\s+bets?|what\s+(are|is)\s+the\s+best)\b/i;
+
+function matchupFromQuestion(userQuestion) {
+  const q = String(userQuestion || "").trim();
+  if (!q) return "";
+  const vs = q.match(
+    /\b([A-Za-z][A-Za-z'-]{3,18})\s+(?:vs\.?|versus|@)\s+([A-Za-z][A-Za-z'-]{3,18})\b/i,
+  );
+  if (vs) return `${vs[1]} vs ${vs[2]}`;
+  const andGame = q.match(
+    /\b([A-Za-z][A-Za-z'-]{3,18})\s+and\s+([A-Za-z][A-Za-z'-]{3,18})(?:\s+game)?\b/i,
+  );
+  if (andGame && !/^(best|what|player|props?)$/i.test(andGame[1])) {
+    return `${andGame[1]} vs ${andGame[2]}`.replace(/\s+game$/i, "");
+  }
+  return "";
+}
 
 function matchupPillText(gameStateLine, userQuestion) {
   const g = String(gameStateLine || "").trim();
-  if (g.length >= 6 && g.length <= 48) return g;
+  if (g.length >= 6 && g.length <= 48 && !BROAD_ASK_PILL.test(g)) return g;
+  const fromQ = matchupFromQuestion(userQuestion);
+  if (fromQ) return fromQ;
   const q = String(userQuestion || "").trim();
-  if (q && !META_PARLAY_PROMPT.test(q)) {
-    return q.slice(0, 44) + (q.length > 44 ? "…" : "");
+  if (q && !META_PARLAY_PROMPT.test(q) && !BROAD_ASK_PILL.test(q) && q.length <= 36) {
+    return q;
   }
   return "Tonight";
 }

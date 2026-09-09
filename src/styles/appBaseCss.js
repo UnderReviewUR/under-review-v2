@@ -502,19 +502,37 @@ export const baseCss = `
     width:100%;
     margin:0;
     box-sizing:border-box;
-    background:transparent;
+    background:#111;
+    background-color:#111;
     border-radius:0;
     border:none;
-    color:rgba(255,255,255,.92);
+    color:#f4f4f4;
+    -webkit-text-fill-color:#f4f4f4;
+    caret-color:#00F5E9;
+    color-scheme:dark;
     font-size:16px;
     line-height:1.35;
     padding:0 14px;
     outline:none;
+    -webkit-appearance:none;
+    appearance:none;
   }
   .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder,
   .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill::placeholder{
-    color:#555;
+    color:rgba(255,255,255,0.42);
+    -webkit-text-fill-color:rgba(255,255,255,0.42);
     opacity:1;
+  }
+  .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill:-webkit-autofill,
+  .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill:-webkit-autofill:hover,
+  .docked-bar .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill:-webkit-autofill:focus,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill:-webkit-autofill,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill:-webkit-autofill:hover,
+  .docked-interaction-zone .ask-wrap--docked-gradient .ask-bar.ask-bar--docked-fill:-webkit-autofill:focus{
+    -webkit-text-fill-color:#f4f4f4;
+    caret-color:#00F5E9;
+    box-shadow:0 0 0 1000px #111 inset;
+    transition:background-color 9999s ease-out;
   }
   .docked-bar .ur-dock-input-mid input,
   .docked-interaction-zone .ur-dock-input-mid input,
