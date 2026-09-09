@@ -29,8 +29,11 @@ test("lintCrossSportOutput — allows not a lock with prop context", () => {
   assert.equal(criticalCodes.includes("cross_sport_overconfidence"), false, issues.map((i) => i.code).join(", "));
 });
 
-test("lintCrossSportOutput — flags actual lock framing", () => {
-  const text = "Scoring prop: Brunson over 25.5 points — this is the lock tonight.";
-  const critical = lintCrossSportOutput(text).filter((i) => i.requiresRegeneration).map((i) => i.code);
-  assert.ok(critical.includes("cross_sport_overconfidence"));
+test("lintCrossSportOutput — lock it / role lock are not betting hype", () => {
+  const text =
+    "I'd take Maye under 261.5. Check inactives before you lock it. First week — I wouldn't pay the posted over without a role lock.";
+  const critical = lintCrossSportOutput(text)
+    .filter((i) => i.requiresRegeneration)
+    .map((i) => i.code);
+  assert.equal(critical.includes("cross_sport_overconfidence"), false, critical.join(", "));
 });

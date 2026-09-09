@@ -27,7 +27,7 @@ export function findSentenceContaining(text, re) {
 }
 
 const CROSS_SPORT_HYPE =
-  /\b(?:\bthe\s+lock\b|\block\b|\bguaranteed\b|\bguarantee\b|\bautomatic\b|\bcan't\s+miss\b|\bcant\s+miss\b|\bfree\s+money\b|\bnearly\s+automatic\b|\bsafest\s+leg\b|\bmortal\s+lock\b)/i;
+  /\b(?:the\s+lock|a\s+lock|guaranteed|guarantee|automatic|can't\s+miss|cant\s+miss|free\s+money|nearly\s+automatic|safest\s+leg|mortal\s+lock)\b/i;
 
 const PROPISH = /\b(?:prop|parlay|leg|slip|bet|pick|over|under|lean|fade)\b/i;
 

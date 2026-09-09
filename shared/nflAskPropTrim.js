@@ -574,7 +574,7 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   if (openerWeek) {
     return {
       side: "Under",
-      why: "First week — I wouldn't pay the posted over without a role lock.",
+      why: "First week — I wouldn't pay the posted over without a role confirmation.",
     };
   }
   return { side: "Under", why: "No smash over at this number." };
@@ -655,7 +655,11 @@ export function buildNflSidedPropRecoverCopy(opts) {
     `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
     "",
     ticket.why,
-    openerWeek ? "I'd rather see a cheaper number if you can get it." : "",
+    openerWeek
+      ? ticket.side === "Under"
+        ? "I'd rather see a cheaper number if you can get it."
+        : "If you can get this number or higher, the over is cleaner."
+      : "",
     list
       ? `\nAlso worth a look:\n${list}\n\nOne ticket first. Speculative.`
       : "",
@@ -674,14 +678,16 @@ export function buildNflSidedPropRecoverCopy(opts) {
     edge: `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
     analysis: {
       matchupAnalysis: `${last} ${propLabel} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
-      injuryContext: "Check inactives before you lock it.",
+      injuryContext: "Check inactives before you bet it.",
       marketContext: list || ticket.why,
       lineMovement: "Stick to a posted number. Don't invent movement.",
       statisticalEdge: openerLine,
     },
     caveats: [
       openerLine,
-      "If your number is a lot lower, the under gets worse.",
+      ticket.side === "Under"
+        ? "If your number is a lot lower, the under gets worse."
+        : "If your number is a lot higher, the over gets worse.",
     ],
   };
 }
