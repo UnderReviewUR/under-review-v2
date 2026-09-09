@@ -53,6 +53,14 @@ test("GB @ PIT -2.5 without the word spread still routes NFL", () => {
   assert.equal(inferSportFromQuestionText(q), "nfl");
 });
 
+test("player props for the game tonight routes NFL from home/generic", () => {
+  const q = "player props for the game tonight?";
+  assert.equal(hasNflAskLexicon(q), true);
+  assert.equal(inferSportFromQuestionText(q), "nfl");
+  assert.equal(resolveSportHint({ incomingSportHint: "generic", question: q }), "nfl");
+  assert.equal(resolveSportHint({ incomingSportHint: "home", question: q }), "nfl");
+});
+
 test("backup football + CIN -6.5 is NFL, not World Cup football", () => {
   const q = "Is Joe Burrow even dressing tonight vs Detroit or is CIN -6.5 just backup football?";
   assert.equal(hasNflAskLexicon(q), true);

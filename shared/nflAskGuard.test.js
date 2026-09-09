@@ -464,7 +464,7 @@ test("props_board recover is casual with clear action and drops wrong-team cavea
       },
     },
   });
-  assert.ok(codes.includes("props_board_recover"));
+  assert.ok(codes.includes("props_board_recover") || codes.includes("props_board_force_recover"));
   assert.match(String(structured.lean), /Under 260\.5/i);
   assert.match(String(structured.call), /UNDER 260\.5/i);
   assert.match(String(structured.whyNow), /Maye/i);
@@ -528,6 +528,107 @@ test("props_board recover fades the high Maye print when books disagree", () => 
   assert.match(String(structured.whyNow), /232\.5/);
   assert.match(String(structured.caveats.join(" ")), /prior/i);
   assert.doesNotMatch(String(structured.whyNow), /DraftKings|FanDuel/i);
+});
+
+test("props_board recover ignores 460.5 alts and unrelated Maye prints", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "player props for the game tonight?",
+    structured: {
+      call: "MAYE UNDER 460.5",
+      lean: "Lean: Under 460.5. Maye — high number in an opener. 47.5 yds/g last year.",
+      confidence: "Medium",
+      whyNow: "I'd take Maye under 460.5.",
+    },
+    isCurrentSeason: true,
+    games: [{ awayAbbr: "NE", homeAbbr: "SEA", providerGameId: 1, week: 1 }],
+    propLines: [
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 232.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 261.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 460.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 47.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "passing + rushing yards",
+        propRaw: "passing_rushing_yards",
+        line: 109.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Rhamondre Stevenson",
+        team: "NE",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 56.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: {
+      week: 1,
+      grade: "green",
+      detected: { marketId: "props_board", propTypeHints: [] },
+      propMatch: { matched: 6 },
+      league: {
+        rostersByTeam: {
+          NE: [{ name: "Drake Maye" }, { name: "Rhamondre Stevenson" }],
+          SEA: [{ name: "Sam Darnold" }],
+        },
+      },
+    },
+  });
+  assert.ok(codes.includes("props_board_recover") || codes.includes("props_board_force_recover"));
+  assert.ok(!codes.includes("vintage_blur"));
+  assert.match(String(structured.call), /UNDER 261\.5/i);
+  assert.doesNotMatch(String(structured.lean), /460\.5/);
+  assert.doesNotMatch(`${structured.whyNow} ${structured.lean}`, /109\.5|460\.5/);
+  assert.doesNotMatch(String(structured.whyNow), /other books[^\n]*(47\.5|109\.5|460\.5)/);
+  assert.doesNotMatch(String(structured.lean), /Those counting stats are a prior/i);
 });
 
 test("props_board force-recovers thin PASS when AN pass_yds lines exist", () => {

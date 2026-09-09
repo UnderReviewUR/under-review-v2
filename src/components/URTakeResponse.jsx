@@ -57,7 +57,8 @@ function buildParlayCombinedExplainer(parlayLegs, combinedAmerican) {
 
 /** User questions that mirror follow-up CTAs — not useful as a “matchup” chip (repeat “parlay” noise). */
 const META_PARLAY_PROMPT = /^build\s+a\s+parlay\b/i;
-const BROAD_ASK_PILL = /\b(best\s+(player\s+)?props?|best\s+bets?|what\s+(are|is)\s+the\s+best)\b/i;
+const BROAD_ASK_PILL =
+  /\b((best\s+)?(player\s+)?props?|best\s+bets?|what\s+(are|is)\s+the\s+best|the game tonight)\b/i;
 
 function matchupFromQuestion(userQuestion) {
   const q = String(userQuestion || "").trim();
@@ -75,7 +76,7 @@ function matchupFromQuestion(userQuestion) {
   return "";
 }
 
-function matchupPillText(gameStateLine, userQuestion) {
+export function matchupPillText(gameStateLine, userQuestion) {
   const g = String(gameStateLine || "").trim();
   if (g.length >= 6 && g.length <= 48 && !BROAD_ASK_PILL.test(g)) return g;
   const fromQ = matchupFromQuestion(userQuestion);

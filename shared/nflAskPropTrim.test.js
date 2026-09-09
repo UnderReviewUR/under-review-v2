@@ -279,3 +279,21 @@ test("inferNflPropTicketSide fades the high print when books disagree", async ()
   const picked = preferHighPrintPrimary([rows[0]], rows);
   assert.equal(picked[0].line, 262.5);
 });
+
+test("preferHighPrintPrimary ignores 400+ alts and other Maye markets", async () => {
+  const { inferNflPropTicketSide, preferHighPrintPrimary } = await import("./nflAskPropTrim.js");
+  const rows = [
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 232.5, overOdds: -110, underOdds: -110 },
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 261.5, overOdds: -110, underOdds: -110 },
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 460.5, overOdds: -110, underOdds: -110 },
+    { player: "Drake Maye", prop: "rushing yards", propRaw: "rushing_yards", line: 47.5, overOdds: -110, underOdds: -110 },
+    { player: "Drake Maye", prop: "passing + rushing yards", propRaw: "passing_rushing_yards", line: 109.5, overOdds: -110, underOdds: -110 },
+  ];
+  const picked = preferHighPrintPrimary([rows[0]], rows);
+  assert.equal(picked[0].line, 261.5);
+  const ticket = inferNflPropTicketSide(picked[0], rows);
+  assert.equal(ticket.side, "Under");
+  assert.match(ticket.why, /261\.5/);
+  assert.match(ticket.why, /232\.5/);
+  assert.doesNotMatch(ticket.why, /460\.5|47\.5|109\.5/);
+});

@@ -871,19 +871,9 @@ export function applyNflAskGuard(opts = {}) {
     }
   }
 
-  // Broad "best props" asks with a live board: always ship tickets, even if the
-  // model PASSed or the suitcase briefly marked noLiveProp (AN key alias gaps).
-  if (
-    String(suitcase.detected?.marketId || "") === "props_board" &&
-    propLines.length > 0 &&
-    (String(structured.call || "").toUpperCase() === "PASS" ||
-      String(structured.call || "").toUpperCase() === "WAIT FOR PROPS" ||
-      codes.includes("props_board_forcepass_bypass") ||
-      !nflAskHasOverUnderSide(structured) ||
-      /no posted lines|prop board is thin|not populated|did not parse cleanly|not safe to ship/i.test(
-        `${structured.lean || ""} ${structured.whyNow || ""}`,
-      ))
-  ) {
+  // Broad "best props" asks with a live board: always ship consensus tickets.
+  // Do not keep a model Under 460.5 just because that alt exists on the ladder.
+  if (String(suitcase.detected?.marketId || "") === "props_board" && propLines.length > 0) {
     if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
       codes.push("props_board_force_recover");
     }
@@ -924,7 +914,11 @@ export function applyNflAskGuard(opts = {}) {
     }
   }
 
-  if (detectNflVintageBlur(blob, Boolean(opts.isCurrentSeason))) {
+  if (
+    detectNflVintageBlur(blob, Boolean(opts.isCurrentSeason)) &&
+    !codes.includes("props_board_recover") &&
+    !codes.includes("props_board_force_recover")
+  ) {
     codes.push("vintage_blur");
     structured.confidence = clampNflConfidence(structured.confidence, "Speculative");
     const tag = "Those counting stats are a prior, not this season.";

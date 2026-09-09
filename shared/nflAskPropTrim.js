@@ -359,15 +359,102 @@ export function formatNflBookLabel(book) {
  */
 export function nflPropMarketKey(row) {
   const raw = `${row?.propRaw || ""} ${row?.prop || ""}`.toLowerCase();
+  if (/(longest|long(?:est)?\s+(?:pass|rush|rec|play)|pass_long|rush_long|rec_long)/.test(raw)) {
+    if (/pass/.test(raw)) return "pass_long";
+    if (/rush/.test(raw)) return "rush_long";
+    if (/rec/.test(raw)) return "rec_long";
+    return "longest";
+  }
+  if (
+    /pass/.test(raw) &&
+    /rush/.test(raw) &&
+    /yd|yard/.test(raw) &&
+    !/td|touch/.test(raw)
+  ) {
+    return "pass_rush_yds";
+  }
+  if (/rush/.test(raw) && /(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rush_rec_yds";
   if (/pass/.test(raw) && /td|touch/.test(raw)) return "pass_tds";
   if (/pass/.test(raw) && /yd|yard/.test(raw)) return "pass_yds";
-  if (/rush/.test(raw) && /(long|longest)/.test(raw)) return "rush_long";
   if (/rush/.test(raw) && /yd|yard/.test(raw)) return "rush_yds";
   if (/(rec|receiv)/.test(raw) && /td|touch/.test(raw)) return "rec_tds";
   if (/(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rec_yds";
   return String(row?.propRaw || row?.prop || "prop")
     .toLowerCase()
     .replace(/[\s-]+/g, "_");
+}
+
+function nflPropPeerBand(market, line) {
+  const n = Number(line);
+  if (!Number.isFinite(n)) return 8;
+  if (/tds$|_td|anytime/.test(market)) return 1.1;
+  if (/long/.test(market)) return 8;
+  if (/yds/.test(market)) return Math.max(18, Math.min(40, n * 0.16));
+  return Math.max(6, n * 0.2);
+}
+
+function nflPropSameTicket(a, b) {
+  return (
+    normalizePlayerKey(a?.player) === normalizePlayerKey(b?.player) &&
+    nflPropMarketKey(a) === nflPropMarketKey(b)
+  );
+}
+
+/**
+ * Same player + market, close enough to be the same posted number — not alts or other props.
+ * @param {Record<string, unknown>} row
+ * @param {Array<Record<string, unknown>>} [allRows]
+ */
+export function nflPropPeerLines(row, allRows = []) {
+  const line = Number(row?.line);
+  const market = nflPropMarketKey(row);
+  const band = nflPropPeerBand(market, line);
+  return [
+    ...new Set(
+      (allRows || [])
+        .filter((p) => nflPropSameTicket(p, row))
+        .map((p) => Number(p.line))
+        .filter((n) => Number.isFinite(n) && Math.abs(n - line) <= band),
+    ),
+  ];
+}
+
+/**
+ * Main-book cluster (median neighborhood), not a 400+ alt.
+ * @param {Array<Record<string, unknown>>} rows
+ */
+function dropNflYardLadderAlts(list, market) {
+  if (!/yds/.test(String(market || "")) || /long|rush_rec|pass_rush/.test(String(market || ""))) {
+    return list;
+  }
+  const mains = list.filter((r) => {
+    const n = Number(r.line);
+    return n >= 140 && n <= 340;
+  });
+  return mains.length ? mains : list;
+}
+
+export function pickNflConsensusMarketRow(rows) {
+  const raw = (rows || []).filter((r) => Number.isFinite(Number(r?.line)));
+  if (!raw.length) return null;
+  const market = nflPropMarketKey(raw[0]);
+  const list = dropNflYardLadderAlts(raw, market);
+  if (!list.length) return null;
+  let bestScore = -1;
+  let bestCenter = Number(list[0].line);
+  for (const r of list) {
+    const line = Number(r.line);
+    const band = nflPropPeerBand(market, line);
+    const score = list.filter((x) => Math.abs(Number(x.line) - line) <= band).length;
+    if (score > bestScore || (score === bestScore && line < bestCenter)) {
+      bestScore = score;
+      bestCenter = line;
+    }
+  }
+  const band = nflPropPeerBand(market, bestCenter);
+  const cluster = list.filter((r) => Math.abs(Number(r.line) - bestCenter) <= band);
+  const pool = cluster.length ? cluster : list;
+  return pool.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), pool[0]);
 }
 
 function shortPlayerLast(name) {
@@ -393,16 +480,7 @@ function otherBookLines(unique, line) {
 export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   const openerWeek = Boolean(opts.openerWeek);
   const line = Number(row?.line);
-  const player = normalizePlayerKey(row?.player);
-  const market = nflPropMarketKey(row);
-  const unique = [
-    ...new Set(
-      (allRows || [])
-        .filter((p) => normalizePlayerKey(p?.player) === player && nflPropMarketKey(p) === market)
-        .map((p) => Number(p.line))
-        .filter((n) => Number.isFinite(n)),
-    ),
-  ];
+  const unique = nflPropPeerLines(row, allRows);
   if (Number.isFinite(line) && unique.length >= 2) {
     const hi = Math.max(...unique);
     const lo = Math.min(...unique);
@@ -439,15 +517,12 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
 export function preferHighPrintPrimary(picked, allRows = []) {
   if (!picked.length) return picked;
   const primary = picked[0];
-  const player = normalizePlayerKey(primary?.player);
-  const market = nflPropMarketKey(primary);
   const same = (allRows || []).filter(
-    (p) => normalizePlayerKey(p?.player) === player && nflPropMarketKey(p) === market && Number.isFinite(Number(p.line)),
+    (p) => nflPropSameTicket(p, primary) && Number.isFinite(Number(p.line)),
   );
-  if (same.length < 2) return picked;
-  const high = same.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), primary);
-  if (high === primary) return picked;
-  return [high, ...picked.filter((row) => row !== high)];
+  const consensus = pickNflConsensusMarketRow(same.length ? same : [primary]);
+  if (!consensus || Number(consensus.line) === Number(primary.line)) return picked;
+  return [consensus, ...picked.filter((row) => row !== consensus)];
 }
 
 function prettyPropLabel(row) {
@@ -617,14 +692,18 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
 
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
 
+  /** @type {Map<string, Array<Record<string, unknown>>>} */
+  const rowsByMarket = new Map();
+  for (const row of rows) {
+    const key = `${normalizePlayerKey(row.player)}|${nflPropMarketKey(row)}`;
+    const list = rowsByMarket.get(key) || [];
+    list.push(row);
+    rowsByMarket.set(key, list);
+  }
   /** @type {Map<string, Record<string, unknown>>} */
   const bestByMarket = new Map();
-  for (const row of rows) {
-    const propKey = String(row.propRaw || row.prop || "prop")
-      .toLowerCase()
-      .replace(/\s+/g, "_");
-    const key = `${normalizePlayerKey(row.player)}|${propKey}`;
-    if (!bestByMarket.has(key)) bestByMarket.set(key, row);
+  for (const [key, list] of rowsByMarket) {
+    bestByMarket.set(key, pickNflConsensusMarketRow(list) || list[0]);
   }
 
   /** @type {Array<Record<string, unknown>>} */
@@ -635,11 +714,8 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   for (const row of bestByMarket.values()) {
     if (picked.length >= maxTickets) break;
     const playerKey = normalizePlayerKey(row.player);
-    const propKey = String(row.propRaw || row.prop || "prop")
-      .toLowerCase()
-      .replace(/\s+/g, "_");
-    // Prefer variety: avoid stacking the same player or same market type.
-    if (seenPlayers.has(playerKey) && picked.length >= 2) continue;
+    const propKey = nflPropMarketKey(row);
+    if (seenPlayers.has(playerKey) && picked.length >= 1) continue;
     if (seenProps.has(propKey) && picked.length >= 2) continue;
     picked.push(row);
     seenPlayers.add(playerKey);
@@ -654,7 +730,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     }
   }
 
-  return picked.slice(0, maxTickets);
+  return preferHighPrintPrimary(picked, rows).slice(0, maxTickets);
 }
 
 /**

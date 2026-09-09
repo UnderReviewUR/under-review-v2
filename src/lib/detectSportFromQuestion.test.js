@@ -43,8 +43,8 @@ test("home + pitcher K prop phrasing → mlb", () => {
   assert.equal(detectSportFromQuestion("Best pitcher K prop?", "home"), "mlb");
 });
 
-test("home + Cowboys → nfl", () => {
-  assert.equal(detectSportFromQuestion("Best Cowboys play this weekend?", "home"), "nfl");
+test("home + player props for the game tonight → nfl", () => {
+  assert.equal(detectSportFromQuestion("player props for the game tonight?", "home"), "nfl");
 });
 
 test("home + seahaks vs patroits best bets → nfl", () => {

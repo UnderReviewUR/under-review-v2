@@ -596,6 +596,15 @@ export function hasNflAskLexicon(question) {
   ) {
     return true;
   }
+  // Home: "player props for the game tonight" with no team named.
+  if (
+    /\b(player\s+)?props?\b/.test(q) &&
+    /\b(tonight|today|this game|the game)\b/.test(q) &&
+    !hasStrongNbaOnlyLexicon(q) &&
+    !/\b(mlb|nba|strikeout|pra|rebounds?)\b/.test(q)
+  ) {
+    return true;
+  }
   if (/\b(spread|moneyline|\bml\b|ats|cover)\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
     return true;
   }
