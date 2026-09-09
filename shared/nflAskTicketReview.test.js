@@ -26,15 +26,15 @@ const propLines = [
   { player: "A.J. Brown", propRaw: "rec_yds", prop: "receiving yards", line: 62.5, game: "NE @ SEA", team: "NE" },
   { player: "A.J. Brown", propRaw: "rec_yds", prop: "receiving yards", line: 64.5, game: "DAL @ PHI", team: "PHI" },
   { player: "Romeo Doubs", propRaw: "rec_yds", prop: "receiving yards", line: 35.5, game: "GB @ DET", team: "GB" },
+  { player: "Romeo Doubs", propRaw: "rec_yds", prop: "receiving yards", line: 28.5, game: "NE @ SEA", team: "NE" },
 ];
 
 const briefcase = {
   league: {
-    playerTeamByName: { "aj brown": "NE", "drake maye": "NE", "sam darnold": "SEA", "romeo doubs": "GB" },
+    playerTeamByName: { "aj brown": "NE", "drake maye": "NE", "sam darnold": "SEA", "romeo doubs": "NE" },
     rostersByTeam: {
-      NE: [{ name: "A.J. Brown" }, { name: "Drake Maye" }],
+      NE: [{ name: "A.J. Brown" }, { name: "Drake Maye" }, { name: "Romeo Doubs" }],
       SEA: [{ name: "Sam Darnold" }],
-      GB: [{ name: "Romeo Doubs" }],
     },
   },
 };
@@ -78,7 +78,7 @@ test("ticket review guard does not collapse to a Darnold props-board recover", (
   assert.match(String(structured.whyNow), /Brown/i);
   assert.doesNotMatch(String(structured.whyNow), /PHI|Eagles|not Patriots/i);
   assert.match(String(structured.whyNow), /Doubs/i);
-  assert.match(String(structured.whyNow), /GB/);
+  assert.doesNotMatch(String(structured.whyNow), /\bGB\b|Packer/i);
   const v = validateStructuredURTakeResponse(structured);
   assert.equal(v.valid, true, v.errors && v.errors.join("; "));
 });

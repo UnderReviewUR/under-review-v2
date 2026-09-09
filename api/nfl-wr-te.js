@@ -140,6 +140,20 @@ export const WRsAndTEs = {
 
   },
 
+  "Romeo Doubs": {
+    team: "NE", pos: "WR", tier: "STARTER",
+    rec2025: { g: 13, tgt: 53, rec: 32, yds: 392, td: 3, recPg: 2.5, ydsPg: 30.2, ypr: 12.3, adot: 11.4, ctchPct: 60.4, drop: 2 },
+    rec2024: { rec: 46, yds: 584, ydsPg: 36.5 },
+    trend: { note: "Volume prior from GB. Live roster is Patriots — use board + Maye usage, not last year's Packers role." },
+    props: {
+      recYds: { floor: 15, ceil: 55, lean: "Small sample in New England — number first." },
+      best: "Receiving yards vs the posted number. Role is the live roster, not Green Bay."
+    },
+    situation2026: "Patriots WR with Maye. Live roster/board owns the team assignment.",
+    bettingAngles: ["Grade the posted rec-yard number", "Do not treat him as a Packer on an NE board"]
+
+  },
+
   "Chris Olave": {
     team: "NOR", pos: "WR", tier: "STRONG",
     rec2025: { g: 16, tgt: 156, rec: 100, yds: 1163, td: 3, recPg: 6.3, ydsPg: 72.7, ypr: 11.6, adot: 11.8, ctchPct: 64.1, drop: 5 },

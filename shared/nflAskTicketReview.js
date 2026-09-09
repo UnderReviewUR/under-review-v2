@@ -2,6 +2,7 @@
  * Grade an already-placed NFL slip ("I bet X, Y, Z — thoughts?").
  */
 import { detectNflTeamHint } from "../src/lib/detectSportFromQuestion.js";
+import { buildNflStaticPlayerTeamIndex } from "../api/_nflMatchupPropHygiene.js";
 import {
   buildNflPlayerTeamIndex,
   mergeNflPlayerTeamIndexesPreferLast,
@@ -153,7 +154,7 @@ function teamIndexFromBriefcase(briefcase) {
       })),
     ),
   );
-  return mergeNflPlayerTeamIndexesPreferLast(fromRosters, named);
+  return mergeNflPlayerTeamIndexesPreferLast(buildNflStaticPlayerTeamIndex(), fromRosters, named);
 }
 
 /**
