@@ -13,7 +13,7 @@ import {
   isNflBdlPrimaryEnabled,
 } from "./_nflBdl.js";
 import { resolveNflScopeTeamAbbrevSet } from "./_nflContext.js";
-import { pickNflGamesForScope, trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import { pickNflGamesForScope, trimNflPlayerPropsForAsk, filterNflPropsToRoster } from "../shared/nflAskPropTrim.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 import { detectNflAskMarket, evaluateBriefcaseForInteraction } from "../shared/nflGoatExtractionContract.js";
 import {
@@ -119,7 +119,8 @@ export async function buildNflFastAskContext(options = {}) {
   ]);
 
   const scopedGames = pickNflGamesForScope(board.games || [], scope);
-  let game = scopedGames[0] || null;
+  const anGame = scopedGames[0] || null;
+  let game = anGame;
   /** @type {Array<Record<string, unknown>>} */
   let propLines = [];
   /** @type {Array<Record<string, unknown>>} */
@@ -135,8 +136,16 @@ export async function buildNflFastAskContext(options = {}) {
       const bdlScoped = pickNflGamesForScope(bdlWeek.games || [], scope);
       const bdlGame = bdlScoped[0];
       if (bdlGame?.providerGameId) {
-        game = bdlGame;
-        gamesForCard = bdlScoped.length ? bdlScoped : [bdlGame];
+        game = {
+          ...bdlGame,
+          // Keep AN tipoff / network / total when BDL row is thin.
+          tipoffMs: bdlGame.tipoffMs ?? anGame?.tipoffMs ?? null,
+          total: bdlGame.total || anGame?.total || null,
+          spread: bdlGame.spread || anGame?.spread || null,
+          moneyline: bdlGame.moneyline || anGame?.moneyline || null,
+          network: bdlGame.network || anGame?.network || null,
+        };
+        gamesForCard = [game];
         propLines = await fetchNflBdlPlayerPropsForGame(bdlGame.providerGameId, {
           gameLabel: `${bdlGame.awayAbbr} @ ${bdlGame.homeAbbr}`,
         });
@@ -179,19 +188,39 @@ export async function buildNflFastAskContext(options = {}) {
     }
   }
 
-  if (!propLines.length && game?.providerGameId) {
-    const cachedProps = await getNflPropsForBoard(game.providerGameId, {
-      tipoffMs: game.tipoffMs,
-      cacheOnly: true,
-    });
-    if (cachedProps) {
-      propLines = nflPropsPayloadToPropLines(cachedProps, game);
-      if (propLines.length) propsSource = "action_network_cache";
+  // AN props use Action Network game ids — never look them up with a BDL id.
+  if (!propLines.length && anGame?.providerGameId) {
+    try {
+      const anProps = await getNflPropsForBoard(anGame.providerGameId, {
+        tipoffMs: anGame.tipoffMs,
+        cacheOnly: false,
+      });
+      if (anProps) {
+        propLines = nflPropsPayloadToPropLines(anProps, anGame);
+        if (propLines.length) propsSource = "action_network";
+      }
+    } catch {
+      /* leave empty — scout/pass downstream */
     }
   }
 
-  if (!game?.providerGameId && !propLines.length) return null;
+  if (!game?.providerGameId && !anGame?.providerGameId && !propLines.length) return null;
 
+  /** @type {string[]} */
+  const rosterNames = [];
+  /** @type {Record<string, Array<{ name: string }>>} */
+  const rostersByTeam = {};
+  for (const p of rosterData?.players || []) {
+    if (!scopeMatchesTeam(scope, p.team)) continue;
+    const name = String(p.name || "").trim();
+    if (!name) continue;
+    rosterNames.push(name);
+    const ab = String(p.team || "").toUpperCase();
+    if (!rostersByTeam[ab]) rostersByTeam[ab] = [];
+    rostersByTeam[ab].push({ name, role: p.position || null });
+  }
+
+  propLines = filterNflPropsToRoster(propLines, rosterNames);
   propLines = trimNflPlayerPropsForAsk(propLines, { scope, question, maxRows: 24 });
 
   const injuryRows = [];
@@ -277,7 +306,7 @@ export async function buildNflFastAskContext(options = {}) {
 
   const stubBriefcase = {
     slate: { games: gamesForCard, odds: oddsStub, playerProps: propLines },
-    league: { injuries: injuryRows, rostersByTeam: {} },
+    league: { injuries: injuryRows, rostersByTeam },
   };
   const interaction = evaluateBriefcaseForInteraction(stubBriefcase, question);
   const buildMs = Date.now() - t0;

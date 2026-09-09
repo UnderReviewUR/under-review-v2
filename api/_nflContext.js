@@ -30,7 +30,7 @@ import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js"
 import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
-import { trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import { trimNflPlayerPropsForAsk, filterNflPropsToRoster } from "../shared/nflAskPropTrim.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 import { isNflBdlPrimaryEnabled } from "./_nflBdl.js";
 
@@ -551,10 +551,19 @@ export async function buildCanonicalNflContext(options = {}) {
   const boardProps = Array.isArray(liveBoard?.propLines) ? liveBoard.propLines : [];
   // When GOAT primary is on and briefcase hydrated props, those win over Action Network.
   const preferGoatProps = isNflBdlPrimaryEnabled() && goatProps.length > 0;
-  const trimmedPropLines = trimNflPlayerPropsForAsk(
-    preferGoatProps ? goatProps : boardProps.length ? boardProps : goatProps,
-    { scope: scoped ? scope : [], question, maxRows: scoped ? 56 : 120 },
-  );
+  let rawPropLines = preferGoatProps ? goatProps : boardProps.length ? boardProps : goatProps;
+  if (scoped && rosterData?.players?.length) {
+    const rosterNames = rosterData.players
+      .filter((p) => scopeMatchesTeam(scope, p.team))
+      .map((p) => String(p.name || "").trim())
+      .filter(Boolean);
+    rawPropLines = filterNflPropsToRoster(rawPropLines, rosterNames);
+  }
+  const trimmedPropLines = trimNflPlayerPropsForAsk(rawPropLines, {
+    scope: scoped ? scope : [],
+    question,
+    maxRows: scoped ? 56 : 120,
+  });
   if (liveBoard && Array.isArray(liveBoard.propLines)) {
     liveBoard.propLines = trimmedPropLines;
   }

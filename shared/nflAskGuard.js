@@ -220,6 +220,71 @@ export function buildNflLivePropBoardTake(opts = {}) {
 }
 
 /**
+ * When live player props are truly missing, give a casual watch-list instead of
+ * a dead PASS — still no invented number.
+ * @param {{
+ *   question?: string,
+ *   games?: Array<Record<string, unknown>>,
+ *   briefcase?: Record<string, unknown>|null,
+ * }} [opts]
+ */
+export function buildNflPropsBoardScoutTake(opts = {}) {
+  const question = String(opts.question || "");
+  const games = Array.isArray(opts.games) ? opts.games : [];
+  const g = games[0] || {};
+  const away = String(g.awayAbbr || "").toUpperCase();
+  const home = String(g.homeAbbr || "").toUpperCase();
+  const matchup = away && home ? `${away} @ ${home}` : "this game";
+  const total = g.total?.line ?? g.totalLine ?? null;
+  const spread =
+    g.spread?.displayLine ||
+    (g.spread?.favoriteAbbr && g.spread?.favoritePoint != null
+      ? `${g.spread.favoriteAbbr} -${g.spread.favoritePoint}`
+      : null);
+
+  const gameBits = [];
+  if (spread) gameBits.push(`spread ${spread}`);
+  if (total != null && total !== "") gameBits.push(`total ${total}`);
+  const gameLine = gameBits.length ? gameBits.join(", ") : "game prices still thin";
+
+  const lean = `Lean: Wait for the prop board on ${matchup}.`;
+  const whyNow = [
+    `Books do not have a clean player-prop board for ${matchup} in what I can see yet.`,
+    "",
+    `Game frame to work with: ${gameLine}.`,
+    "",
+    "When props post, I'd shop first:",
+    "1. Both QBs — pass yards / pass TDs (script + total tell you which way).",
+    "2. Lead WR on each side — receiving yards / receptions.",
+    "3. Lead RB rush yards if the total stays modest.",
+    "",
+    "Action: set alerts on those three lanes and bet the first number you like — do not guess a line before it posts.",
+  ].join("\n");
+
+  return {
+    sport: "NFL",
+    call: "WAIT FOR PROPS",
+    callType: "prop",
+    confidence: "Speculative",
+    lean: lean.length > 120 ? lean.slice(0, 119).replace(/\s+\S*$/, "") + "." : lean,
+    whyNow,
+    edge: `Action: wait for live props on ${matchup}. Use the game total/spread as the frame — not a fake player number.`,
+    analysis: {
+      matchupAnalysis: `No verified player props for ${matchup} yet. Game frame: ${gameLine}.`,
+      injuryContext: "Confirm inactives once they post (~90 min before kick).",
+      marketContext: "Player props missing or too dirty to trust. Scout only.",
+      lineMovement: "No player number to shop yet.",
+      statisticalEdge: "Season pace and defense tier are context for when lines open — not tickets tonight.",
+    },
+    caveats: [
+      "This is a watch list, not a ticket.",
+      "If your book already shows props, refresh Ask — we may have been looking at an empty pocket.",
+    ],
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
  * @param {string} reason
  * @param {{ question?: string, marketLabel?: string }} [opts]
  */
@@ -245,7 +310,7 @@ export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
   const noLineBody =
     reason === "no_live_prop" || reason === "suitcase_red" || reason === "invented_line";
   const whyNow = noLineBody
-    ? `The live board has no verified ${marketLabel} row for this ask${statedBit}. Pass until GOAT/books post that market — matchup notes are not a ticket.`
+    ? `The live board has no verified ${marketLabel} row for this ask${statedBit}. Pass until books post that market — matchup notes are not a ticket.`
     : "The priced market for this ask is missing or the take was not safe to ship. Passing is the call until a live number is on the board.";
   const edge = noLineBody
     ? `No priced edge without a verified live ${marketLabel} number. Role notes and season pace are not a substitute for a posted prop.`
@@ -585,6 +650,82 @@ export function detectNflVintageBlur(text, isCurrentSeason) {
 }
 
 /**
+ * Rewrite a structured take into a casual live props-board ticket list.
+ * @returns {boolean} true if tickets were written
+ */
+function applyPropsBoardRecoverToStructured(structured, question, games, propLines, briefcase) {
+  /** @type {Set<string>} */
+  const scope = new Set();
+  /** @type {Array<string|number>} */
+  const eventIds = [];
+  for (const g of games) {
+    const home = String(g?.homeAbbr || "").toUpperCase().trim();
+    const away = String(g?.awayAbbr || "").toUpperCase().trim();
+    if (home) scope.add(home);
+    if (away) scope.add(away);
+    if (g?.providerGameId != null) eventIds.push(g.providerGameId);
+    if (g?.eventId != null) eventIds.push(g.eventId);
+  }
+  /** @type {string[]} */
+  const rosterNames = [];
+  const rosters = briefcase?.league?.rostersByTeam;
+  if (rosters && typeof rosters === "object" && scope.size) {
+    for (const ab of scope) {
+      const list = rosters[ab] || rosters[String(ab).toUpperCase()] || [];
+      for (const p of Array.isArray(list) ? list : []) {
+        const name = String(p?.name || p?.player || "").trim();
+        if (name) rosterNames.push(name);
+      }
+    }
+  }
+  const top = pickNflPropsBoardTickets(propLines, {
+    scope,
+    eventIds,
+    rosterNames,
+    question,
+    maxTickets: 4,
+  });
+  if (!top.length) return false;
+  const primary = top[0];
+  const propLabel = String(primary.prop || primary.propRaw || "prop").trim();
+  const bookLabel = formatNflBookLabel(String(primary.book || ""));
+  const ticketLine = (p) => {
+    const pl = String(p.prop || p.propRaw || "prop").trim();
+    const bk = formatNflBookLabel(String(p.book || ""));
+    return `${p.player} ${pl} ${p.line} (${bk})`;
+  };
+  const numbered = top.map((p, i) => `${i + 1}. ${ticketLine(p)}`).join("\n");
+  const primaryTicket = ticketLine(primary);
+  structured.sport = "NFL";
+  structured.call = `${primary.player} ${propLabel} ${primary.line}`;
+  structured.callType = "prop";
+  structured.confidence = "Speculative";
+  structured.lean = `Lean: Start with ${primary.player} ${propLabel} ${primary.line} at ${bookLabel}.`;
+  structured.whyNow = [
+    `I'd put one ticket on ${primaryTicket}.`,
+    "",
+    "Other live numbers on this game worth a look:",
+    numbered,
+    "",
+    "Grab one of those posted prices and move on — Speculative, not a lock.",
+  ].join("\n");
+  structured.edge = `Action: bet ${primaryTicket} if you want a single shot tonight. Skip stacking until you like the price better.`;
+  structured.analysis = {
+    matchupAnalysis: `Cleanest live ticket on the board is ${primaryTicket}.`,
+    injuryContext: "Confirm inactives before you lock anything.",
+    marketContext: `Live props on this matchup:\n${numbered}`,
+    lineMovement: "Stick to a posted book number.",
+    statisticalEdge: "Board + matchup only. No smash case baked in.",
+  };
+  structured.caveats = [
+    "These are live book numbers — Speculative until you shop juice.",
+    "Game script can kill pass volume either way.",
+    "If your book is off these prices, pass or wait.",
+  ];
+  return true;
+}
+
+/**
  * Rewrite structured take when the model violates slate/identity/preseason/suitcase rules.
  * @param {{
  *   question?: string,
@@ -666,16 +807,48 @@ export function applyNflAskGuard(opts = {}) {
   // Always rewrite when the suitcase says no ticket — even if the model already
   // returned PASS with a broken / parse-fail lean. Draft/futures stay exempt.
   if (suitcase.forcePass && phase !== "draft" && phase !== "futures") {
-    const reason = suitcase.noLiveProp ? "no_live_prop" : "suitcase_red";
-    codes.push(reason);
-    rewriteStructuredToPass(structured, reason, undefined, question);
+    const marketId = String(suitcase.detected?.marketId || "");
+    if (marketId === "props_board" && propLines.length > 0) {
+      // Live board present — do not PASS; recovery below will ship tickets.
+      codes.push("props_board_forcepass_bypass");
+    } else if (marketId === "props_board") {
+      codes.push("props_board_scout");
+      const scout = buildNflPropsBoardScoutTake({ question, games, briefcase: opts.briefcase });
+      Object.assign(structured, scout);
+    } else {
+      const reason = suitcase.noLiveProp ? "no_live_prop" : "suitcase_red";
+      codes.push(reason);
+      rewriteStructuredToPass(structured, reason, undefined, question);
+    }
+  }
+
+  // Broad "best props" asks with a live board: always ship tickets, even if the
+  // model PASSed or the suitcase briefly marked noLiveProp (AN key alias gaps).
+  if (
+    String(suitcase.detected?.marketId || "") === "props_board" &&
+    propLines.length > 0 &&
+    (String(structured.call || "").toUpperCase() === "PASS" ||
+      String(structured.call || "").toUpperCase() === "WAIT FOR PROPS" ||
+      codes.includes("props_board_forcepass_bypass") ||
+      /no posted lines|prop board is thin|not populated/i.test(
+        `${structured.lean || ""} ${structured.whyNow || ""}`,
+      ))
+  ) {
+    if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
+      codes.push("props_board_force_recover");
+    }
   }
 
   const conflict = detectNflCallBodyConflict(
     String(structured.call || ""),
     `${structured.lean || ""} ${structured.edge || ""} ${analysis.matchupAnalysis || ""} ${analysis.statisticalEdge || ""}`,
   );
-  if (conflict && String(structured.call || "").toUpperCase() !== "PASS") {
+  if (
+    conflict &&
+    String(structured.call || "").toUpperCase() !== "PASS" &&
+    !codes.includes("props_board_force_recover") &&
+    !codes.includes("props_board_recover")
+  ) {
     codes.push("call_body_conflict");
     rewriteStructuredToPass(structured, "call_body_conflict");
   }
@@ -686,78 +859,10 @@ export function applyNflAskGuard(opts = {}) {
     const invented = detectNflInventedLine(cited, posted);
     if (invented && (posted.length === 0 || invented.invented)) {
       const marketId = String(suitcase.detected?.marketId || "");
-      // Broad "best player props" asks: recover from live GOAT rows instead of blank PASS.
+      // Broad "best player props" asks: recover from live board rows instead of blank PASS.
       if (marketId === "props_board" && propLines.length > 0) {
-        codes.push("props_board_recover");
-        /** @type {Set<string>} */
-        const scope = new Set();
-        /** @type {Array<string|number>} */
-        const eventIds = [];
-        for (const g of games) {
-          const home = String(g?.homeAbbr || "").toUpperCase().trim();
-          const away = String(g?.awayAbbr || "").toUpperCase().trim();
-          if (home) scope.add(home);
-          if (away) scope.add(away);
-          if (g?.providerGameId != null) eventIds.push(g.providerGameId);
-          if (g?.eventId != null) eventIds.push(g.eventId);
-        }
-        /** @type {string[]} */
-        const rosterNames = [];
-        const rosters = opts.briefcase?.league?.rostersByTeam;
-        if (rosters && typeof rosters === "object" && scope.size) {
-          for (const ab of scope) {
-            const list = rosters[ab] || rosters[String(ab).toUpperCase()] || [];
-            for (const p of Array.isArray(list) ? list : []) {
-              const name = String(p?.name || p?.player || "").trim();
-              if (name) rosterNames.push(name);
-            }
-          }
-        }
-        const top = pickNflPropsBoardTickets(propLines, {
-          scope,
-          eventIds,
-          rosterNames,
-          question,
-          maxTickets: 4,
-        });
-        if (top.length) {
-          const primary = top[0];
-          const propLabel = String(primary.prop || primary.propRaw || "prop").trim();
-          const bookLabel = formatNflBookLabel(String(primary.book || ""));
-          const ticketLine = (p) => {
-            const pl = String(p.prop || p.propRaw || "prop").trim();
-            const bk = formatNflBookLabel(String(p.book || ""));
-            return `${p.player} ${pl} ${p.line} (${bk})`;
-          };
-          const numbered = top.map((p, i) => `${i + 1}. ${ticketLine(p)}`).join("\n");
-          const primaryTicket = ticketLine(primary);
-          structured.sport = "NFL";
-          structured.call = `${primary.player} ${propLabel} ${primary.line}`;
-          structured.callType = "prop";
-          structured.confidence = "Speculative";
-          // Keep lean short for the card face — full board list lives in whyNow.
-          structured.lean = `Lean: Start with ${primary.player} ${propLabel} ${primary.line} at ${bookLabel}.`;
-          structured.whyNow = [
-            `I'd put one ticket on ${primaryTicket}.`,
-            "",
-            "Other live numbers on this game worth a look:",
-            numbered,
-            "",
-            "Grab one of those posted prices and move on — Speculative, not a lock.",
-          ].join("\n");
-          structured.edge = `Action: bet ${primaryTicket} if you want a single shot tonight. Skip stacking until you like the price better.`;
-          structured.analysis = {
-            matchupAnalysis: `Cleanest live ticket on the board is ${primaryTicket}.`,
-            injuryContext: "Confirm inactives before you lock anything.",
-            marketContext: `Live props on this matchup:\n${numbered}`,
-            lineMovement: "Stick to a posted book number.",
-            statisticalEdge: "Board + matchup only. No smash case baked in.",
-          };
-          structured.caveats = [
-            "These are live book numbers — Speculative until you shop juice.",
-            "Game script can kill pass volume either way.",
-            "If your book is off these prices, pass or wait.",
-          ];
+        if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
+          codes.push("props_board_recover");
         } else {
           codes.push("invented_line");
           rewriteStructuredToPass(structured, "invented_line", undefined, question);

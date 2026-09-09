@@ -10,6 +10,7 @@ import {
   auditBriefcasePropCatalogCoverage,
   detectNflAskMarket,
   evaluateBriefcaseForInteraction,
+  countBriefcasePropsMatching,
   buildNflTop25ExpertisePromptBlock,
 } from "./nflGoatExtractionContract.js";
 import { normalizeNflBdlPlayerPropRows } from "../api/_nflBdl.js";
@@ -192,6 +193,48 @@ test("resolveNflPropsWireMarket passes through unknown AN keys", () => {
   assert.equal(resolveNflPropsWireMarket("core_bet_type_99_solo_tackles"), "solo_tackles");
   assert.equal(resolveNflPropsWireMarket("core_bet_type_12_forced_fumbles"), "forced_fumbles");
   assert.equal(resolveNflPropsWireMarket("garbage"), null);
+});
+
+test("countBriefcasePropsMatching maps AN pass_yds to passing_yards hints", () => {
+  const match = countBriefcasePropsMatching(
+    {
+      slate: {
+        playerProps: [
+          { player: "Drake Maye", propRaw: "pass_yds", line: 232.5 },
+          { player: "JSN", propRaw: "rec_yds", line: 82.5 },
+        ],
+      },
+    },
+    ["passing_yards", "receiving_yards", "receptions"],
+  );
+  assert.equal(match.matched, 2);
+  assert.ok(match.sampleTypes.includes("passing_yards"));
+});
+
+test("props_board with AN wire props does not forcePass", () => {
+  const q = "Best player props for patriots vs Seahawks?";
+  const evaled = evaluateBriefcaseForInteraction(
+    {
+      slate: {
+        games: [{ awayAbbr: "NE", homeAbbr: "SEA" }],
+        odds: [{ line: 44.5 }],
+        playerProps: [
+          {
+            player: "Drake Maye",
+            propRaw: "pass_yds",
+            line: 232.5,
+            overOdds: -110,
+            underOdds: -110,
+          },
+        ],
+      },
+      league: { injuries: [{ player: "X" }], rostersByTeam: { NE: [] } },
+    },
+    q,
+  );
+  assert.equal(evaled.forcePass, false);
+  assert.equal(evaled.noLiveProp, false);
+  assert.ok(evaled.propMatch.matched >= 1);
 });
 
 test("normalizeNflBdlPlayerPropRows maps over_under + milestone", () => {

@@ -115,6 +115,31 @@ function scorePropRow(row, tokens, hints) {
 }
 
 /**
+ * Drop prop rows for players not on the scoped team rosters (AN sometimes
+ * attaches wrong-team names to a game).
+ * @param {Array<Record<string, unknown>>} props
+ * @param {Set<string>|string[]} rosterNames
+ */
+export function filterNflPropsToRoster(props, rosterNames) {
+  const names = new Set(
+    [...(rosterNames instanceof Set ? rosterNames : rosterNames || [])]
+      .map(normalizePlayerKey)
+      .filter(Boolean),
+  );
+  if (!names.size) return Array.isArray(props) ? props : [];
+  const rows = Array.isArray(props) ? props : [];
+  const hit = rows.filter((p) => {
+    const key = normalizePlayerKey(p?.player);
+    if (!key) return false;
+    if (names.has(key)) return true;
+    const last = key.split(" ").pop();
+    return Boolean(last && [...names].some((n) => n === last || n.endsWith(` ${last}`)));
+  });
+  // Sparse roster snapshots should not wipe a live board.
+  return hit.length >= 3 ? hit : rows;
+}
+
+/**
  * @param {Array<Record<string, unknown>>} props
  * @param {{ scope?: Set<string>|string[], question?: string, maxRows?: number }} [opts]
  */

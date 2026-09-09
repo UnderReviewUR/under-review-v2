@@ -592,26 +592,73 @@ export function detectNflAskMarket(question) {
 
 /**
  * Count props in briefcase matching type hints (loose).
+ * Action Network wire ids (`pass_yds`) must match GOAT/Ask hints (`passing_yards`).
  * @param {ReturnType<typeof createEmptyNflGoatBriefcase>} briefcase
  * @param {string[]} propTypeHints
  */
 export function countBriefcasePropsMatching(briefcase, propTypeHints) {
-  const hints = (propTypeHints || []).map((h) => String(h).toLowerCase().replace(/\s+/g, "_"));
+  const hints = (propTypeHints || []).map((h) => canonicalizeNflPropTypeKey(h)).filter(Boolean);
   if (!hints.length) return { matched: 0, sampleTypes: [] };
   const rows = Array.isArray(briefcase?.slate?.playerProps) ? briefcase.slate.playerProps : [];
   /** @type {Set<string>} */
   const sample = new Set();
   let matched = 0;
   for (const row of rows) {
-    const raw = String(row.propRaw || row.prop_type || row.prop || "")
-      .toLowerCase()
-      .replace(/\s+/g, "_");
-    if (hints.some((h) => raw.includes(h) || h.includes(raw))) {
+    const raw = canonicalizeNflPropTypeKey(row.propRaw || row.prop_type || row.prop || "");
+    if (!raw) continue;
+    if (hints.some((h) => raw === h || raw.includes(h) || h.includes(raw))) {
       matched += 1;
-      if (raw) sample.add(raw);
+      sample.add(raw);
     }
   }
   return { matched, sampleTypes: [...sample].slice(0, 8) };
+}
+
+/**
+ * Normalize AN / BDL / Ask prop market keys onto one vocabulary.
+ * @param {string} raw
+ */
+export function canonicalizeNflPropTypeKey(raw) {
+  let t = String(raw || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_");
+  if (!t) return "";
+  const aliases = {
+    pass_yds: "passing_yards",
+    pass_yards: "passing_yards",
+    passing_yds: "passing_yards",
+    pass_tds: "passing_tds",
+    pass_td: "passing_tds",
+    passing_td: "passing_tds",
+    passing_touchdowns: "passing_tds",
+    rush_yds: "rushing_yards",
+    rush_yards: "rushing_yards",
+    rushing_yds: "rushing_yards",
+    rush_tds: "rushing_tds",
+    rushing_td: "rushing_tds",
+    rec_yds: "receiving_yards",
+    rec_yards: "receiving_yards",
+    receiving_yds: "receiving_yards",
+    rec_tds: "receiving_tds",
+    receiving_td: "receiving_tds",
+    receptions: "receptions",
+    recs: "receptions",
+    receiving_receptions: "receptions",
+    anytime_touchdown: "anytime_td",
+    anytime_touchdown_scorer: "anytime_td",
+    touchdown_scorer: "anytime_td",
+    half_sacks: "sacks",
+    sack: "sacks",
+  };
+  if (aliases[t]) return aliases[t];
+  // core_bet_type_9_passing_yards → passing_yards
+  const core = t.match(/^core_bet_type_\d+_(.+)$/);
+  if (core) {
+    return canonicalizeNflPropTypeKey(core[1]);
+  }
+  return t;
 }
 
 /**
@@ -627,11 +674,18 @@ export function evaluateBriefcaseForInteraction(briefcase, question = "") {
   const presence = audit.fields;
   const missingNeeded = detected.neededPaths.filter((p) => !presence[p]);
   const propMatch = countBriefcasePropsMatching(briefcase, detected.propTypeHints);
-
+  const pricedPropRows = (
+    Array.isArray(briefcase?.slate?.playerProps) ? briefcase.slate.playerProps : []
+  ).filter((r) => r && r.line != null && (r.underOdds != null || r.overOdds != null));
+  // Broad board asks: any priced matchup props count as live (alias gaps must not force PASS).
+  const noLiveProp = Boolean(
+    detected.propTypeHints.length &&
+      propMatch.matched === 0 &&
+      !(detected.marketId === "props_board" && pricedPropRows.length > 0),
+  );
   const alwaysPaths = NFL_BRIEFCASE_POCKETS.filter((p) => p.alwaysLoad).map((p) => p.path);
   const alwaysMissing = alwaysPaths.filter((p) => !presence[p]);
 
-  const noLiveProp = Boolean(detected.propTypeHints.length && propMatch.matched === 0);
   const priced =
     detected.propTypeHints.length > 0 ||
     detected.marketId === "spread" ||

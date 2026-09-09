@@ -460,3 +460,102 @@ test("props_board recover is casual with clear action and drops wrong-team cavea
   assert.ok(Array.isArray(structured.caveats));
   assert.ok(!structured.caveats.some((c) => /Kupp|Darnold/i.test(String(c))));
 });
+
+test("props_board force-recovers thin PASS when AN pass_yds lines exist", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "what is the best player props for the seahawks and patriots game?",
+    structured: {
+      call: "PASS",
+      lean: "Lean: Pass. Live prop board is thin and no posted lines in payload for SEA-NE matchup.",
+      whyNow: "Props board exists but specific SEA-NE player lines are not populated.",
+      confidence: "Medium",
+    },
+    games: [
+      {
+        awayAbbr: "NE",
+        homeAbbr: "SEA",
+        providerGameId: 1,
+        total: { line: 44.5 },
+        spread: { displayLine: "SEA -3.5" },
+      },
+    ],
+    propLines: [
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "pass yards",
+        propRaw: "pass_yds",
+        line: 232.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Jaxon Smith-Njigba",
+        team: "SEA",
+        prop: "rec yards",
+        propRaw: "rec_yds",
+        line: 82.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: {
+      grade: "yellow",
+      detected: {
+        marketId: "props_board",
+        propTypeHints: ["passing_yards", "receiving_yards"],
+      },
+      propMatch: { matched: 2 },
+      forcePass: false,
+      league: {
+        rostersByTeam: {
+          NE: [{ name: "Drake Maye" }],
+          SEA: [{ name: "Jaxon Smith-Njigba" }],
+        },
+      },
+    },
+  });
+  assert.ok(codes.includes("props_board_force_recover"));
+  assert.match(String(structured.lean), /Drake Maye/i);
+  assert.match(String(structured.edge), /^Action:/i);
+  assert.doesNotMatch(String(structured.call), /^PASS$/i);
+});
+
+test("props_board scout when no live props at all", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "Best player props for patriots vs Seahawks?",
+    structured: {
+      call: "PASS",
+      lean: "Lean: Pass.",
+      confidence: "Medium",
+    },
+    games: [
+      {
+        awayAbbr: "NE",
+        homeAbbr: "SEA",
+        total: { line: 44.5 },
+        spread: { displayLine: "SEA -3.5" },
+      },
+    ],
+    propLines: [],
+    briefcase: {
+      grade: "red",
+      detected: { marketId: "props_board", propTypeHints: ["passing_yards"] },
+      propMatch: { matched: 0 },
+      forcePass: true,
+      noLiveProp: true,
+    },
+  });
+  assert.ok(codes.includes("props_board_scout") || codes.includes("no_live_prop"));
+  if (codes.includes("props_board_scout")) {
+    assert.match(String(structured.lean), /Wait for the prop board/i);
+    assert.match(String(structured.edge), /^Action:/i);
+    assert.match(String(structured.whyNow), /44\.5|SEA -3\.5|Game frame/i);
+  }
+});

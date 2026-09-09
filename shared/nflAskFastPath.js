@@ -16,10 +16,18 @@ export function isNflScopedPropFastPath(question) {
       lower,
     ) || /\b\d+(\.\d+)?\b/.test(lower);
   const hasMatchup = /\b[A-Z]{2,4}\s*@\s*[A-Z]{2,4}\b/.test(q);
-  const hasBetVerb = /\b(over|under|fade|lean|take|pass|play|hammer|love|hate|spread|total|ml|moneyline|dog)\b/.test(
+  const hasTeamMatchup =
+    /\b(patriots|seahawks|chiefs|bills|cowboys|eagles|49ers|niners|ravens|bengals|lions|packers|bears|rams|chargers|raiders|broncos|dolphins|jets|giants|commanders|saints|falcons|panthers|buccaneers|bucs|vikings|browns|steelers|titans|jaguars|colts|texans|cardinals)\b/.test(
+      lower,
+    ) && /\b(vs\.?|versus|at|@)\b/.test(lower);
+  const hasBetVerb = /\b(over|under|fade|lean|take|pass|play|hammer|love|hate|spread|total|ml|moneyline|dog|best)\b/.test(
     lower,
   );
-  return (hasMatchup && (hasPropSignal || hasBetVerb)) || (hasBetVerb && hasPropSignal);
+  return (
+    (hasMatchup && (hasPropSignal || hasBetVerb)) ||
+    (hasTeamMatchup && hasPropSignal) ||
+    (hasBetVerb && hasPropSignal)
+  );
 }
 
 export const NFL_UR_TAKE_FAST_MODEL_DEFAULT = "claude-haiku-4-5-20251001";
