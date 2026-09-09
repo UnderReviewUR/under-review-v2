@@ -129,6 +129,18 @@ test("detectNflAskMarket routes best player props to props_board", () => {
   assert.ok(m.propTypeHints.includes("passing_tds"));
 });
 
+test("detectNflAskMarket forgives typos and best-bets phrasing", () => {
+  assert.equal(
+    detectNflAskMarket("best playre propes for seahaks vs patroits?").marketId,
+    "props_board",
+  );
+  assert.equal(
+    detectNflAskMarket("what are the best bets for the seahawks and patriots game?").marketId,
+    "props_board",
+  );
+  assert.equal(detectNflAskMarket("Mahomes pass yards").marketId, "pass_yds");
+});
+
 test("detectNflAskMarket routes over 42.5 as game total and who-wins as opinion", () => {
   assert.equal(detectNflAskMarket("NE @ SEA over 42.5?").marketId, "total");
   assert.equal(detectNflAskMarket("Who wins NE @ SEA?").marketId, "opinion");

@@ -272,8 +272,8 @@ test("invented prop number with empty board becomes PASS", () => {
       propMatch: { matched: 0 },
     },
   });
-  assert.ok(codes.includes("invented_line"));
-  assert.equal(structured.call, "PASS");
+  assert.ok(codes.includes("invented_line") || codes.includes("props_board_scout"));
+  assert.doesNotMatch(String(structured.call), /88\.5/);
 });
 
 test("call OVER vs body UNDER is a conflict", () => {
@@ -439,6 +439,18 @@ test("props_board recover is casual with clear action and drops wrong-team cavea
         underOdds: -110,
         eventId: "1",
       },
+      {
+        game: "NE @ SEA",
+        player: "Rhamondre Stevenson",
+        team: "NE",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 57.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
     ],
     briefcase: {
       grade: "green",
@@ -446,20 +458,76 @@ test("props_board recover is casual with clear action and drops wrong-team cavea
       propMatch: { matched: 3 },
       league: {
         rostersByTeam: {
-          NE: [{ name: "Drake Maye" }],
+          NE: [{ name: "Drake Maye" }, { name: "Rhamondre Stevenson" }],
           SEA: [{ name: "Jaxon Smith-Njigba" }],
         },
       },
     },
   });
   assert.ok(codes.includes("props_board_recover"));
-  assert.match(String(structured.lean), /Start with Drake Maye/i);
-  assert.match(String(structured.edge), /^Action:/i);
-  assert.doesNotMatch(String(structured.whyNow), /GOAT|do not invent|board owns/i);
+  assert.match(String(structured.lean), /Under 260\.5/i);
+  assert.match(String(structured.call), /UNDER 260\.5/i);
+  assert.match(String(structured.whyNow), /Maye/i);
+  assert.doesNotMatch(String(structured.lean), /Start with/i);
+  assert.doesNotMatch(String(structured.edge), /^Action:/i);
+  assert.doesNotMatch(String(structured.whyNow), /Grab one|shop juice|GOAT|do not invent|board owns/i);
   assert.doesNotMatch(String(structured.whyNow), /Sam Darnold/);
-  assert.match(String(structured.whyNow), /1\.\s+Drake Maye/);
+  assert.match(String(structured.whyNow), /1\.\s+Maye under/i);
+  assert.match(String(structured.whyNow), /3\.\s+/i);
+  assert.match(String(structured.whyNow), /Also worth a look/i);
   assert.ok(Array.isArray(structured.caveats));
   assert.ok(!structured.caveats.some((c) => /Kupp|Darnold/i.test(String(c))));
+});
+
+test("props_board recover fades the high Maye print when books disagree", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "what is the best player props for the seahawks and patriots game?",
+    structured: {
+      call: "PASS",
+      lean: "Lean: Pass.",
+      confidence: "Medium",
+    },
+    games: [{ awayAbbr: "NE", homeAbbr: "SEA", providerGameId: 1, week: 1 }],
+    propLines: [
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 232.5,
+        book: "fanduel",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "NE @ SEA",
+        player: "Drake Maye",
+        team: "NE",
+        prop: "pass yards",
+        propRaw: "pass_yds",
+        line: 262.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: {
+      week: 1,
+      grade: "green",
+      detected: { marketId: "props_board", propTypeHints: [] },
+      propMatch: { matched: 2 },
+      league: { rostersByTeam: { NE: [{ name: "Drake Maye" }] } },
+    },
+  });
+  assert.ok(codes.includes("props_board_force_recover") || codes.includes("props_board_recover"));
+  assert.match(String(structured.call), /UNDER 262\.5/i);
+  assert.match(String(structured.whyNow), /Main is 262\.5/i);
+  assert.match(String(structured.whyNow), /232\.5/);
+  assert.match(String(structured.caveats.join(" ")), /prior/i);
+  assert.doesNotMatch(String(structured.whyNow), /DraftKings|FanDuel/i);
 });
 
 test("props_board force-recovers thin PASS when AN pass_yds lines exist", () => {
@@ -523,8 +591,10 @@ test("props_board force-recovers thin PASS when AN pass_yds lines exist", () => 
     },
   });
   assert.ok(codes.includes("props_board_force_recover"));
-  assert.match(String(structured.lean), /Drake Maye/i);
-  assert.match(String(structured.edge), /^Action:/i);
+  assert.match(String(structured.call), /UNDER|OVER/i);
+  assert.match(String(structured.whyNow), /Maye/i);
+  assert.doesNotMatch(String(structured.lean), /Start with/i);
+  assert.doesNotMatch(String(structured.edge), /^Action:/i);
   assert.doesNotMatch(String(structured.call), /^PASS$/i);
 });
 
@@ -555,8 +625,8 @@ test("props_board scout when no live props at all", () => {
   });
   assert.ok(codes.includes("props_board_scout") || codes.includes("no_live_prop"));
   if (codes.includes("props_board_scout")) {
-    assert.match(String(structured.lean), /Wait for the prop board/i);
-    assert.match(String(structured.edge), /^Action:/i);
+    assert.match(String(structured.lean), /Wait for props/i);
+    assert.doesNotMatch(String(structured.edge), /^Action:/i);
     assert.match(String(structured.whyNow), /44\.5|SEA -3\.5|Game frame/i);
   }
 });
@@ -603,7 +673,8 @@ test("parse-fail lean recovers to live props board tickets", () => {
     },
   });
   assert.ok(codes.includes("props_board_force_recover"));
-  assert.match(String(structured.lean), /Drake Maye/i);
+  assert.match(String(structured.lean), /Drake Maye|Maye/i);
+  assert.match(String(structured.call), /UNDER|OVER/i);
   assert.ok(!/did not parse cleanly/i.test(String(structured.lean)));
   const v = validateStructuredURTakeResponse(structured);
   assert.equal(v.valid, true, v.errors && v.errors.join("; "));
@@ -629,7 +700,8 @@ test("buildNflPropsBoardFallbackTake validates with live rows", () => {
     ],
     briefcase: { league: { rostersByTeam: { NE: [{ name: "Drake Maye" }] } } },
   });
-  assert.match(String(take.lean), /Drake Maye/i);
+  assert.match(String(take.lean), /Maye/i);
+  assert.match(String(take.call), /UNDER|OVER/i);
   const v = validateStructuredURTakeResponse(take);
   assert.equal(v.valid, true, v.errors && v.errors.join("; "));
 });

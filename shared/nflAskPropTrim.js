@@ -354,6 +354,193 @@ export function formatNflBookLabel(book) {
 }
 
 /**
+ * Collapse prop aliases so pass_yds and passing_yards count as the same market.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+export function nflPropMarketKey(row) {
+  const raw = `${row?.propRaw || ""} ${row?.prop || ""}`.toLowerCase();
+  if (/pass/.test(raw) && /td|touch/.test(raw)) return "pass_tds";
+  if (/pass/.test(raw) && /yd|yard/.test(raw)) return "pass_yds";
+  if (/rush/.test(raw) && /(long|longest)/.test(raw)) return "rush_long";
+  if (/rush/.test(raw) && /yd|yard/.test(raw)) return "rush_yds";
+  if (/(rec|receiv)/.test(raw) && /td|touch/.test(raw)) return "rec_tds";
+  if (/(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rec_yds";
+  return String(row?.propRaw || row?.prop || "prop")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function shortPlayerLast(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  return parts[parts.length - 1] || String(name || "this player");
+}
+
+function otherBookLines(unique, line) {
+  const others = unique.filter((n) => n !== Number(line)).sort((a, b) => a - b);
+  if (!others.length) return String(line);
+  return others.join("/");
+}
+
+/**
+ * Every prop ticket needs Over or Under. When books disagree, fade the high print
+ * and buy the low print. Else take the less-juiced side. Opener week defaults under.
+ *
+ * @param {Record<string, unknown>} row
+ * @param {Array<Record<string, unknown>>} [allRows]
+ * @param {{ openerWeek?: boolean }} [opts]
+ * @returns {{ side: "Over"|"Under", why: string }}
+ */
+export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
+  const openerWeek = Boolean(opts.openerWeek);
+  const line = Number(row?.line);
+  const player = normalizePlayerKey(row?.player);
+  const market = nflPropMarketKey(row);
+  const unique = [
+    ...new Set(
+      (allRows || [])
+        .filter((p) => normalizePlayerKey(p?.player) === player && nflPropMarketKey(p) === market)
+        .map((p) => Number(p.line))
+        .filter((n) => Number.isFinite(n)),
+    ),
+  ];
+  if (Number.isFinite(line) && unique.length >= 2) {
+    const hi = Math.max(...unique);
+    const lo = Math.min(...unique);
+    if (hi - lo >= 1) {
+      const range = `Main is ${line}, other books ${otherBookLines(unique, line)}.`;
+      if (line >= hi - 0.05) {
+        return { side: "Under", why: `${range} That's the high number.` };
+      }
+      if (line <= lo + 0.05) {
+        return { side: "Over", why: `${range} That's the cheap number.` };
+      }
+    }
+  }
+  const over = Number(row?.overOdds);
+  const under = Number(row?.underOdds);
+  if (Number.isFinite(over) && Number.isFinite(under) && over !== under) {
+    if (over > under) return { side: "Over", why: "Over is hanging the better price." };
+    return { side: "Under", why: "Under is hanging the better price." };
+  }
+  if (openerWeek) {
+    return {
+      side: "Under",
+      why: "First week — I wouldn't pay the posted over without a role lock.",
+    };
+  }
+  return { side: "Under", why: "No smash over at this number." };
+}
+
+/**
+ * Prefer the highest print for a player+market so the take can fade it.
+ * @param {Array<Record<string, unknown>>} picked
+ * @param {Array<Record<string, unknown>>} allRows
+ */
+export function preferHighPrintPrimary(picked, allRows = []) {
+  if (!picked.length) return picked;
+  const primary = picked[0];
+  const player = normalizePlayerKey(primary?.player);
+  const market = nflPropMarketKey(primary);
+  const same = (allRows || []).filter(
+    (p) => normalizePlayerKey(p?.player) === player && nflPropMarketKey(p) === market && Number.isFinite(Number(p.line)),
+  );
+  if (same.length < 2) return picked;
+  const high = same.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), primary);
+  if (high === primary) return picked;
+  return [high, ...picked.filter((row) => row !== high)];
+}
+
+function prettyPropLabel(row) {
+  return String(row?.prop || row?.propRaw || "prop")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Numbered 3–5 sided tickets for a “best props” ask.
+ * @param {Array<Record<string, unknown>>} rows
+ * @param {Array<Record<string, unknown>>} allRows
+ * @param {boolean} openerWeek
+ */
+export function formatNflSidedPropBoardList(rows, allRows = [], openerWeek = false) {
+  return (rows || [])
+    .map((row, i) => {
+      const t = inferNflPropTicketSide(row, allRows, { openerWeek });
+      const last = shortPlayerLast(row.player);
+      return `${i + 1}. ${last} ${t.side.toLowerCase()} ${row.line} (${prettyPropLabel(row)})`;
+    })
+    .join("\n");
+}
+
+/**
+ * Friend-text copy: one primary Over/Under plus a sided 3–5 board.
+ * @param {{
+ *   primary: Record<string, unknown>,
+ *   allRows?: Array<Record<string, unknown>>,
+ *   boardRows?: Array<Record<string, unknown>>,
+ *   openerWeek?: boolean,
+ * }} opts
+ */
+export function buildNflSidedPropRecoverCopy(opts) {
+  const primary = opts.primary;
+  const allRows = opts.allRows || [];
+  const openerWeek = Boolean(opts.openerWeek);
+  const ticket = inferNflPropTicketSide(primary, allRows, { openerWeek });
+  const last = shortPlayerLast(primary.player);
+  const line = primary.line;
+  const propLabel = prettyPropLabel(primary);
+  const shortWhy =
+    ticket.side === "Under"
+      ? openerWeek
+        ? "high number in an opener."
+        : "that's the high number."
+      : openerWeek
+        ? "cheap number in an opener."
+        : "that's the cheap number.";
+  const lean = `Lean: ${ticket.side} ${line}. ${last} — ${shortWhy}`.slice(0, 120);
+  const call = `${last.toUpperCase()} ${ticket.side.toUpperCase()} ${line}`;
+  const openerLine = openerWeek
+    ? "First week — last year's D is a prior, not this year's rank."
+    : "If your book's number is different, the side can flip.";
+  const boardRows = (opts.boardRows || []).filter(Boolean);
+  const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek);
+  const whyNow = [
+    `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
+    "",
+    ticket.why,
+    openerWeek ? "I'd rather see a cheaper number if you can get it." : "",
+    list
+      ? `\nAlso worth a look:\n${list}\n\nOne ticket first. Speculative.`
+      : "",
+  ]
+    .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return {
+    ticket,
+    lean,
+    call,
+    callType: "prop",
+    confidence: "Speculative",
+    whyNow,
+    edge: `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
+    analysis: {
+      matchupAnalysis: `${last} ${propLabel} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
+      injuryContext: "Check inactives before you lock it.",
+      marketContext: list || ticket.why,
+      lineMovement: "Stick to a posted number. Don't invent movement.",
+      statisticalEdge: openerLine,
+    },
+    caveats: [
+      openerLine,
+      "If your number is a lot lower, the under gets worse.",
+    ],
+  };
+}
+
+/**
  * @param {string} name
  */
 export function normalizePlayerKey(name) {
@@ -408,7 +595,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       .map(normalizePlayerKey)
       .filter(Boolean),
   );
-  const maxTickets = Math.max(2, Math.min(Number(opts.maxTickets) || 4, 6));
+  const maxTickets = Math.max(2, Math.min(Number(opts.maxTickets) || 5, 6));
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
 

@@ -1,4 +1,5 @@
 import { inferSportFromQuestionText } from "../../shared/urTakeSportRouting.js";
+import { normalizeNflAskQuestion } from "../../shared/nflAskNormalize.js";
 import { normalizeText } from "./normalizeText.js";
 
 const SPORT_TABS = new Set(["nba", "mlb", "nfl", "cfb", "laliga", "golf", "tennis", "f1", "worldcup"]);
@@ -321,7 +322,7 @@ export function detectWtaFromQuestion(question) {
 }
 
 export function detectNflTeamHint(question) {
-  const q = normalizeText(question);
+  const q = normalizeNflAskQuestion(question).toLowerCase();
   if (!q) return null;
   const keys = Object.keys(NFL_TEAM_NAMES).sort((a, b) => b.length - a.length);
   for (const key of keys) {

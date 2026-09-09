@@ -263,3 +263,19 @@ test("normalizePlayerKey collapses A.J. / AJ initials", async () => {
   assert.equal(normalizePlayerKey("AJ Brown"), "aj brown");
   assert.equal(normalizePlayerKey("A J Brown"), "aj brown");
 });
+
+test("inferNflPropTicketSide fades the high print when books disagree", async () => {
+  const { inferNflPropTicketSide, preferHighPrintPrimary } = await import("./nflAskPropTrim.js");
+  const rows = [
+    { player: "Drake Maye", prop: "passing yards", propRaw: "passing_yards", line: 232.5, overOdds: -110, underOdds: -110 },
+    { player: "Drake Maye", prop: "pass yards", propRaw: "pass_yds", line: 262.5, overOdds: -110, underOdds: -110 },
+  ];
+  const high = inferNflPropTicketSide(rows[1], rows, { openerWeek: true });
+  assert.equal(high.side, "Under");
+  assert.match(high.why, /Main is 262\.5/);
+  assert.match(high.why, /232\.5/);
+  const cheap = inferNflPropTicketSide(rows[0], rows);
+  assert.equal(cheap.side, "Over");
+  const picked = preferHighPrintPrimary([rows[0]], rows);
+  assert.equal(picked[0].line, 262.5);
+});

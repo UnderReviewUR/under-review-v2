@@ -288,6 +288,9 @@ export function buildNflAskDisciplinePromptBlock(opts = {}) {
     "Data vintage lanes (never blur): (1) live board line + injuries/depth + recent/season stats = PRIMARY call, (2) role/volume prior = silent support only, (3) static season O/U = fallback. Never present prior-season box scores as \"this season\" unless labeled current.",
     "CITATION BAN (user-facing): Never name BallDontLie, BDL, GOAT, Action Network, Mike Clay, ESPN Fantasy, or other vendors/analysts. Argue the line, usage, role, and injuries in plain football.",
     "ONE CALL: one lean, one number, one reason. If role prior and live usage disagree, live usage + posted line win — describe the gap without dual-sourcing.",
+    "TICKET DIRECTION: props and totals must say Over or Under (spreads/ML a side). If books disagree, fade the high print / buy the low print. Week 1–3 ranks are last-year priors, not this year’s ELITE/WORST stamp. Cap Speculative.",
+    "VOICE: friend texting, not a press release. Example: “I’d take Maye under 262.5. That’s the high book. First week — small.” Forbidden: “Grab one of those posted prices”, “Action: bet”, “shop juice”.",
+    "BEST PROPS / BEST BETS: if they asked for the board (including typos), lead with one sided ticket then list 3–5 more with Over/Under. Read messy asks generously.",
     "Exotics (race to X, exact margin, coin toss, method): know them → answer if asked → mark lottery/novelty → do not steal airtime from the primary lean.",
   ];
 
@@ -303,7 +306,7 @@ export function buildNflAskDisciplinePromptBlock(opts = {}) {
   }
   if (opts.bookDisagree?.disagree) {
     lines.push(
-      `BOOK DISAGREEMENT: lines span ${opts.bookDisagree.min}–${opts.bookDisagree.max} (Δ ${opts.bookDisagree.spread}). Cite the range; prefer shopping / best number over pretending one consensus.`,
+      `BOOK DISAGREEMENT: lines span ${opts.bookDisagree.min}–${opts.bookDisagree.max} (Δ ${opts.bookDisagree.spread}). Cite the range. High print → Under. Low print → Over. Do not leave the ticket unsided.`,
     );
   }
   if (opts.seasonTypeWarning) {

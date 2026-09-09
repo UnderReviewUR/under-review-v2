@@ -3,6 +3,8 @@
  * Suitcase health is a grade. This packet is the evidence.
  */
 
+import { isNflOpenerWeek } from "./nflAskComposeRule.js";
+
 /**
  * @param {string} name
  * @param {string} question
@@ -243,10 +245,16 @@ export function formatNflGoatAnalystPacket(opts = {}) {
   const openingOdds = formatOdds(briefcase.slate?.openingOdds, true);
   const fantasy = formatFantasy(briefcase.fantasy?.projections, question);
 
+  const openerWeek = isNflOpenerWeek(briefcase.week);
   const blocks = [
     "NFL GOAT ANALYST PACKET (primary evidence — reason from this, then the posted line)",
     `Week ${briefcase.week ?? "?"} · ${briefcase.season ?? "?"} · source ${briefcase.primarySource || "unknown"}. Form a logical opinion on the asked market. Do not invent prices. If a pocket is empty, say so in one clause and still answer with what is here.`,
   ];
+  if (openerWeek) {
+    blocks.push(
+      "OPENER WEEK: last-year defense ranks are a prior, not this year’s rank. Do not stamp ELITE/WORST as if 2026 has settled. Ticket still needs Over or Under. Conviction cap Speculative unless role/injury is the whole story.",
+    );
+  }
 
   if (currentOdds) blocks.push(currentOdds);
   if (openingOdds) blocks.push(openingOdds);
@@ -288,7 +296,13 @@ export function formatNflGoatAnalystPacket(opts = {}) {
   }
   if (advLines.length) blocks.push("ADVANCED (support, one clause max in the take):\n" + advLines.join("\n"));
 
-  if (defense) blocks.push("LIVE TEAM DEFENSE (opp allowed):\n" + defense);
+  if (defense) {
+    blocks.push(
+      (openerWeek
+        ? "TEAM DEFENSE (last-year prior until live ranks exist):\n"
+        : "LIVE TEAM DEFENSE (opp allowed):\n") + defense,
+    );
+  }
   if (standings) blocks.push(`STANDINGS: ${standings}`);
   if (injuries.length) {
     blocks.push(

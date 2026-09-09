@@ -7,6 +7,7 @@
  */
 
 import { nflAskGradeExemptPockets } from "./nflAskComposeRule.js";
+import { looksLikeNflPropsBoardAsk, normalizeNflAskQuestion } from "./nflAskNormalize.js";
 
 /** @typedef {'core'|'props'|'futures'|'sgp'|'live'} NflBetBucket */
 
@@ -513,7 +514,31 @@ export function auditNflGoatBriefcaseCoverage(briefcase) {
  * @returns {{ marketId: string, label: string, neededPaths: string[], propTypeHints: string[] }}
  */
 export function detectNflAskMarket(question) {
-  const q = String(question || "").toLowerCase();
+  const q = normalizeNflAskQuestion(question).toLowerCase();
+  if (/\bsgp\b|\bsame[-\s]?game\s+parlay\b|\bparlay\b/.test(q) && !looksLikeNflPropsBoardAsk(q)) {
+    return {
+      marketId: "sgp",
+      label: "Same-game parlay",
+      neededPaths: ["slate.odds", "slate.playerProps", "league.injuries"],
+      propTypeHints: [],
+    };
+  }
+  if (looksLikeNflPropsBoardAsk(q)) {
+    return {
+      marketId: "props_board",
+      label: "Player props board",
+      neededPaths: ["slate.playerProps", "slate.games", "league.injuries"],
+      propTypeHints: [
+        "passing_yards",
+        "passing_tds",
+        "rushing_yards",
+        "receiving_yards",
+        "receptions",
+        "anytime_td",
+        "sacks",
+      ],
+    };
+  }
   /** @type {Array<{ id: string, label: string, re: RegExp, paths: string[], props?: string[] }>} */
   const rules = [
     // SGP first so "SGP + pass yards" does not collapse to a single prop lane.

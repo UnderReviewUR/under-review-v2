@@ -73,7 +73,8 @@ test("formatNflGoatAnalystPacket injects live stats, logs, and defense — not j
   assert.match(packet, /NFL GOAT ANALYST PACKET/);
   assert.match(packet, /Drake Maye/);
   assert.match(packet, /241/);
-  assert.match(packet, /LIVE TEAM DEFENSE/);
+  assert.match(packet, /TEAM DEFENSE \(last-year prior/);
+  assert.match(packet, /OPENER WEEK/);
   assert.match(packet, /Stevenson/);
   assert.doesNotMatch(packet, /FORCE PASS/);
 });

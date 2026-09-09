@@ -5,6 +5,7 @@
 import { inferWorldCupFromPlayerMarketQuestion, questionMentionsWorldCup } from "./wcUrTakeKeywords.js";
 import { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
 import { coerceUrAskSportToLiveSurface, isNavSportVisible } from "./siteSportVisibility.js";
+import { normalizeNflAskQuestion } from "./nflAskNormalize.js";
 
 export { UR_TAKE_CONTEXTUAL_FOLLOW_UP_MARKER } from "./urTakeFollowUpDetection.js";
 
@@ -560,7 +561,7 @@ export function hasLaligaAskLexicon(question) {
 }
 
 export function hasNflAskLexicon(question) {
-  const q = normalizeText(extractLatestUserTurnForRouting(question));
+  const q = normalizeNflAskQuestion(extractLatestUserTurnForRouting(question)).toLowerCase();
   if (!q) return false;
   if (q.includes("nfl")) return true;
   if (inferNflFromMatchupSlug(q)) return true;
@@ -583,6 +584,14 @@ export function hasNflAskLexicon(question) {
   if (
     /\bweek\s*(?:[1-9]|1[0-8]|one|two)\b/.test(q) &&
     /\b(player\s+)?props?\b/.test(q) &&
+    !hasStrongNbaOnlyLexicon(q)
+  ) {
+    return true;
+  }
+  if (
+    /\b(best\s+bets?|best\s+props?|player\s+props?)\b/.test(q) &&
+    (NFL_ONLY_NICKNAMES.some((n) => new RegExp(`\\b${n}\\b`, "i").test(q)) ||
+      inferNflFromMatchupSlug(q)) &&
     !hasStrongNbaOnlyLexicon(q)
   ) {
     return true;

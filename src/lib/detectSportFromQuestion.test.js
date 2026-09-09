@@ -47,6 +47,13 @@ test("home + Cowboys → nfl", () => {
   assert.equal(detectSportFromQuestion("Best Cowboys play this weekend?", "home"), "nfl");
 });
 
+test("home + seahaks vs patroits best bets → nfl", () => {
+  assert.equal(
+    detectSportFromQuestion("best bets for seahaks vs patroits?", "home"),
+    "nfl",
+  );
+});
+
 test("home + mock draft / big board language → nfl", () => {
   assert.equal(
     detectSportFromQuestion("Build me a mock draft big board from Pittsburgh", "home"),

@@ -13,9 +13,12 @@ import {
   nflInactivesPostedForAsk,
 } from "./nflEspnInactives.js";
 import {
-  formatNflBookLabel,
+  buildNflSidedPropRecoverCopy,
+  inferNflPropTicketSide,
   pickNflPropsBoardTickets,
+  preferHighPrintPrimary,
 } from "./nflAskPropTrim.js";
+import { isNflOpenerWeek } from "./nflAskComposeRule.js";
 
 const CONF_RANK = Object.freeze({ Speculative: 0, Medium: 1, High: 2 });
 const PRICED_MARKET_IDS = new Set(["spread", "total", "moneyline", "sgp"]);
@@ -65,10 +68,11 @@ export function isNflPricedAskMarket(detected) {
  * @param {string} [question]
  */
 export function resolveNflSuitcaseGuard(briefcase, question = "") {
+  const fromQ = detectNflAskMarket(question);
+  const briefcaseDetected =
+    briefcase?.detected && typeof briefcase.detected === "object" ? briefcase.detected : null;
   const detected =
-    briefcase?.detected && typeof briefcase.detected === "object"
-      ? briefcase.detected
-      : detectNflAskMarket(question);
+    fromQ.marketId === "props_board" ? fromQ : briefcaseDetected || fromQ;
   const grade = String(briefcase?.grade || "").toLowerCase();
   const matched = Number(briefcase?.propMatch?.matched ?? briefcase?.propMatched ?? 0);
   const noLiveProp =
@@ -141,13 +145,12 @@ export function buildNflLivePropBoardTake(opts = {}) {
   const tierRaw = String(opts.defenseTier || "").trim();
   const tier = tierRaw.toUpperCase() || "UNKNOWN";
   const defenseIsPrior = Boolean(opts.defensePrior);
+  const openerWeek = Boolean(opts.defensePrior) || isNflOpenerWeek(opts.week);
   const who = String(opts.playerName || liveLine.player || "Player").trim() || "Player";
+  const last = String(who).trim().split(/\s+/).filter(Boolean).pop() || who;
   const prop = String(liveLine.prop || liveLine.propRaw || detected.label || "prop").trim();
-  const book = String(liveLine.book || "board").trim() || "book";
   const marketLabel = String(detected.label || prop).trim() || "prop";
-  const dContext = defenseIsPrior
-    ? `${tierRaw || tier} D ('25 scoring prior — not a 2026 live sample)`
-    : `${tierRaw || tier} D`;
+  const ticket = inferNflPropTicketSide(liveLine, opts.propLines || [liveLine], { openerWeek });
 
   const tough = /\b(ELITE|TOP|LOCK|SHUT|TOUGH|GOOD|STOUT)\b/.test(tier);
   const softD = /\b(SOFT|BOTTOM|BAD|POOR|LEAKY|WORST|WEAK)\b/.test(tier);
@@ -165,22 +168,27 @@ export function buildNflLivePropBoardTake(opts = {}) {
 
   const softMarket = band === "soft" || band === "lottery";
 
-  if (softD && !tough) {
+  if (!openerWeek && softD && !tough) {
     call = `OVER ${line}`;
-    lean = `Lean: Over ${line}. ${marketLabel} vs ${tierRaw || tier} D — pay the over.`;
-    whyNow = `${who} ${prop} is live at ${line} (${book}). ${dContext} is a green light at the posted number — over is the lean.`;
-    edge = `Posted ${line} into a soft defense look. Soft markets stay speculative — this is a lean off matchup + board, not a lock.`;
-  } else if (tough || softMarket) {
-    call = `UNDER ${line}`;
-    lean = `Lean: Under ${line}. ${marketLabel} is lumpy — fade the over at ${line}.`;
-    whyNow = `${who} ${prop} is live at ${line} (${book}). ${dContext} is not a smash-over green light on a soft market — under is the one lean.`;
-    edge = `Live board is ${line}. Soft/lumpy props need a script reason to pay the over; without one, fade is the call at Speculative.`;
-    confidence = "Speculative";
+    lean = `Lean: Over ${line}. ${last} into a soft look.`;
+    whyNow = `I'd take ${last} over ${line}. Defense looks like a green light at the posted number.`;
+    edge = `I'd take the over. Don't stack it.`;
   } else {
-    call = `UNDER ${line}`;
-    lean = `Lean: Under ${line}. No smash-over case vs ${tierRaw || tier} D.`;
-    whyNow = `${who} ${prop} is live at ${line} (${book}). Matchup is not a clear over; under is the lean until script or injury flips it.`;
-    edge = `Posted ${line} without a soft-defense green light. Lean under and re-check closer to kick if the number moves.`;
+    const use = ticket;
+    call = `${use.side.toUpperCase()} ${line}`;
+    lean = `Lean: ${use.side} ${line}. ${last} — ${openerWeek ? "first week, small." : use.why}`.slice(0, 120);
+    whyNow = [
+      `I'd take ${last} ${use.side.toLowerCase()} ${line}.`,
+      "",
+      use.why,
+      openerWeek ? "Last year's D is a prior, not this year's rank." : "",
+    ]
+      .filter((s, i, arr) => s !== "" || (i > 0 && arr[i - 1] !== ""))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    edge = `I'd take the ${use.side.toLowerCase()}. Don't stack it.`;
+    if (softMarket || openerWeek) confidence = "Speculative";
   }
 
   if (lean.length > 120) {
@@ -198,22 +206,20 @@ export function buildNflLivePropBoardTake(opts = {}) {
     edge,
     analysis: {
       matchupAnalysis: whyNow,
-      injuryContext:
-        "Confirm inactives and OL/skill availability before locking — this lean is board + defense tier only.",
-      marketContext: `Verified live ${marketLabel} at ${line} (${book}). Recovery lean from board after the model take failed validation.`,
-      lineMovement: `Shop ${book} and peers around ${line} — stick to a posted number.`,
+      injuryContext: "Check inactives before you lock it.",
+      marketContext: `Posted ${marketLabel} at ${line}.`,
+      lineMovement: "Stick to a posted number. Don't invent movement.",
       statisticalEdge: defenseIsPrior
-        ? "Defense tier is last-season scoring context only. Season pace alone is not the ticket."
-        : "Defense tier + posted line drive this recovery lean. Season pace alone is not the ticket.",
+        ? "Last year's D is a prior, not this year's rank."
+        : "Board + matchup only. Not a lock.",
     },
     caveats: [
-      `Live ${marketLabel} ${line} from ${book}.`,
+      openerWeek
+        ? "First week — last year's D is a prior, not this year's rank."
+        : "If your book's number is different, the side can flip.",
       softMarket
         ? "Soft market — Speculative only; keep the stake small."
         : "Re-check the number closer to kick if the board moves.",
-      ...(defenseIsPrior
-        ? ["Defense tier is a 2025 scoring prior — re-check once 2026 sample posts."]
-        : []),
     ],
     timestamp: new Date().toISOString(),
   };
@@ -247,18 +253,15 @@ export function buildNflPropsBoardScoutTake(opts = {}) {
   if (total != null && total !== "") gameBits.push(`total ${total}`);
   const gameLine = gameBits.length ? gameBits.join(", ") : "game prices still thin";
 
-  const lean = `Lean: Wait for the prop board on ${matchup}.`;
+  const lean = `Lean: Wait for props on ${matchup}.`;
   const whyNow = [
-    `Books do not have a clean player-prop board for ${matchup} in what I can see yet.`,
+    `No live player props for ${matchup} yet.`,
     "",
-    `Game frame to work with: ${gameLine}.`,
+    `Game frame: ${gameLine}.`,
     "",
-    "When props post, I'd shop first:",
-    "1. Both QBs — pass yards / pass TDs (script + total tell you which way).",
-    "2. Lead WR on each side — receiving yards / receptions.",
-    "3. Lead RB rush yards if the total stays modest.",
+    "When they post, start with both QBs (pass yards / TDs), each WR1 (rec yards), and the lead RB if the total stays modest.",
     "",
-    "Action: set alerts on those three lanes and bet the first number you like — do not guess a line before it posts.",
+    "Don't guess a number before it posts.",
   ].join("\n");
 
   return {
@@ -268,7 +271,7 @@ export function buildNflPropsBoardScoutTake(opts = {}) {
     confidence: "Speculative",
     lean: lean.length > 120 ? lean.slice(0, 119).replace(/\s+\S*$/, "") + "." : lean,
     whyNow,
-    edge: `Action: wait for live props on ${matchup}. Use the game total/spread as the frame — not a fake player number.`,
+    edge: `Wait for live props on ${matchup}. Use the spread/total as the frame — not a fake player number.`,
     analysis: {
       matchupAnalysis: `No verified player props for ${matchup} yet. Game frame: ${gameLine}.`,
       injuryContext: "Confirm inactives once they post (~90 min before kick).",
@@ -655,6 +658,10 @@ export function detectNflVintageBlur(text, isCurrentSeason) {
   return hasRate && !attributed;
 }
 
+function nflAskHasOverUnderSide(structured) {
+  return /\b(over|under)\b/i.test(`${structured?.call || ""} ${structured?.lean || ""}`);
+}
+
 /**
  * Rewrite a structured take into a casual live props-board ticket list.
  * @returns {boolean} true if tickets were written
@@ -693,45 +700,27 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
         ? briefcase.league.playerTeamByName
         : undefined,
     question,
-    maxTickets: 4,
+    maxTickets: 5,
   });
   if (!top.length) return false;
-  const primary = top[0];
-  const propLabel = String(primary.prop || primary.propRaw || "prop").trim();
-  const bookLabel = formatNflBookLabel(String(primary.book || ""));
-  const ticketLine = (p) => {
-    const pl = String(p.prop || p.propRaw || "prop").trim();
-    const bk = formatNflBookLabel(String(p.book || ""));
-    return `${p.player} ${pl} ${p.line} (${bk})`;
-  };
-  const numbered = top.map((p, i) => `${i + 1}. ${ticketLine(p)}`).join("\n");
-  const primaryTicket = ticketLine(primary);
+  const ranked = preferHighPrintPrimary(top, propLines);
+  const primary = ranked[0];
+  const openerWeek = isNflOpenerWeek(briefcase?.week ?? games?.[0]?.week);
+  const copy = buildNflSidedPropRecoverCopy({
+    primary,
+    boardRows: ranked.slice(0, 5),
+    allRows: propLines,
+    openerWeek,
+  });
   structured.sport = "NFL";
-  structured.call = `${primary.player} ${propLabel} ${primary.line}`;
-  structured.callType = "prop";
-  structured.confidence = "Speculative";
-  structured.lean = `Lean: Start with ${primary.player} ${propLabel} ${primary.line} at ${bookLabel}.`;
-  structured.whyNow = [
-    `I'd put one ticket on ${primaryTicket}.`,
-    "",
-    "Other live numbers on this game worth a look:",
-    numbered,
-    "",
-    "Grab one of those posted prices and move on — Speculative, not a lock.",
-  ].join("\n");
-  structured.edge = `Action: bet ${primaryTicket} if you want a single shot tonight. Skip stacking until you like the price better.`;
-  structured.analysis = {
-    matchupAnalysis: `Cleanest live ticket on the board is ${primaryTicket}.`,
-    injuryContext: "Confirm inactives before you lock anything.",
-    marketContext: `Live props on this matchup:\n${numbered}`,
-    lineMovement: "Stick to a posted book number.",
-    statisticalEdge: "Board + matchup only. No smash case baked in.",
-  };
-  structured.caveats = [
-    "These are live book numbers — Speculative until you shop juice.",
-    "Game script can kill pass volume either way.",
-    "If your book is off these prices, pass or wait.",
-  ];
+  structured.call = copy.call;
+  structured.callType = copy.callType;
+  structured.confidence = copy.confidence;
+  structured.lean = copy.lean;
+  structured.whyNow = copy.whyNow;
+  structured.edge = copy.edge;
+  structured.analysis = copy.analysis;
+  structured.caveats = copy.caveats;
   structured.timestamp = new Date().toISOString();
   structured.parlayLegs = null;
   structured.parlayTotalOdds = null;
@@ -890,6 +879,7 @@ export function applyNflAskGuard(opts = {}) {
     (String(structured.call || "").toUpperCase() === "PASS" ||
       String(structured.call || "").toUpperCase() === "WAIT FOR PROPS" ||
       codes.includes("props_board_forcepass_bypass") ||
+      !nflAskHasOverUnderSide(structured) ||
       /no posted lines|prop board is thin|not populated|did not parse cleanly|not safe to ship/i.test(
         `${structured.lean || ""} ${structured.whyNow || ""}`,
       ))

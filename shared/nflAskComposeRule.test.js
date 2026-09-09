@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   NFL_ASK_COMPOSE_RULE,
   buildNflAskComposePromptBlock,
+  isNflOpenerWeek,
   nflAskGradeExemptPockets,
 } from "./nflAskComposeRule.js";
 import { buildNflAskDisciplinePromptBlock } from "./nflAskDiscipline.js";
@@ -17,8 +18,11 @@ test("compose rule summary is one suitcase rule", () => {
 test("compose prompt block ships every discipline turn", () => {
   const block = buildNflAskDisciplinePromptBlock({ question: "Who wins NE @ SEA?" });
   assert.match(block, /UR COMPOSE RULE/);
+  assert.match(block, /TICKET RULE/);
   assert.match(block, /Opinion \/ who-wins/);
   assert.equal(detectNflAskMarket("Who wins NE @ SEA?").marketId, "opinion");
+  assert.equal(isNflOpenerWeek(1), true);
+  assert.equal(isNflOpenerWeek(10), false);
 });
 
 test("grade-exempt pockets spare props for non-prop asks", () => {
@@ -70,6 +74,7 @@ test("resolveNflSuitcaseGuard does not treat empty props as missing spread price
 
 test("compose prompt names live board vs paste", () => {
   const p = buildNflAskComposePromptBlock();
-  assert.match(p, /live row/i);
-  assert.match(p, /do not invent/i);
+  assert.match(p, /TICKET RULE/i);
+  assert.match(p, /Over\/Under/i);
+  assert.match(p, /Static paste/i);
 });
