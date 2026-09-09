@@ -142,6 +142,55 @@ test("pickNflPropsBoardTickets drops off-matchup players and duplicate Maye yard
   assert.ok(out.some((p) => p.player === "Jaxon Smith-Njigba"));
 });
 
+test("pickNflPropsBoardTickets prefers full-game rush yards over 1H", () => {
+  const props = [
+    {
+      game: "NE @ SEA",
+      player: "Drake Maye",
+      team: "NE",
+      prop: "passing yards",
+      propRaw: "passing_yards",
+      line: 261.5,
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+    {
+      game: "NE @ SEA",
+      player: "Rhamondre Stevenson",
+      team: "NE",
+      prop: "rushing yards 1h",
+      propRaw: "rushing_yards_1h",
+      line: 27.5,
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+    {
+      game: "NE @ SEA",
+      player: "Rhamondre Stevenson",
+      team: "NE",
+      prop: "rushing yards",
+      propRaw: "rushing_yards",
+      line: 56.5,
+      overOdds: -110,
+      underOdds: -110,
+      eventId: "1",
+    },
+  ];
+  const out = pickNflPropsBoardTickets(props, {
+    scope: ["NE", "SEA"],
+    eventIds: ["1"],
+    rosterNames: ["Drake Maye", "Rhamondre Stevenson"],
+    question: "player props for the game tonight?",
+    maxTickets: 5,
+  });
+  const stevenson = out.filter((p) => /stevenson/i.test(String(p.player)));
+  assert.equal(stevenson.length, 1);
+  assert.equal(stevenson[0].line, 56.5);
+  assert.doesNotMatch(String(stevenson[0].prop), /1h/i);
+});
+
 test("filterNflPropsForMatchup drops PHI-indexed Brown and unknown no-roster RB", () => {
   const teamIndex = buildNflPlayerTeamIndex([
     { name: "Drake Maye", team: "NE" },

@@ -113,7 +113,28 @@ function scorePropRow(row, tokens, hints) {
   if (row?.marketType !== "milestone" && (row?.underOdds != null || row?.overOdds != null)) score += 15;
   const book = String(row?.book || "").toLowerCase();
   if (book === "draftkings" || book === "fanduel") score += 3;
+  if (isNflPeriodPropRow(row)) score -= 80;
+  if (/(longest|long(?:est)?\s+(?:pass|rush|rec|play))/.test(blob)) score -= 25;
   return score;
+}
+
+const NFL_PERIOD_PROP_RE =
+  /\b(?:1h|2h|h1|h2|1st\s*half|2nd\s*half|first\s*half|second\s*half|q[1-4]|1st\s*(?:q(?:tr|uarter)?)|2nd\s*(?:q(?:tr|uarter)?)|3rd\s*(?:q(?:tr|uarter)?)|4th\s*(?:q(?:tr|uarter)?)|first\s*quarter|second\s*quarter|third\s*quarter|fourth\s*quarter)\b/i;
+
+/**
+ * 1H / 2H / quarter markets — too script-dependent for a full-game props board.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+export function isNflPeriodPropRow(row) {
+  const blob = `${row?.propRaw || ""} ${row?.prop || ""} ${row?.period || ""} ${row?.marketPeriod || ""}`;
+  return NFL_PERIOD_PROP_RE.test(blob);
+}
+
+/**
+ * @param {string} [question]
+ */
+export function questionWantsNflPeriodProps(question) {
+  return NFL_PERIOD_PROP_RE.test(String(question || ""));
 }
 
 /**
@@ -359,29 +380,33 @@ export function formatNflBookLabel(book) {
  */
 export function nflPropMarketKey(row) {
   const raw = `${row?.propRaw || ""} ${row?.prop || ""}`.toLowerCase();
-  if (/(longest|long(?:est)?\s+(?:pass|rush|rec|play)|pass_long|rush_long|rec_long)/.test(raw)) {
-    if (/pass/.test(raw)) return "pass_long";
-    if (/rush/.test(raw)) return "rush_long";
-    if (/rec/.test(raw)) return "rec_long";
-    return "longest";
-  }
-  if (
-    /pass/.test(raw) &&
-    /rush/.test(raw) &&
-    /yd|yard/.test(raw) &&
-    !/td|touch/.test(raw)
-  ) {
-    return "pass_rush_yds";
-  }
-  if (/rush/.test(raw) && /(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rush_rec_yds";
-  if (/pass/.test(raw) && /td|touch/.test(raw)) return "pass_tds";
-  if (/pass/.test(raw) && /yd|yard/.test(raw)) return "pass_yds";
-  if (/rush/.test(raw) && /yd|yard/.test(raw)) return "rush_yds";
-  if (/(rec|receiv)/.test(raw) && /td|touch/.test(raw)) return "rec_tds";
-  if (/(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rec_yds";
-  return String(row?.propRaw || row?.prop || "prop")
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
+  const period = isNflPeriodPropRow(row) ? "_period" : "";
+  const key = (() => {
+    if (/(longest|long(?:est)?\s+(?:pass|rush|rec|play)|pass_long|rush_long|rec_long)/.test(raw)) {
+      if (/pass/.test(raw)) return "pass_long";
+      if (/rush/.test(raw)) return "rush_long";
+      if (/rec/.test(raw)) return "rec_long";
+      return "longest";
+    }
+    if (
+      /pass/.test(raw) &&
+      /rush/.test(raw) &&
+      /yd|yard/.test(raw) &&
+      !/td|touch/.test(raw)
+    ) {
+      return "pass_rush_yds";
+    }
+    if (/rush/.test(raw) && /(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rush_rec_yds";
+    if (/pass/.test(raw) && /td|touch/.test(raw)) return "pass_tds";
+    if (/pass/.test(raw) && /yd|yard/.test(raw)) return "pass_yds";
+    if (/rush/.test(raw) && /yd|yard/.test(raw)) return "rush_yds";
+    if (/(rec|receiv)/.test(raw) && /td|touch/.test(raw)) return "rec_tds";
+    if (/(rec|receiv)/.test(raw) && /yd|yard/.test(raw)) return "rec_yds";
+    return String(row?.propRaw || row?.prop || "prop")
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_");
+  })();
+  return `${key}${period}`;
 }
 
 function nflPropPeerBand(market, line) {
@@ -689,6 +714,9 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     playerTeamByName: opts.playerTeamByName,
   });
   rows = rows.filter((p) => rowMatchesScope(p, scope));
+  if (!questionWantsNflPeriodProps(opts.question)) {
+    rows = rows.filter((p) => !isNflPeriodPropRow(p));
+  }
 
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
 
