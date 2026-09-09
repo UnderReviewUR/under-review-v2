@@ -146,3 +146,18 @@ test("buildNflMatchupThesis formats one line", () => {
   assert.match(thesis, /@ PHI/);
   assert.match(thesis, /72\.5/);
 });
+
+test("aj brown resolves to A.J. Brown on the Patriots roster", () => {
+  const hit = findNflPoolPlayerInQuestion("aj brown over 34.5");
+  assert.equal(hit?.name, "A.J. Brown");
+  assert.equal(hit?.team, "NE");
+  const card = buildNflMatchupCard({
+    question:
+      "for tonights game, i bet: seahawks win, aj brown over 34.5, darnold under 249.5, doubs over 14.5, and maye under 239.5. thoughts?",
+    playerTeamByName: { "aj brown": "NE", "drake maye": "NE", "sam darnold": "SEA" },
+  });
+  assert.match(card.thesis, /Ticket review/i);
+  assert.equal(card.ambiguous, false);
+  const aj = card.namedIdentities.find((p) => p.name === "A.J. Brown");
+  assert.equal(aj?.team, "NE");
+});

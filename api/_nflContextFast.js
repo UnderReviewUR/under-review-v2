@@ -404,6 +404,7 @@ export async function buildNflFastAskContext(options = {}) {
     injuryMeta: { fetchedAt: rosterData?.fetchedAt ?? null, asOf: board.asOf || null },
     defenseByTeam: defenseForCard,
     recentStats: goatPlayers.recentStats,
+    playerTeamByName,
   });
 
   const market = detectNflAskMarket(question);

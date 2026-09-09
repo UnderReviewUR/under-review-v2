@@ -708,6 +708,8 @@ export async function buildCanonicalNflContext(options = {}) {
     },
     defenseByTeam: defenseMerged,
     recentStats: briefcaseHealth.briefcase?.players?.recentStats || [],
+    playerTeamByName:
+      briefcaseHealth.briefcase?.league?.playerTeamByName || playerTeamByName || {},
   });
   const cardOnly =
     String(matchupCard.cardBlock || "").trim() ||

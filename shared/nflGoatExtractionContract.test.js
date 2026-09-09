@@ -148,6 +148,15 @@ test("detectNflAskMarket routes over 42.5 as game total and who-wins as opinion"
   assert.deepEqual(detectNflAskMarket("Who wins NE @ SEA?").propTypeHints, []);
 });
 
+test("detectNflAskMarket routes a stated slip to ticket_review", () => {
+  assert.equal(
+    detectNflAskMarket(
+      "for tonights game, i bet: seahawks win, aj brown over 34.5, darnold under 249.5. thoughts?",
+    ).marketId,
+    "ticket_review",
+  );
+});
+
 test("evaluateBriefcaseForInteraction does not tax opinion asks with empty props", () => {
   const b = createEmptyNflGoatBriefcase();
   b.slate.games = [{ id: 1, awayAbbr: "NE", homeAbbr: "SEA" }];

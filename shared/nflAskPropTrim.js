@@ -225,7 +225,7 @@ function playerNameAllowed(playerName, allowKeys) {
  * @param {Record<string, string>} teamIndex
  * @param {string} [propTeam]
  */
-function resolveKnownTeam(playerName, teamIndex, propTeam = "") {
+export function resolveNflPlayerTeamFromIndex(playerName, teamIndex = {}, propTeam = "") {
   const key = normalizePlayerKey(playerName);
   if (key && teamIndex[key]) return String(teamIndex[key]).toUpperCase().trim();
   if (key) {
@@ -364,7 +364,7 @@ export function filterNflPropsForMatchup(props, opts = {}) {
       const propTeam = String(p?.team || p?.teamAbbr || "")
         .toUpperCase()
         .trim();
-      const known = resolveKnownTeam(String(p?.player || ""), teamIndex, propTeam);
+      const known = resolveNflPlayerTeamFromIndex(String(p?.player || ""), teamIndex, propTeam);
       // No roster/team signal and not on allowlist → junk; keep only if no allowlist yet.
       if (!known) return allow.size < 1;
       const expanded = expandScope([known]);

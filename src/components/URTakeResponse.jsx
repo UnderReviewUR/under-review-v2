@@ -82,6 +82,7 @@ export function matchupPillText(gameStateLine, userQuestion) {
   const fromQ = matchupFromQuestion(userQuestion);
   if (fromQ) return fromQ;
   const q = String(userQuestion || "").trim();
+  if (/\bi\s+bet\b|\bmy\s+(?:parlay|ticket|slip)\b/i.test(q)) return "Ticket";
   if (q && !META_PARLAY_PROMPT.test(q) && !BROAD_ASK_PILL.test(q) && q.length <= 36) {
     return q;
   }

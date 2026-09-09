@@ -18,6 +18,7 @@ import {
   pickNflPropsBoardTickets,
   preferHighPrintPrimary,
 } from "./nflAskPropTrim.js";
+import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "./nflAskTicketReview.js";
 import { isNflOpenerWeek } from "./nflAskComposeRule.js";
 
 const CONF_RANK = Object.freeze({ Speculative: 0, Medium: 1, High: 2 });
@@ -72,7 +73,9 @@ export function resolveNflSuitcaseGuard(briefcase, question = "") {
   const briefcaseDetected =
     briefcase?.detected && typeof briefcase.detected === "object" ? briefcase.detected : null;
   const detected =
-    fromQ.marketId === "props_board" ? fromQ : briefcaseDetected || fromQ;
+    fromQ.marketId === "ticket_review" || fromQ.marketId === "props_board"
+      ? fromQ
+      : briefcaseDetected || fromQ;
   const grade = String(briefcase?.grade || "").toLowerCase();
   const matched = Number(briefcase?.propMatch?.matched ?? briefcase?.propMatched ?? 0);
   const noLiveProp =
@@ -799,6 +802,7 @@ export function applyNflAskGuard(opts = {}) {
 
   const suitcase = resolveNflSuitcaseGuard(opts.briefcase, question);
   const phase = detectNflAskPhase(question);
+  const ticketReview = isNflTicketReviewAsk(question) || String(suitcase.detected?.marketId || "") === "ticket_review";
 
   const call = String(structured.call || "");
   const lean = String(structured.lean || "");
@@ -836,7 +840,7 @@ export function applyNflAskGuard(opts = {}) {
   }
 
   const inactiveHit = findNflInactivePlayer(opts.inactives, question);
-  if (inactiveHit?.player && String(structured.call || "").toUpperCase() !== "PASS") {
+  if (!ticketReview && inactiveHit?.player && String(structured.call || "").toUpperCase() !== "PASS") {
     codes.push("inactive_confirmed");
     const who = String(inactiveHit.player.player || inactiveHit.player.lastName || "Player");
     rewriteStructuredToPass(
@@ -845,6 +849,7 @@ export function applyNflAskGuard(opts = {}) {
       `Lean: Pass. ${who} is on the official inactive list — not dressing.`,
     );
   } else if (
+    !ticketReview &&
     isNflDressingAsk(question) &&
     !nflInactivesPostedForAsk(opts.inactives) &&
     String(structured.call || "").toUpperCase() !== "PASS"
@@ -857,7 +862,9 @@ export function applyNflAskGuard(opts = {}) {
   // returned PASS with a broken / parse-fail lean. Draft/futures stay exempt.
   if (suitcase.forcePass && phase !== "draft" && phase !== "futures") {
     const marketId = String(suitcase.detected?.marketId || "");
-    if (marketId === "props_board" && propLines.length > 0) {
+    if (marketId === "ticket_review") {
+      codes.push("ticket_review_forcepass_bypass");
+    } else if (marketId === "props_board" && propLines.length > 0) {
       // Live board present — do not PASS; recovery below will ship tickets.
       codes.push("props_board_forcepass_bypass");
     } else if (marketId === "props_board") {
@@ -871,9 +878,19 @@ export function applyNflAskGuard(opts = {}) {
     }
   }
 
+  if (ticketReview) {
+    if (applyNflTicketReviewToStructured(structured, question, games, propLines, opts.briefcase)) {
+      codes.push("ticket_review_recover");
+    }
+  }
+
   // Broad "best props" asks with a live board: always ship consensus tickets.
   // Do not keep a model Under 460.5 just because that alt exists on the ladder.
-  if (String(suitcase.detected?.marketId || "") === "props_board" && propLines.length > 0) {
+  if (
+    !ticketReview &&
+    String(suitcase.detected?.marketId || "") === "props_board" &&
+    propLines.length > 0
+  ) {
     if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
       codes.push("props_board_force_recover");
     }
@@ -887,7 +904,8 @@ export function applyNflAskGuard(opts = {}) {
     conflict &&
     String(structured.call || "").toUpperCase() !== "PASS" &&
     !codes.includes("props_board_force_recover") &&
-    !codes.includes("props_board_recover")
+    !codes.includes("props_board_recover") &&
+    !codes.includes("ticket_review_recover")
   ) {
     codes.push("call_body_conflict");
     rewriteStructuredToPass(structured, "call_body_conflict");
@@ -897,7 +915,7 @@ export function applyNflAskGuard(opts = {}) {
     const cited = extractNflTicketNumbers(`${structured.call || ""} ${structured.lean || ""}`);
     const posted = collectNflPostedNumbers(games, propLines);
     const invented = detectNflInventedLine(cited, posted);
-    if (invented && (posted.length === 0 || invented.invented)) {
+    if (invented && (posted.length === 0 || invented.invented) && !codes.includes("ticket_review_recover")) {
       const marketId = String(suitcase.detected?.marketId || "");
       // Broad "best player props" asks: recover from live board rows instead of blank PASS.
       if (marketId === "props_board" && propLines.length > 0) {
@@ -917,7 +935,8 @@ export function applyNflAskGuard(opts = {}) {
   if (
     detectNflVintageBlur(blob, Boolean(opts.isCurrentSeason)) &&
     !codes.includes("props_board_recover") &&
-    !codes.includes("props_board_force_recover")
+    !codes.includes("props_board_force_recover") &&
+    !codes.includes("ticket_review_recover")
   ) {
     codes.push("vintage_blur");
     structured.confidence = clampNflConfidence(structured.confidence, "Speculative");

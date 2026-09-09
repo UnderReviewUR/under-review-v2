@@ -8,6 +8,7 @@
 
 import { nflAskGradeExemptPockets } from "./nflAskComposeRule.js";
 import { looksLikeNflPropsBoardAsk, normalizeNflAskQuestion } from "./nflAskNormalize.js";
+import { isNflTicketReviewAsk } from "./nflAskTicketReview.js";
 
 /** @typedef {'core'|'props'|'futures'|'sgp'|'live'} NflBetBucket */
 
@@ -514,6 +515,14 @@ export function auditNflGoatBriefcaseCoverage(briefcase) {
  * @returns {{ marketId: string, label: string, neededPaths: string[], propTypeHints: string[] }}
  */
 export function detectNflAskMarket(question) {
+  if (isNflTicketReviewAsk(question)) {
+    return {
+      marketId: "ticket_review",
+      label: "Ticket review",
+      neededPaths: ["slate.playerProps", "slate.games", "league.injuries"],
+      propTypeHints: [],
+    };
+  }
   const q = normalizeNflAskQuestion(question).toLowerCase();
   if (/\bsgp\b|\bsame[-\s]?game\s+parlay\b|\bparlay\b/.test(q) && !looksLikeNflPropsBoardAsk(q)) {
     return {

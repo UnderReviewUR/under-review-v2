@@ -44,6 +44,7 @@ export const NFL_MARKET_CONFIDENCE = Object.freeze({
   method_exact: { band: "lottery", note: "Exotic / exact margin — lottery only." },
   general: { band: "medium", note: "General — stay medium until market clears." },
   opinion: { band: "medium", note: "Opinion lean — medium; no invented ticket number." },
+  ticket_review: { band: "soft", note: "Grade stated legs vs live numbers — Speculative; don't collapse to one player." },
 });
 
 /**

@@ -126,7 +126,7 @@ export const WRsAndTEs = {
   },
 
   "A.J. Brown": {
-    team: "PHI", pos: "WR", tier: "STRONG",
+    team: "NE", pos: "WR", tier: "STRONG",
     rec2025: { g: 15, tgt: 121, rec: 78, yds: 1003, td: 7, recPg: 5.2, ydsPg: 66.9, ypr: 12.9, adot: 11.8, ctchPct: 64.5, drop: 1 },
     rec2024: { rec: 67, yds: 1079, ydsPg: 83.0 },
     trend: { note: "Slight decline in volume but maintained elite efficiency. Lowest drop rate (1) among elite WRs. Missed 2 games." },
@@ -135,7 +135,7 @@ export const WRsAndTEs = {
       td: { pg: 0.47, lean: "OVER 0.5 TD -- 7 TDs shows consistent red zone usage" },
       best: "Receiving yards OVER. Near-zero drop rate means every target counts."
     },
-    situation2026: "Eagles WR1 with Hurts. Barkley rushing opens lanes. AJB is the primary vertical threat.",
+    situation2026: "Patriots WR with Maye. Static usage priors below; live roster/board owns the team assignment.",
     bettingAngles: ["Receiving yards OVER is the lean", "Health monitor -- missed games in 2025", "Zero drops makes him hyper-reliable when active"]
 
   },

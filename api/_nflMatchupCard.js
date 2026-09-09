@@ -15,6 +15,8 @@ import {
   resolveNflTeamFromQuestion,
 } from "./nfl-draft-season.js";
 import { detectNflAskMarket } from "../shared/nflGoatExtractionContract.js";
+import { isNflTicketReviewAsk } from "../shared/nflAskTicketReview.js";
+import { normalizePlayerKey, resolveNflPlayerTeamFromIndex } from "../shared/nflAskPropTrim.js";
 import {
   buildNflH2hNoteFromRecentStats,
   inferNflOpponentFromSlate,
@@ -76,11 +78,19 @@ function nflIdentityPool() {
   return pool;
 }
 
+function overlayIdentityTeam(p, playerTeamByName) {
+  if (!p) return p;
+  const t = resolveNflPlayerTeamFromIndex(p.name, playerTeamByName || {});
+  if (!t) return p;
+  return { ...p, team: t };
+}
+
 /**
  * Every named athlete in the ask — full names and unique last names, including backups.
  * @param {string} question
+ * @param {Record<string, string>} [playerTeamByName]
  */
-export function listNflIdentitiesInQuestion(question) {
+export function listNflIdentitiesInQuestion(question, playerTeamByName = {}) {
   const q = String(question || "").toLowerCase();
   /** @type {Map<string, ReturnType<typeof nflIdentityPool>[number]>} */
   const hits = new Map();
@@ -88,10 +98,12 @@ export function listNflIdentitiesInQuestion(question) {
   const ambiguous = [];
   if (!q.trim()) return { identities: [], ambiguous };
 
+  const qn = normalizePlayerKey(q);
   const pool = nflIdentityPool();
   pool.sort((a, b) => b.name.length - a.name.length);
   for (const p of pool) {
-    if (q.includes(p.name.toLowerCase())) hits.set(p.name, p);
+    const kn = normalizePlayerKey(p.name);
+    if (kn && (q.includes(p.name.toLowerCase()) || qn.includes(kn))) hits.set(p.name, p);
   }
 
   /** @type {Map<string, typeof pool>} */
@@ -119,7 +131,10 @@ export function listNflIdentitiesInQuestion(question) {
     else ambiguous.push(uniq.map((p) => `${p.name} (${p.pos}, ${p.team})`).join(" / "));
   }
 
-  return { identities: [...hits.values()], ambiguous };
+  return {
+    identities: [...hits.values()].map((p) => overlayIdentityTeam(p, playerTeamByName)),
+    ambiguous,
+  };
 }
 
 function formatNflNamedIdBlock(identities) {
@@ -141,15 +156,17 @@ function formatNflNamedIdBlock(identities) {
  *   candidates: string[],
  * }}
  */
-export function resolveNflPoolPlayerInQuestion(question) {
+export function resolveNflPoolPlayerInQuestion(question, playerTeamByName = {}) {
   const q = String(question || "").toLowerCase();
   if (!q.trim()) return { player: null, ambiguous: false, candidates: [] };
 
+  const qn = normalizePlayerKey(q);
   const pool = nflPlayerPool();
   pool.sort((a, b) => b.name.length - a.name.length);
   for (const p of pool) {
-    if (q.includes(p.name.toLowerCase())) {
-      return { player: p, ambiguous: false, candidates: [p.name] };
+    const kn = normalizePlayerKey(p.name);
+    if (kn && (q.includes(p.name.toLowerCase()) || qn.includes(kn))) {
+      return { player: overlayIdentityTeam(p, playerTeamByName), ambiguous: false, candidates: [p.name] };
     }
   }
 
@@ -161,16 +178,28 @@ export function resolveNflPoolPlayerInQuestion(question) {
     if (!byLast.has(last)) byLast.set(last, []);
     byLast.get(last).push(p);
   }
+  /** @type {typeof pool} */
+  const uniqueLast = [];
+  /** @type {string[]|null} */
+  let ambiguousCandidates = null;
   for (const [last, hits] of byLast) {
     if (!new RegExp(`\\b${last}\\b`, "i").test(q)) continue;
     if (hits.length === 1) {
-      return { player: hits[0], ambiguous: false, candidates: [hits[0].name] };
+      uniqueLast.push(hits[0]);
+      continue;
     }
-    return {
-      player: null,
-      ambiguous: true,
-      candidates: hits.map((h) => `${h.name} (${h.team})`),
-    };
+    if (!ambiguousCandidates) {
+      ambiguousCandidates = hits.map((h) => `${h.name} (${h.team})`);
+    }
+  }
+  if (uniqueLast.length === 1) {
+    return { player: overlayIdentityTeam(uniqueLast[0], playerTeamByName), ambiguous: false, candidates: [uniqueLast[0].name] };
+  }
+  if (uniqueLast.length > 1) {
+    return { player: overlayIdentityTeam(uniqueLast[0], playerTeamByName), ambiguous: false, candidates: uniqueLast.map((p) => p.name) };
+  }
+  if (ambiguousCandidates) {
+    return { player: null, ambiguous: true, candidates: ambiguousCandidates };
   }
   return { player: null, ambiguous: false, candidates: [] };
 }
@@ -470,8 +499,46 @@ export function buildNflMatchupThesis({
  */
 export function buildNflMatchupCard(opts = {}) {
   const question = String(opts.question || "");
-  const resolved = resolveNflPoolPlayerInQuestion(question);
-  const named = listNflIdentitiesInQuestion(question);
+  const playerTeamByName =
+    opts.playerTeamByName && typeof opts.playerTeamByName === "object" ? opts.playerTeamByName : {};
+  if (isNflTicketReviewAsk(question)) {
+    const named = listNflIdentitiesInQuestion(question, playerTeamByName);
+    const namedIdBlock = formatNflNamedIdBlock(named.identities);
+    const disciplineBlock = buildNflAskDisciplinePromptBlock({
+      question,
+      ambiguousPlayer: null,
+      namedIdBlock,
+      seasonTypeWarning: buildNflSeasonTypeWarning(opts.games || []),
+    });
+    const cardBlock = [
+      namedIdBlock,
+      "NFL TICKET REVIEW",
+      "Grade each stated over/under/win vs live board numbers. Do not collapse to one player or one props-board lean.",
+      "Flag legs that are not on this matchup's live roster.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    return {
+      cardBlock,
+      promptBlock: `${cardBlock}\n\n${disciplineBlock}`,
+      disciplineBlock,
+      player: null,
+      opponent: null,
+      thesis: "Ticket review — grade the stated legs vs live numbers.",
+      liveLine: null,
+      homeAbbr: null,
+      ambiguous: false,
+      candidates: [],
+      namedIdentities: named.identities.map((p) => ({
+        name: p.name,
+        pos: p.pos,
+        team: p.team,
+        role: p.role,
+      })),
+    };
+  }
+  const resolved = resolveNflPoolPlayerInQuestion(question, playerTeamByName);
+  const named = listNflIdentitiesInQuestion(question, playerTeamByName);
   const namedIdBlock = formatNflNamedIdBlock(named.identities);
   const player = resolved.player;
   const defensePool =

@@ -407,6 +407,7 @@ import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
 import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, buildNflPropsBoardFallbackTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
 import { detectNflAskMarket } from "../../shared/nflGoatExtractionContract.js";
+import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "../../shared/nflAskTicketReview.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
   extractMentionedPersonFromQuestion,
@@ -7524,6 +7525,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             // Never leave parse-fail copy on screen when the matchup card has a live line.
             const liveLine = nflMatchupMetaOut?.liveLine;
             if (
+              !isNflTicketReviewAsk(question) &&
               liveLine &&
               liveLine.line != null &&
               /did not parse cleanly|not safe to ship/i.test(
@@ -7584,6 +7586,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             // thesis already has a posted number; else props-board recover/scout;
             // never claim "parse failed" while live props exist.
             if (sportHint === "nfl") {
+              if (isNflTicketReviewAsk(question)) {
+                const next = { call: "TICKET REVIEW", lean: "Lean: Ticket review.", confidence: "Speculative" };
+                applyNflTicketReviewToStructured(
+                  next,
+                  question,
+                  nflAskGuardGames,
+                  nflAskGuardPropLines,
+                  nflAskGuardBriefcase,
+                );
+                structuredResponse = repairStructuredForDelivery(next, sportHint);
+              } else {
               const liveLine = nflMatchupMetaOut?.liveLine;
               if (liveLine && liveLine.line != null) {
                 structuredResponse = repairStructuredForDelivery(
@@ -7621,6 +7634,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                   sportHint,
                 );
               }
+              }
             } else {
               structuredResponse = null;
             }
@@ -7655,6 +7669,17 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           structuredResponse =
             sportHint === "nfl"
               ? (() => {
+                  if (isNflTicketReviewAsk(question)) {
+                    const next = { call: "TICKET REVIEW", lean: "Lean: Ticket review.", confidence: "Speculative" };
+                    applyNflTicketReviewToStructured(
+                      next,
+                      question,
+                      nflAskGuardGames,
+                      nflAskGuardPropLines,
+                      nflAskGuardBriefcase,
+                    );
+                    return repairStructuredForDelivery(next, sportHint);
+                  }
                   const liveLine = nflMatchupMetaOut?.liveLine;
                   if (liveLine && liveLine.line != null) {
                     return repairStructuredForDelivery(
