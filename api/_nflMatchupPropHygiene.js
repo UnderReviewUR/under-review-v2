@@ -9,11 +9,32 @@ import {
   filterNflPropsForMatchup,
 } from "../shared/nflAskPropTrim.js";
 
+const NFL_ABBR_ALIAS = {
+  WSH: ["WAS", "WSH"],
+  WAS: ["WAS", "WSH"],
+  ARI: ["ARI", "ARZ"],
+  ARZ: ["ARI", "ARZ"],
+  LA: ["LA", "LAR"],
+  LAR: ["LA", "LAR"],
+  JAC: ["JAC", "JAX"],
+  JAX: ["JAC", "JAX"],
+  NE: ["NE", "NWE"],
+  NWE: ["NE", "NWE"],
+};
+
 /**
  * @param {Set<string>|string[]} scope
  */
 function scopeSet(scope) {
-  return scope instanceof Set ? scope : new Set((scope || []).map((x) => String(x || "").toUpperCase()));
+  const out = new Set();
+  const src = scope instanceof Set ? [...scope] : scope || [];
+  for (const raw of src) {
+    const ab = String(raw || "").toUpperCase().trim();
+    if (!ab) continue;
+    out.add(ab);
+    for (const alias of NFL_ABBR_ALIAS[ab] || []) out.add(alias);
+  }
+  return out;
 }
 
 /**

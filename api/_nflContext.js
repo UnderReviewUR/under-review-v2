@@ -554,9 +554,12 @@ export async function buildCanonicalNflContext(options = {}) {
     ? briefcaseHealth.briefcase.slate.playerProps
     : [];
   const boardProps = Array.isArray(liveBoard?.propLines) ? liveBoard.propLines : [];
-  // When GOAT primary is on and briefcase hydrated props, those win over Action Network.
-  const preferGoatProps = isNflBdlPrimaryEnabled() && goatProps.length > 0;
-  let rawPropLines = preferGoatProps ? goatProps : boardProps.length ? boardProps : goatProps;
+  // GOAT primary: never fall back to Action Network props (empty GOAT → empty board).
+  let rawPropLines = isNflBdlPrimaryEnabled()
+    ? goatProps
+    : boardProps.length
+      ? boardProps
+      : goatProps;
   const staticTeamIndex = buildNflStaticPlayerTeamIndex();
   /** @type {string[]} */
   let rosterNames = [];

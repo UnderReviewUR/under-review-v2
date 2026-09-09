@@ -10,10 +10,11 @@ import {
   fetchNflBdlPlayerPropsForGame,
   fetchNflBdlWeekGames,
   fetchNflBdlWeekOdds,
+  fetchNflBdlSlateRosters,
   isNflBdlPrimaryEnabled,
 } from "./_nflBdl.js";
 import { resolveNflScopeTeamAbbrevSet } from "./_nflContext.js";
-import { pickNflGamesForScope, trimNflPlayerPropsForAsk } from "../shared/nflAskPropTrim.js";
+import { pickNflGamesForScope, trimNflPlayerPropsForAsk, normalizePlayerKey } from "../shared/nflAskPropTrim.js";
 import {
   buildNflStaticPlayerTeamIndex,
   scrubNflMatchupPropLines,
@@ -37,6 +38,9 @@ function scopeMatchesTeam(scope, teamFromRow) {
     if (t === a) return true;
     if ((a === "WSH" || a === "WAS") && (t === "WSH" || t === "WAS")) return true;
     if ((a === "ARI" || a === "ARZ") && (t === "ARI" || t === "ARZ")) return true;
+    if ((a === "NE" || a === "NWE") && (t === "NE" || t === "NWE")) return true;
+    if ((a === "LA" || a === "LAR") && (t === "LA" || t === "LAR")) return true;
+    if ((a === "JAC" || a === "JAX") && (t === "JAC" || t === "JAX")) return true;
   }
   return false;
 }
@@ -131,6 +135,12 @@ export async function buildNflFastAskContext(options = {}) {
   /** @type {Array<Record<string, unknown>>} */
   let gamesForCard = scopedGames;
   let propsSource = "none";
+  /** @type {string[]} */
+  const rosterNames = [];
+  /** @type {Record<string, Array<{ name: string }>>} */
+  const rostersByTeam = {};
+  /** @type {Record<string, string>} */
+  const bdlTeamIndex = {};
 
   // GOAT primary: resolve BDL game ids by abbr (never feed Action Network ids to /odds/player_props).
   if (isNflBdlPrimaryEnabled()) {
@@ -155,6 +165,24 @@ export async function buildNflFastAskContext(options = {}) {
           gameLabel: `${bdlGame.awayAbbr} @ ${bdlGame.homeAbbr}`,
         });
         if (propLines.length) propsSource = "balldontlie_nfl";
+
+        // BDL slate rosters are often polluted (e.g. A.J. Brown as NE WR1).
+        // Only use them as a low-priority team index — never as the exclusive allowlist.
+        try {
+          const rosterRes = await fetchNflBdlSlateRosters([bdlGame], { season });
+          for (const [team, rows] of Object.entries(rosterRes.rostersByTeam || {})) {
+            if (!scopeMatchesTeam(scope, team)) continue;
+            for (const r of rows || []) {
+              const name = String(r?.name || r?.player || "").trim();
+              if (!name) continue;
+              const key = normalizePlayerKey(name);
+              const ab = String(team || "").toUpperCase();
+              if (key && ab && !bdlTeamIndex[key]) bdlTeamIndex[key] = ab;
+            }
+          }
+        } catch {
+          /* ESPN/static still scrub below */
+        }
 
         // Overlay BDL week odds onto the game line when AN board is thin / mismatched ids.
         const oddsRes = await fetchNflBdlWeekOdds({ season, week });
@@ -193,8 +221,8 @@ export async function buildNflFastAskContext(options = {}) {
     }
   }
 
-  // AN props use Action Network game ids — never look them up with a BDL id.
-  if (!propLines.length && anGame?.providerGameId) {
+  // AN props only when GOAT primary is off. With NFL_BDL_PRIMARY, empty GOAT stays empty.
+  if (!isNflBdlPrimaryEnabled() && !propLines.length && anGame?.providerGameId) {
     try {
       const anProps = await getNflPropsForBoard(anGame.providerGameId, {
         tipoffMs: anGame.tipoffMs,
@@ -211,10 +239,6 @@ export async function buildNflFastAskContext(options = {}) {
 
   if (!game?.providerGameId && !anGame?.providerGameId && !propLines.length) return null;
 
-  /** @type {string[]} */
-  const rosterNames = [];
-  /** @type {Record<string, Array<{ name: string }>>} */
-  const rostersByTeam = {};
   for (const p of rosterData?.players || []) {
     if (!scopeMatchesTeam(scope, p.team)) continue;
     const name = String(p.name || "").trim();
@@ -222,14 +246,25 @@ export async function buildNflFastAskContext(options = {}) {
     rosterNames.push(name);
     const ab = String(p.team || "").toUpperCase();
     if (!rostersByTeam[ab]) rostersByTeam[ab] = [];
-    rostersByTeam[ab].push({ name, role: p.position || null });
+    if (!rostersByTeam[ab].some((r) => String(r.name).toLowerCase() === name.toLowerCase())) {
+      rostersByTeam[ab].push({ name, role: p.position || null });
+    }
   }
   const staticTeamIndex = buildNflStaticPlayerTeamIndex();
-  const staticNames = staticRosterNamesForScope(scope, staticTeamIndex);
+  const espnTeamIndex = {};
+  for (const p of rosterData?.players || []) {
+    if (!scopeMatchesTeam(scope, p.team)) continue;
+    const key = normalizePlayerKey(p.name);
+    const ab = String(p.team || "").toUpperCase();
+    if (key && ab) espnTeamIndex[key] = ab;
+  }
+  // Trust order: static curated > ESPN > BDL (BDL rosters mis-tag free agents onto the slate).
+  const playerTeamByName = { ...bdlTeamIndex, ...espnTeamIndex, ...staticTeamIndex };
+  const staticNames = staticRosterNamesForScope(scope, playerTeamByName);
   for (const name of staticNames) {
     rosterNames.push(name);
     // Mirror into rostersByTeam so the Ask guard can allowlist without ESPN KV.
-    const team = staticTeamIndex[name];
+    const team = playerTeamByName[name] || staticTeamIndex[name];
     if (team) {
       if (!rostersByTeam[team]) rostersByTeam[team] = [];
       if (!rostersByTeam[team].some((r) => String(r.name).toLowerCase() === name)) {
@@ -241,14 +276,14 @@ export async function buildNflFastAskContext(options = {}) {
   propLines = scrubNflMatchupPropLines(propLines, {
     scope,
     rosterNames,
-    playerTeamByName: staticTeamIndex,
+    playerTeamByName,
   });
   propLines = trimNflPlayerPropsForAsk(propLines, {
     scope,
     question,
     maxRows: 24,
     rosterNames,
-    playerTeamByName: staticTeamIndex,
+    playerTeamByName,
   });
 
   const injuryRows = [];
@@ -334,7 +369,7 @@ export async function buildNflFastAskContext(options = {}) {
 
   const stubBriefcase = {
     slate: { games: gamesForCard, odds: oddsStub, playerProps: propLines },
-    league: { injuries: injuryRows, rostersByTeam, playerTeamByName: staticTeamIndex },
+    league: { injuries: injuryRows, rostersByTeam, playerTeamByName },
   };
   const interaction = evaluateBriefcaseForInteraction(stubBriefcase, question);
   const buildMs = Date.now() - t0;

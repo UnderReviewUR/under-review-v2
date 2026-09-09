@@ -279,13 +279,24 @@ export const RBs = {
   },
 
   "TreVeyon Henderson": {
-    team: "NWE", tier: "STARTER",
+    team: "NE", tier: "STARTER",
     rush2025: { g: 17, att: 180, yds: 911, td: 9, ydsPg: 53.6, attPg: 10.6, ypa: 5.1, succPct: 51.7, fmb: 1 },
     props: {
       td: { lean: "OVER 0.5 -- 9 TDs in 17 games is real red zone usage" },
       best: "TD scorer prop OVER. Patriots using him in goal line role."
     },
     situation2026: "Patriots RB1 with Drake Maye. Henderson and Stevenson split. Maye's mobility changes dynamic."
+
+  },
+
+  "Rhamondre Stevenson": {
+    team: "NE", tier: "STARTER",
+    rush2025: { g: 17, att: 220, yds: 950, td: 7, ydsPg: 55.9, attPg: 12.9, ypa: 4.3, succPct: 45.0, fmb: 2 },
+    props: {
+      rushYds: { lean: "Volume OVER when NE script is neutral — still the early-down back" },
+      best: "Rushing yards OVER vs soft boxes; fade if Henderson steals goal-line work."
+    },
+    situation2026: "Patriots early-down RB with TreVeyon Henderson. Split backfield — props need role clarity."
 
   },
 

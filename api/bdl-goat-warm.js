@@ -1,7 +1,7 @@
 /**
  * POST/GET /api/bdl-goat-warm — refresh GOAT boards after trial ends (paid 600 req/min).
  * Cron: Sept 3 2026 16:00 UTC (11:00 AM CT) + daily 16:00 UTC during NFL season.
- * Auth: Authorization Bearer CRON_SECRET
+ * Auth: Authorization Bearer CRON_SECRET (or x-vercel-cron: 1)
  */
 import { applyCors } from "./_cors.js";
 import { getEnv } from "./_env.js";
@@ -13,6 +13,8 @@ import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 import { buildNflGoatBriefcase, isNflBdlPrimaryEnabled } from "./_nflBdl.js";
 import { buildLaligaLiveBoard } from "./_laligaBdl.js";
 import { fetchNflRosterSnapshot } from "./_nflEspnRoster.js";
+import { getNflBoardCached } from "./_nflBoard.js";
+import { setDurableJson } from "./_durableStore.js";
 
 export const config = { maxDuration: 120 };
 
@@ -22,6 +24,24 @@ function verifyCron(req) {
   if (!secret) return true;
   const auth = String(req.headers.authorization || "").trim();
   return auth === `Bearer ${secret}`;
+}
+
+/**
+ * Prefer AN board week, else query week, else 1.
+ * @param {import("http").IncomingMessage} req
+ */
+async function resolveWarmWeek(req) {
+  const q = req.query && typeof req.query === "object" ? req.query : {};
+  const fromQuery = Number(q.week);
+  if (Number.isFinite(fromQuery) && fromQuery >= 1 && fromQuery <= 22) return fromQuery;
+  try {
+    const board = await getNflBoardCached({});
+    const w = Number(board?.week);
+    if (Number.isFinite(w) && w >= 1) return w;
+  } catch {
+    /* fall through */
+  }
+  return 1;
 }
 
 export default async function handler(req, res) {
@@ -50,6 +70,7 @@ export default async function handler(req, res) {
   try {
     if (isNflBdlPrimaryEnabled()) {
       const season = inferNflSeasonYear();
+      const week = await resolveWarmWeek(req);
       let espnRoster = { playerCount: 0 };
       try {
         const snap = await fetchNflRosterSnapshot();
@@ -62,7 +83,7 @@ export default async function handler(req, res) {
       }
 
       const briefcase = await buildNflGoatBriefcase({
-        week: 1,
+        week,
         season,
         hydrateDefense: true,
         hydrateInjuries: true,
@@ -74,6 +95,7 @@ export default async function handler(req, res) {
       });
       warmed.nfl = {
         season,
+        week,
         espnRoster,
         rosterTeams: Object.keys(briefcase.league?.rostersByTeam || {}).length,
         games: briefcase.slate?.games?.length ?? 0,
@@ -83,6 +105,24 @@ export default async function handler(req, res) {
         fantasyProjections: briefcase.fantasy?.projections?.length ?? 0,
         endpoints: briefcase.coverage?.endpoints,
       };
+
+      try {
+        await setDurableJson(
+          "nfl_bdl_goat_warm_health",
+          {
+            asOf: new Date().toISOString(),
+            ...warmed.nfl,
+          },
+          { ttlSeconds: 60 * 60 * 36 },
+        );
+      } catch (err) {
+        console.warn(
+          JSON.stringify({
+            event: "bdl_goat_warm_health_kv_failed",
+            error: err?.message || String(err),
+          }),
+        );
+      }
     } else {
       warmed.nfl = { skipped: true, reason: "NFL_BDL_PRIMARY off" };
     }
@@ -101,7 +141,21 @@ export default async function handler(req, res) {
     warmed.laliga = { ok: false, error: err?.message || String(err) };
   }
 
-  console.log(JSON.stringify({ event: "bdl_goat_warm_done", trialPace: false, warmed }));
+  const nflOk =
+    warmed.nfl &&
+    !warmed.nfl.skipped &&
+    warmed.nfl.ok !== false &&
+    Number(warmed.nfl.props || 0) > 0 &&
+    Number(warmed.nfl.games || 0) > 0;
+
+  console.log(
+    JSON.stringify({
+      event: "bdl_goat_warm_done",
+      trialPace: false,
+      nflOk: Boolean(nflOk),
+      warmed,
+    }),
+  );
 
   return res.status(200).json({
     ok: true,

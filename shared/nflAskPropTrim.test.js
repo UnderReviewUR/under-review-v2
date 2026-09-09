@@ -166,3 +166,49 @@ test("filterNflPropsForMatchup drops PHI Brown and unknown draft RB", () => {
   assert.ok(!names.includes("A.J. Brown"));
   assert.ok(!names.includes("Jadarian Price"));
 });
+
+test("filterNflPropsForMatchup drops AJ Brown alias and wrong SEA team stamp", () => {
+  const teamIndex = buildNflPlayerTeamIndex([
+    { name: "Drake Maye", team: "NE" },
+    { name: "A.J. Brown", team: "PHI" },
+    { name: "Jaxon Smith-Njigba", team: "SEA" },
+  ]);
+  const props = [
+    { player: "Drake Maye", team: "NE", line: 261.5, game: "NE @ SEA" },
+    { player: "AJ Brown", team: "SEA", line: 62.5, game: "NE @ SEA" },
+    { player: "Jadarian Price", team: "NE", line: 40.5, game: "NE @ SEA" },
+    { player: "Jaxon Smith-Njigba", team: "SEA", line: 81.5, game: "NE @ SEA" },
+  ];
+  const out = filterNflPropsForMatchup(props, {
+    scope: ["NE", "SEA"],
+    rosterNames: ["Drake Maye", "Jaxon Smith-Njigba"],
+    playerTeamByName: teamIndex,
+  });
+  const names = out.map((p) => p.player);
+  assert.deepEqual(names.sort(), ["Drake Maye", "Jaxon Smith-Njigba"].sort());
+});
+
+test("filterNflPropsForMatchup does not fail open when allowlist misses everyone", () => {
+  const out = filterNflPropsForMatchup(
+    [
+      { player: "A.J. Brown", game: "NE @ SEA", line: 1 },
+      { player: "Jadarian Price", game: "NE @ SEA", line: 1 },
+    ],
+    {
+      scope: ["NE", "SEA"],
+      rosterNames: ["Drake Maye", "Sam Darnold"],
+      playerTeamByName: buildNflPlayerTeamIndex([
+        { name: "Drake Maye", team: "NE" },
+        { name: "A.J. Brown", team: "PHI" },
+      ]),
+    },
+  );
+  assert.equal(out.length, 0);
+});
+
+test("normalizePlayerKey collapses A.J. / AJ initials", async () => {
+  const { normalizePlayerKey } = await import("./nflAskPropTrim.js");
+  assert.equal(normalizePlayerKey("A.J. Brown"), "aj brown");
+  assert.equal(normalizePlayerKey("AJ Brown"), "aj brown");
+  assert.equal(normalizePlayerKey("A J Brown"), "aj brown");
+});

@@ -11,6 +11,8 @@ const NFL_ABBR_ALIAS = {
   LAR: ["LA", "LAR"],
   JAC: ["JAC", "JAX"],
   JAX: ["JAC", "JAX"],
+  NE: ["NE", "NWE"],
+  NWE: ["NE", "NWE"],
 };
 
 /**
@@ -128,9 +130,8 @@ export function filterNflPropsToRoster(props, rosterNames) {
   );
   if (!names.size) return Array.isArray(props) ? props : [];
   const rows = Array.isArray(props) ? props : [];
-  const hit = rows.filter((p) => playerNameAllowed(String(p?.player || ""), names));
-  // Prefer roster hits whenever we matched anything — never fail open to a polluted board.
-  return hit.length > 0 ? hit : rows;
+  // Never fail open to a polluted board when we have an allowlist.
+  return rows.filter((p) => playerNameAllowed(String(p?.player || ""), names));
 }
 
 /**
@@ -145,10 +146,28 @@ function playerNameAllowed(playerName, allowKeys) {
   if (last && last.length >= 4 && [...allowKeys].some((n) => n === last || n.endsWith(` ${last}`))) {
     return true;
   }
-  // A.J. Brown ↔ aj brown
-  const compact = key.replace(/\./g, "");
-  if ([...allowKeys].some((n) => n.replace(/\./g, "") === compact)) return true;
+  // A.J. Brown ↔ AJ Brown ↔ a j brown (normalizePlayerKey already collapses initials)
+  if ([...allowKeys].some((n) => normalizePlayerKey(n) === key)) return true;
   return false;
+}
+
+/**
+ * Prefer static/roster team over a vendor-stamped team when we know the player.
+ * @param {string} playerName
+ * @param {Record<string, string>} teamIndex
+ * @param {string} [propTeam]
+ */
+function resolveKnownTeam(playerName, teamIndex, propTeam = "") {
+  const key = normalizePlayerKey(playerName);
+  if (key && teamIndex[key]) return String(teamIndex[key]).toUpperCase().trim();
+  if (key) {
+    for (const [name, team] of Object.entries(teamIndex || {})) {
+      if (normalizePlayerKey(name) === key || playerNameAllowed(playerName, new Set([name]))) {
+        return String(team || "").toUpperCase().trim();
+      }
+    }
+  }
+  return String(propTeam || "").toUpperCase().trim();
 }
 
 /**
@@ -215,16 +234,16 @@ export function filterNflPropsForMatchup(props, opts = {}) {
   }
 
   // 1) Drop anyone whose known team is outside the matchup (A.J. Brown → PHI).
+  // Prefer roster/static index over vendor team stamps (BDL sometimes mis-tags).
   let filtered = rows;
   if (scope.size) {
     filtered = rows.filter((p) => {
-      const key = normalizePlayerKey(p?.player);
-      const known =
-        (key && teamIndex[key]) ||
-        String(p?.team || p?.teamAbbr || "")
-          .toUpperCase()
-          .trim();
-      if (!known) return true;
+      const propTeam = String(p?.team || p?.teamAbbr || "")
+        .toUpperCase()
+        .trim();
+      const known = resolveKnownTeam(String(p?.player || ""), teamIndex, propTeam);
+      // With an allowlist, unknown-team noise (draft names) must not ride the game label.
+      if (!known) return allow.size < 1;
       const expanded = expandScope([known]);
       for (const ab of expanded) {
         if (scope.has(ab)) return true;
@@ -234,9 +253,9 @@ export function filterNflPropsForMatchup(props, opts = {}) {
   }
 
   // 2) If we have a real allowlist, only ship those players (drops draft noise like Jadarian Price).
-  if (allow.size >= 2) {
-    const hit = filtered.filter((p) => playerNameAllowed(String(p?.player || ""), allow));
-    if (hit.length >= 1) return hit;
+  // Never fail open when the allowlist exists — empty is better than PHI/Brown on NE@SEA.
+  if (allow.size >= 1) {
+    return filtered.filter((p) => playerNameAllowed(String(p?.player || ""), allow));
   }
 
   return filtered;
@@ -281,12 +300,31 @@ export function formatNflBookLabel(book) {
 /**
  * @param {string} name
  */
-function normalizePlayerKey(name) {
-  return String(name || "")
+export function normalizePlayerKey(name) {
+  const parts = String(name || "")
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+  /** @type {string[]} */
+  const out = [];
+  let i = 0;
+  while (i < parts.length) {
+    if (parts[i].length === 1) {
+      let initials = "";
+      while (i < parts.length && parts[i].length === 1) {
+        initials += parts[i];
+        i += 1;
+      }
+      out.push(initials);
+      continue;
+    }
+    out.push(parts[i]);
+    i += 1;
+  }
+  return out.join(" ");
 }
 
 /**

@@ -57,9 +57,9 @@ test("buildNflAskBriefcaseHealth fills rosters from ESPN players when Ourlads de
   assert.ok(briefcase.league.rostersByTeam.ATL?.some((r) => /Penix/i.test(r.name)));
 });
 
-test("NFL roster merge policy — BDL wins over ESPN for the same team", () => {
-  const espnRosters = { KC: [{ name: "Wrong QB", source: "espn" }] };
-  const bdlRosters = { KC: [{ name: "Patrick Mahomes", source: "balldontlie_nfl" }] };
-  const merged = { ...espnRosters, ...bdlRosters };
-  assert.equal(merged.KC[0].name, "Patrick Mahomes");
+test("NFL roster merge policy — ESPN preferred over polluted BDL team lists", () => {
+  const espnRosters = { NE: [{ name: "Drake Maye", source: "espn" }] };
+  const bdlRosters = { NE: [{ name: "A.J. Brown", source: "balldontlie_nfl" }] };
+  const merged = { ...bdlRosters, ...espnRosters };
+  assert.equal(merged.NE[0].name, "Drake Maye");
 });

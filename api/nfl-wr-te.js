@@ -171,7 +171,7 @@ export const WRsAndTEs = {
   },
 
   "Stefon Diggs": {
-    team: "NWE", pos: "WR", tier: "STRONG",
+    team: "NE", pos: "WR", tier: "STRONG",
     rec2025: { g: 17, tgt: 102, rec: 85, yds: 1013, td: 3, recPg: 5.0, ydsPg: 59.6, ypr: 11.9, adot: 8.5, ctchPct: 83.3, drop: 3 },
     rec2024: { rec: 47, yds: 496, ydsPg: 62.0 },
     trend: { note: "Healthy full season. Elite catch rate (83%) shows he's still precise. Age 32 -- Drake Maye connection is the key variable." },
@@ -182,6 +182,17 @@ export const WRsAndTEs = {
     },
     situation2026: "Patriots WR1 with Drake Maye. Maye's improvement directly correlates with Diggs' ceiling.",
     bettingAngles: ["Catches OVER is the safest prop", "Receiving yards moderate lean OVER", "TD fade -- Patriots red zone is broken"]
+
+  },
+
+  "Hunter Henry": {
+    team: "NE", pos: "TE", tier: "STARTER",
+    rec2025: { g: 17, tgt: 75, rec: 55, yds: 620, td: 4, recPg: 3.2, ydsPg: 36.5, ypr: 11.3, adot: 8.0, ctchPct: 73.3, drop: 2 },
+    props: {
+      recYds: { floor: 25, ceil: 55, lean: "UNDER in run-heavy scripts; OVER if Maye is forced to dump" },
+      best: "Receptions OVER is the safer TE floor when Diggs draws coverage."
+    },
+    situation2026: "Patriots TE1. Reliable Maye safety valve — props lean volume over splash."
 
   },
 

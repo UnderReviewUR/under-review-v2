@@ -9,10 +9,32 @@ import {
 } from "../shared/nflGoatExtractionContract.js";
 import { buildNflLiveBoard } from "./_nflBoard.js";
 import {
+  buildNflPlayerTeamIndex,
   trimNflPlayerPropsForAsk,
 } from "../shared/nflAskPropTrim.js";
+import {
+  scrubNflMatchupPropLines,
+  buildNflStaticPlayerTeamIndex,
+  staticRosterNamesForScope,
+} from "./_nflMatchupPropHygiene.js";
 import { isNflBdlPrimaryEnabled, buildNflGoatBriefcase } from "./_nflBdl.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
+
+/**
+ * @param {Set<string>} scope
+ * @param {string} team
+ */
+function scopeMatchesAbbr(scope, team) {
+  const t = String(team || "").toUpperCase().trim();
+  if (!t || !scope?.size) return false;
+  if (scope.has(t)) return true;
+  if ((t === "NE" || t === "NWE") && (scope.has("NE") || scope.has("NWE"))) return true;
+  if ((t === "WSH" || t === "WAS") && (scope.has("WSH") || scope.has("WAS"))) return true;
+  if ((t === "LA" || t === "LAR") && (scope.has("LA") || scope.has("LAR"))) return true;
+  if ((t === "JAC" || t === "JAX") && (scope.has("JAC") || scope.has("JAX"))) return true;
+  if ((t === "ARI" || t === "ARZ") && (scope.has("ARI") || scope.has("ARZ"))) return true;
+  return false;
+}
 
 /**
  * @param {Array<Record<string, unknown>>} games
@@ -229,6 +251,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     }
   }
 
+  let propsSource = isNflBdlPrimaryEnabled() ? "balldontlie_nfl" : "action_network";
+
   if (board) {
     briefcase.week = board.week ?? briefcase.week;
     briefcase.season = board.season ?? briefcase.season;
@@ -245,26 +269,16 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     if (odds.length && !briefcase.slate.odds?.length) {
       briefcase.slate.odds = odds;
     }
-    if (Array.isArray(board.propLines) && board.propLines.length) {
-      // Prefer live AN props when GOAT props empty (Week 1+ dual path)
-      if (!briefcase.slate.playerProps?.length) {
-        briefcase.slate.playerProps = board.propLines;
-      }
+    // GOAT primary: never fill prop pocket from Action Network — empty GOAT stays empty.
+    if (
+      !isNflBdlPrimaryEnabled() &&
+      Array.isArray(board.propLines) &&
+      board.propLines.length &&
+      !briefcase.slate.playerProps?.length
+    ) {
+      briefcase.slate.playerProps = board.propLines;
+      propsSource = "action_network";
     }
-  }
-
-  const propCap = scoped ? 56 : 120;
-  briefcase.slate.playerProps = trimNflPlayerPropsForAsk(briefcase.slate.playerProps || [], {
-    scope: scopeSet || [],
-    question,
-    maxRows: propCap,
-  });
-  if (board?.propLines?.length) {
-    board.propLines = trimNflPlayerPropsForAsk(board.propLines, {
-      scope: scopeSet || [],
-      question,
-      maxRows: propCap,
-    });
   }
 
   if (Array.isArray(opts.injuries) && opts.injuries.length) {
@@ -275,7 +289,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
   const depthRosters = rostersFromDepth(opts.depth);
   const espnRosters = rostersFromEspnPlayers(opts.espnRosterPlayers);
   const bdlRosters = briefcase.league.rostersByTeam || {};
-  const mergedRosters = { ...espnRosters, ...bdlRosters };
+  // Prefer ESPN/depth over polluted BDL team lists when both exist.
+  const mergedRosters = { ...bdlRosters, ...espnRosters };
   for (const [team, rows] of Object.entries(depthRosters)) {
     mergedRosters[team] = [...(mergedRosters[team] || []), ...rows];
   }
@@ -292,6 +307,79 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     if (seasonStats.length) {
       briefcase.players.seasonStats = seasonStats;
     }
+  }
+
+  // Scrub AFTER roster merge so NE/SEA allowlists + PHI index drop Brown / draft noise.
+  const staticTeamIndex = buildNflStaticPlayerTeamIndex();
+  // BDL/ESPN roster indexes are useful fillers, but curated static must win conflicts
+  // (BDL currently lists A.J. Brown on NE and Jadarian Price on SEA).
+  const rosterTeamIndex = buildNflPlayerTeamIndex(
+    Object.entries(briefcase.league.rostersByTeam || {}).flatMap(([team, rows]) =>
+      (Array.isArray(rows) ? rows : []).map((r) => ({
+        name: r?.name || r?.player,
+        team,
+      })),
+    ),
+  );
+  const playerTeamByName = { ...rosterTeamIndex, ...staticTeamIndex };
+  briefcase.league.playerTeamByName = {
+    ...(briefcase.league.playerTeamByName || {}),
+    ...playerTeamByName,
+  };
+
+  /** @type {string[]} */
+  let rosterNames = [];
+  if (scopeSet?.size) {
+    // Exclusive allowlist = ESPN/depth/static only — skip polluted BDL-only names.
+    for (const [team, rows] of Object.entries(espnRosters)) {
+      if (!scopeMatchesAbbr(scopeSet, team)) continue;
+      for (const r of rows || []) {
+        const n = String(r?.name || r?.player || "").trim();
+        if (n) rosterNames.push(n);
+      }
+    }
+    for (const [team, rows] of Object.entries(depthRosters)) {
+      if (!scopeMatchesAbbr(scopeSet, team)) continue;
+      for (const r of rows || []) {
+        const n = String(r?.name || r?.player || "").trim();
+        if (n) rosterNames.push(n);
+      }
+    }
+    rosterNames = [...rosterNames, ...staticRosterNamesForScope(scopeSet, playerTeamByName)];
+  }
+
+  const propCap = scoped ? 56 : 120;
+  let props = briefcase.slate.playerProps || [];
+  if (scoped && scopeSet?.size) {
+    props = scrubNflMatchupPropLines(props, {
+      scope: scopeSet,
+      rosterNames,
+      playerTeamByName,
+    });
+  }
+  briefcase.slate.playerProps = trimNflPlayerPropsForAsk(props, {
+    scope: scopeSet || [],
+    question,
+    maxRows: propCap,
+    rosterNames,
+    playerTeamByName,
+  });
+  if (board?.propLines?.length) {
+    let boardProps = board.propLines;
+    if (scoped && scopeSet?.size) {
+      boardProps = scrubNflMatchupPropLines(boardProps, {
+        scope: scopeSet,
+        rosterNames,
+        playerTeamByName,
+      });
+    }
+    board.propLines = trimNflPlayerPropsForAsk(boardProps, {
+      scope: scopeSet || [],
+      question,
+      maxRows: propCap,
+      rosterNames,
+      playerTeamByName,
+    });
   }
 
   const audit = auditNflGoatBriefcaseCoverage(briefcase);
@@ -318,6 +406,7 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
       missingNeeded: interaction.missingNeeded,
       propMatched: interaction.propMatch?.matched ?? 0,
       propRows: briefcase.slate.playerProps?.length ?? 0,
+      propsSource,
       gameCount: briefcase.slate.games?.length ?? 0,
       defenseTeams: briefcase.coverage.defenseTeams,
       defenseSource: briefcase.coverage.defenseSource,
