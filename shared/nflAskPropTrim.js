@@ -71,12 +71,7 @@ function playerTokensFromQuestion(question) {
   return [...tokens];
 }
 
-function looksLikeNflTicketReviewQuestion(question) {
-  const q = String(question || "").toLowerCase();
-  const ou = (q.match(/\b(over|under)\s+\d/g) || []).length;
-  if (ou < 2) return false;
-  return /\b(i\s+bet|i\s+took|my\s+(?:bet|ticket|parlay|slip)|thoughts)\b/.test(q);
-}
+import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 
 /**
  * @param {string} question
@@ -409,7 +404,7 @@ export function filterNflPropsForMatchup(props, opts = {}) {
  */
 export function trimNflPlayerPropsForAsk(props, opts = {}) {
   const scope = expandScope(opts.scope || []);
-  const ticketReview = looksLikeNflTicketReviewQuestion(opts.question || "");
+  const ticketReview = isNflTicketReviewAsk(opts.question || "");
   const maxRows = ticketReview
     ? 120
     : Math.max(12, Math.min(Number(opts.maxRows) || 56, 120));

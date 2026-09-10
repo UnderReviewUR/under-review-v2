@@ -38,6 +38,7 @@ import {
 } from "./_nflMatchupPropHygiene.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 import { isNflBdlPrimaryEnabled } from "./_nflBdl.js";
+import { capNflAskScopeTeams, collectNflAskScopeFromQuestion } from "../shared/nflAskScope.js";
 
 export { NFL_STADIUM_META };
 
@@ -84,6 +85,9 @@ function nflAbbrAliasKeys(abbr) {
   if (a === "WSH") return ["WAS", "WSH"];
   if (a === "WAS") return ["WAS", "WSH"];
   if (a === "ARI" || a === "ARZ") return ["ARI", "ARZ"];
+  if (a === "NE" || a === "NWE") return ["NE", "NWE"];
+  if (a === "LA" || a === "LAR") return ["LA", "LAR"];
+  if (a === "JAC" || a === "JAX") return ["JAC", "JAX"];
   return [a];
 }
 
@@ -145,7 +149,11 @@ export function resolveNflScopeTeamAbbrevSet(question, matchupContext = null) {
     if (aa && /^[A-Z]{2,4}$/.test(aa)) set.add(aa);
   }
 
-  if (set.size > 2) return new Set();
+  const stated = collectNflAskScopeFromQuestion(q);
+  for (const ab of stated.teams) set.add(ab);
+
+  // size>2 keeps nickname/win-leg anchors only — a pure player-prop ticket has nothing to grab (see capNflAskScopeTeams).
+  if (set.size > 2) return capNflAskScopeTeams(set, stated.anchors);
   return set;
 }
 

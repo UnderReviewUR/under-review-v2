@@ -117,3 +117,53 @@ test("ticket review grades unstamped Maye/Brown/Doubs rows", () => {
   assert.match(String(structured.whyNow), /27\.5/);
   assert.doesNotMatch(String(structured.whyNow), /don't have a live row/i);
 });
+
+test("SEA-only question still keeps NE props through resolve → scrub → trim → guard", async () => {
+  const { resolveNflScopeTeamAbbrevSet } = await import("../api/_nflContext.js");
+  const { scrubNflMatchupPropLines, buildNflStaticPlayerTeamIndex } = await import(
+    "../api/_nflMatchupPropHygiene.js"
+  );
+  const { trimNflPlayerPropsForAsk } = await import("./nflAskPropTrim.js");
+  const scope = resolveNflScopeTeamAbbrevSet(SLIP, null);
+  const teamIndex = buildNflStaticPlayerTeamIndex();
+  const scrubbed = scrubNflMatchupPropLines(propLines, {
+    scope,
+    playerTeamByName: teamIndex,
+  });
+  const trimmed = trimNflPlayerPropsForAsk(scrubbed, {
+    scope,
+    question: SLIP,
+    maxRows: 24,
+    playerTeamByName: teamIndex,
+    rosterNames: ["Drake Maye", "A.J. Brown", "Romeo Doubs", "Sam Darnold"],
+  });
+  const names = trimmed.map((p) => p.player);
+  assert.ok(names.includes("Drake Maye"), names.join(","));
+  assert.ok(names.includes("A.J. Brown"), names.join(","));
+  assert.ok(names.includes("Romeo Doubs"), names.join(","));
+  const { structured, codes } = applyNflAskGuard({
+    question: SLIP,
+    structured: { call: "PASS", lean: "Lean: Pass.", confidence: "Medium" },
+    games,
+    propLines: trimmed,
+    briefcase: { grade: "green", detected: { marketId: "ticket_review" }, league: briefcase.league },
+  });
+  assert.ok(codes.includes("ticket_review_recover"));
+  assert.ok(!codes.includes("props_board_force_recover"));
+  assert.doesNotMatch(String(structured.whyNow), /don't have a live row/i);
+  assert.match(String(structured.whyNow), /62\.5|28\.5|231\.5/);
+});
+
+test("Seahawks ML does not invent a Maye fight without a Maye under", () => {
+  const structured = { call: "PASS", lean: "Lean: Pass.", confidence: "Medium" };
+  applyNflTicketReviewToStructured(
+    structured,
+    "i bet seahawks win and darnold under 249.5. thoughts?",
+    games,
+    [{ player: "Sam Darnold", propRaw: "pass_yds", prop: "passing yards", line: 230.5, team: "SEA" }],
+    briefcase,
+  );
+  assert.doesNotMatch(String(structured.whyNow), /Maye/i);
+  assert.doesNotMatch(String(structured.edge), /SEA game/i);
+});
+
