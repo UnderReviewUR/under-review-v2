@@ -15,6 +15,9 @@ test("isNflScopedPropFastPath — rejects draft futures", () => {
   assert.equal(isNflScopedPropFastPath("Who wins the AFC at +400?"), false);
 });
 
-test("isNflScopedPropFastPath — spread without prop still fast when matchup present", () => {
-  assert.equal(isNflScopedPropFastPath("NE @ SEA spread — take the dog or pass?"), true);
+test("isNflScopedPropFastPath — named props follow-up", () => {
+  assert.equal(
+    isNflScopedPropFastPath("any good props for kittle, kyren, kittle? mccaffrey?"),
+    true,
+  );
 });

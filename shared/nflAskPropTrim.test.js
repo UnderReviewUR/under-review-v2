@@ -142,6 +142,48 @@ test("pickNflPropsBoardTickets drops off-matchup players and duplicate Maye yard
   assert.ok(out.some((p) => p.player === "Jaxon Smith-Njigba"));
 });
 
+test("pickNflPropsBoardTickets grades named skill players before Stafford", () => {
+  const row = (player, team, prop, propRaw, line) => ({
+    game: "SF @ LAR",
+    player,
+    team,
+    prop,
+    propRaw,
+    line,
+    book: "draftkings",
+    overOdds: -110,
+    underOdds: -110,
+    eventId: "9",
+  });
+  const out = pickNflPropsBoardTickets(
+    [
+      row("Matthew Stafford", "LAR", "passing yards", "pass_yds", 263.5),
+      row("Brock Purdy", "SF", "passing yards", "pass_yds", 245.5),
+      row("George Kittle", "SF", "receiving yards", "rec_yds", 48.5),
+      row("Kyren Williams", "LAR", "rushing yards", "rush_yds", 72.5),
+      row("Christian McCaffrey", "SF", "rushing yards", "rush_yds", 78.5),
+    ],
+    {
+      scope: ["SF", "LAR"],
+      eventIds: ["9"],
+      question: "any good props for kittle, kyren, kittle? mccaffrey?",
+      maxTickets: 5,
+      playerTeamByName: {
+        "george kittle": "SF",
+        "kyren williams": "LAR",
+        "christian mccaffrey": "SF",
+        "matthew stafford": "LAR",
+      },
+    },
+  );
+  const names = out.map((p) => p.player);
+  assert.ok(names.includes("George Kittle"));
+  assert.ok(names.includes("Kyren Williams"));
+  assert.ok(names.includes("Christian McCaffrey"));
+  assert.ok(!names.includes("Matthew Stafford"));
+  assert.ok(!names.includes("Brock Purdy"));
+});
+
 test("pickNflPropsBoardTickets prefers full-game rush yards over 1H", () => {
   const props = [
     {

@@ -322,18 +322,37 @@ export function detectWtaFromQuestion(question) {
 }
 
 export function detectNflTeamHint(question) {
+  const all = detectNflTeamHints(question);
+  return all[0] || null;
+}
+
+/**
+ * Every NFL nickname/abbr in the question (longest keys first, unique abbrs).
+ * @param {string} question
+ * @returns {string[]}
+ */
+export function detectNflTeamHints(question) {
   const q = normalizeNflAskQuestion(question).toLowerCase();
-  if (!q) return null;
+  if (!q) return [];
+  /** @type {string[]} */
+  const out = [];
+  const seen = new Set();
   const keys = Object.keys(NFL_TEAM_NAMES).sort((a, b) => b.length - a.length);
   for (const key of keys) {
+    let hit = false;
     if (key.length <= 3) {
       const re = new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
-      if (re.test(q)) return NFL_TEAM_NAMES[key];
-      continue;
+      hit = re.test(q);
+    } else {
+      hit = q.includes(key);
     }
-    if (q.includes(key)) return NFL_TEAM_NAMES[key];
+    if (!hit) continue;
+    const ab = NFL_TEAM_NAMES[key];
+    if (!ab || seen.has(ab)) continue;
+    seen.add(ab);
+    out.push(ab);
   }
-  return null;
+  return out;
 }
 
 /**

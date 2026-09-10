@@ -17,6 +17,6 @@ test("normalizeNflAskQuestion fixes messy props asks and team typos", () => {
 test("looksLikeNflPropsBoardAsk covers best bets / this game / vs", () => {
   assert.equal(looksLikeNflPropsBoardAsk("best bets for SEA vs NE"), true);
   assert.equal(looksLikeNflPropsBoardAsk("best props for this game"), true);
-  assert.equal(looksLikeNflPropsBoardAsk("any good props for the seahawks game?"), true);
+  assert.equal(looksLikeNflPropsBoardAsk("any good props for kittle, kyren, kittle? mccaffrey?"), true);
   assert.equal(looksLikeNflPropsBoardAsk("Maye passing yards over 232.5?"), false);
 });

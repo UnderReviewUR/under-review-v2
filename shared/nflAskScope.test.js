@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveNflScopeTeamAbbrevSet } from "../api/_nflContext.js";
-import { capNflAskScopeTeams, collectNflAskScopeFromQuestion } from "./nflAskScope.js";
+import { capNflAskScopeTeams, collectNflAskScopeFromQuestion, nflAskNamedPlayerHits } from "./nflAskScope.js";
 
 const SLIP =
   "for tonights game, i bet: seahawks win, aj brown over 34.5, darnold under 249.5, doubs over 14.5, and maye under 239.5. thoughts?";
@@ -11,6 +11,31 @@ test("collectNflAskScopeFromQuestion adds NE from Brown/Doubs/Maye on a Seahawks
   assert.ok(anchors.has("SEA"));
   assert.ok(teams.has("SEA"));
   assert.ok(teams.has("NE"));
+});
+
+test("rams vs 49ers resolves both teams, not first nickname only", () => {
+  const q = "best player props for the rams vs 49ers game tonight?";
+  const { teams, anchors } = collectNflAskScopeFromQuestion(q);
+  assert.ok(anchors.has("LAR"), [...anchors].join(","));
+  assert.ok(anchors.has("SF"), [...anchors].join(","));
+  const scope = resolveNflScopeTeamAbbrevSet(q, null);
+  assert.ok(scope.has("LAR"));
+  assert.ok(scope.has("SF"));
+  assert.equal(scope.size, 2);
+});
+
+test("kittle / kyren / mccaffrey follow-up scopes SF+LAR with no team nick", () => {
+  const q = "any good props for kittle, kyren, kittle? mccaffrey?";
+  const named = nflAskNamedPlayerHits(q);
+  assert.ok(named.tokens.includes("kittle"));
+  assert.ok(named.tokens.includes("kyren"));
+  assert.ok(named.tokens.includes("mccaffrey"));
+  const { teams } = collectNflAskScopeFromQuestion(q);
+  assert.ok(teams.has("SF"), [...teams].join(","));
+  assert.ok(teams.has("LAR"), [...teams].join(","));
+  const scope = resolveNflScopeTeamAbbrevSet(q, null);
+  assert.ok(scope.has("SF"));
+  assert.ok(scope.has("LAR"));
 });
 
 test("resolveNflScopeTeamAbbrevSet keeps SEA+NE with null matchup", () => {

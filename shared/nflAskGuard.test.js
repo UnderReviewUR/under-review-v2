@@ -806,3 +806,84 @@ test("buildNflPropsBoardFallbackTake validates with live rows", () => {
   const v = validateStructuredURTakeResponse(take);
   assert.equal(v.valid, true, v.errors && v.errors.join("; "));
 });
+
+test("props_board recover uses named skill lines instead of asking for numbers", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "any good props for kittle, kyren, kittle? mccaffrey?",
+    structured: {
+      call: "PASS",
+      lean: "Lean: Pass. Need the numbers.",
+      whyNow: "Can't help without the actual prop lines. Kyren is Henderson.",
+      edge: "Tell me the lines.",
+      confidence: "Speculative",
+      callType: "prop",
+    },
+    games: [{ awayAbbr: "SF", homeAbbr: "LAR", providerGameId: 9 }],
+    propLines: [
+      {
+        game: "SF @ LAR",
+        player: "Matthew Stafford",
+        team: "LAR",
+        prop: "passing yards",
+        propRaw: "pass_yds",
+        line: 263.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "SF @ LAR",
+        player: "George Kittle",
+        team: "SF",
+        prop: "receiving yards",
+        propRaw: "rec_yds",
+        line: 48.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "SF @ LAR",
+        player: "Kyren Williams",
+        team: "LAR",
+        prop: "rushing yards",
+        propRaw: "rush_yds",
+        line: 72.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "SF @ LAR",
+        player: "Christian McCaffrey",
+        team: "SF",
+        prop: "rushing yards",
+        propRaw: "rush_yds",
+        line: 78.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+    ],
+    briefcase: {
+      grade: "green",
+      detected: { marketId: "props_board" },
+      league: {
+        playerTeamByName: {
+          "george kittle": "SF",
+          "kyren williams": "LAR",
+          "christian mccaffrey": "SF",
+        },
+        rostersByTeam: {
+          SF: [{ name: "George Kittle" }, { name: "Christian McCaffrey" }],
+          LAR: [{ name: "Kyren Williams" }],
+        },
+      },
+    },
+  });
+  assert.ok(codes.includes("props_board_force_recover"));
+  assert.doesNotMatch(String(structured.whyNow), /Henderson|Can't help without/i);
+  assert.match(String(structured.whyNow), /Kittle/i);
+  assert.match(String(structured.whyNow), /Kyren|Williams/i);
+  assert.match(String(structured.whyNow), /McCaffrey/i);
+});

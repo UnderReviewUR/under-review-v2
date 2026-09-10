@@ -2,6 +2,7 @@
  * NFL UR Take fast lane — scoped matchup + player prop asks (target ~10s e2e).
  */
 import { shouldSkipNflLiveBoardForAsk } from "./nflAskBoardPolicy.js";
+import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
 
 /**
  * @param {string} question
@@ -26,7 +27,8 @@ export function isNflScopedPropFastPath(question) {
   return (
     (hasMatchup && (hasPropSignal || hasBetVerb)) ||
     (hasTeamMatchup && hasPropSignal) ||
-    (hasBetVerb && hasPropSignal)
+    (hasBetVerb && hasPropSignal) ||
+    looksLikeNflPropsBoardAsk(q)
   );
 }
 

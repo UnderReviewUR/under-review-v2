@@ -1,6 +1,8 @@
 /**
  * Trim NFL player-prop rows for Ask / UR Take — scoped matchups should not ship 400+ lines.
  */
+import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
+import { nflAskNamedPlayerHits } from "./nflAskScope.js";
 
 const NFL_ABBR_ALIAS = {
   WSH: ["WAS", "WSH"],
@@ -68,10 +70,9 @@ function playerTokensFromQuestion(question) {
     const last = raw.split(/\s+/).pop();
     if (last && last.length >= 3) tokens.add(last);
   }
+  for (const t of nflAskNamedPlayerHits(q).tokens) tokens.add(t);
   return [...tokens];
 }
-
-import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 
 /**
  * @param {string} question
@@ -838,6 +839,27 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   const bestByMarket = new Map();
   for (const [key, list] of rowsByMarket) {
     bestByMarket.set(key, pickNflConsensusMarketRow(list) || list[0]);
+  }
+
+  const namedTokens = nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
+  const scoredBoard = [...bestByMarket.values()].sort(
+    (a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints),
+  );
+  if (namedTokens.length) {
+    /** @type {Array<Record<string, unknown>>} */
+    const namedPicked = [];
+    const namedSeen = new Set();
+    for (const row of scoredBoard) {
+      const n = String(row?.player || "").toLowerCase();
+      const hit = namedTokens.some((t) => n.includes(t) || n.split(/\s+/).pop() === t);
+      if (!hit) continue;
+      const playerKey = normalizePlayerKey(row.player);
+      if (namedSeen.has(playerKey)) continue;
+      namedPicked.push(row);
+      namedSeen.add(playerKey);
+      if (namedPicked.length >= maxTickets) break;
+    }
+    if (namedPicked.length) return namedPicked.slice(0, maxTickets);
   }
 
   /** @type {Array<Record<string, unknown>>} */
