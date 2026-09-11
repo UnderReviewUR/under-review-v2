@@ -102,6 +102,9 @@ function teamForUniqueName(token, index, maps) {
   if (index[t]) return String(index[t] || "").toUpperCase();
   const lasts = maps.byLast.get(t) || [];
   if (lasts.length === 1) return String(index[lasts[0]] || "").toUpperCase();
+  // A surname shared by several players stays ambiguous. Never fall through to
+  // the first-name map: "smith" would resolve to Smith Vilbert and poison scope.
+  if (lasts.length > 1) return "";
   const firsts = maps.byFirst.get(t) || [];
   if (firsts.length === 1) return String(index[firsts[0]] || "").toUpperCase();
   return "";
@@ -125,6 +128,20 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
   const teams = new Set();
   /** @type {Set<string>} */
   const tokens = new Set();
+
+  // Full names first — "aj brown" and "a.j. brown" both normalize onto the
+  // snapshot key, where the bare surname is one of 26 Browns.
+  for (let size = 3; size >= 2; size -= 1) {
+    for (let i = 0; i + size <= words.length; i += 1) {
+      const window = words.slice(i, i + size);
+      if (window.some((w) => NAME_STOP.has(w))) continue;
+      const key = normalizePlayerKey(window.join(" "));
+      const team = key && index[key] ? String(index[key]).toUpperCase() : "";
+      if (!team) continue;
+      teams.add(team);
+      for (const w of window) tokens.add(w);
+    }
+  }
 
   for (const raw of words) {
     const team = teamForUniqueName(raw, index, maps);

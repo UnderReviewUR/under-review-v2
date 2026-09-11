@@ -48,6 +48,22 @@ function rowMatchesScope(row, scope) {
 }
 
 /**
+ * A row stamped with a matchup that has no scoped team belongs to another game.
+ * Team stamps go stale when a player changes clubs and must stay re-homeable by
+ * the roster index; a game stamp cannot go stale, so it is safe to filter on.
+ * Anything that is not an abbr-vs-abbr label (e.g. "NFL") counts as unstamped.
+ * @param {Record<string, unknown>} row
+ * @param {Set<string>} scope
+ */
+function rowGameIsForeign(row, scope) {
+  if (!scope.size) return false;
+  const game = String(row?.game || "").toUpperCase().trim();
+  const pair = game.match(/^([A-Z]{2,4})\s*(?:@|VS\.?|V\.?|AT)\s*([A-Z]{2,4})$/);
+  if (!pair) return false;
+  return !scope.has(pair[1]) && !scope.has(pair[2]);
+}
+
+/**
  * @param {string} question
  * @returns {string[]}
  */
@@ -371,9 +387,9 @@ export function filterNflPropsForMatchup(props, opts = {}) {
 
   // 1) Drop anyone whose known team is outside the matchup.
   // Prefer team-index (BDL > ESPN > static when merged that way) over prop stamps.
-  let filtered = rows;
+  let filtered = rows.filter((p) => !rowGameIsForeign(p, scope));
   if (scope.size) {
-    filtered = rows.filter((p) => {
+    filtered = filtered.filter((p) => {
       const propTeam = String(p?.team || p?.teamAbbr || "")
         .toUpperCase()
         .trim();

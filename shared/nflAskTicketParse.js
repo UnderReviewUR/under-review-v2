@@ -6,6 +6,31 @@ const TEAM_WIN_RE =
   /\b([a-z][a-z .']{2,18}?)\s+(?:to\s+)?win\b|\b([a-z]{2,3})\s+(?:ml|moneyline)\b/gi;
 const OU_RE = /\b([a-z][a-z0-9.'\s-]{1,28}?)\s+(over|under)\s+(\d+(?:\.\d+)?)\b/gi;
 
+// Legs joined by "and" instead of commas capture the whole clause, so
+// "seahawks win and darnold under 249.5" yields the name "seahawks win and
+// darnold". Keep only the trailing clause and drop the slip's framing words.
+const LEG_CLAUSE_SPLIT_RE =
+  /\b(?:and|with|plus|also|then|wins?|ml|moneyline|bets?|took|take|have|had|got|likes?|liked|played|thoughts|parlay|ticket|slip)\b/i;
+const LEG_HEAD_NOISE_RE = /^(?:i|my|the|a|an|for|on|of|to|at|in|is|it|game|tonights?|tonight)\b\s*/i;
+
+/**
+ * @param {unknown} raw
+ */
+function cleanLegName(raw) {
+  let s = String(raw || "")
+    .replace(/[^a-z0-9.'\s-]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const parts = s.split(LEG_CLAUSE_SPLIT_RE);
+  s = String(parts[parts.length - 1] || "").trim();
+  let prev = "";
+  while (s && s !== prev) {
+    prev = s;
+    s = s.replace(LEG_HEAD_NOISE_RE, "").trim();
+  }
+  return s.split(" ").filter(Boolean).slice(-3).join(" ");
+}
+
 /**
  * @param {string} question
  */
@@ -18,7 +43,7 @@ export function parseNflStatedTicketLegs(question) {
   const winRe = new RegExp(TEAM_WIN_RE.source, "gi");
   let m;
   while ((m = winRe.exec(q))) {
-    const raw = String(m[1] || m[2] || "").trim();
+    const raw = cleanLegName(m[1] || m[2]);
     if (!raw || /^(to|the|a)$/i.test(raw)) continue;
     const key = `win:${raw.toLowerCase()}`;
     if (seen.has(key)) continue;
@@ -28,7 +53,7 @@ export function parseNflStatedTicketLegs(question) {
 
   const ouRe = new RegExp(OU_RE.source, "gi");
   while ((m = ouRe.exec(q))) {
-    const raw = String(m[1] || "").replace(/^(and|,)\s+/i, "").trim();
+    const raw = cleanLegName(m[1]);
     const side = String(m[2] || "").toLowerCase() === "over" ? "Over" : "Under";
     const line = Number(m[3]);
     if (!raw || !Number.isFinite(line)) continue;

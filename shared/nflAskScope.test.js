@@ -50,6 +50,35 @@ test("capNflAskScopeTeams keeps nickname anchors when size > 2", () => {
   assert.deepEqual([...capped], ["SEA"]);
 });
 
+test("a full name resolves even when the surname is shared league-wide", () => {
+  for (const q of [
+    "how many targets for aj brown tonight?",
+    "how many targets for a.j. brown tonight?",
+  ]) {
+    const named = nflAskNamedPlayerHits(q);
+    assert.deepEqual([...named.teams], ["NE"], q);
+    assert.ok(named.tokens.includes("brown"), q);
+  }
+  const scope = resolveNflScopeTeamAbbrevSet("aj brown receiving yards tonight vs seattle?", null);
+  assert.deepEqual([...scope].sort(), ["NE", "SEA"]);
+});
+
+test("a shared surname never resolves through the first-name map", () => {
+  // Smith Vilbert (MIN) must not claim every Smith in the league.
+  const named = nflAskNamedPlayerHits("Smith-Njigba over 5.5 receptions?");
+  assert.deepEqual([...named.teams], ["SEA"]);
+  const scope = resolveNflScopeTeamAbbrevSet("Smith-Njigba over 5.5 receptions?", null);
+  assert.deepEqual([...scope], ["SEA"]);
+});
+
+test("an ambiguous surname resolves to nothing rather than the wrong club", () => {
+  // Tyrique Stevenson is CHI, Rhamondre is NE — guessing either is a bug.
+  const scope = resolveNflScopeTeamAbbrevSet("Stevenson over 54.5 rushing yards tonight?", null);
+  assert.ok(!scope.has("CHI"), [...scope].join(","));
+  const luke = resolveNflScopeTeamAbbrevSet("mccaffrey rushing yards tonight?", null);
+  assert.ok(!luke.has("WSH"), [...luke].join(","));
+});
+
 test("capNflAskScopeTeams does not invent a game for a pure-prop 3-team slip", () => {
   const q =
     "i bet: aj brown over 34.5, kelce over 50.5, jefferson over 80.5, and lamb over 70.5. thoughts?";

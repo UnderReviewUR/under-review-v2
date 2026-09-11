@@ -17,6 +17,8 @@
     "test:nfl-stress:live": "node scripts/nfl-stress.mjs --live",
     "ingest:nfl-clay": "node scripts/ingest-nfl-clay.mjs",
     "test:wc-props": "node --test shared/wcThreadFixtureContext.test.js shared/wcNationRefs.test.js && node scripts/wc-props-routing-contract.mjs",
+    "eval:nfl-golden": "node scripts/run-nfl-golden-eval.mjs --offline",
+    "eval:nfl-golden:live": "node scripts/run-nfl-golden-eval.mjs --live",
     "eval:wc-golden": "node scripts/run-wc-golden-eval.mjs --offline",
     "eval:wc-golden:handler": "node scripts/run-wc-golden-eval.mjs --handler",
     "eval:wc-golden:live": "node scripts/run-wc-golden-eval.mjs --live",

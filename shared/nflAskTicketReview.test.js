@@ -167,3 +167,38 @@ test("Seahawks ML does not invent a Maye fight without a Maye under", () => {
   assert.doesNotMatch(String(structured.edge), /SEA game/i);
 });
 
+test("legs joined by 'and' keep the player name, not the whole clause", () => {
+  const legs = parseNflStatedTicketLegs("i bet seahawks win and darnold under 249.5. thoughts?");
+  const ou = legs.filter((l) => l.kind === "ou");
+  assert.equal(ou.length, 1);
+  assert.equal(ou[0].raw, "darnold");
+  assert.equal(legs.find((l) => l.kind === "win")?.raw, "seahawks");
+});
+
+test("an 'and' slip still grades the player leg off a live row", () => {
+  const structured = { call: "PASS", lean: "Lean: Pass.", confidence: "Medium" };
+  applyNflTicketReviewToStructured(
+    structured,
+    "i bet seahawks win and darnold under 249.5. thoughts?",
+    games,
+    propLines,
+    briefcase,
+  );
+  assert.doesNotMatch(String(structured.whyNow), /don't have a live row/i);
+  assert.match(String(structured.whyNow), /228\.5/);
+});
+
+test("a game-total leg grades off the posted total, not the prop board", () => {
+  const structured = { call: "PASS", lean: "Lean: Pass.", confidence: "Medium" };
+  applyNflTicketReviewToStructured(
+    structured,
+    "i took NE @ SEA under 42.5 and maye under 239.5 — thoughts?",
+    [{ ...games[0], total: { line: 42.5 } }],
+    propLines,
+    briefcase,
+  );
+  assert.doesNotMatch(String(structured.whyNow), /don't have a live row/i);
+  assert.match(String(structured.whyNow), /Game total under 42\.5/i);
+  assert.match(String(structured.whyNow), /231\.5/);
+});
+

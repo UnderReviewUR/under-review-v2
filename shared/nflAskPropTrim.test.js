@@ -426,3 +426,32 @@ test("preferHighPrintPrimary ignores 400+ alts and other Maye markets", async ()
   assert.match(ticket.why, /232\.5/);
   assert.doesNotMatch(ticket.why, /460\.5|47\.5|109\.5/);
 });
+
+test("a row stamped with another matchup is dropped even when the player is in scope", () => {
+  const rows = [
+    { player: "A.J. Brown", propRaw: "rec_yds", line: 62.5, game: "NE @ SEA", team: "NE" },
+    { player: "A.J. Brown", propRaw: "rec_yds", line: 64.5, game: "DAL @ PHI", team: "PHI" },
+    { player: "Romeo Doubs", propRaw: "rec_yds", line: 35.5, game: "GB @ DET", team: "GB" },
+    { player: "Romeo Doubs", propRaw: "rec_yds", line: 28.5, game: "NE @ SEA", team: "NE" },
+  ];
+  const kept = filterNflPropsForMatchup(rows, {
+    scope: ["NE", "SEA"],
+    playerTeamByName: { "aj brown": "NE", "romeo doubs": "NE" },
+  });
+  assert.deepEqual(
+    kept.map((r) => r.line).sort((a, b) => a - b),
+    [28.5, 62.5],
+  );
+});
+
+test("a row with no matchup label stays gradeable", () => {
+  const rows = [
+    { player: "Drake Maye", propRaw: "pass_yds", line: 232.5, game: "NFL", team: null },
+    { player: "Drake Maye", propRaw: "pass_yds", line: 231.5, team: "NE" },
+  ];
+  const kept = filterNflPropsForMatchup(rows, {
+    scope: ["NE", "SEA"],
+    playerTeamByName: { "drake maye": "NE" },
+  });
+  assert.equal(kept.length, 2);
+});

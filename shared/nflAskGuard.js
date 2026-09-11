@@ -912,7 +912,16 @@ export function applyNflAskGuard(opts = {}) {
   }
 
   if (String(structured.call || "").toUpperCase() !== "PASS") {
-    const cited = extractNflTicketNumbers(`${structured.call || ""} ${structured.lean || ""}`);
+    // whyNow and edge are the action fields the user reads as the bet, so a
+    // number there has to be posted too. Strip historical phrasing first —
+    // "has gone over 60 yards in five straight" is a stat, not a ticket.
+    const actionText = `${structured.whyNow || ""} ${structured.edge || ""}`.replace(
+      /\b(?:gone|been|hit|cleared|topped|averaged|averaging|posted|had|went)\b[^.]*?\b(?:over|under)\s+\d+(?:\.\d+)?/gi,
+      " ",
+    );
+    const cited = extractNflTicketNumbers(
+      `${structured.call || ""} ${structured.lean || ""} ${actionText}`,
+    );
     const posted = collectNflPostedNumbers(games, propLines);
     const invented = detectNflInventedLine(cited, posted);
     if (invented && (posted.length === 0 || invented.invented) && !codes.includes("ticket_review_recover")) {

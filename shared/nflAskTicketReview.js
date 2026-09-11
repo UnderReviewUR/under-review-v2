@@ -164,6 +164,31 @@ export function gradeNflStatedTicket(question, games = [], propLines = [], brief
       continue;
     }
 
+    // "NE @ SEA under 42.5" is a game total, not a player prop. Grading it off
+    // the prop board is what produced "I don't have a live row" on team legs.
+    const legTeam = detectNflTeamHint(String(leg.raw));
+    if (legTeam && !resolveNflPlayerTeamFromIndex(String(leg.raw), teamIndex, "")) {
+      const g =
+        (games || []).find((row) => {
+          const home = String(row?.homeAbbr || "").toUpperCase();
+          const away = String(row?.awayAbbr || "").toUpperCase();
+          return home === legTeam || away === legTeam;
+        }) || (games || [])[0];
+      const total = Number(g?.total?.line);
+      if (Number.isFinite(total) && total > 0) {
+        const delta = Number(leg.line) - total;
+        const cushion = Math.abs(delta).toFixed(1).replace(/\.0$/, "");
+        const how =
+          Math.abs(delta) <= 0.5
+            ? `that's the posted number (${total}) — right side, no edge.`
+            : (leg.side === "Under" && delta > 0) || (leg.side === "Over" && delta < 0)
+              ? `posted total is ${total}, so you bought ${cushion}. I'd take it.`
+              : `posted total is ${total}, so you gave up ${cushion}. I'd fade it.`;
+        notes.push(`Game total ${String(leg.side).toLowerCase()} ${leg.line} — ${how}`);
+        continue;
+      }
+    }
+
     const rows = playerRows(propLines, String(leg.raw), teamIndex);
     const live = pickRowForStatedLine(rows, leg.line, slipTeams, teamIndex);
     const who = String(live?.player || leg.raw);
