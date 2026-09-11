@@ -175,33 +175,45 @@ test("grader flags a scoped team the named player is not on", () => {
   assert.ok(result.issueCodes.includes("scope_forbidden:KC"));
 });
 
-test("grader flags a row carried over from another matchup", () => {
+test("a scoped ask drops rows carried over from another matchup", () => {
+  // The neSea board ships A.J. Brown stamped DAL @ PHI and Romeo Doubs stamped
+  // GB @ DET — same players, different games, different numbers.
+  const result = runNflGoldenEvalCase(
+    { id: "rig-cross-game", question: "best player props NE @ SEA?", board: "neSea", modelFixture: baseTake },
+    NFL_GOLDEN_BOARDS.neSea,
+    deps,
+  );
+  assert.deepEqual(
+    result.issueCodes.filter((c) => c.startsWith("cross_game_row")),
+    [],
+  );
+});
+
+test("grader still reports foreign rows when there is no scope to filter on", () => {
   const result = runNflGoldenEvalCase(
     {
-      id: "rig-cross-game",
-      question: "best player props NE @ SEA?",
+      id: "rig-cross-game-unscoped",
+      question: "Stevenson over 54.5 rushing yards tonight?",
       board: "neSea",
       modelFixture: baseTake,
     },
-    {
-      ...NFL_GOLDEN_BOARDS.neSea,
-      propLines: [
-        ...NFL_GOLDEN_BOARDS.neSea.propLines,
-        {
-          game: "NE @ SEA",
-          player: "Drake Maye",
-          team: "NE",
-          prop: "pass yds",
-          propRaw: "pass_yds",
-          line: 999.5,
-          eventId: "77",
-          source: "balldontlie_nfl",
-        },
-      ],
-    },
+    NFL_GOLDEN_BOARDS.neSea,
     deps,
   );
-  assert.ok(result.issueCodes.some((c) => c.startsWith("cross_game_row:maye")));
+  assert.deepEqual(result.scope, [], "ambiguous surname should not resolve a game");
+  assert.ok(result.issueCodes.some((c) => c.startsWith("cross_game_row:brown")));
+});
+
+test("aliased abbreviations are not treated as a different game", () => {
+  const result = runNflGoldenEvalCase(
+    { id: "rig-alias", question: "best player props SF @ LAR?", board: "sfLar", modelFixture: baseTake },
+    { ...NFL_GOLDEN_BOARDS.sfLar, games: [{ ...NFL_GOLDEN_BOARDS.sfLar.games[0], homeAbbr: "LA" }] },
+    deps,
+  );
+  assert.deepEqual(
+    result.issueCodes.filter((c) => c.startsWith("cross_game_row")),
+    [],
+  );
 });
 
 test("summary separates real failures from labelled known gaps", () => {

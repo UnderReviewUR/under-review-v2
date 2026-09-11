@@ -133,21 +133,67 @@ function rowsForPlayer(rows, name) {
   });
 }
 
+const ABBR_ALIAS = {
+  WSH: ["WAS", "WSH"],
+  WAS: ["WAS", "WSH"],
+  ARI: ["ARI", "ARZ"],
+  ARZ: ["ARI", "ARZ"],
+  LA: ["LA", "LAR"],
+  LAR: ["LA", "LAR"],
+  JAC: ["JAC", "JAX"],
+  JAX: ["JAC", "JAX"],
+  NE: ["NE", "NWE"],
+  NWE: ["NE", "NWE"],
+};
+
+/** @param {Iterable<string>} abbrs */
+function expandAbbrs(abbrs) {
+  const out = new Set();
+  for (const raw of abbrs) {
+    const ab = String(raw || "").toUpperCase().trim();
+    if (!ab) continue;
+    out.add(ab);
+    for (const alias of ABBR_ALIAS[ab] || []) out.add(alias);
+  }
+  return out;
+}
+
 /**
- * Event ids that belong to games matching the resolved scope.
+ * Matchup label on a prop row, if it is one. Board rows are labelled
+ * "AWAY @ HOME"; anything else (e.g. "NFL") counts as unstamped.
+ * @param {unknown} label
+ */
+function gamePairFromLabel(label) {
+  const m = String(label || "")
+    .toUpperCase()
+    .trim()
+    .match(/^([A-Z]{2,4})\s*(?:@|VS\.?|V\.?|AT)\s*([A-Z]{2,4})$/);
+  return m ? [m[1], m[2]] : null;
+}
+
+/**
+ * Rows carried over from another matchup. Event ids come from a different
+ * namespace than the odds board's game ids, so match on the label the product
+ * itself filters on.
  * @param {NflGoldenBoard} board
  * @param {Set<string>} scope
+ * @param {Array<Record<string, unknown>>} rows
  */
-function scopedEventIds(board, scope) {
-  const ids = new Set();
-  for (const g of board.games || []) {
-    const home = String(g?.homeAbbr || "").toUpperCase();
-    const away = String(g?.awayAbbr || "").toUpperCase();
-    if (scope.size && !scope.has(home) && !scope.has(away)) continue;
-    if (g?.eventId != null) ids.add(String(g.eventId));
-    if (g?.providerGameId != null) ids.add(String(g.providerGameId));
-  }
-  return ids;
+function foreignGameRows(board, scope, rows) {
+  const scoped = expandAbbrs(scope);
+  const boardGames = (board.games || [])
+    .map((g) => expandAbbrs([g?.awayAbbr, g?.homeAbbr].filter(Boolean)))
+    .filter((teams) => teams.size >= 2);
+
+  return rows.filter((r) => {
+    const pair = gamePairFromLabel(r?.game);
+    if (!pair) return false;
+    const teams = expandAbbrs(pair);
+    if (scoped.size) return ![...teams].some((ab) => scoped.has(ab));
+    // No scope to compare against: the row must at least belong to a game that
+    // is actually on this board.
+    return !boardGames.some((game) => [...teams].every((ab) => game.has(ab)));
+  });
 }
 
 /**
@@ -203,13 +249,8 @@ export function runNflGoldenEvalCase(row, board, deps) {
 
   // Cross-game contamination: a row from another matchup reaching the prompt
   // lets the model quote a number that was never posted for this game.
-  const allowedIds = scopedEventIds(board, scope);
-  if (allowedIds.size) {
-    for (const r of trimmed) {
-      const id = r?.eventId != null ? String(r.eventId) : "";
-      if (!id || allowedIds.has(id)) continue;
-      issueCodes.push(`cross_game_row:${lastNameToken(r?.player)}@${r?.game || "?"}`);
-    }
+  for (const r of foreignGameRows(board, scope, trimmed)) {
+    issueCodes.push(`cross_game_row:${lastNameToken(r?.player)}@${r?.game || "?"}`);
   }
 
   for (const name of row.evidence || []) {
