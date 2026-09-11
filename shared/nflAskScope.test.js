@@ -65,26 +65,36 @@ test("a full name resolves even when the surname is shared league-wide", () => {
 
 test("a shared surname never resolves through the first-name map", () => {
   // Smith Vilbert (MIN) must not claim every Smith in the league.
+  // Hyphenated Smith-Njigba must not also resolve bare "smith" → DeVonta (CAR).
   const named = nflAskNamedPlayerHits("Smith-Njigba over 5.5 receptions?");
   assert.deepEqual([...named.teams], ["SEA"]);
   const scope = resolveNflScopeTeamAbbrevSet("Smith-Njigba over 5.5 receptions?", null);
   assert.deepEqual([...scope], ["SEA"]);
 });
 
-test("an ambiguous surname resolves to nothing rather than the wrong club", () => {
-  // Tyrique Stevenson is CHI, Rhamondre is NE — guessing either is a bug.
-  const scope = resolveNflScopeTeamAbbrevSet("Stevenson over 54.5 rushing yards tonight?", null);
-  assert.ok(!scope.has("CHI"), [...scope].join(","));
-  const luke = resolveNflScopeTeamAbbrevSet("mccaffrey rushing yards tonight?", null);
-  assert.ok(!luke.has("WSH"), [...luke].join(","));
+test("rush/anytime market disambiguates Stevenson to NE, never CHI", () => {
+  const rush = resolveNflScopeTeamAbbrevSet("Stevenson over 54.5 rushing yards tonight?", null);
+  assert.deepEqual([...rush], ["NE"]);
+  const atd = resolveNflScopeTeamAbbrevSet("anytime TD for stevenson tonight?", null);
+  assert.deepEqual([...atd], ["NE"]);
+  // Christian is the RB; Luke (WSH) must never win a rushing ask.
+  const mcc = resolveNflScopeTeamAbbrevSet("mccaffrey rushing yards tonight?", null);
+  assert.ok(!mcc.has("WSH"), [...mcc].join(","));
+  assert.ok(mcc.has("SF"), [...mcc].join(","));
+});
+
+test("multi-club pure prop ticket uses the week board instead of inventing a game", () => {
+  const q =
+    "i bet: aj brown over 34.5, kelce over 50.5, jefferson over 80.5, and lamb over 70.5. thoughts?";
+  const { teams, anchors, weekBoard } = collectNflAskScopeFromQuestion(q);
+  assert.equal(anchors.size, 0);
+  assert.equal(weekBoard, true);
+  assert.equal(teams.size, 0);
+  const scope = resolveNflScopeTeamAbbrevSet(q, null);
+  assert.equal(scope.size, 0);
 });
 
 test("capNflAskScopeTeams does not invent a game for a pure-prop 3-team slip", () => {
-  const q =
-    "i bet: aj brown over 34.5, kelce over 50.5, jefferson over 80.5, and lamb over 70.5. thoughts?";
-  const { teams, anchors } = collectNflAskScopeFromQuestion(q);
-  assert.equal(anchors.size, 0);
-  assert.ok(teams.size > 2);
-  const capped = capNflAskScopeTeams(teams, anchors);
+  const capped = capNflAskScopeTeams(new Set(["NE", "KC", "MIN", "DAL"]), new Set());
   assert.equal(capped.size, 0);
 });

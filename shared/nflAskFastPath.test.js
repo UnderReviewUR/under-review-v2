@@ -15,9 +15,25 @@ test("isNflScopedPropFastPath — rejects draft futures", () => {
   assert.equal(isNflScopedPropFastPath("Who wins the AFC at +400?"), false);
 });
 
-test("isNflScopedPropFastPath — named props follow-up", () => {
+test("isNflScopedPropFastPath — named props follow-up stays on full GOAT path", () => {
   assert.equal(
     isNflScopedPropFastPath("any good props for kittle, kyren, kittle? mccaffrey?"),
-    true,
+    false,
+  );
+});
+
+test("isNflScopedPropFastPath — ticket review stays on full GOAT path", () => {
+  assert.equal(
+    isNflScopedPropFastPath(
+      "for tonights game, i bet: seahawks win, aj brown over 34.5, darnold under 249.5. thoughts?",
+    ),
+    false,
+  );
+});
+
+test("isNflScopedPropFastPath — best player props board stays on full GOAT path", () => {
+  assert.equal(
+    isNflScopedPropFastPath("best player props for the rams vs 49ers game tonight?"),
+    false,
   );
 });

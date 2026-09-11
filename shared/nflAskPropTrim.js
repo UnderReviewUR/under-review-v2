@@ -64,6 +64,25 @@ function rowGameIsForeign(row, scope) {
 }
 
 /**
+ * Even on the week board: if BDL says the player is NE, a "DAL @ PHI" stamp is
+ * a stale/wrong-game row and must not reach the prompt.
+ * @param {Record<string, unknown>} row
+ * @param {string} knownTeam
+ */
+function rowGameConflictsWithKnownTeam(row, knownTeam) {
+  const known = String(knownTeam || "").toUpperCase().trim();
+  if (!known) return false;
+  const game = String(row?.game || "").toUpperCase().trim();
+  const pair = game.match(/^([A-Z]{2,4})\s*(?:@|VS\.?|V\.?|AT)\s*([A-Z]{2,4})$/);
+  if (!pair) return false;
+  const matchup = expandScope([pair[1], pair[2]]);
+  for (const ab of expandScope([known])) {
+    if (matchup.has(ab)) return false;
+  }
+  return true;
+}
+
+/**
  * @param {string} question
  * @returns {string[]}
  */
@@ -387,7 +406,15 @@ export function filterNflPropsForMatchup(props, opts = {}) {
 
   // 1) Drop anyone whose known team is outside the matchup.
   // Prefer team-index (BDL > ESPN > static when merged that way) over prop stamps.
-  let filtered = rows.filter((p) => !rowGameIsForeign(p, scope));
+  let filtered = rows.filter((p) => {
+    if (rowGameIsForeign(p, scope)) return false;
+    const propTeam = String(p?.team || p?.teamAbbr || "")
+      .toUpperCase()
+      .trim();
+    const known = resolveNflPlayerTeamFromIndex(String(p?.player || ""), teamIndex, propTeam);
+    if (known && rowGameConflictsWithKnownTeam(p, known)) return false;
+    return true;
+  });
   if (scope.size) {
     filtered = filtered.filter((p) => {
       const propTeam = String(p?.team || p?.teamAbbr || "")
@@ -445,6 +472,18 @@ export function trimNflPlayerPropsForAsk(props, opts = {}) {
     }
     return false;
   });
+  // No game scope (week board / multi-club slip): keep only the named players
+  // so foreign-game noise never reaches the prompt.
+  if (!scope.size && tokens.length) {
+    rows = rows.filter((r) => {
+      const n = normalizePlayerKey(r?.player);
+      if (!n) return false;
+      const last = n.split(" ").pop();
+      return tokens.some(
+        (t) => n === t || n.endsWith(` ${t}`) || last === t || t.endsWith(last || "___"),
+      );
+    });
+  }
   rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
   const head = rows.slice(0, maxRows);
   if (!ticketReview || !tokens.length) return head;

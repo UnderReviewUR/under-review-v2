@@ -444,6 +444,21 @@ test("a row stamped with another matchup is dropped even when the player is in s
   );
 });
 
+test("stale wrong-game stamps drop on the week board too", () => {
+  const rows = [
+    { player: "A.J. Brown", propRaw: "rec_yds", line: 62.5, game: "NE @ SEA", team: "NE" },
+    { player: "A.J. Brown", propRaw: "rec_yds", line: 64.5, game: "DAL @ PHI", team: "PHI" },
+  ];
+  const kept = filterNflPropsForMatchup(rows, {
+    scope: [],
+    playerTeamByName: { "aj brown": "NE" },
+  });
+  assert.deepEqual(
+    kept.map((r) => r.line),
+    [62.5],
+  );
+});
+
 test("a row with no matchup label stays gradeable", () => {
   const rows = [
     { player: "Drake Maye", propRaw: "pass_yds", line: 232.5, game: "NFL", team: null },

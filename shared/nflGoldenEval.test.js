@@ -189,19 +189,26 @@ test("a scoped ask drops rows carried over from another matchup", () => {
   );
 });
 
-test("grader still reports foreign rows when there is no scope to filter on", () => {
+test("stale wrong-game stamps are dropped even without a matchup scope", () => {
+  // A.J. Brown is NE on BDL — the DAL @ PHI stamp must never reach the prompt,
+  // including on the week board (empty scope).
   const result = runNflGoldenEvalCase(
     {
-      id: "rig-cross-game-unscoped",
-      question: "Stevenson over 54.5 rushing yards tonight?",
+      id: "rig-stale-stamp",
+      question: "brown over 34.5 receiving yards?",
       board: "neSea",
       modelFixture: baseTake,
+      evidence: ["Brown"],
     },
     NFL_GOLDEN_BOARDS.neSea,
     deps,
   );
-  assert.deepEqual(result.scope, [], "ambiguous surname should not resolve a game");
-  assert.ok(result.issueCodes.some((c) => c.startsWith("cross_game_row:brown")));
+  assert.deepEqual(result.scope, []);
+  assert.deepEqual(
+    result.issueCodes.filter((c) => c.startsWith("cross_game_row")),
+    [],
+  );
+  assert.ok(!result.issueCodes.includes("evidence_missing:Brown"));
 });
 
 test("aliased abbreviations are not treated as a different game", () => {

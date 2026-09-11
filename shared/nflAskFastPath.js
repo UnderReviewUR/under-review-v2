@@ -1,8 +1,12 @@
 /**
  * NFL UR Take fast lane — scoped matchup + player prop asks (target ~10s e2e).
+ *
+ * Ticket reviews and broad props-board asks stay OFF this lane — they need the
+ * full GOAT briefcase (~18 wires), not the 10-wire fast pocket.
  */
 import { shouldSkipNflLiveBoardForAsk } from "./nflAskBoardPolicy.js";
 import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
+import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 
 /**
  * @param {string} question
@@ -10,6 +14,7 @@ import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
 export function isNflScopedPropFastPath(question) {
   const q = String(question || "").trim();
   if (!q || shouldSkipNflLiveBoardForAsk(q)) return false;
+  if (isNflTicketReviewAsk(q) || looksLikeNflPropsBoardAsk(q)) return false;
 
   const lower = q.toLowerCase();
   const hasPropSignal =
@@ -27,8 +32,7 @@ export function isNflScopedPropFastPath(question) {
   return (
     (hasMatchup && (hasPropSignal || hasBetVerb)) ||
     (hasTeamMatchup && hasPropSignal) ||
-    (hasBetVerb && hasPropSignal) ||
-    looksLikeNflPropsBoardAsk(q)
+    (hasBetVerb && hasPropSignal)
   );
 }
 

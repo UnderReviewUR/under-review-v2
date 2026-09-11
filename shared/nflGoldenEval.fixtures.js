@@ -400,13 +400,10 @@ export const NFL_GOLDEN_EVAL_CASES = Object.freeze([
     question: "Stevenson over 54.5 rushing yards tonight?",
     board: "neSea",
     detected: "rush_yds",
+    scope: ["NE"],
     forbidScope: ["CHI"],
     evidence: ["Stevenson"],
-    knownGap: true,
-    why:
-      "Two Stevensons on the snapshot, so scope resolves to nothing (never CHI — " +
-      "that part holds). Known gap: with no game scope the foreign-game filter is " +
-      "off and the whole week board reaches the prompt.",
+    why: "Rush yards disambiguates Rhamondre (NE) over Tyrique (CHI).",
   },
   {
     id: "prop-receptions-stated",
@@ -664,10 +661,10 @@ export const NFL_GOLDEN_EVAL_CASES = Object.freeze([
     question: "anytime TD for stevenson tonight?",
     board: "neSea",
     detected: "anytime_td",
+    scope: ["NE"],
     forbidScope: ["CHI"],
     evidence: ["Stevenson"],
-    knownGap: true,
-    why: "Same ambiguous-surname gap as prop-rush-yds-stated.",
+    why: "Anytime TD prefers skill RBs — Rhamondre NE, never Tyrique CHI.",
   },
   {
     id: "market-targets",
@@ -703,9 +700,10 @@ export const NFL_GOLDEN_EVAL_CASES = Object.freeze([
     id: "market-rush-rec-combo",
     question: "mccaffrey rushing yards and receiving yards tonight?",
     board: "sfLar",
+    scope: ["SF"],
     forbidScope: ["WSH"],
     evidence: ["McCaffrey"],
-    why: "Luke McCaffrey is WSH — a bare 'mccaffrey' must never resolve there.",
+    why: "Rush context picks Christian (SF) over Luke (WSH).",
   },
 
   // ---------- Thin / empty feed honesty ----------
@@ -732,13 +730,11 @@ export const NFL_GOLDEN_EVAL_CASES = Object.freeze([
     id: "scope-three-team-prop-slip",
     question: "i bet: kelce over 45.5, nacua over 60.5, and brown over 34.5. thoughts?",
     board: "neSea",
-    knownGap: true,
     scope: [],
     evidence: ["Brown"],
     why:
-      "Known gap: a pure player-prop slip spanning three clubs resolves to the two " +
-      "clubs it can name (KC, LAR) and silently drops the ambiguous leg. Grading " +
-      "each leg off the week board instead of one game scope is the real fix.",
+      "Three clubs / unplaceable 'brown' → week board (empty scope). Name-filter " +
+      "keeps Brown's live NE rows so the ambiguous leg still grades.",
   },
   {
     id: "scope-single-nickname",

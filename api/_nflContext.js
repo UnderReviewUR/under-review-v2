@@ -30,7 +30,7 @@ import { buildNflAskDisciplinePromptBlock } from "../shared/nflAskDiscipline.js"
 import { mergeNflDefenseMaps } from "../shared/nflBdlDefenseNormalize.js";
 import { formatNflRostersPromptBlock } from "../shared/formatLeagueRostersPrompt.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
-import { trimNflPlayerPropsForAsk, mergeNflPlayerTeamIndexesPreferLast } from "../shared/nflAskPropTrim.js";
+import { trimNflPlayerPropsForAsk, mergeNflPlayerTeamIndexesPreferLast, pickNflGamesForScope } from "../shared/nflAskPropTrim.js";
 import {
   buildNflStaticPlayerTeamIndex,
   scrubNflMatchupPropLines,
@@ -868,7 +868,10 @@ export async function buildCanonicalNflContext(options = {}) {
       matchupThesis: matchupCard.thesis || null,
       skipLiveBoard,
     },
-    games: Array.isArray(liveBoard?.games) ? liveBoard.games : [],
+    games: pickNflGamesForScope(
+      Array.isArray(liveBoard?.games) ? liveBoard.games : [],
+      scoped ? scope : [],
+    ),
     inactives: {
       postedCount: espnInactives.postedCount ?? (espnInactives.games || []).filter((g) => g.posted).length,
       asOf: espnInactives.asOf || espnInactives.fetchedAt || null,

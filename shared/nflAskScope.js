@@ -3,7 +3,10 @@
  */
 import { detectNflTeamHints } from "../src/lib/detectSportFromQuestion.js";
 import { NFL_BDL_ROSTER_SNAPSHOT } from "../api/data/nflBdlRosterSnapshot.js";
-import { parseNflStatedTicketLegs } from "./nflAskTicketParse.js";
+import { QBs } from "../api/nfl-players.js";
+import { RBs } from "../api/nfl-rb.js";
+import WRsAndTEs from "../api/nfl-wr-te.js";
+import { parseNflStatedTicketLegs, isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 
 const NAME_STOP = new Set([
   "about",
@@ -36,6 +39,9 @@ const NAME_STOP = new Set([
   "your",
 ]);
 
+/** @type {{ qb: Set<string>, rb: Set<string>, wr: Set<string> } | null} */
+let skillSetsCache = null;
+
 function normalizePlayerKey(name) {
   const parts = String(name || "")
     .toLowerCase()
@@ -61,6 +67,21 @@ function normalizePlayerKey(name) {
     i += 1;
   }
   return out.join(" ");
+}
+
+function skillSets() {
+  if (skillSetsCache) return skillSetsCache;
+  /** @type {Set<string>} */
+  const qb = new Set();
+  /** @type {Set<string>} */
+  const rb = new Set();
+  /** @type {Set<string>} */
+  const wr = new Set();
+  for (const name of Object.keys(QBs || {})) qb.add(normalizePlayerKey(name));
+  for (const name of Object.keys(RBs || {})) rb.add(normalizePlayerKey(name));
+  for (const name of Object.keys(WRsAndTEs || {})) wr.add(normalizePlayerKey(name));
+  skillSetsCache = { qb, rb, wr };
+  return skillSetsCache;
 }
 
 function addAbbr(set, raw) {
@@ -96,15 +117,51 @@ function uniqueNameMaps(index) {
   return { byLast, byFirst };
 }
 
-function teamForUniqueName(token, index, maps) {
+/**
+ * Soft market/position prior for shared last names. Never invents a team when
+ * two skill players still share the surname (e.g. Brown).
+ * @param {string[]} lasts
+ * @param {string} question
+ */
+function disambiguateLastNames(lasts, question) {
+  if (lasts.length <= 1) return lasts[0] || "";
+  const q = String(question || "").toLowerCase();
+  const skill = skillSets();
+  /** @type {(kn: string) => boolean} */
+  let prefer = () => true;
+  if (/\brush/.test(q)) prefer = (kn) => skill.rb.has(kn);
+  else if (/\bpass(?:ing)?\b/.test(q) && !/\brush/.test(q)) prefer = (kn) => skill.qb.has(kn);
+  else if (/\brec(?:eiv|eption)|targets?\b/.test(q)) prefer = (kn) => skill.wr.has(kn);
+  else if (/\banytime|\btouchdowns?\b|\btds?\b/.test(q)) {
+    prefer = (kn) => skill.rb.has(kn) || skill.wr.has(kn);
+  } else {
+    // Bare surname: skill offense over defense/OL when that leaves one name.
+    prefer = (kn) => skill.qb.has(kn) || skill.rb.has(kn) || skill.wr.has(kn);
+  }
+  const hit = lasts.filter(prefer);
+  if (hit.length === 1) return hit[0];
+  // Rush/pass/rec filters can empty the list — fall back to skill-only if unique.
+  if (hit.length === 0) {
+    const skillOnly = lasts.filter(
+      (kn) => skill.qb.has(kn) || skill.rb.has(kn) || skill.wr.has(kn),
+    );
+    if (skillOnly.length === 1) return skillOnly[0];
+  }
+  return "";
+}
+
+function teamForUniqueName(token, index, maps, question = "") {
   const t = String(token || "").toLowerCase();
   if (!t || t.length < 4 || NAME_STOP.has(t)) return "";
   if (index[t]) return String(index[t] || "").toUpperCase();
   const lasts = maps.byLast.get(t) || [];
   if (lasts.length === 1) return String(index[lasts[0]] || "").toUpperCase();
+  if (lasts.length > 1) {
+    const picked = disambiguateLastNames(lasts, question);
+    return picked ? String(index[picked] || "").toUpperCase() : "";
+  }
   // A surname shared by several players stays ambiguous. Never fall through to
   // the first-name map: "smith" would resolve to Smith Vilbert and poison scope.
-  if (lasts.length > 1) return "";
   const firsts = maps.byFirst.get(t) || [];
   if (firsts.length === 1) return String(index[firsts[0]] || "").toUpperCase();
   return "";
@@ -130,21 +187,39 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
   const tokens = new Set();
 
   // Full names first — "aj brown" and "a.j. brown" both normalize onto the
-  // snapshot key, where the bare surname is one of 26 Browns.
+  // snapshot key, where the bare surname is one of 26 Browns. Also match
+  // trailing windows ("smith njigba" → "jaxon smith njigba") and consume those
+  // word indexes so a bare "smith" cannot later resolve to DeVonta.
+  /** @type {Set<number>} */
+  const consumed = new Set();
   for (let size = 3; size >= 2; size -= 1) {
     for (let i = 0; i + size <= words.length; i += 1) {
+      if ([...Array(size)].some((_, k) => consumed.has(i + k))) continue;
       const window = words.slice(i, i + size);
       if (window.some((w) => NAME_STOP.has(w))) continue;
       const key = normalizePlayerKey(window.join(" "));
-      const team = key && index[key] ? String(index[key]).toUpperCase() : "";
+      if (!key) continue;
+      let team = index[key] ? String(index[key]).toUpperCase() : "";
+      if (!team) {
+        const ends = Object.keys(index).filter((k) => {
+          const kn = normalizePlayerKey(k);
+          return kn === key || kn.endsWith(` ${key}`);
+        });
+        if (ends.length === 1) team = String(index[ends[0]] || "").toUpperCase();
+      }
       if (!team) continue;
       teams.add(team);
-      for (const w of window) tokens.add(w);
+      for (let k = 0; k < size; k += 1) {
+        consumed.add(i + k);
+        tokens.add(window[k]);
+      }
     }
   }
 
-  for (const raw of words) {
-    const team = teamForUniqueName(raw, index, maps);
+  for (let i = 0; i < words.length; i += 1) {
+    if (consumed.has(i)) continue;
+    const raw = words[i];
+    const team = teamForUniqueName(raw, index, maps, q);
     if (!team) continue;
     teams.add(team);
     tokens.add(raw);
@@ -165,18 +240,53 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
   return { teams, tokens: [...tokens] };
 }
 
-function teamFromStatedName(raw, index, maps) {
+function teamFromStatedName(raw, index, maps, question = "") {
   const key = normalizePlayerKey(raw);
   if (key && index[key]) return String(index[key]).toUpperCase();
+  if (key) {
+    const ends = Object.keys(index).filter((k) => {
+      const kn = normalizePlayerKey(k);
+      return kn === key || kn.endsWith(` ${key}`);
+    });
+    if (ends.length === 1) return String(index[ends[0]] || "").toUpperCase();
+  }
   const parts = key.split(" ").filter(Boolean);
   const last = parts[parts.length - 1] || "";
-  return teamForUniqueName(last, index, maps) || teamForUniqueName(parts[0] || "", index, maps);
+  return (
+    teamForUniqueName(last, index, maps, question) ||
+    teamForUniqueName(parts[0] || "", index, maps, question)
+  );
+}
+
+/**
+ * Ticket with an unplaceable leg or 3+ clubs cannot be one game — grade off
+ * the week board instead of inventing a matchup.
+ * @param {string} question
+ * @param {Record<string, string>} index
+ * @param {{ byLast: Map<string, string[]>, byFirst: Map<string, string[]> }} maps
+ */
+function ticketNeedsWeekBoard(question, index, maps) {
+  if (!isNflTicketReviewAsk(question)) return false;
+  const ou = parseNflStatedTicketLegs(question).filter((l) => l.kind === "ou");
+  if (ou.length < 2) return false;
+  /** @type {Set<string>} */
+  const legTeams = new Set();
+  let unresolved = 0;
+  for (const leg of ou) {
+    const team = teamFromStatedName(String(leg.raw), index, maps, question);
+    if (team) {
+      legTeams.add(team);
+      continue;
+    }
+    unresolved += 1;
+  }
+  return unresolved > 0 || legTeams.size > 2;
 }
 
 /**
  * @param {string} question
  * @param {Record<string, string>} [teamIndex]
- * @returns {{ teams: Set<string>, anchors: Set<string> }}
+ * @returns {{ teams: Set<string>, anchors: Set<string>, weekBoard: boolean }}
  */
 export function collectNflAskScopeFromQuestion(question, teamIndex) {
   const index =
@@ -188,6 +298,11 @@ export function collectNflAskScopeFromQuestion(question, teamIndex) {
   const anchors = new Set();
   /** @type {Set<string>} */
   const teams = new Set();
+
+  if (ticketNeedsWeekBoard(question, index, maps)) {
+    // Keep tokens available via named hits / ticket parse; do not invent a game.
+    return { teams: new Set(), anchors: new Set(), weekBoard: true };
+  }
 
   for (const ab of detectNflTeamHints(question)) {
     addAbbr(anchors, ab);
@@ -202,13 +317,13 @@ export function collectNflAskScopeFromQuestion(question, teamIndex) {
       }
       continue;
     }
-    addAbbr(teams, teamFromStatedName(String(leg.raw), index, maps));
+    addAbbr(teams, teamFromStatedName(String(leg.raw), index, maps, question));
   }
 
   const named = nflAskNamedPlayerHits(question, index);
   for (const ab of named.teams) addAbbr(teams, ab);
 
-  return { teams, anchors };
+  return { teams, anchors, weekBoard: false };
 }
 
 /**
@@ -218,7 +333,9 @@ export function collectNflAskScopeFromQuestion(question, teamIndex) {
  */
 export function capNflAskScopeTeams(teams, anchors) {
   const set = new Set(
-    [...(teams instanceof Set ? teams : teams || [])].map((t) => String(t || "").toUpperCase().trim()).filter(Boolean),
+    [...(teams instanceof Set ? teams : teams || [])]
+      .map((t) => String(t || "").toUpperCase().trim())
+      .filter(Boolean),
   );
   const nick = new Set(
     [...(anchors instanceof Set ? anchors : anchors || [])]
