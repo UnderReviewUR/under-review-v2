@@ -52,6 +52,71 @@ export function nflGameMatchup(game) {
 }
 
 /**
+ * Home / engage featured game — not "first row on the slate".
+ * Prefer upcoming kickoffs; when prop lines exist, prefer the game with the
+ * richest non-QB board; rotate among the top few so SEA@NE doesn't own the UI.
+ *
+ * @param {Array<Record<string, unknown>>} games
+ * @param {{
+ *   propLines?: Array<Record<string, unknown>>,
+ *   seed?: number,
+ *   nowMs?: number,
+ * }} [opts]
+ */
+export function pickNflFeaturedGame(games, opts = {}) {
+  const list = (Array.isArray(games) ? games : []).filter(Boolean);
+  if (!list.length) return null;
+  const nowMs = Number.isFinite(Number(opts.nowMs)) ? Number(opts.nowMs) : Date.now();
+  const seed = Math.max(0, Number(opts.seed) || 0);
+  const props = Array.isArray(opts.propLines) ? opts.propLines : [];
+
+  const tipMs = (g) => {
+    const t = Number(g?.tipoffMs);
+    if (Number.isFinite(t) && t > 0) return t;
+    const parsed = Date.parse(String(g?.startTime || ""));
+    return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY;
+  };
+
+  const upcoming = [...list]
+    .filter((g) => {
+      const t = tipMs(g);
+      if (!Number.isFinite(t) || t === Number.POSITIVE_INFINITY) return true;
+      return t >= nowMs - 3 * 60 * 60 * 1000;
+    })
+    .sort((a, b) => tipMs(a) - tipMs(b));
+  const pool = upcoming.length ? upcoming : list;
+
+  const skillCount = (g) => {
+    if (!props.length) return 0;
+    const away = String(g?.awayAbbr || "").toUpperCase();
+    const home = String(g?.homeAbbr || "").toUpperCase();
+    const players = new Set();
+    for (const row of props) {
+      const game = String(row?.game || "").toUpperCase();
+      const team = String(row?.team || row?.teamAbbr || "").toUpperCase();
+      const hit =
+        (away && game.includes(away) && home && game.includes(home)) ||
+        (away && team === away) ||
+        (home && team === home);
+      if (!hit) continue;
+      const market = `${row?.propRaw || ""} ${row?.prop || ""}`.toLowerCase();
+      if (/pass/.test(market) && /yd|yard/.test(market) && !/rush|rec/.test(market)) continue;
+      const name = String(row?.player || "").trim();
+      if (name) players.add(name.toLowerCase());
+    }
+    return players.size;
+  };
+
+  const ranked = [...pool].sort((a, b) => {
+    const skillDiff = skillCount(b) - skillCount(a);
+    if (skillDiff) return skillDiff;
+    return tipMs(a) - tipMs(b);
+  });
+  const top = ranked.slice(0, Math.min(4, ranked.length));
+  return top[seed % top.length] || pool[0] || list[0] || null;
+}
+
+/**
  * @param {Record<string, unknown>} game
  */
 export function nflFavoritePoint(game) {

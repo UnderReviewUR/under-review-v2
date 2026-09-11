@@ -596,9 +596,16 @@ function dropNflYardLadderAlts(list, market) {
     return list;
   }
   if (/pass_yds/.test(String(market || ""))) {
+    // Half-point mains (211.5–263.5) beat round milestones (200/225/250/275)
+    // that BDL posts as alt ladders on the same player.
+    const halfMains = list.filter((r) => {
+      const n = Number(r.line);
+      return n >= 195 && n <= 270 && Math.abs(n % 1 - 0.5) < 0.01;
+    });
+    if (halfMains.length) return halfMains;
     const passMains = list.filter((r) => {
       const n = Number(r.line);
-      return n >= 180 && n <= 275;
+      return n >= 195 && n <= 270;
     });
     if (passMains.length) return passMains;
   }
@@ -615,21 +622,28 @@ export function pickNflConsensusMarketRow(rows) {
   const market = nflPropMarketKey(raw[0]);
   const list = dropNflYardLadderAlts(raw, market);
   if (!list.length) return null;
+  const passYds = /pass_yds/.test(String(market || ""));
+  // Densest peer cluster with a tight band for pass yards so 250 alts cannot
+  // swallow a 211.5–218.5 main. When books only post sparse mains, fall back
+  // to the high print so the take can fade it.
   let bestScore = -1;
   let bestCenter = Number(list[0].line);
   for (const r of list) {
     const line = Number(r.line);
-    const band = nflPropPeerBand(market, line);
+    const band = passYds ? 8 : nflPropPeerBand(market, line);
     const score = list.filter((x) => Math.abs(Number(x.line) - line) <= band).length;
     if (score > bestScore || (score === bestScore && line < bestCenter)) {
       bestScore = score;
       bestCenter = line;
     }
   }
-  const band = nflPropPeerBand(market, bestCenter);
-  const cluster = list.filter((r) => Math.abs(Number(r.line) - bestCenter) <= band);
-  const pool = cluster.length ? cluster : list;
-  return pool.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), pool[0]);
+  if (bestScore >= 2) {
+    const band = passYds ? 8 : nflPropPeerBand(market, bestCenter);
+    const cluster = list.filter((r) => Math.abs(Number(r.line) - bestCenter) <= band);
+    const pool = cluster.length ? cluster : list;
+    return pool.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), pool[0]);
+  }
+  return list.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), list[0]);
 }
 
 function shortPlayerLast(name) {

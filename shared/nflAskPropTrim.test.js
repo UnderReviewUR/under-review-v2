@@ -427,6 +427,27 @@ test("preferHighPrintPrimary ignores 400+ alts and other Maye markets", async ()
   assert.doesNotMatch(ticket.why, /460\.5|47\.5|109\.5/);
 });
 
+test("pass yards consensus prefers the half-point main over a 250 alt ladder", async () => {
+  const { pickNflConsensusMarketRow } = await import("./nflAskPropTrim.js");
+  const dartLadder = [125, 150, 175, 200, 211.5, 213.5, 214.5, 218.5, 225, 250, 275, 300, 325, 350].map(
+    (line) => ({
+      player: "Jaxson Dart",
+      prop: "passing yards",
+      propRaw: "passing_yards",
+      line,
+      overOdds: -110,
+      underOdds: -110,
+    }),
+  );
+  const consensus = pickNflConsensusMarketRow(dartLadder);
+  assert.ok(consensus);
+  assert.ok(
+    Number(consensus.line) >= 211 && Number(consensus.line) <= 219,
+    `expected ~213–218 main, got ${consensus.line}`,
+  );
+  assert.notEqual(Number(consensus.line), 250);
+});
+
 test("a row stamped with another matchup is dropped even when the player is in scope", () => {
   const rows = [
     { player: "A.J. Brown", propRaw: "rec_yds", line: 62.5, game: "NE @ SEA", team: "NE" },

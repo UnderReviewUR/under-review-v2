@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildNflSlateTakes, nflFavoritePoint, nflGameMatchup } from "./nflSlateTakes.js";
+import {
+  buildNflSlateTakes,
+  nflFavoritePoint,
+  nflGameMatchup,
+  pickNflFeaturedGame,
+} from "./nflSlateTakes.js";
 
 function game(partial) {
   return {
@@ -159,4 +164,32 @@ test("regular season hangs the posted favorite as the first take, not THE PLAY",
   assert.equal(card.kicker, "Tonight");
   assert.match(card.lanes[0].lean, /CIN -6\.5/);
   assert.equal(card.lanes[0].label, "");
+});
+
+test("pickNflFeaturedGame prefers the richer prop board over the first slate row", () => {
+  const neSea = {
+    awayAbbr: "NE",
+    homeAbbr: "SEA",
+    tipoffMs: Date.parse("2026-09-14T17:00:00.000Z"),
+    spread: { homePoint: -3.5, awayPoint: 3.5 },
+  };
+  const dalNyg = {
+    awayAbbr: "DAL",
+    homeAbbr: "NYG",
+    tipoffMs: Date.parse("2026-09-15T00:20:00.000Z"),
+    spread: { homePoint: 3, awayPoint: -3 },
+  };
+  const props = [
+    { player: "CeeDee Lamb", game: "DAL @ NYG", team: "DAL", propRaw: "rec_yds", line: 72.5 },
+    { player: "Malik Nabers", game: "DAL @ NYG", team: "NYG", propRaw: "rec_yds", line: 68.5 },
+    { player: "Cam Skattebo", game: "DAL @ NYG", team: "NYG", propRaw: "rush_yds", line: 54.5 },
+    { player: "Drake Maye", game: "NE @ SEA", team: "NE", propRaw: "pass_yds", line: 230.5 },
+  ];
+  const featured = pickNflFeaturedGame([neSea, dalNyg], {
+    propLines: props,
+    seed: 0,
+    nowMs: Date.parse("2026-09-11T15:00:00.000Z"),
+  });
+  assert.equal(featured?.awayAbbr, "DAL");
+  assert.equal(featured?.homeAbbr, "NYG");
 });

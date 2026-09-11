@@ -25,6 +25,7 @@ import {
   buildLaligaEngageNudges,
   buildNflEngageNudges,
 } from "../../../shared/homeEngageNudges.js";
+import { pickNflFeaturedGame } from "../../../shared/nflSlateTakes.js";
 
 function getDaypartLabel() {
   const h = new Date().getHours();
@@ -822,10 +823,21 @@ export function buildDynamicHomeQuestions({
 
   const nflList = Array.isArray(nflGames) ? nflGames : [];
   if (!nflUrTakeGated && nflList.length > 0) {
-    const featured =
-      nflList.find((g) => g?.spread?.homePoint != null || g?.spread?.awayPoint != null) ||
-      nflList[0];
-    buildNflEngageNudges(featured, nflPropLines, 30).forEach((nudge, i) => {
+    const daySeed = (() => {
+      try {
+        const et = new Date(
+          new Date().toLocaleString("en-US", { timeZone: "America/New_York" }),
+        );
+        return et.getFullYear() * 1000 + (et.getMonth() + 1) * 40 + et.getDate();
+      } catch {
+        return Math.floor(Date.now() / 86400000);
+      }
+    })();
+    const featured = pickNflFeaturedGame(nflList, {
+      propLines: nflPropLines,
+      seed: daySeed,
+    });
+    buildNflEngageNudges(featured, nflPropLines, daySeed).forEach((nudge, i) => {
       push({
         id: `q-nfl-nudge-${i}`,
         color: "#E11D48",

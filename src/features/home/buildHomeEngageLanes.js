@@ -3,7 +3,7 @@ import {
   buildLaligaEngageNudges,
   buildNflEngageNudges,
 } from "../../../shared/homeEngageNudges.js";
-import { nflFavoritePoint, nflGameMatchup } from "../../../shared/nflSlateTakes.js";
+import { nflFavoritePoint, nflGameMatchup, pickNflFeaturedGame } from "../../../shared/nflSlateTakes.js";
 
 function laligaMatchup(m) {
   const away = m?.awayAbbr || m?.awayName || "Away";
@@ -54,14 +54,8 @@ function formatLaligaBoardLine(match) {
   return parts.length ? parts.join(" / ") : null;
 }
 
-function pickNflFeatured(games) {
-  const list = Array.isArray(games) ? games : [];
-  return (
-    list.find((g) => g?.spread?.homePoint != null || g?.spread?.awayPoint != null) ||
-    list.find((g) => g?.total?.point != null) ||
-    list[0] ||
-    null
-  );
+function pickNflFeatured(games, propLines = [], seed = 0) {
+  return pickNflFeaturedGame(games, { propLines, seed });
 }
 
 function pickLaligaFeatured(matches) {
@@ -111,10 +105,11 @@ export function buildHomeEngageLanes(input = {}) {
   const laligaPropLines = input.laligaPropLines || [];
 
   if (isNavSportVisible("nfl") && !input.nflUrTakeGated && nflGames.length > 0) {
-    const featured = pickNflFeatured(nflGames);
+    const daySeed = Math.floor(Date.now() / 86400000);
+    const featured = pickNflFeatured(nflGames, nflPropLines, daySeed);
     const boardLine = featured ? formatNflBoardLine(featured) : null;
     const gameCount = nflGames.length;
-    const prompts = buildNflEngageNudges(featured, propsForGame(nflPropLines, featured), 0);
+    const prompts = buildNflEngageNudges(featured, propsForGame(nflPropLines, featured), daySeed);
     lanes.push({
       id: "nfl",
       sport: "nfl",
