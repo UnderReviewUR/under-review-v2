@@ -809,6 +809,87 @@ test("depth TE Trautman loses the rec seat to featured targets", () => {
   assert.ok(/Worthy/i.test(names), names);
 });
 
+test("depth TE can board when the number is real value vs pace", () => {
+  const tickets = pickNflPropsBoardTickets(
+    [
+      {
+        game: "DEN @ KC",
+        player: "Xavier Worthy",
+        team: "KC",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 40.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Adam Trautman",
+        team: "DEN",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 18.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Bo Nix",
+        team: "DEN",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 229.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Kenneth Walker III",
+        team: "KC",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 72.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+    ],
+    {
+      scope: ["DEN", "KC"],
+      eventIds: ["7"],
+      question: "best player props for broncos vs chiefs tonight?",
+      maxTickets: 4,
+      rosterNames: ["Xavier Worthy", "Adam Trautman", "Bo Nix", "Kenneth Walker III"],
+      openerWeek: false,
+      briefcase: {
+        fantasy: {
+          projections: [
+            { player: "Xavier Worthy", receiving_yards: 44 },
+            { player: "Adam Trautman", receiving_yards: 34 },
+            { player: "Bo Nix", passing_yards: 220 },
+            { player: "Kenneth Walker III", rushing_yards: 70 },
+          ],
+        },
+        players: {
+          recentStats: [
+            { player: "Adam Trautman", recYds: 38 },
+            { player: "Adam Trautman", recYds: 41 },
+            { player: "Adam Trautman", recYds: 29 },
+          ],
+          seasonStats: [],
+        },
+        league: { injuries: [], teamDefense: {} },
+      },
+    },
+  );
+  const names = tickets.map((t) => t.player).join(", ");
+  assert.ok(/Worthy/i.test(names), names);
+  assert.ok(/Trautman/i.test(names), `value depth TE should board: ${names}`);
+});
+
 test("high receptions lines fade Over even with soft D fantasy", async () => {
   const { inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
   const row = {

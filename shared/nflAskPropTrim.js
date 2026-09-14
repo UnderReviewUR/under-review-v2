@@ -3,7 +3,10 @@
  */
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 import { nflAskNamedPlayerHits } from "./nflAskScope.js";
-import { buildNflPropEdgeForRow, voteNflPropEdgeSide } from "./nflAskPropEdge.js";
+import {
+  buildNflPropEdgeForRow,
+  voteNflPropEdgeSide,
+} from "./nflAskPropEdge.js";
 
 const NFL_ABBR_ALIAS = {
   WSH: ["WAS", "WSH"],
@@ -182,7 +185,8 @@ function scorePropRow(row, tokens, hints, opts = {}) {
   const passBoost = opts.multiBoard ? 12 : 28;
   if (market === "pass_yds") score += passBoost;
   else if (market === "rush_yds" || market === "rec_yds" || market === "pass_tds") score += 12;
-  // Featured usage beats depth TEs (Trautman) on a best-props board.
+  // Featured usage beats depth by default. True misprices unlock a value seat later —
+  // they do not leapfrog stars in the first-pass ranking.
   if (opts.volumeByPlayer && typeof opts.volumeByPlayer === "object") {
     const vol = Number(opts.volumeByPlayer[normalizePlayerKey(row?.player)]);
     if (Number.isFinite(vol)) {
@@ -195,6 +199,56 @@ function scorePropRow(row, tokens, hints, opts = {}) {
     }
   }
   return score;
+}
+
+/**
+ * True misprice signal from pace/fantasy/line shop — unlocks depth players.
+ * Soft D alone is not enough (that is how Engram overs sneak in).
+ * @param {Record<string, unknown>} row
+ * @param {Array<Record<string, unknown>>} allRows
+ * @param {Record<string, unknown>|null|undefined} briefcase
+ * @param {{ openerWeek?: boolean }} [opts]
+ * @returns {number}
+ */
+export function nflPropBoardValueBoost(row, allRows = [], briefcase = null, opts = {}) {
+  if (!row?.player || row.line == null) return 0;
+  const market = nflPropMarketKeyBase(row);
+  const line = Number(row.line);
+  if (!Number.isFinite(line)) return 0;
+
+  // High catch overs are never "value" on a best board.
+  if (isNflHighReceptionsLine(row)) return 0;
+
+  let boost = 0;
+  const unique = nflPropPeerLines(row, allRows);
+  if (unique.length >= 2) {
+    const hi = Math.max(...unique);
+    const lo = Math.min(...unique);
+    if (hi - lo >= 1) {
+      if (line >= hi - 0.05 || line <= lo + 0.05) boost = Math.max(boost, 28);
+    }
+  }
+
+  if (!briefcase) return boost;
+  const edge = buildNflPropEdgeForRow(row, market, briefcase);
+  const vote = voteNflPropEdgeSide(row, market, edge, { openerWeek: Boolean(opts.openerWeek) });
+  if (!vote) return boost;
+
+  // Require pace or fantasy — not defense-only — before calling it value.
+  const hasPace = edge?.pace != null || edge?.fantasyPace != null;
+  if (!hasPace) return boost;
+
+  const ref = edge.pace != null ? edge.pace : edge.fantasyPace;
+  const gap = Math.abs(line - Number(ref));
+  if (market === "receptions" && gap < 0.75) return boost;
+  if (/yds/.test(market) && gap < 6) return boost;
+
+  // Depth Over only counts as value when the number is clearly soft vs pace/proj.
+  // Depth Under fades are usually worse tickets than starring the featured under.
+  if (vote.side === "Over") {
+    return Math.max(boost, gap >= 12 || (market === "receptions" && gap >= 1.25) ? 45 : 32);
+  }
+  return boost;
 }
 
 /**
@@ -1158,9 +1212,13 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
   const volumeByPlayer = buildNflPropVolumeByPlayer(opts.briefcase);
+  const openerWeek = Boolean(opts.openerWeek);
+  const valueBoost = (row) =>
+    nflPropBoardValueBoost(row, Array.isArray(props) ? props : [], opts.briefcase, { openerWeek });
   const scoreOpts = {
     multiBoard: questionWantsNflMultiPropBoard(opts.question) || maxTickets >= 4,
     volumeByPlayer,
+    valueBoost,
   };
 
   let rows = (Array.isArray(props) ? props : []).filter(
@@ -1248,7 +1306,8 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     "first_td",
   ];
   const familyCap = {
-    pass_yds: scoreOpts.multiBoard ? 2 : 2,
+    pass_yds: 2,
+    // One featured rec seat by default; a second seat only for true value (below).
     rec_yds: scoreOpts.multiBoard ? 1 : 2,
     rush_yds: 1,
     rush_rec_yds: 1,
@@ -1264,16 +1323,23 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   /** @type {Record<string, number>} */
   const usedFamily = {};
 
-  const tryTake = (row) => {
+  const tryTake = (row, { allowValueSeat = false } = {}) => {
     if (picked.length >= maxTickets) return false;
     const playerKey = normalizePlayerKey(row.player);
     if (seenPlayers.has(playerKey)) return false;
     const fam = nflPropMarketKeyBase(row) || "other";
-    const cap = familyCap[fam] ?? 1;
+    let cap = familyCap[fam] ?? 1;
+    if (allowValueSeat && fam === "rec_yds" && scoreOpts.multiBoard) cap = 2;
     const used = usedFamily[fam] || 0;
     if (used >= cap) return false;
-    // First pass: only one per family so skill markets aren't starved by two QBs.
-    if (used >= 1 && picked.length < Math.min(maxTickets, 3)) return false;
+    if (used >= 1 && picked.length < Math.min(maxTickets, 3) && !allowValueSeat) return false;
+    if (allowValueSeat && valueBoost(row) < 30) return false;
+    // Value seat is for soft Overs (buy the number), not padding fades.
+    if (allowValueSeat) {
+      const edge = buildNflPropEdgeForRow(row, fam, opts.briefcase);
+      const vote = voteNflPropEdgeSide(row, fam, edge, { openerWeek });
+      if (!vote || vote.side !== "Over") return false;
+    }
     picked.push(row);
     seenPlayers.add(playerKey);
     usedFamily[fam] = used + 1;
@@ -1287,6 +1353,13 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     }
   }
   for (const row of playerBest) tryTake(row);
+  // Second pass: depth / secondary only when the number is a real misprice.
+  if (scoreOpts.multiBoard && picked.length < maxTickets) {
+    for (const row of playerBest) {
+      if (picked.length >= maxTickets) break;
+      tryTake(row, { allowValueSeat: true });
+    }
+  }
 
   if (picked.length < Math.min(maxTickets, playerBest.length)) {
     for (const row of playerBest) {
@@ -1297,12 +1370,14 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       const fam = nflPropMarketKeyBase(row) || "other";
       const cap = familyCap[fam] ?? 1;
       if ((usedFamily[fam] || 0) >= cap) continue;
-      // Depth receivers with no usage prior should not pad the board.
+      const boost = valueBoost(row);
+      // No-usage depth pads the board unless the line is actually soft/hard vs pace.
       if (
         scoreOpts.multiBoard &&
         (fam === "rec_yds" || fam === "receptions") &&
         volumeByPlayer &&
-        !Number.isFinite(Number(volumeByPlayer[playerKey]))
+        !Number.isFinite(Number(volumeByPlayer[playerKey])) &&
+        boost < 30
       ) {
         continue;
       }

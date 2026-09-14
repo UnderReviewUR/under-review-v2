@@ -742,6 +742,7 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
       }
     }
   }
+  const openerWeek = isNflOpenerWeek(briefcase?.week ?? games?.[0]?.week);
   const top = pickNflPropsBoardTickets(propLines, {
     scope,
     eventIds,
@@ -753,11 +754,11 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     question,
     maxTickets: 5,
     briefcase,
+    openerWeek,
   });
   if (!top.length) return false;
   const ranked = preferHighPrintPrimary(top, propLines);
   const primary = ranked[0];
-  const openerWeek = isNflOpenerWeek(briefcase?.week ?? games?.[0]?.week);
   const copy = buildNflSidedPropRecoverCopy({
     primary,
     boardRows: ranked.slice(1, 6),
