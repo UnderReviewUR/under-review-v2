@@ -145,8 +145,9 @@ function propHintsFromQuestion(question) {
  * @param {Record<string, unknown>} row
  * @param {string[]} tokens
  * @param {string[]} hints
+ * @param {{ multiBoard?: boolean }} [opts]
  */
-function scorePropRow(row, tokens, hints) {
+function scorePropRow(row, tokens, hints, opts = {}) {
   let score = 0;
   const name = String(row?.player || "").toLowerCase();
   const propRaw = String(row?.propRaw || "").toLowerCase();
@@ -169,9 +170,23 @@ function scorePropRow(row, tokens, hints) {
   if (isNflHeadlineBoardMarket(row)) score += 45;
   if (isNflNoveltyBoardProp(row)) score -= 70;
   const market = nflPropMarketKeyBase(row);
-  if (market === "pass_yds") score += 28;
+  // On "best 4 props" asks, don't let QB pass yards dominate the primary lean.
+  const passBoost = opts.multiBoard ? 12 : 28;
+  if (market === "pass_yds") score += passBoost;
   else if (market === "rush_yds" || market === "rec_yds" || market === "pass_tds") score += 12;
   return score;
+}
+
+/**
+ * @param {string} [question]
+ */
+export function questionWantsNflMultiPropBoard(question) {
+  const q = String(question || "").toLowerCase();
+  if (/\b(best|top)\s+\d+\s*(player\s+)?props?\b/.test(q)) return true;
+  if (/\b\d+\s*[-–to]{1,3}\s*\d+\s*(player\s+)?props?\b/.test(q)) return true;
+  if (/\b(best|top)\s+(player\s+)?props?\b/.test(q)) return true;
+  if (/\b(several|multiple|list|board)\b.*\bprops?\b/.test(q)) return true;
+  return false;
 }
 
 const NFL_PERIOD_PROP_RE =
@@ -879,6 +894,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   const maxTickets = Math.max(2, Math.min(Number(opts.maxTickets) || 5, 6));
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
+  const scoreOpts = { multiBoard: questionWantsNflMultiPropBoard(opts.question) };
 
   let rows = (Array.isArray(props) ? props : []).filter(
     (p) => p && p.player && p.line != null && (p.underOdds != null || p.overOdds != null),
@@ -902,7 +918,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     rows = rows.filter((p) => !isNflNoveltyBoardProp(p));
   }
 
-  rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
+  rows.sort((a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts));
 
   /** @type {Map<string, Array<Record<string, unknown>>>} */
   const rowsByMarket = new Map();
@@ -920,7 +936,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
 
   const namedTokens = nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
   const scoredBoard = [...bestByMarket.values()].sort(
-    (a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints),
+    (a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts),
   );
   if (namedTokens.length) {
     /** @type {Array<Record<string, unknown>>} */
@@ -944,7 +960,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   const seenPlayers = new Set();
   const seenProps = new Set();
 
-  for (const row of bestByMarket.values()) {
+  for (const row of scoredBoard) {
     if (picked.length >= maxTickets) break;
     const playerKey = normalizePlayerKey(row.player);
     const propKey = nflPropMarketKey(row);
@@ -956,7 +972,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   }
 
   if (picked.length < Math.min(2, bestByMarket.size)) {
-    for (const row of bestByMarket.values()) {
+    for (const row of scoredBoard) {
       if (picked.length >= maxTickets) break;
       if (picked.includes(row)) continue;
       picked.push(row);

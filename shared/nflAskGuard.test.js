@@ -887,3 +887,110 @@ test("props_board recover uses named skill lines instead of asking for numbers",
   assert.match(String(structured.whyNow), /Kyren|Williams/i);
   assert.match(String(structured.whyNow), /McCaffrey/i);
 });
+
+test("props_board keeps a grounded 3+ ticket model board instead of QB force-recover", () => {
+  const { structured, codes } = applyNflAskGuard({
+    question: "Best 4 player props for the cowboys vs giants game tonight?",
+    structured: {
+      call: "PICKENS OVER 79.5",
+      lean: "Lean: Over 79.5. Pickens — clear volume.",
+      whyNow:
+        "1. Pickens over 79.5\n2. Lamb under 57.5\n3. Williams under 45.5\n4. Dart under 215.5",
+      edge: "I'd take Pickens over. Don't stack it.",
+      confidence: "Medium",
+      callType: "prop",
+      analysis: {
+        matchupAnalysis: "Pickens over 79.5.",
+        injuryContext: "n/a",
+        marketContext: "posted",
+        lineMovement: "n/a",
+        statisticalEdge: "n/a",
+      },
+      caveats: [],
+    },
+    games: [{ awayAbbr: "DAL", homeAbbr: "NYG", providerGameId: 9, week: 1 }],
+    propLines: [
+      {
+        game: "DAL @ NYG",
+        player: "George Pickens",
+        team: "DAL",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 79.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "CeeDee Lamb",
+        team: "DAL",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 57.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "Javonte Williams",
+        team: "DAL",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 45.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "Jaxson Dart",
+        team: "NYG",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 215.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "Dak Prescott",
+        team: "DAL",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 217.5,
+        book: "draftkings",
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+    ],
+    briefcase: {
+      grade: "green",
+      detected: { marketId: "props_board", propTypeHints: [] },
+      propMatch: { matched: 5 },
+      league: {
+        rostersByTeam: {
+          DAL: [
+            { name: "George Pickens" },
+            { name: "CeeDee Lamb" },
+            { name: "Javonte Williams" },
+            { name: "Dak Prescott" },
+          ],
+          NYG: [{ name: "Jaxson Dart" }],
+        },
+      },
+    },
+  });
+  assert.ok(codes.includes("props_board_keep_model"));
+  assert.ok(!codes.includes("props_board_force_recover"));
+  assert.match(String(structured.call), /PICKENS OVER 79\.5/i);
+  assert.match(String(structured.whyNow), /Pickens over 79\.5/i);
+  assert.doesNotMatch(String(structured.call), /^DART UNDER/i);
+});

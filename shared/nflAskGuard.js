@@ -551,6 +551,48 @@ export function extractNflTicketNumbers(text) {
 }
 
 /**
+ * Count distinct Over/Under tickets in model copy that match a posted prop line.
+ * Used to keep a grounded 3–5 board instead of force-rewriting to a QB primary.
+ * @param {string} text
+ * @param {Array<Record<string, unknown>>} propLines
+ * @returns {number}
+ */
+export function countNflGroundedOverUnderTickets(text, propLines) {
+  const s = String(text || "");
+  const rows = Array.isArray(propLines) ? propLines : [];
+  /** @type {Set<string>} */
+  const seen = new Set();
+  const re = /\b(over|under)\s+([+-]?\d+(?:\.\d)?)\b/gi;
+  let m;
+  while ((m = re.exec(s))) {
+    const side = String(m[1] || "").toLowerCase();
+    const line = Math.abs(Number(m[2]));
+    if (!Number.isFinite(line) || line <= 0) continue;
+    const hit = rows.some((p) => Math.abs(Number(p?.line) - line) <= 0.15);
+    if (!hit) continue;
+    seen.add(`${side}|${line}`);
+  }
+  return seen.size;
+}
+
+/**
+ * True when the model already shipped a usable multi-prop board we should keep.
+ * @param {Record<string, unknown>|null|undefined} structured
+ * @param {Array<Record<string, unknown>>} propLines
+ */
+export function nflModelAlreadyShippedPropsBoard(structured, propLines) {
+  if (!structured || typeof structured !== "object") return false;
+  const call = String(structured.call || "").trim().toUpperCase();
+  if (!call || call === "PASS" || /\bWAIT FOR PROPS\b/.test(call)) return false;
+  const blob = `${structured.call || ""} ${structured.lean || ""} ${structured.whyNow || ""} ${structured.edge || ""}`;
+  const cited = extractNflTicketNumbers(blob);
+  if (!cited.length) return false;
+  const posted = collectNflPostedNumbers([], propLines);
+  if (detectNflInventedLine(cited, posted)) return false;
+  return countNflGroundedOverUnderTickets(blob, propLines) >= 3;
+}
+
+/**
  * @param {number[]} cited
  * @param {number[]} posted
  */
@@ -884,16 +926,25 @@ export function applyNflAskGuard(opts = {}) {
     }
   }
 
-  // Broad "best props" asks with a live board: always ship consensus tickets.
-  // Do not keep a model Under 460.5 just because that alt exists on the ladder.
+  // Broad "best props" asks with a live board: ship consensus tickets.
+  // Keep a model board that already lists ≥3 grounded Over/Unders (e.g. Pickens
+  // + skill props) — force-rewrite was replacing those with a QB primary.
   if (
     !ticketReview &&
     String(suitcase.detected?.marketId || "") === "props_board" &&
-    propLines.length > 0
+    propLines.length > 0 &&
+    !nflModelAlreadyShippedPropsBoard(structured, propLines)
   ) {
     if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
       codes.push("props_board_force_recover");
     }
+  } else if (
+    !ticketReview &&
+    String(suitcase.detected?.marketId || "") === "props_board" &&
+    propLines.length > 0 &&
+    nflModelAlreadyShippedPropsBoard(structured, propLines)
+  ) {
+    codes.push("props_board_keep_model");
   }
 
   const conflict = detectNflCallBodyConflict(
