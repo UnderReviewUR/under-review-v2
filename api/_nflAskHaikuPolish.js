@@ -17,8 +17,8 @@ Rules (hard):
 - Do NOT add new bets.
 - Keep it short and casual.
 - Return ONLY JSON: {"whyNow":"...","edge":"..."}
-- whyNow: 2–4 short sentences (or a short board list if multiple legs). Include the locked numbers.
-- edge: 1 short sentence.`;
+- whyNow: Keep a short "Board:" numbered list of the locked legs, then 1–2 voice sentences. Include the locked numbers.
+- edge: 1 short sentence. No section headers.`;
 
 /**
  * @param {unknown} raw

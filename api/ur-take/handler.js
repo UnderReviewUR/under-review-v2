@@ -412,6 +412,10 @@ import {
   nflAskUsesMarriedPropPath,
   resolveNflAskModelLane,
 } from "../../shared/nflAskModelRoute.js";
+import {
+  formatNflMarriedBoardProse,
+  slimNflMarriedStructuredForDelivery,
+} from "../../shared/nflAskMarriedDelivery.js";
 import { polishNflStructuredTakeWithHaiku } from "../_nflAskHaikuPolish.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "../../shared/nflAskTicketReview.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
@@ -5760,8 +5764,10 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
         structured: repaired,
         requestId,
       });
-      const offline = polish.structured || repaired;
-      const prose = formatStructuredResponseAsUrTakeProse(offline);
+      const offline = slimNflMarriedStructuredForDelivery(
+        polish.structured || repaired,
+      );
+      const prose = formatNflMarriedBoardProse(offline);
       const textOut =
         String(prose || "").trim() ||
         String(offline.lean || offline.whyNow || "Board tickets from the live GOAT props.").trim();
