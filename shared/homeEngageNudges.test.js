@@ -56,6 +56,55 @@ test("buildNflEngageNudges returns team + prop", () => {
   assert.match(nudges[1].text, /Mahomes/i);
 });
 
+test("buildNflEngageNudges ignores off-matchup players like Gainwell on DEN @ KC", () => {
+  const game = {
+    awayAbbr: "DEN",
+    homeAbbr: "KC",
+    spread: { favoriteAbbr: "KC", homePoint: -3.5, awayPoint: 3.5 },
+    total: { point: 43.5 },
+  };
+  const nudges = buildNflEngageNudges(
+    game,
+    [
+      {
+        player: "Kenny Gainwell",
+        team: "TB",
+        propRaw: "anytime_td",
+        line: 0.5,
+        game: "TB @ ATL",
+        overImpliedDevig: 0.4,
+        underImpliedDevig: 0.6,
+      },
+      {
+        player: "Patrick Mahomes",
+        team: "KC",
+        propRaw: "passing_yards",
+        line: 225.5,
+        game: "DEN @ KC",
+        overImpliedDevig: 0.48,
+        underImpliedDevig: 0.52,
+      },
+    ],
+    0,
+  );
+  const blob = nudges.map((n) => n.text).join(" ");
+  assert.doesNotMatch(blob, /Gainwell/i);
+  assert.match(blob, /Mahomes/i);
+});
+
+test("propsForFeaturedNflGame never fails open to the full slate", async () => {
+  const { propsForFeaturedNflGame } = await import("./homeEngageNudges.js");
+  const scoped = propsForFeaturedNflGame(
+    [
+      { player: "Kenny Gainwell", team: "TB", propRaw: "anytime_td", line: 0.5, game: "TB @ ATL" },
+      { player: "Bo Nix", team: "DEN", propRaw: "passing_yards", line: 230.5, game: "DEN @ KC" },
+    ],
+    { awayAbbr: "DEN", homeAbbr: "KC" },
+  );
+  assert.equal(scoped.length, 1);
+  assert.equal(scoped[0].player, "Bo Nix");
+});
+
 test("buildLaligaEngageNudges uses scorer prop when posted", () => {
   const match = {
     awayAbbr: "RMA",

@@ -2,6 +2,7 @@ import { isNavSportVisible } from "../../../shared/siteSportVisibility.js";
 import {
   buildLaligaEngageNudges,
   buildNflEngageNudges,
+  propsForFeaturedNflGame,
 } from "../../../shared/homeEngageNudges.js";
 import { nflFavoritePoint, nflGameMatchup, pickNflFeaturedGame } from "../../../shared/nflSlateTakes.js";
 
@@ -64,27 +65,26 @@ function pickLaligaFeatured(matches) {
 }
 
 function propsForGame(propLines, game) {
-  if (!game) return propLines || [];
-  const matchup = nflGameMatchup(game);
-  const pool = Array.isArray(propLines) ? propLines : [];
-  const keyed = pool.filter((p) => {
-    const g = String(p?.game || "");
-    return g && (g === matchup || g.includes(game.awayAbbr) || g.includes(game.homeAbbr));
-  });
-  return keyed.length ? keyed : pool;
+  return propsForFeaturedNflGame(propLines, game);
 }
 
 function propsForMatch(propLines, match) {
-  if (!match) return propLines || [];
+  if (!match) return [];
   const matchup = laligaMatchup(match);
   const eventId = match?.providerMatchId != null ? String(match.providerMatchId) : null;
+  const away = String(match.awayAbbr || "").toUpperCase();
+  const home = String(match.homeAbbr || "").toUpperCase();
   const pool = Array.isArray(propLines) ? propLines : [];
-  const keyed = pool.filter((p) => {
+  return pool.filter((p) => {
     if (eventId && p?.eventId != null && String(p.eventId) === eventId) return true;
+    const team = String(p?.team || p?.teamAbbr || "").toUpperCase();
+    if (team && away && home && (team === away || team === home)) return true;
     const g = String(p?.game || "");
-    return g && (g === matchup || g.includes(match.awayAbbr) || g.includes(match.homeAbbr));
+    if (!g) return false;
+    if (g === matchup) return true;
+    if (away && home && g.includes(away) && g.includes(home)) return true;
+    return false;
   });
-  return keyed.length ? keyed : pool;
 }
 
 /**

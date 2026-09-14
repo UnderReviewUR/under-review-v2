@@ -252,6 +252,35 @@ export function formatLaligaTeamNudge(match, seed = 0) {
 }
 
 /**
+ * Props for a featured home game only — never fail open to the full slate.
+ * Off-matchup players (e.g. Gainwell on TB while DEN @ KC is featured) must not chip.
+ * @param {Array<Record<string, unknown>>} propLines
+ * @param {Record<string, unknown>|null|undefined} game
+ */
+export function propsForFeaturedNflGame(propLines, game) {
+  if (!game) return [];
+  const away = String(game.awayAbbr || "").toUpperCase().trim();
+  const home = String(game.homeAbbr || "").toUpperCase().trim();
+  if (!away || !home) return [];
+  const matchup = String(nflGameMatchup(game) || "").toUpperCase().trim();
+  const pool = Array.isArray(propLines) ? propLines : [];
+  return pool.filter((p) => {
+    const team = String(p?.team || p?.teamAbbr || "")
+      .toUpperCase()
+      .trim();
+    if (team && (team === away || team === home)) return true;
+    const g = String(p?.game || "")
+      .toUpperCase()
+      .trim();
+    if (!g) return false;
+    if (matchup && g === matchup) return true;
+    const hasAway = new RegExp(`\\b${away}\\b`).test(g);
+    const hasHome = new RegExp(`\\b${home}\\b`).test(g);
+    return hasAway && hasHome;
+  });
+}
+
+/**
  * @param {Record<string, unknown>} game
  * @param {Array<Record<string, unknown>>} propLines
  * @param {number} [seed]
@@ -268,7 +297,8 @@ export function buildNflEngageNudges(game, propLines, seed = 0) {
     });
   }
 
-  const props = pickBestPropRows(propLines, { seed, limit: 2 });
+  const scoped = propsForFeaturedNflGame(propLines, game);
+  const props = pickBestPropRows(scoped, { seed, limit: 2 });
   props.forEach((row, i) => {
     const prop = formatPropNudge(row, { seed: seed + i + 1 });
     if (!prop) return;
