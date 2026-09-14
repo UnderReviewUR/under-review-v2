@@ -494,10 +494,21 @@ export async function fetchNflBdlPlayerNameMap(playerIds, opts = {}) {
 export async function fetchNflBdlPlayerPropsForGame(gameId, opts = {}) {
   const gid = Number(gameId);
   if (!Number.isFinite(gid)) return [];
+  // BDL GOAT: /odds/player_props returns the full game board in one response
+  // (no cursor). Optional filters: player_id, prop_type, vendors[] — use those
+  // for targeted follow-ups; Ask hydrate wants the whole board then consensus.
+  // Docs: https://nfl.balldontlie.io/#player-props
   const res = await nflBdlFetch(
     "/odds/player_props",
-    { game_id: gid },
-    { apiKey: opts.apiKey, timeoutMs: 20000 },
+    {
+      game_id: gid,
+      ...(opts.propType ? { prop_type: opts.propType } : {}),
+      ...(opts.playerId != null ? { player_id: opts.playerId } : {}),
+      ...(Array.isArray(opts.vendors) && opts.vendors.length
+        ? { vendors: opts.vendors }
+        : {}),
+    },
+    { apiKey: opts.apiKey, timeoutMs: opts.timeoutMs ?? 20000 },
   );
   if (!res.ok || !Array.isArray(res.data?.data)) return [];
   const rows = normalizeNflBdlPlayerPropRows(res.data.data, {

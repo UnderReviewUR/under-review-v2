@@ -409,6 +409,87 @@ test("ticket-review trim keeps stated legs even when the board is QB-alt spam", 
   assert.ok(names.includes("Romeo Doubs"));
 });
 
+test("pickNflPropsBoardTickets keeps skill mix on best-4 asks despite QB alt spam", () => {
+  const dakAlts = Array.from({ length: 40 }, (_, i) => ({
+    game: "DAL @ NYG",
+    player: "Dak Prescott",
+    team: "DAL",
+    prop: "passing yards",
+    propRaw: "passing_yards",
+    line: 200.5 + i,
+    overOdds: -110,
+    underOdds: -110,
+    eventId: "9",
+  }));
+  const tickets = pickNflPropsBoardTickets(
+    [
+      ...dakAlts,
+      {
+        game: "DAL @ NYG",
+        player: "Jaxson Dart",
+        team: "NYG",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 215.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "CeeDee Lamb",
+        team: "DAL",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 57.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "George Pickens",
+        team: "DAL",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 79.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+      {
+        game: "DAL @ NYG",
+        player: "Javonte Williams",
+        team: "DAL",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 45.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "9",
+      },
+    ],
+    {
+      scope: ["DAL", "NYG"],
+      eventIds: ["9"],
+      question: "Best 4 player props for the cowboys vs giants game tonight?",
+      maxTickets: 4,
+      rosterNames: [
+        "Dak Prescott",
+        "Jaxson Dart",
+        "CeeDee Lamb",
+        "George Pickens",
+        "Javonte Williams",
+      ],
+    },
+  );
+  assert.equal(tickets.length, 4);
+  const players = tickets.map((t) => t.player);
+  assert.ok(players.some((p) => /Lamb|Pickens/i.test(p)), `expected a WR in ${players}`);
+  assert.ok(players.some((p) => /Williams/i.test(p)), `expected RB in ${players}`);
+  assert.ok(players.filter((p) => /Prescott|Dart/i.test(p)).length <= 2);
+});
+
 test("preferHighPrintPrimary ignores 400+ alts and other Maye markets", async () => {
   const { inferNflPropTicketSide, preferHighPrintPrimary } = await import("./nflAskPropTrim.js");
   const rows = [

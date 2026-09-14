@@ -13,6 +13,7 @@ import {
   mergeNflPlayerTeamIndexesPreferLast,
   mergeNflRostersByTeamPreferLast,
   trimNflPlayerPropsForAsk,
+  questionWantsNflMultiPropBoard,
 } from "../shared/nflAskPropTrim.js";
 import {
   scrubNflMatchupPropLines,
@@ -346,7 +347,8 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     rosterNames = [...rosterNames, ...staticRosterNamesForScope(scopeSet, playerTeamByName)];
   }
 
-  const propCap = scoped ? 56 : 120;
+  const multiBoard = questionWantsNflMultiPropBoard(question);
+  const propCap = scoped ? (multiBoard ? 180 : 120) : 200;
   let props = briefcase.slate.playerProps || [];
   if (scoped && scopeSet?.size) {
     props = scrubNflMatchupPropLines(props, {

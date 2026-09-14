@@ -467,13 +467,18 @@ export function filterNflPropsForMatchup(props, opts = {}) {
 export function trimNflPlayerPropsForAsk(props, opts = {}) {
   const scope = expandScope(opts.scope || []);
   const ticketReview = isNflTicketReviewAsk(opts.question || "");
+  const multiBoard = questionWantsNflMultiPropBoard(opts.question);
   const maxRows = ticketReview
-    ? 120
-    : Math.max(12, Math.min(Number(opts.maxRows) || 56, 120));
+    ? 160
+    : Math.max(
+        24,
+        Math.min(Number(opts.maxRows) || (multiBoard ? 180 : 120), 240),
+      );
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
   const teamIndex =
     opts.playerTeamByName && typeof opts.playerTeamByName === "object" ? opts.playerTeamByName : {};
+  const scoreOpts = { multiBoard };
 
   let rows = filterNflPropsForMatchup(Array.isArray(props) ? props : [], {
     scope,
@@ -502,8 +507,11 @@ export function trimNflPlayerPropsForAsk(props, opts = {}) {
       );
     });
   }
-  rows.sort((a, b) => scorePropRow(b, tokens, hints) - scorePropRow(a, tokens, hints));
-  const head = rows.slice(0, maxRows);
+
+  // GOAT returns every vendor × alt. Collapse + diversify so skill props survive the cap.
+  rows = collapseNflPropsToConsensusBoard(rows);
+  rows.sort((a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts));
+  const head = diversifyNflPropTrimRows(rows, maxRows);
   if (!ticketReview || !tokens.length) return head;
   const named = rows.filter((r) => {
     const n = normalizePlayerKey(r?.player);
@@ -720,6 +728,109 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
 }
 
 /**
+ * Collapse vendor/alt spam to one consensus row per player+market.
+ * BDL GOAT returns every book × every alt — Ask must line-shop, not drown in Dak 250 ladders.
+ * @param {Array<Record<string, unknown>>} props
+ * @returns {Array<Record<string, unknown>>}
+ */
+export function collapseNflPropsToConsensusBoard(props) {
+  /** @type {Map<string, Array<Record<string, unknown>>>} */
+  const byKey = new Map();
+  for (const row of Array.isArray(props) ? props : []) {
+    if (!row?.player || row.line == null) continue;
+    const key = `${normalizePlayerKey(row.player)}|${nflPropMarketKey(row)}`;
+    const list = byKey.get(key) || [];
+    list.push(row);
+    byKey.set(key, list);
+  }
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  for (const list of byKey.values()) {
+    const priced = list.filter((r) => r.underOdds != null || r.overOdds != null);
+    const pick = pickNflConsensusMarketRow(priced.length ? priced : list);
+    if (pick) out.push(pick);
+  }
+  return out;
+}
+
+/**
+ * Round-robin across market families so pass_yds alts cannot monopolize the prompt budget.
+ * @param {Array<Record<string, unknown>>} rows already scored high→low
+ * @param {number} maxRows
+ */
+export function diversifyNflPropTrimRows(rows, maxRows) {
+  const limit = Math.max(1, Number(maxRows) || 56);
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length <= limit) return list;
+
+  /** @type {Map<string, Array<Record<string, unknown>>>} */
+  const buckets = new Map();
+  for (const row of list) {
+    const fam = nflPropMarketKeyBase(row) || "other";
+    const arr = buckets.get(fam) || [];
+    arr.push(row);
+    buckets.set(fam, arr);
+  }
+  const order = [
+    "pass_yds",
+    "rec_yds",
+    "rush_yds",
+    "pass_tds",
+    "receptions",
+    "anytime_td",
+    "rush_rec_yds",
+    "rec_tds",
+    "first_td",
+  ];
+  const families = [
+    ...order.filter((k) => buckets.has(k)),
+    ...[...buckets.keys()].filter((k) => !order.includes(k)),
+  ];
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  const seen = new Set();
+  let guard = 0;
+  while (out.length < limit && guard < limit * families.length + 10) {
+    guard += 1;
+    let added = false;
+    for (const fam of families) {
+      if (out.length >= limit) break;
+      const bucket = buckets.get(fam);
+      if (!bucket?.length) continue;
+      const row = bucket.shift();
+      const key = `${normalizePlayerKey(row.player)}|${nflPropMarketKey(row)}|${row.line}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(row);
+      added = true;
+    }
+    if (!added) break;
+  }
+  return out;
+}
+
+/**
+ * @param {string} [question]
+ * @returns {number|null}
+ */
+export function requestedNflPropsBoardCount(question) {
+  const q = String(question || "").toLowerCase();
+  const range = q.match(/\b(\d+)\s*[-–to]{1,3}\s*(\d+)\s*(player\s+)?props?\b/);
+  if (range) {
+    const a = Number(range[1]);
+    const b = Number(range[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return Math.max(a, b);
+  }
+  const n = q.match(/\b(?:best|top|give\s+me|list)\s+(\d+)\s*(player\s+)?props?\b/) ||
+    q.match(/\b(\d+)\s*(player\s+)?props?\b/);
+  if (n) {
+    const v = Number(n[1]);
+    if (Number.isFinite(v) && v >= 2 && v <= 8) return v;
+  }
+  return null;
+}
+
+/**
  * Prefer the highest print for a player+market so the take can fade it.
  * @param {Array<Record<string, unknown>>} picked
  * @param {Array<Record<string, unknown>>} allRows
@@ -803,7 +914,7 @@ export function buildNflSidedPropRecoverCopy(opts) {
         : "If you can get this number or higher, the over is cleaner."
       : "",
     thinBoard
-      ? `Only ${boardRows.length} clean skill props posted for this game right now — not a full 4–5 board.`
+      ? `Short list (${boardRows.length}) from the live board — grab these first.`
       : "One ticket first. Speculative.",
   ]
     .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
@@ -828,7 +939,7 @@ export function buildNflSidedPropRecoverCopy(opts) {
     caveats: [
       openerLine,
       thinBoard
-        ? "Thin board — ask again closer to kick if more props post."
+        ? "Short list from what's gradeable on this board right now."
         : ticket.side === "Under"
           ? "If your number is a lot lower, the under gets worse."
           : "If your number is a lot higher, the over gets worse.",
@@ -891,10 +1002,14 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       .map(normalizePlayerKey)
       .filter(Boolean),
   );
-  const maxTickets = Math.max(2, Math.min(Number(opts.maxTickets) || 5, 6));
+  const requested = requestedNflPropsBoardCount(opts.question);
+  const maxTickets = Math.max(
+    2,
+    Math.min(Number(opts.maxTickets) || requested || 5, 6),
+  );
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
-  const scoreOpts = { multiBoard: questionWantsNflMultiPropBoard(opts.question) };
+  const scoreOpts = { multiBoard: questionWantsNflMultiPropBoard(opts.question) || maxTickets >= 4 };
 
   let rows = (Array.isArray(props) ? props : []).filter(
     (p) => p && p.player && p.line != null && (p.underOdds != null || p.overOdds != null),
@@ -918,26 +1033,12 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     rows = rows.filter((p) => !isNflNoveltyBoardProp(p));
   }
 
-  rows.sort((a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts));
-
-  /** @type {Map<string, Array<Record<string, unknown>>>} */
-  const rowsByMarket = new Map();
-  for (const row of rows) {
-    const key = `${normalizePlayerKey(row.player)}|${nflPropMarketKey(row)}`;
-    const list = rowsByMarket.get(key) || [];
-    list.push(row);
-    rowsByMarket.set(key, list);
-  }
-  /** @type {Map<string, Record<string, unknown>>} */
-  const bestByMarket = new Map();
-  for (const [key, list] of rowsByMarket) {
-    bestByMarket.set(key, pickNflConsensusMarketRow(list) || list[0]);
-  }
-
-  const namedTokens = nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
-  const scoredBoard = [...bestByMarket.values()].sort(
+  // Consensus first — then score. Do not let vendor alt ladders crowd skill markets.
+  rows = collapseNflPropsToConsensusBoard(rows);
+  const scoredBoard = [...rows].sort(
     (a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts),
   );
+  const namedTokens = nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
   if (namedTokens.length) {
     /** @type {Array<Record<string, unknown>>} */
     const namedPicked = [];
@@ -952,34 +1053,98 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       namedSeen.add(playerKey);
       if (namedPicked.length >= maxTickets) break;
     }
-    if (namedPicked.length) return namedPicked.slice(0, maxTickets);
-  }
-
-  /** @type {Array<Record<string, unknown>>} */
-  const picked = [];
-  const seenPlayers = new Set();
-  const seenProps = new Set();
-
-  for (const row of scoredBoard) {
-    if (picked.length >= maxTickets) break;
-    const playerKey = normalizePlayerKey(row.player);
-    const propKey = nflPropMarketKey(row);
-    if (seenPlayers.has(playerKey) && picked.length >= 1) continue;
-    if (seenProps.has(propKey) && picked.length >= 2) continue;
-    picked.push(row);
-    seenPlayers.add(playerKey);
-    seenProps.add(propKey);
-  }
-
-  if (picked.length < Math.min(2, bestByMarket.size)) {
-    for (const row of scoredBoard) {
-      if (picked.length >= maxTickets) break;
-      if (picked.includes(row)) continue;
-      picked.push(row);
+    if (namedPicked.length) {
+      return preferHighPrintPrimary(namedPicked, Array.isArray(props) ? props : []).slice(0, maxTickets);
     }
   }
 
-  return preferHighPrintPrimary(picked, rows).slice(0, maxTickets);
+  // One best market per player first — never let Maye rush steal the seat from Maye pass.
+  /** @type {Map<string, Record<string, unknown>>} */
+  const bestByPlayer = new Map();
+  for (const row of scoredBoard) {
+    const playerKey = normalizePlayerKey(row.player);
+    if (!playerKey || bestByPlayer.has(playerKey)) continue;
+    bestByPlayer.set(playerKey, row);
+  }
+  const playerBest = [...bestByPlayer.values()].sort(
+    (a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts),
+  );
+
+  /** Fill one ticket per market family first (WR/RB/QB), then allow a second WR/QB. */
+  const familyPriority = [
+    "rec_yds",
+    "rush_yds",
+    "pass_yds",
+    "pass_tds",
+    "receptions",
+    "rush_rec_yds",
+    "anytime_td",
+    "rec_tds",
+    "first_td",
+  ];
+  const familyCap = {
+    pass_yds: scoreOpts.multiBoard ? 1 : 2,
+    rec_yds: 2,
+    rush_yds: 1,
+    rush_rec_yds: 1,
+    pass_tds: 1,
+    receptions: 1,
+    rec_tds: 1,
+    anytime_td: 1,
+    first_td: 1,
+  };
+  /** @type {Array<Record<string, unknown>>} */
+  const picked = [];
+  const seenPlayers = new Set();
+  /** @type {Record<string, number>} */
+  const usedFamily = {};
+
+  const tryTake = (row) => {
+    if (picked.length >= maxTickets) return false;
+    const playerKey = normalizePlayerKey(row.player);
+    if (seenPlayers.has(playerKey)) return false;
+    const fam = nflPropMarketKeyBase(row) || "other";
+    const cap = familyCap[fam] ?? 1;
+    const used = usedFamily[fam] || 0;
+    if (used >= cap) return false;
+    // First pass: only one per family so skill markets aren't starved by two QBs.
+    if (used >= 1 && picked.length < Math.min(maxTickets, 3)) return false;
+    picked.push(row);
+    seenPlayers.add(playerKey);
+    usedFamily[fam] = used + 1;
+    return true;
+  };
+
+  for (const fam of familyPriority) {
+    for (const row of playerBest) {
+      if ((nflPropMarketKeyBase(row) || "other") !== fam) continue;
+      tryTake(row);
+    }
+  }
+  for (const row of playerBest) tryTake(row);
+
+  if (picked.length < Math.min(maxTickets, playerBest.length)) {
+    for (const row of playerBest) {
+      if (picked.length >= maxTickets) break;
+      if (picked.includes(row)) continue;
+      const playerKey = normalizePlayerKey(row.player);
+      if (seenPlayers.has(playerKey)) continue;
+      picked.push(row);
+      seenPlayers.add(playerKey);
+    }
+  }
+
+  // Diverse board order stays family-first; CALL/primary uses full pass-yard weight.
+  const primaryScoreOpts = { multiBoard: false };
+  const primary = [...picked].sort(
+    (a, b) =>
+      scorePropRow(b, tokens, hints, primaryScoreOpts) -
+      scorePropRow(a, tokens, hints, primaryScoreOpts),
+  )[0];
+  const ordered = primary
+    ? [primary, ...picked.filter((row) => row !== primary)]
+    : picked;
+  return preferHighPrintPrimary(ordered, Array.isArray(props) ? props : []).slice(0, maxTickets);
 }
 
 /**
