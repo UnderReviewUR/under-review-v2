@@ -752,6 +752,7 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
         : undefined,
     question,
     maxTickets: 5,
+    briefcase,
   });
   if (!top.length) return false;
   const ranked = preferHighPrintPrimary(top, propLines);

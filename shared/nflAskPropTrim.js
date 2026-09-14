@@ -174,7 +174,7 @@ function scorePropRow(row, tokens, hints, opts = {}) {
   // Integer ladders (8, 40, 80, 160) are usually alts — prefer true half-point mains.
   const line = Number(row?.line);
   if (Number.isFinite(line) && Math.abs(line % 1) < 0.001 && /yds|receptions/.test(market)) {
-    score -= 35;
+    score -= opts.multiBoard ? 50 : 35;
   }
   if (market === "receptions") score -= opts.multiBoard ? 25 : 5;
   if (isNflHighReceptionsLine(row)) score -= 40;
@@ -182,7 +182,79 @@ function scorePropRow(row, tokens, hints, opts = {}) {
   const passBoost = opts.multiBoard ? 12 : 28;
   if (market === "pass_yds") score += passBoost;
   else if (market === "rush_yds" || market === "rec_yds" || market === "pass_tds") score += 12;
+  // Featured usage beats depth TEs (Trautman) on a best-props board.
+  if (opts.volumeByPlayer && typeof opts.volumeByPlayer === "object") {
+    const vol = Number(opts.volumeByPlayer[normalizePlayerKey(row?.player)]);
+    if (Number.isFinite(vol)) {
+      if (vol >= 50) score += 28;
+      else if (vol >= 25) score += 16;
+      else if (vol >= 12) score += 6;
+      else score -= 30;
+    } else if (opts.multiBoard && (market === "rec_yds" || market === "receptions")) {
+      score -= 20;
+    }
+  }
   return score;
+}
+
+/**
+ * Rough featured-usage prior from GOAT season / recent / fantasy pockets.
+ * @param {Record<string, unknown>|null|undefined} briefcase
+ * @returns {Record<string, number>}
+ */
+export function buildNflPropVolumeByPlayer(briefcase) {
+  /** @type {Record<string, number>} */
+  const out = {};
+  if (!briefcase || typeof briefcase !== "object") return out;
+
+  const bump = (name, n) => {
+    const key = normalizePlayerKey(name);
+    if (!key || !Number.isFinite(n)) return;
+    out[key] = Math.max(out[key] || 0, n);
+  };
+
+  for (const r of briefcase.players?.seasonStats || []) {
+    const games = Math.max(1, Number(r?.games) || 1);
+    const pass = Number(r?.passYds);
+    const rush = Number(r?.rushYds);
+    const rec = Number(r?.recYds);
+    const catches = Number(r?.receptions);
+    if (Number.isFinite(pass)) bump(r.player, pass / games);
+    if (Number.isFinite(rush)) bump(r.player, rush / games);
+    if (Number.isFinite(rec)) bump(r.player, rec / games);
+    if (Number.isFinite(catches)) bump(r.player, catches * 8);
+  }
+  /** @type {Map<string, number[]>} */
+  const recent = new Map();
+  for (const r of briefcase.players?.recentStats || []) {
+    const key = normalizePlayerKey(r?.player);
+    if (!key) continue;
+    const vals = recent.get(key) || [];
+    for (const k of ["passYds", "rushYds", "recYds"]) {
+      const v = Number(r?.[k]);
+      if (Number.isFinite(v)) vals.push(v);
+    }
+    recent.set(key, vals);
+  }
+  for (const [key, vals] of recent) {
+    if (vals.length < 2) continue;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    out[key] = Math.max(out[key] || 0, avg);
+  }
+  for (const r of briefcase.fantasy?.projections || []) {
+    const name =
+      r.player ||
+      r.player_name ||
+      r?.player?.full_name ||
+      [r?.player?.first_name, r?.player?.last_name].filter(Boolean).join(" ");
+    const pass = Number(r.passing_yards ?? r.pass_yds);
+    const rush = Number(r.rushing_yards ?? r.rush_yds);
+    const rec = Number(r.receiving_yards ?? r.rec_yds);
+    if (Number.isFinite(pass)) bump(name, pass);
+    if (Number.isFinite(rush)) bump(name, rush);
+    if (Number.isFinite(rec)) bump(name, rec);
+  }
+  return out;
 }
 
 /**
@@ -1065,6 +1137,7 @@ export function normalizePlayerKey(name) {
  *   playerTeamByName?: Record<string, string>,
  *   question?: string,
  *   maxTickets?: number,
+ *   briefcase?: Record<string, unknown>|null,
  * }} [opts]
  */
 export function pickNflPropsBoardTickets(props, opts = {}) {
@@ -1084,7 +1157,11 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   );
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
-  const scoreOpts = { multiBoard: questionWantsNflMultiPropBoard(opts.question) || maxTickets >= 4 };
+  const volumeByPlayer = buildNflPropVolumeByPlayer(opts.briefcase);
+  const scoreOpts = {
+    multiBoard: questionWantsNflMultiPropBoard(opts.question) || maxTickets >= 4,
+    volumeByPlayer,
+  };
 
   let rows = (Array.isArray(props) ? props : []).filter(
     (p) => p && p.player && p.line != null && (p.underOdds != null || p.overOdds != null),
@@ -1171,8 +1248,8 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     "first_td",
   ];
   const familyCap = {
-    pass_yds: scoreOpts.multiBoard ? 1 : 2,
-    rec_yds: 2,
+    pass_yds: scoreOpts.multiBoard ? 2 : 2,
+    rec_yds: scoreOpts.multiBoard ? 1 : 2,
     rush_yds: 1,
     rush_rec_yds: 1,
     pass_tds: 1,
@@ -1217,8 +1294,21 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       if (picked.includes(row)) continue;
       const playerKey = normalizePlayerKey(row.player);
       if (seenPlayers.has(playerKey)) continue;
+      const fam = nflPropMarketKeyBase(row) || "other";
+      const cap = familyCap[fam] ?? 1;
+      if ((usedFamily[fam] || 0) >= cap) continue;
+      // Depth receivers with no usage prior should not pad the board.
+      if (
+        scoreOpts.multiBoard &&
+        (fam === "rec_yds" || fam === "receptions") &&
+        volumeByPlayer &&
+        !Number.isFinite(Number(volumeByPlayer[playerKey]))
+      ) {
+        continue;
+      }
       picked.push(row);
       seenPlayers.add(playerKey);
+      usedFamily[fam] = (usedFamily[fam] || 0) + 1;
     }
   }
 

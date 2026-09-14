@@ -701,8 +701,112 @@ test("1q and absurd rush alts never make a best-props board", () => {
   assert.ok(!tickets.some((t) => Number(t.line) >= 120 && /rush/i.test(String(t.prop))), blob);
   assert.ok(!tickets.some((t) => /1q|1st/i.test(`${t.prop} ${t.propRaw}`)), blob);
   assert.ok(!tickets.some((t) => /Engram/i.test(String(t.player))), `receptions lottery should not board: ${blob}`);
+  assert.ok(!tickets.some((t) => /Trautman/i.test(String(t.player))), `depth TE should not board: ${blob}`);
   assert.ok(tickets.some((t) => /Nix/i.test(String(t.player))), blob);
   assert.ok(tickets.some((t) => /Kelce|Harvey|Worthy/i.test(String(t.player))), blob);
+});
+
+test("depth TE Trautman loses the rec seat to featured targets", () => {
+  const tickets = pickNflPropsBoardTickets(
+    [
+      {
+        game: "DEN @ KC",
+        player: "Bo Nix",
+        team: "DEN",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 229.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Xavier Worthy",
+        team: "KC",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 40.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Adam Trautman",
+        team: "DEN",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 40,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Kenneth Walker III",
+        team: "KC",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 80.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Patrick Mahomes",
+        team: "KC",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 224.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "RJ Harvey",
+        team: "DEN",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 48.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+    ],
+    {
+      scope: ["DEN", "KC"],
+      eventIds: ["7"],
+      question: "best player props for broncos vs chiefs tonight?",
+      maxTickets: 5,
+      rosterNames: [
+        "Bo Nix",
+        "Xavier Worthy",
+        "Adam Trautman",
+        "Kenneth Walker III",
+        "Patrick Mahomes",
+        "RJ Harvey",
+      ],
+      briefcase: {
+        fantasy: {
+          projections: [
+            { player: "Xavier Worthy", receiving_yards: 52 },
+            { player: "Kenneth Walker III", rushing_yards: 71 },
+            { player: "Bo Nix", passing_yards: 218 },
+            { player: "Patrick Mahomes", passing_yards: 240 },
+            { player: "RJ Harvey", rushing_yards: 55 },
+            { player: "Adam Trautman", receiving_yards: 18 },
+          ],
+        },
+        players: { seasonStats: [], recentStats: [] },
+      },
+    },
+  );
+  const names = tickets.map((t) => t.player).join(", ");
+  assert.ok(!/Trautman/i.test(names), names);
+  assert.ok(/Worthy/i.test(names), names);
 });
 
 test("high receptions lines fade Over even with soft D fantasy", async () => {
