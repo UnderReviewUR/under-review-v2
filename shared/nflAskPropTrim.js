@@ -8,6 +8,12 @@ import {
   voteNflPropEdgeSide,
 } from "./nflAskPropEdge.js";
 import { nflPlayerKeyIsExcluded } from "./nflAskPropsBatch.js";
+import {
+  detectNflBoardScriptConflicts,
+  nflPropBatch2PassesFloor,
+  orderNflPropsBoardByPrimaryEdge,
+  scoreNflPropPrimaryEdge,
+} from "./nflAskPropBoardElite.js";
 
 const NFL_ABBR_ALIAS = {
   WSH: ["WAS", "WSH"],
@@ -354,7 +360,7 @@ const NFL_HEADLINE_BOARD_MARKETS = new Set([
 /** Receptions can appear when asked; they are not default “best props” headline tickets. */
 const NFL_SECONDARY_BOARD_MARKETS = new Set(["receptions"]);
 
-function nflPropMarketKeyBase(row) {
+export function nflPropMarketKeyBase(row) {
   return nflPropMarketKey(row).replace(/_period$/, "");
 }
 
@@ -739,7 +745,7 @@ function nflPropPeerBand(market, line) {
   return Math.max(6, n * 0.2);
 }
 
-function nflPropSameTicket(a, b) {
+export function nflPropSameTicket(a, b) {
   return (
     normalizePlayerKey(a?.player) === normalizePlayerKey(b?.player) &&
     nflPropMarketKey(a) === nflPropMarketKey(b)
@@ -1075,6 +1081,21 @@ export function formatNflSidedPropBoardList(rows, allRows = [], openerWeek = fal
 }
 
 /**
+ * @param {Array<Record<string, unknown>>} rows
+ * @param {Array<Record<string, unknown>>} allRows
+ * @param {boolean} openerWeek
+ * @param {Record<string, unknown>|null} [briefcase]
+ */
+export function buildNflSidedBoardConflictNotes(rows, allRows = [], openerWeek = false, briefcase = null) {
+  const sided = (rows || []).map((row) => ({
+    row,
+    side: inferNflPropTicketSide(row, allRows, { openerWeek, briefcase }).side,
+    market: nflPropMarketKeyBase(row),
+  }));
+  return detectNflBoardScriptConflicts(sided);
+}
+
+/**
  * Friend-text copy: one primary Over/Under plus a sided 3–5 board.
  * Directional and short — GOAT evidence drives the side; face stays readable.
  * @param {{
@@ -1104,6 +1125,7 @@ export function buildNflSidedPropRecoverCopy(opts) {
     : "If your book's number is different, the side can flip.";
   const boardRows = [primary, ...(opts.boardRows || []).filter(Boolean)].filter(Boolean);
   const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek, briefcase);
+  const conflicts = buildNflSidedBoardConflictNotes(boardRows, allRows, openerWeek, briefcase);
   const thinBoard = boardRows.length > 0 && boardRows.length < 3;
   const injuryNote = edge?.injuryStatus
     ? `${last} injury: ${edge.injuryStatus}.`
@@ -1112,6 +1134,7 @@ export function buildNflSidedPropRecoverCopy(opts) {
     list ? `Board:\n${list}` : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
     "",
     `${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
+    conflicts.length ? conflicts.join(" ") : "",
     thinBoard ? `Short list (${boardRows.length}) — grab these first.` : "",
   ]
     .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
@@ -1141,12 +1164,13 @@ export function buildNflSidedPropRecoverCopy(opts) {
     },
     caveats: [
       openerLine,
+      ...conflicts,
       thinBoard
         ? "Short list from what's gradeable on this board right now."
         : ticket.side === "Under"
           ? "If your number is a lot lower, the under gets worse."
           : "If your number is a lot higher, the over gets worse.",
-    ],
+    ].filter(Boolean),
   };
 }
 
@@ -1291,7 +1315,15 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       if (namedPicked.length >= maxTickets) break;
     }
     if (namedPicked.length) {
-      return preferHighPrintPrimary(namedPicked, Array.isArray(props) ? props : []).slice(0, maxTickets);
+      return orderNflPropsBoardByPrimaryEdge(namedPicked, Array.isArray(props) ? props : [], {
+        openerWeek,
+        briefcase: opts.briefcase,
+        inferSide: inferNflPropTicketSide,
+        marketKey: nflPropMarketKeyBase,
+        sameTicket: nflPropSameTicket,
+        peerLines: nflPropPeerLines,
+        pickConsensus: pickNflConsensusMarketRow,
+      }).slice(0, maxTickets);
     }
   }
 
@@ -1303,9 +1335,41 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     if (!playerKey || bestByPlayer.has(playerKey)) continue;
     bestByPlayer.set(playerKey, row);
   }
-  const playerBest = [...bestByPlayer.values()].sort(
+  let playerBest = [...bestByPlayer.values()].sort(
     (a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts),
   );
+
+  // Batch-2: drop weak leftover padding after prior names are excluded.
+  if (excludePlayerKeys.size) {
+    const strict = playerBest.filter((row) =>
+      nflPropBatch2PassesFloor(row, {
+        valueBoost: valueBoost(row),
+        volume: Number(volumeByPlayer?.[normalizePlayerKey(row.player)]) || 0,
+        edgeScore: scoreNflPropPrimaryEdge(row, Array.isArray(props) ? props : [], inferNflPropTicketSide, nflPropMarketKeyBase, {
+          openerWeek,
+          briefcase: opts.briefcase,
+          peerLines: nflPropPeerLines,
+        }),
+        strict: true,
+      }),
+    );
+    const loose =
+      strict.length >= 2
+        ? strict
+        : playerBest.filter((row) =>
+            nflPropBatch2PassesFloor(row, {
+              valueBoost: valueBoost(row),
+              volume: Number(volumeByPlayer?.[normalizePlayerKey(row.player)]) || 0,
+              edgeScore: scoreNflPropPrimaryEdge(row, Array.isArray(props) ? props : [], inferNflPropTicketSide, nflPropMarketKeyBase, {
+                openerWeek,
+                briefcase: opts.briefcase,
+                peerLines: nflPropPeerLines,
+              }),
+              strict: false,
+            }),
+          );
+    if (loose.length) playerBest = loose;
+  }
 
   /** Fill one ticket per market family first (WR/RB/QB), then allow a second WR/QB. */
   const familyPriority = [
@@ -1401,17 +1465,17 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     }
   }
 
-  // Diverse board order stays family-first; CALL/primary uses full pass-yard weight.
-  const primaryScoreOpts = { multiBoard: false };
-  const primary = [...picked].sort(
-    (a, b) =>
-      scorePropRow(b, tokens, hints, primaryScoreOpts) -
-      scorePropRow(a, tokens, hints, primaryScoreOpts),
-  )[0];
-  const ordered = primary
-    ? [primary, ...picked.filter((row) => row !== primary)]
-    : picked;
-  return preferHighPrintPrimary(ordered, Array.isArray(props) ? props : []).slice(0, maxTickets);
+  // Elite primary: strongest evidence stack, then high-print only if still an Under fade.
+  const ordered = orderNflPropsBoardByPrimaryEdge(picked, Array.isArray(props) ? props : [], {
+    openerWeek,
+    briefcase: opts.briefcase,
+    inferSide: inferNflPropTicketSide,
+    marketKey: nflPropMarketKeyBase,
+    sameTicket: nflPropSameTicket,
+    peerLines: nflPropPeerLines,
+    pickConsensus: pickNflConsensusMarketRow,
+  });
+  return ordered.slice(0, maxTickets);
 }
 
 /**
