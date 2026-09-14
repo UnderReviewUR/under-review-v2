@@ -773,20 +773,23 @@ export function buildNflSidedPropRecoverCopy(opts) {
   const openerLine = openerWeek
     ? "First week — last year's D is a prior, not this year's rank."
     : "If your book's number is different, the side can flip.";
-  const boardRows = (opts.boardRows || []).filter(Boolean);
+  const boardRows = [primary, ...(opts.boardRows || []).filter(Boolean)].filter(Boolean);
   const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek);
+  const thinBoard = boardRows.length > 0 && boardRows.length < 3;
   const whyNow = [
-    `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
+    list
+      ? `Board tickets (posted numbers only):\n${list}`
+      : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
     "",
-    ticket.why,
+    `Primary lean: ${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
     openerWeek
       ? ticket.side === "Under"
         ? "I'd rather see a cheaper number if you can get it."
         : "If you can get this number or higher, the over is cleaner."
       : "",
-    list
-      ? `\nAlso worth a look:\n${list}\n\nOne ticket first. Speculative.`
-      : "",
+    thinBoard
+      ? `Only ${boardRows.length} clean skill props posted for this game right now — not a full 4–5 board.`
+      : "One ticket first. Speculative.",
   ]
     .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
     .join("\n")
@@ -809,9 +812,11 @@ export function buildNflSidedPropRecoverCopy(opts) {
     },
     caveats: [
       openerLine,
-      ticket.side === "Under"
-        ? "If your number is a lot lower, the under gets worse."
-        : "If your number is a lot higher, the over gets worse.",
+      thinBoard
+        ? "Thin board — ask again closer to kick if more props post."
+        : ticket.side === "Under"
+          ? "If your number is a lot lower, the under gets worse."
+          : "If your number is a lot higher, the over gets worse.",
     ],
   };
 }

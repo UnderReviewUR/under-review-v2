@@ -472,9 +472,9 @@ test("props_board recover is casual with clear action and drops wrong-team cavea
   assert.doesNotMatch(String(structured.edge), /^Action:/i);
   assert.doesNotMatch(String(structured.whyNow), /Grab one|shop juice|GOAT|do not invent|board owns/i);
   assert.doesNotMatch(String(structured.whyNow), /Sam Darnold/);
-  assert.doesNotMatch(String(structured.whyNow), /1\.\s+Maye under/i);
-  assert.match(String(structured.whyNow), /1\.\s+(Smith-Njigba|Stevenson)/i);
-  assert.match(String(structured.whyNow), /Also worth a look/i);
+  assert.match(String(structured.whyNow), /Board tickets/i);
+  assert.match(String(structured.whyNow), /1\.\s+Maye under/i);
+  assert.match(String(structured.whyNow), /[2-5]\.\s+(Smith-Njigba|Stevenson)/i);
   assert.ok(Array.isArray(structured.caveats));
   assert.ok(!structured.caveats.some((c) => /Kupp|Darnold/i.test(String(c))));
 });

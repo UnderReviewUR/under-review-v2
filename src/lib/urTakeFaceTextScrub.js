@@ -11,7 +11,13 @@ export function scrubStructuredFaceText(text) {
   for (const re of patterns) {
     s = s.replace(re, " ");
   }
-  return s.replace(/\s{2,}/g, " ").replace(/^\s+|\s+$/g, "").trim();
+  // Keep newlines so numbered prop boards stay scannable; only squash horizontal runs.
+  return s
+    .replace(/[^\S\n]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .trim();
 }
 
 /** Alias — some imports use `scrubFaceText`; same implementation as `scrubStructuredFaceText`. */

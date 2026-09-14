@@ -4855,6 +4855,7 @@ export const baseCss = `
     line-height:1.65;
     color:#e5e7eb;
   }
+  .ur-v2-body-primary--clamp,
   .ur-v2-body-prose-wrap--clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
   button.ur-v2-body-expand{margin:6px 16px 0;padding:0;border:none;background:none;color:#00F5E9;font-family:var(--mono-font);font-size:11px;letter-spacing:0.08em;cursor:pointer;text-align:left;touch-action:manipulation;}
   .ur-v2-body-p{margin:0 0 12px;color:#e5e7eb;white-space:pre-line;}

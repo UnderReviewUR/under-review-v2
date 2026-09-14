@@ -389,6 +389,13 @@ export default function URTakeResponse({
       if (!wcHasBreakdownBody) setBodyExpanded(false);
       return;
     }
+    // Numbered prop boards must stay fully visible — clamp hid 3–5 tickets behind "More detail".
+    const hasNumberedBoard = /^\s*\d+\.\s+/m.test(String(whyNowDisplay || ""));
+    if (hasNumberedBoard) {
+      setPrimaryOverflow(false);
+      setBodyExpanded(true);
+      return;
+    }
     const el = primaryBodyRef.current;
     if (!el) return;
     const cs = globalThis.getComputedStyle?.(el);
