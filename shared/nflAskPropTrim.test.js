@@ -572,3 +572,116 @@ test("a row with no matchup label stays gradeable", () => {
   });
   assert.equal(kept.length, 2);
 });
+
+test("shortPlayerLast skips III/Jr suffixes", async () => {
+  const { shortPlayerLast } = await import("./nflAskPropTrim.js");
+  assert.equal(shortPlayerLast("Patrick Mahomes III"), "Mahomes");
+  assert.equal(shortPlayerLast("Michael Penix Jr."), "Penix");
+  assert.equal(shortPlayerLast("Bo Nix"), "Nix");
+});
+
+test("1q and absurd rush alts never make a best-props board", () => {
+  const tickets = pickNflPropsBoardTickets(
+    [
+      {
+        game: "DEN @ KC",
+        player: "Bo Nix",
+        team: "DEN",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 229.5,
+        overOdds: -110,
+        underOdds: -105,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Travis Kelce",
+        team: "KC",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 42.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Patrick Mahomes III",
+        team: "KC",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 160,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "RJ Harvey",
+        team: "DEN",
+        prop: "rushing receiving yards 1q",
+        propRaw: "rush_rec_yds_1q",
+        line: 40,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Evan Engram",
+        team: "DEN",
+        prop: "receptions",
+        propRaw: "receptions",
+        line: 8.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "RJ Harvey",
+        team: "DEN",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 48.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+    ],
+    {
+      scope: ["DEN", "KC"],
+      eventIds: ["7"],
+      question: "best player props for broncos vs chiefs tonight?",
+      maxTickets: 5,
+      rosterNames: ["Bo Nix", "Travis Kelce", "Patrick Mahomes III", "RJ Harvey", "Evan Engram"],
+      playerTeamByName: {
+        "bo nix": "DEN",
+        "travis kelce": "KC",
+        "patrick mahomes": "KC",
+        "rj harvey": "DEN",
+        "evan engram": "DEN",
+      },
+    },
+  );
+  const blob = tickets.map((t) => `${t.player} ${t.prop} ${t.line}`).join(" | ");
+  assert.ok(!tickets.some((t) => Number(t.line) >= 120 && /rush/i.test(String(t.prop))), blob);
+  assert.ok(!tickets.some((t) => /1q|1st/i.test(`${t.prop} ${t.propRaw}`)), blob);
+  assert.ok(tickets.some((t) => /Nix/i.test(String(t.player))), blob);
+  assert.ok(tickets.some((t) => /Kelce|Harvey|Engram/i.test(String(t.player))), blob);
+});
+
+test("tiny juice gaps do not invent a side", async () => {
+  const { inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
+  const row = {
+    player: "Bo Nix",
+    prop: "passing yards",
+    propRaw: "passing_yards",
+    line: 229.5,
+    overOdds: -110,
+    underOdds: -105,
+  };
+  const ticket = inferNflPropTicketSide(row, [row], { openerWeek: false });
+  assert.doesNotMatch(ticket.why, /better price/i);
+});

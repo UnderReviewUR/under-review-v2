@@ -191,7 +191,7 @@ export function questionWantsNflMultiPropBoard(question) {
 }
 
 const NFL_PERIOD_PROP_RE =
-  /\b(?:1h|2h|h1|h2|1st\s*half|2nd\s*half|first\s*half|second\s*half|q[1-4]|1st\s*(?:q(?:tr|uarter)?)|2nd\s*(?:q(?:tr|uarter)?)|3rd\s*(?:q(?:tr|uarter)?)|4th\s*(?:q(?:tr|uarter)?)|first\s*quarter|second\s*quarter|third\s*quarter|fourth\s*quarter)\b/i;
+  /\b(?:1h|2h|h1|h2|1st\s*half|2nd\s*half|first\s*half|second\s*half|[1-4]q|q[1-4]|1st\s*(?:q(?:tr|uarter)?)|2nd\s*(?:q(?:tr|uarter)?)|3rd\s*(?:q(?:tr|uarter)?)|4th\s*(?:q(?:tr|uarter)?)|first\s*quarter|second\s*quarter|third\s*quarter|fourth\s*quarter)\b/i;
 
 /**
  * 1H / 2H / quarter markets — too script-dependent for a full-game props board.
@@ -242,6 +242,11 @@ export function isNflNoveltyBoardProp(row) {
   const line = Number(row?.line);
   if (market === "rush_yds" && Number.isFinite(line) && line <= 8.5) return true;
   if (market === "rec_yds" && Number.isFinite(line) && line <= 12.5) return true;
+  // Alt ladders / joke prints — never a “best props” ticket.
+  if (market === "rush_yds" && Number.isFinite(line) && line >= 120) return true;
+  if (market === "rec_yds" && Number.isFinite(line) && line >= 140) return true;
+  if (market === "pass_yds" && Number.isFinite(line) && (line >= 360 || line <= 140)) return true;
+  if (market === "receptions" && Number.isFinite(line) && line >= 12.5) return true;
   return false;
 }
 
@@ -619,10 +624,11 @@ export function nflPropPeerLines(row, allRows = []) {
  * @param {Array<Record<string, unknown>>} rows
  */
 function dropNflYardLadderAlts(list, market) {
-  if (!/yds/.test(String(market || "")) || /long|rush_rec|pass_rush/.test(String(market || ""))) {
+  const m = String(market || "");
+  if (!/yds/.test(m) || /long|rush_rec|pass_rush/.test(m)) {
     return list;
   }
-  if (/pass_yds/.test(String(market || ""))) {
+  if (/pass_yds/.test(m)) {
     // Half-point mains (211.5–263.5) beat round milestones (200/225/250/275)
     // that BDL posts as alt ladders on the same player.
     const halfMains = list.filter((r) => {
@@ -635,6 +641,20 @@ function dropNflYardLadderAlts(list, market) {
       return n >= 195 && n <= 270;
     });
     if (passMains.length) return passMains;
+  }
+  if (/rush_yds/.test(m)) {
+    const rushMains = list.filter((r) => {
+      const n = Number(r.line);
+      return n >= 18 && n <= 110;
+    });
+    if (rushMains.length) return rushMains;
+  }
+  if (/rec_yds/.test(m)) {
+    const recMains = list.filter((r) => {
+      const n = Number(r.line);
+      return n >= 15 && n <= 125;
+    });
+    if (recMains.length) return recMains;
   }
   const mains = list.filter((r) => {
     const n = Number(r.line);
@@ -673,9 +693,18 @@ export function pickNflConsensusMarketRow(rows) {
   return list.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), list[0]);
 }
 
-function shortPlayerLast(name) {
+const NFL_NAME_SUFFIX_RE = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i;
+
+/**
+ * Last name for face copy — skip Jr/Sr/II/III so Mahomes III never prints as "III".
+ * @param {string} name
+ */
+export function shortPlayerLast(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
-  return parts[parts.length - 1] || String(name || "this player");
+  if (!parts.length) return String(name || "this player");
+  let i = parts.length - 1;
+  while (i > 0 && NFL_NAME_SUFFIX_RE.test(parts[i])) i -= 1;
+  return parts[i] || parts[parts.length - 1];
 }
 
 function otherBookLines(unique, line) {
@@ -732,7 +761,8 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   }
   const over = Number(row?.overOdds);
   const under = Number(row?.underOdds);
-  if (Number.isFinite(over) && Number.isFinite(under) && over !== under) {
+  // Tiny juice gaps (-110 vs -105) are not an edge — need a real price gap.
+  if (Number.isFinite(over) && Number.isFinite(under) && Math.abs(over - under) >= 20) {
     if (over > under) return { side: "Over", why: "Over is hanging the better price." };
     return { side: "Under", why: "Under is hanging the better price." };
   }
@@ -1051,6 +1081,11 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   }
   if (!questionWantsNflNoveltyProps(opts.question)) {
     rows = rows.filter((p) => !isNflNoveltyBoardProp(p));
+  }
+  // Best-props boards: full-game headline markets only when we have enough.
+  if (scoreOpts.multiBoard) {
+    const headline = rows.filter((p) => isNflHeadlineBoardMarket(p));
+    if (headline.length >= Math.min(maxTickets, 3)) rows = headline;
   }
 
   // Consensus first — then score. Do not let vendor alt ladders crowd skill markets.
