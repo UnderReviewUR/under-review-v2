@@ -171,6 +171,13 @@ function scorePropRow(row, tokens, hints, opts = {}) {
   if (isNflHeadlineBoardMarket(row)) score += 45;
   if (isNflNoveltyBoardProp(row)) score -= 70;
   const market = nflPropMarketKeyBase(row);
+  // Integer ladders (8, 40, 80, 160) are usually alts — prefer true half-point mains.
+  const line = Number(row?.line);
+  if (Number.isFinite(line) && Math.abs(line % 1) < 0.001 && /yds|receptions/.test(market)) {
+    score -= 35;
+  }
+  if (market === "receptions") score -= opts.multiBoard ? 25 : 5;
+  if (isNflHighReceptionsLine(row)) score -= 40;
   // On "best 4 props" asks, don't let QB pass yards dominate the primary lean.
   const passBoost = opts.multiBoard ? 12 : 28;
   if (market === "pass_yds") score += passBoost;
@@ -215,8 +222,10 @@ const NFL_HEADLINE_BOARD_MARKETS = new Set([
   "rush_yds",
   "rec_yds",
   "rec_tds",
-  "receptions",
 ]);
+
+/** Receptions can appear when asked; they are not default “best props” headline tickets. */
+const NFL_SECONDARY_BOARD_MARKETS = new Set(["receptions"]);
 
 function nflPropMarketKeyBase(row) {
   return nflPropMarketKey(row).replace(/_period$/, "");
@@ -228,6 +237,16 @@ function nflPropMarketKeyBase(row) {
  */
 export function isNflHeadlineBoardMarket(row) {
   return NFL_HEADLINE_BOARD_MARKETS.has(nflPropMarketKeyBase(row));
+}
+
+/**
+ * High receptions prints are almost never a smash Over on a broad board.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+export function isNflHighReceptionsLine(row) {
+  if (nflPropMarketKeyBase(row) !== "receptions") return false;
+  const line = Number(row?.line);
+  return Number.isFinite(line) && line >= 5.5;
 }
 
 /**
@@ -246,7 +265,7 @@ export function isNflNoveltyBoardProp(row) {
   if (market === "rush_yds" && Number.isFinite(line) && line >= 120) return true;
   if (market === "rec_yds" && Number.isFinite(line) && line >= 140) return true;
   if (market === "pass_yds" && Number.isFinite(line) && (line >= 360 || line <= 140)) return true;
-  if (market === "receptions" && Number.isFinite(line) && line >= 12.5) return true;
+  if (market === "receptions" && Number.isFinite(line) && line >= 7) return true;
   return false;
 }
 
@@ -754,7 +773,17 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   }
 
   const evidence = voteNflPropEdgeSide(row, marketBase, edge, { openerWeek });
-  if (evidence) return evidence;
+  if (evidence) {
+    // Never sell Over on a high catch number as a “best” ticket.
+    if (evidence.side === "Over" && isNflHighReceptionsLine(row)) {
+      return { side: "Under", why: `${line} receptions is a high catch number — I'd rather fade it.` };
+    }
+    return evidence;
+  }
+
+  if (isNflHighReceptionsLine(row)) {
+    return { side: "Under", why: `${line} receptions is a high catch number.` };
+  }
 
   if (nflPropMarketKey(row) === "pass_yds" && Number.isFinite(line) && line >= 275) {
     return { side: "Under", why: `${line} is a high passing-yards number.` };
@@ -1082,10 +1111,18 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   if (!questionWantsNflNoveltyProps(opts.question)) {
     rows = rows.filter((p) => !isNflNoveltyBoardProp(p));
   }
-  // Best-props boards: full-game headline markets only when we have enough.
+  // Best-props boards: full-game headline yards/TDs only when we have enough.
+  // Receptions (esp. Engram over 8) are not default “best” tickets.
   if (scoreOpts.multiBoard) {
     const headline = rows.filter((p) => isNflHeadlineBoardMarket(p));
     if (headline.length >= Math.min(maxTickets, 3)) rows = headline;
+    else {
+      rows = rows.filter(
+        (p) =>
+          isNflHeadlineBoardMarket(p) ||
+          NFL_SECONDARY_BOARD_MARKETS.has(nflPropMarketKeyBase(p)),
+      );
+    }
   }
 
   // Consensus first — then score. Do not let vendor alt ladders crowd skill markets.

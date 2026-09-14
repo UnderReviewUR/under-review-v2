@@ -649,27 +649,89 @@ test("1q and absurd rush alts never make a best-props board", () => {
         underOdds: -110,
         eventId: "7",
       },
+      {
+        game: "DEN @ KC",
+        player: "Adam Trautman",
+        team: "DEN",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 40,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Xavier Worthy",
+        team: "KC",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 40.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "7",
+      },
     ],
     {
       scope: ["DEN", "KC"],
       eventIds: ["7"],
       question: "best player props for broncos vs chiefs tonight?",
       maxTickets: 5,
-      rosterNames: ["Bo Nix", "Travis Kelce", "Patrick Mahomes III", "RJ Harvey", "Evan Engram"],
+      rosterNames: [
+        "Bo Nix",
+        "Travis Kelce",
+        "Patrick Mahomes III",
+        "RJ Harvey",
+        "Evan Engram",
+        "Adam Trautman",
+        "Xavier Worthy",
+      ],
       playerTeamByName: {
         "bo nix": "DEN",
         "travis kelce": "KC",
         "patrick mahomes": "KC",
         "rj harvey": "DEN",
         "evan engram": "DEN",
+        "adam trautman": "DEN",
+        "xavier worthy": "KC",
       },
     },
   );
   const blob = tickets.map((t) => `${t.player} ${t.prop} ${t.line}`).join(" | ");
   assert.ok(!tickets.some((t) => Number(t.line) >= 120 && /rush/i.test(String(t.prop))), blob);
   assert.ok(!tickets.some((t) => /1q|1st/i.test(`${t.prop} ${t.propRaw}`)), blob);
+  assert.ok(!tickets.some((t) => /Engram/i.test(String(t.player))), `receptions lottery should not board: ${blob}`);
   assert.ok(tickets.some((t) => /Nix/i.test(String(t.player))), blob);
-  assert.ok(tickets.some((t) => /Kelce|Harvey|Engram/i.test(String(t.player))), blob);
+  assert.ok(tickets.some((t) => /Kelce|Harvey|Worthy/i.test(String(t.player))), blob);
+});
+
+test("high receptions lines fade Over even with soft D fantasy", async () => {
+  const { inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
+  const row = {
+    player: "Evan Engram",
+    team: "DEN",
+    game: "DEN @ KC",
+    prop: "receptions",
+    propRaw: "receptions",
+    line: 8,
+    overOdds: -110,
+    underOdds: -110,
+  };
+  const ticket = inferNflPropTicketSide(row, [row], {
+    openerWeek: false,
+    briefcase: {
+      players: { recentStats: [], seasonStats: [] },
+      fantasy: { projections: [{ player: "Evan Engram", receptions: 9.2 }] },
+      league: {
+        injuries: [],
+        teamDefense: {
+          KC: { tier: "WEAK", pass: { rank: 28 }, rush: { rank: 20 }, overall: { rank: 24 } },
+        },
+      },
+    },
+  });
+  assert.equal(ticket.side, "Under");
+  assert.match(ticket.why, /high catch/i);
 });
 
 test("tiny juice gaps do not invent a side", async () => {
