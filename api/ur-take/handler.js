@@ -2515,6 +2515,55 @@ async function ensureWcPlayerPropsUrTakeContext(wcContext, opts = {}) {
   };
 }
 
+/**
+ * When Anthropic is down/out of credits, still ship an NFL board from GOAT props.
+ * @returns {Record<string, unknown>|null}
+ */
+function buildNflProviderFailureStructuredTake(opts = {}) {
+  const question = String(opts.question || "");
+  const games = Array.isArray(opts.games) ? opts.games : [];
+  const propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
+  const briefcase = opts.briefcase && typeof opts.briefcase === "object" ? opts.briefcase : null;
+  const matchupMeta = opts.matchupMeta && typeof opts.matchupMeta === "object" ? opts.matchupMeta : null;
+
+  if (isNflTicketReviewAsk(question)) {
+    const next = { call: "TICKET REVIEW", lean: "Lean: Ticket review.", confidence: "Speculative" };
+    applyNflTicketReviewToStructured(next, question, games, propLines, briefcase);
+    return repairStructuredForDelivery(next, "nfl");
+  }
+  const liveLine = matchupMeta?.liveLine;
+  if (liveLine && liveLine.line != null) {
+    return repairStructuredForDelivery(
+      buildNflLivePropBoardTake({
+        question,
+        liveLine,
+        defenseTier: matchupMeta?.defenseTier,
+        defensePrior: Boolean(matchupMeta?.defensePrior),
+        playerName: matchupMeta?.player?.name || matchupMeta?.player,
+        briefcase,
+        propLines,
+        week: briefcase?.week ?? games?.[0]?.week,
+      }),
+      "nfl",
+    );
+  }
+  if (
+    detectNflAskMarket(question).marketId === "props_board" ||
+    propLines.length > 0
+  ) {
+    return repairStructuredForDelivery(
+      buildNflPropsBoardFallbackTake({
+        question,
+        games,
+        propLines,
+        briefcase,
+      }),
+      "nfl",
+    );
+  }
+  return null;
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const requestStart = Date.now();
@@ -7452,6 +7501,49 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
         } catch {
           rawSlice = String(result.data).slice(0, 1200);
         }
+
+        // Anthropic out of credits / 4xx: still return a GOAT board for NFL props asks.
+        if (sportHint === "nfl") {
+          const offline = buildNflProviderFailureStructuredTake({
+            question,
+            games: nflAskGuardGames,
+            propLines: nflAskGuardPropLines,
+            briefcase: nflAskGuardBriefcase,
+            matchupMeta: nflMatchupMetaOut,
+          });
+          if (offline) {
+            const prose = formatStructuredResponseAsUrTakeProse(offline);
+            const textOut =
+              String(prose || "").trim() ||
+              String(offline.lean || offline.whyNow || "Board tickets from the live GOAT props.").trim();
+            logUrTakeApiFallback({
+              requestId,
+              fallbackReason: "provider_non_ok_nfl_board_recover",
+              sport: "nfl",
+              providerStatus: result.status,
+              providerErrorName: upstreamType,
+              providerErrorMessage:
+                result.data?.error?.message || result.data?.message || `HTTP ${result.status}`,
+              rawModelText: rawSlice,
+              questionLength: String(question || "").length,
+              structuredKeys: Object.keys(offline),
+              extra: { providerRequestId: result.requestId },
+            });
+            return res.status(200).json({
+              requestId,
+              response: textOut,
+              take: textOut,
+              lean: offline.lean || textOut,
+              confidence: offline.confidence || "Speculative",
+              sport: "nfl",
+              structured: offline,
+              fallback: true,
+              fallbackReason: "provider_non_ok_nfl_board_recover",
+              providerRequestId: result.requestId,
+            });
+          }
+        }
+
         return feedSnagResponse(sportHint, "provider_non_ok", {
           questionLength: String(question || "").length,
           providerStatus: result.status,
