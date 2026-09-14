@@ -20,6 +20,12 @@ import {
 } from "./nflAskPropTrim.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "./nflAskTicketReview.js";
 import { isNflOpenerWeek } from "./nflAskComposeRule.js";
+import { propsForFeaturedNflGame } from "./homeEngageNudges.js";
+import {
+  extractNflPriorBoardPlayerKeys,
+  extractNflPriorMatchupAbbrs,
+  looksLikeNflPropsRefreshAsk,
+} from "./nflAskPropsBatch.js";
 
 const CONF_RANK = Object.freeze({ Speculative: 0, Medium: 1, High: 2 });
 const PRICED_MARKET_IDS = new Set(["spread", "total", "moneyline", "sgp"]);
@@ -717,7 +723,7 @@ function nflAskHasOverUnderSide(structured) {
  * Rewrite a structured take into a casual live props-board ticket list.
  * @returns {boolean} true if tickets were written
  */
-function applyPropsBoardRecoverToStructured(structured, question, games, propLines, briefcase) {
+function applyPropsBoardRecoverToStructured(structured, question, games, propLines, briefcase, opts = {}) {
   /** @type {Set<string>} */
   const scope = new Set();
   /** @type {Array<string|number>} */
@@ -743,6 +749,11 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     }
   }
   const openerWeek = isNflOpenerWeek(briefcase?.week ?? games?.[0]?.week);
+  const excludePlayerKeys =
+    opts.excludePlayerKeys instanceof Set
+      ? opts.excludePlayerKeys
+      : new Set([...(opts.excludePlayerKeys || [])].map(String).filter(Boolean));
+  const refreshBatch = Boolean(opts.refreshBatch) || looksLikeNflPropsRefreshAsk(question);
   const top = pickNflPropsBoardTickets(propLines, {
     scope,
     eventIds,
@@ -755,8 +766,33 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     maxTickets: 5,
     briefcase,
     openerWeek,
+    excludePlayerKeys,
   });
-  if (!top.length) return false;
+  if (!top.length) {
+    if (refreshBatch && excludePlayerKeys.size) {
+      structured.sport = "NFL";
+      structured.call = "PASS";
+      structured.callType = "prop";
+      structured.confidence = "Speculative";
+      structured.lean = "Lean: Pass. Fresh board empty.";
+      structured.whyNow =
+        "Already used the gradeable names on this matchup. Name a player or market for a new lean.";
+      structured.edge = "Ask for a named prop or a different game.";
+      structured.analysis = {
+        matchupAnalysis: "No unused headline props left after excluding the prior board.",
+        injuryContext: "Check inactives before you bet it.",
+        marketContext: "Prior tickets excluded from this refresh.",
+        lineMovement: "Stick to a posted number. Don't invent movement.",
+        statisticalEdge: "Fresh board exhausted for this matchup.",
+      };
+      structured.caveats = ["Name a player, market, or different game for a new lean."];
+      structured.timestamp = new Date().toISOString();
+      structured.parlayLegs = null;
+      structured.parlayTotalOdds = null;
+      return true;
+    }
+    return false;
+  }
   const ranked = preferHighPrintPrimary(top, propLines);
   const primary = ranked[0];
   const copy = buildNflSidedPropRecoverCopy({
@@ -771,7 +807,11 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
   structured.callType = copy.callType;
   structured.confidence = copy.confidence;
   structured.lean = copy.lean;
-  structured.whyNow = copy.whyNow;
+  structured.whyNow = refreshBatch
+    ? `Fresh board (skipped prior tickets):\n${String(copy.whyNow || "")
+        .replace(/^Board:\s*/i, "")
+        .trim()}`
+    : copy.whyNow;
   structured.edge = copy.edge;
   structured.analysis = copy.analysis;
   structured.caveats = copy.caveats;
@@ -789,12 +829,39 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
  *   games?: Array<Record<string, unknown>>,
  *   propLines?: Array<Record<string, unknown>>,
  *   briefcase?: Record<string, unknown>|null,
+ *   history?: unknown[],
+ *   excludePlayerKeys?: Set<string>|string[],
  * }} [opts]
  */
 export function buildNflPropsBoardFallbackTake(opts = {}) {
   const question = String(opts.question || "");
-  const games = Array.isArray(opts.games) ? opts.games : [];
-  const propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
+  let games = Array.isArray(opts.games) ? opts.games : [];
+  let propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
+  const refreshBatch = looksLikeNflPropsRefreshAsk(question);
+  const excludePlayerKeys =
+    opts.excludePlayerKeys instanceof Set
+      ? opts.excludePlayerKeys
+      : extractNflPriorBoardPlayerKeys(opts.history);
+
+  if (refreshBatch) {
+    const prior = extractNflPriorMatchupAbbrs(opts.history);
+    if (prior?.awayAbbr && prior?.homeAbbr) {
+      const featured = { awayAbbr: prior.awayAbbr, homeAbbr: prior.homeAbbr };
+      const scopedProps = propsForFeaturedNflGame(propLines, featured);
+      if (scopedProps.length) propLines = scopedProps;
+      const scopedGames = games.filter((g) => {
+        const away = String(g?.awayAbbr || "").toUpperCase();
+        const home = String(g?.homeAbbr || "").toUpperCase();
+        return (
+          (away === prior.awayAbbr && home === prior.homeAbbr) ||
+          (away === prior.homeAbbr && home === prior.awayAbbr)
+        );
+      });
+      if (scopedGames.length) games = scopedGames;
+      else if (!games.length) games = [featured];
+    }
+  }
+
   if (propLines.length) {
     /** @type {Record<string, unknown>} */
     const structured = {
@@ -817,7 +884,12 @@ export function buildNflPropsBoardFallbackTake(opts = {}) {
       parlayLegs: null,
       parlayTotalOdds: null,
     };
-    if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
+    if (
+      applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase, {
+        excludePlayerKeys: refreshBatch ? excludePlayerKeys : new Set(),
+        refreshBatch,
+      })
+    ) {
       return structured;
     }
   }
@@ -944,7 +1016,12 @@ export function applyNflAskGuard(opts = {}) {
     propLines.length > 0 &&
     !nflModelAlreadyShippedPropsBoard(structured, propLines)
   ) {
-    if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
+    if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase, {
+      excludePlayerKeys: looksLikeNflPropsRefreshAsk(question)
+        ? extractNflPriorBoardPlayerKeys(opts.history)
+        : new Set(),
+      refreshBatch: looksLikeNflPropsRefreshAsk(question),
+    })) {
       codes.push("props_board_force_recover");
     }
   } else if (
@@ -988,7 +1065,12 @@ export function applyNflAskGuard(opts = {}) {
       const marketId = String(suitcase.detected?.marketId || "");
       // Broad "best player props" asks: recover from live board rows instead of blank PASS.
       if (marketId === "props_board" && propLines.length > 0) {
-        if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase)) {
+        if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase, {
+          excludePlayerKeys: looksLikeNflPropsRefreshAsk(question)
+            ? extractNflPriorBoardPlayerKeys(opts.history)
+            : new Set(),
+          refreshBatch: looksLikeNflPropsRefreshAsk(question),
+        })) {
           codes.push("props_board_recover");
         } else {
           codes.push("invented_line");

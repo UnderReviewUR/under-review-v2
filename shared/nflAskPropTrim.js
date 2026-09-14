@@ -7,6 +7,7 @@ import {
   buildNflPropEdgeForRow,
   voteNflPropEdgeSide,
 } from "./nflAskPropEdge.js";
+import { nflPlayerKeyIsExcluded } from "./nflAskPropsBatch.js";
 
 const NFL_ABBR_ALIAS = {
   WSH: ["WAS", "WSH"],
@@ -1125,6 +1126,7 @@ export function buildNflSidedPropRecoverCopy(opts) {
     confidence: "Speculative",
     whyNow,
     edge: `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
+    // Filled for schema/repair; married delivery slims these so the card doesn't echo the board.
     analysis: {
       matchupAnalysis: `${last} ${propLabel} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
       injuryContext: injuryNote,
@@ -1192,6 +1194,7 @@ export function normalizePlayerKey(name) {
  *   question?: string,
  *   maxTickets?: number,
  *   briefcase?: Record<string, unknown>|null,
+ *   excludePlayerKeys?: Set<string>|string[],
  * }} [opts]
  */
 export function pickNflPropsBoardTickets(props, opts = {}) {
@@ -1204,6 +1207,12 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       .map(normalizePlayerKey)
       .filter(Boolean),
   );
+  const excludePlayerKeys =
+    opts.excludePlayerKeys instanceof Set
+      ? opts.excludePlayerKeys
+      : new Set(
+          [...(opts.excludePlayerKeys || [])].map((k) => normalizePlayerKey(k)).filter(Boolean),
+        );
   const requested = requestedNflPropsBoardCount(opts.question);
   const maxTickets = Math.max(
     2,
@@ -1236,6 +1245,9 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     playerTeamByName: opts.playerTeamByName,
   });
   rows = rows.filter((p) => rowMatchesScope(p, scope));
+  if (excludePlayerKeys.size) {
+    rows = rows.filter((p) => !nflPlayerKeyIsExcluded(String(p?.player || ""), excludePlayerKeys));
+  }
   if (!questionWantsNflPeriodProps(opts.question)) {
     rows = rows.filter((p) => !isNflPeriodPropRow(p));
   }
@@ -1246,7 +1258,9 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   // Receptions (esp. Engram over 8) are not default “best” tickets.
   if (scoreOpts.multiBoard) {
     const headline = rows.filter((p) => isNflHeadlineBoardMarket(p));
-    if (headline.length >= Math.min(maxTickets, 3)) rows = headline;
+    // On batch-2 excludes, don't require a fat headline pool — take what's left.
+    const minHeadline = excludePlayerKeys.size ? 1 : Math.min(maxTickets, 3);
+    if (headline.length >= minHeadline) rows = headline;
     else {
       rows = rows.filter(
         (p) =>

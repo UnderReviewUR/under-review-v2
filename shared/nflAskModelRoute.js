@@ -11,6 +11,7 @@ import {
   isNflScopedPropFastPath,
   NFL_UR_TAKE_FAST_MODEL_DEFAULT,
 } from "./nflAskFastPath.js";
+import { looksLikeNflPropsRefreshAsk } from "./nflAskPropsBatch.js";
 
 /**
  * @param {unknown} raw
@@ -31,7 +32,7 @@ function envFlagOn(raw, defaultOn = true) {
 export function nflAskPropsBoardUsesOffline(question) {
   if (!envFlagOn(process.env.NFL_ASK_PROPS_BOARD_OFFLINE, true)) return false;
   if (isNflTicketReviewAsk(question)) return false;
-  return looksLikeNflPropsBoardAsk(question);
+  return looksLikeNflPropsBoardAsk(question) || looksLikeNflPropsRefreshAsk(question);
 }
 
 /**
@@ -42,6 +43,7 @@ export function nflAskPropsBoardUsesOffline(question) {
 export function nflAskUsesMarriedPropPath(question, opts = {}) {
   if (isNflTicketReviewAsk(question)) return false;
   if (nflAskPropsBoardUsesOffline(question)) return true;
+  if (looksLikeNflPropsRefreshAsk(question)) return true;
   return Boolean(opts.fastPathActive) || isNflScopedPropFastPath(question);
 }
 

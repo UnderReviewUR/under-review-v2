@@ -416,6 +416,7 @@ import {
   formatNflMarriedBoardProse,
   slimNflMarriedStructuredForDelivery,
 } from "../../shared/nflAskMarriedDelivery.js";
+import { looksLikeNflPropsRefreshAsk } from "../../shared/nflAskPropsBatch.js";
 import { polishNflStructuredTakeWithHaiku } from "../_nflAskHaikuPolish.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "../../shared/nflAskTicketReview.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
@@ -5816,6 +5817,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
           games: nflAskGuardGames,
           propLines: nflAskGuardPropLines,
           briefcase: nflAskGuardBriefcase,
+          history: normalizedUrTakeHistoryForGate,
         }),
         "nfl_props_board_offline",
       );
@@ -5823,7 +5825,12 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
 
     if (nflAskUsesMarriedPropPath(question, { fastPathActive: nflFastPathActive })) {
       const liveLine = nflMatchupMetaOut?.liveLine;
-      if (liveLine && liveLine.line != null) {
+      // Refresh follow-ups always reshuffle the board — don't stick on the prior primary liveLine.
+      if (
+        liveLine &&
+        liveLine.line != null &&
+        !looksLikeNflPropsRefreshAsk(question)
+      ) {
         return await shipNflMarriedTake(
           buildNflLivePropBoardTake({
             question,
@@ -5845,6 +5852,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
             games: nflAskGuardGames,
             propLines: nflAskGuardPropLines,
             briefcase: nflAskGuardBriefcase,
+            history: normalizedUrTakeHistoryForGate,
           }),
           "nfl_named_prop_board",
         );

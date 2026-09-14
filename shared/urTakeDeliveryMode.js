@@ -25,6 +25,8 @@ import {
   isWcTotalsExplainFollowUp,
   isWcVagueMatchGoalsOverUnderAsk,
 } from "./wcMatchBettingPrompt.js";
+import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
+import { looksLikeNflPropsRefreshAsk } from "./nflAskPropsBatch.js";
 
 /** @typedef {"take"|"talk"} UrTakeDeliveryMode */
 
@@ -122,6 +124,8 @@ export function isUrTakeNewBettingAsk(opts = {}) {
   if (isWcTomorrowOrSlateBetQuestion(question)) return true;
   if (isWcKnockoutSlateQuestion(question)) return true;
   if (isWcPlayerPropBettingQuestion(question, wcIntent)) return true;
+  // NFL props boards + "new/more props" follow-ups need a fresh Take card, not Talk prose.
+  if (looksLikeNflPropsBoardAsk(question) || looksLikeNflPropsRefreshAsk(question)) return true;
   if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return true;
   if (
     !isFollowUp &&
