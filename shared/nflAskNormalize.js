@@ -176,8 +176,10 @@ export function looksLikeNflPropsBoardAsk(question) {
     /\bwhat\s+(?:should|to)\s+(?:i\s+)?bet\b/.test(q) ||
     (/\bprops?\b/.test(q) && /\b(?:game|matchup|vs\.?|versus)\b/.test(q)) ||
     /\b(?:new|more|different|other|fresh|another)\s+(?:\d+\s+)?(?:player\s+)?props?\b/.test(q) ||
-    /\bprovide\s+(?:me\s+)?(?:new|more|different|other|fresh)\b/.test(q) ||
-    /\bgive\s+me\s+(?:new|more|different|other|fresh)\b/.test(q) ||
+    /\b(?:provide|give\s+me)\s+(?:me\s+)?(?:a\s+few\s+)?(?:new|more|different|other|fresh)\b/.test(q) ||
+    /\ba\s+few\s+more\b/.test(q) ||
+    /\bfew\s+more\b/.test(q) ||
+    /\bmore\s+(?:please|options?|ideas?|tickets?|leans?|plays?)\b/.test(q) ||
     /\bwho\s+else\b/.test(q) ||
     /\banything\s+else\b/.test(q)
   );

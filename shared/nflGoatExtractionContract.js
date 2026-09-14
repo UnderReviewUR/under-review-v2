@@ -8,6 +8,7 @@
 
 import { nflAskGradeExemptPockets } from "./nflAskComposeRule.js";
 import { looksLikeNflPropsBoardAsk, normalizeNflAskQuestion } from "./nflAskNormalize.js";
+import { looksLikeNflPropsRefreshAsk } from "./nflAskPropsBatch.js";
 import { isNflTicketReviewAsk } from "./nflAskTicketReview.js";
 
 /** @typedef {'core'|'props'|'futures'|'sgp'|'live'} NflBetBucket */
@@ -532,7 +533,8 @@ export function detectNflAskMarket(question) {
       propTypeHints: [],
     };
   }
-  if (looksLikeNflPropsBoardAsk(q)) {
+  // Refresh follow-ups ("provide a few more") are still a props board rebuild.
+  if (looksLikeNflPropsBoardAsk(q) || looksLikeNflPropsRefreshAsk(q)) {
     return {
       marketId: "props_board",
       label: "Player props board",

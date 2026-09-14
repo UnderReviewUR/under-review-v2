@@ -807,6 +807,112 @@ test("buildNflPropsBoardFallbackTake validates with live rows", () => {
   assert.equal(v.valid, true, v.errors && v.errors.join("; "));
 });
 
+test("provide a few more excludes prior DEN @ KC board names", () => {
+  const take = buildNflPropsBoardFallbackTake({
+    question: "provide a few more",
+    games: [{ awayAbbr: "DEN", homeAbbr: "KC", providerGameId: 1 }],
+    history: [
+      {
+        role: "user",
+        content: "best props for broncos at chiefs?",
+      },
+      {
+        role: "assistant",
+        content: "Lean: Nix under 230.5.\nBoard:\n1. Nix under 230.5\n2. Worthy over 40\n3. Walker over 80\n4. Mahomes under 226.5\nDEN @ KC",
+        structured: {
+          lean: "Lean: Nix under 230.5.",
+          call: "NIX UNDER 230.5",
+          whyNow:
+            "Board:\n1. Nix under 230.5 (passing yards)\n2. Worthy over 40 (receiving yards)\n3. Walker over 80 (rushing yards)\n4. Mahomes under 226.5 (passing yards)",
+        },
+      },
+    ],
+    propLines: [
+      {
+        game: "DEN @ KC",
+        player: "Bo Nix",
+        team: "DEN",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 230.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Xavier Worthy",
+        team: "KC",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 40.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Patrick Mahomes",
+        team: "KC",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 226.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Courtland Sutton",
+        team: "DEN",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 55.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "DEN @ KC",
+        player: "Isiah Pacheco",
+        team: "KC",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 48.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "DEN @ KC",
+        player: "J.K. Dobbins",
+        team: "DEN",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 62.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    briefcase: {
+      grade: "green",
+      detected: { marketId: "props_board", propTypeHints: [] },
+      league: {
+        rostersByTeam: {
+          DEN: [{ name: "Bo Nix" }, { name: "Courtland Sutton" }, { name: "J.K. Dobbins" }],
+          KC: [{ name: "Patrick Mahomes" }, { name: "Xavier Worthy" }, { name: "Isiah Pacheco" }],
+        },
+      },
+    },
+  });
+  const blob = `${take.lean || ""} ${take.whyNow || ""} ${take.call || ""}`;
+  assert.doesNotMatch(blob, /\bNix\b/i);
+  assert.doesNotMatch(blob, /\bWorthy\b/i);
+  assert.doesNotMatch(blob, /\bMahomes\b/i);
+  assert.match(blob, /Sutton|Pacheco|Dobbins/i);
+});
+
 test("props_board recover uses named skill lines instead of asking for numbers", () => {
   const { structured, codes } = applyNflAskGuard({
     question: "any good props for kittle, kyren, kittle? mccaffrey?",

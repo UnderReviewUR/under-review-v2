@@ -2568,6 +2568,7 @@ function buildNflProviderFailureStructuredTake(opts = {}) {
         games,
         propLines,
         briefcase,
+        history: opts.history,
       }),
       "nfl",
     );
@@ -7656,6 +7657,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             propLines: nflAskGuardPropLines,
             briefcase: nflAskGuardBriefcase,
             matchupMeta: nflMatchupMetaOut,
+            history: normalizedUrTakeHistoryForGate,
           });
           if (offline) {
             const prose = formatStructuredResponseAsUrTakeProse(offline);
@@ -7758,6 +7760,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               briefcase: nflAskGuardBriefcase,
               inactives: nflAskGuardInactives,
               isCurrentSeason: nflAskIsCurrentSeason,
+              history: normalizedUrTakeHistoryForGate,
             });
             structuredResponse = guarded.structured;
             // Never leave parse-fail copy on screen when the matchup card has a live line.
@@ -7857,6 +7860,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                     games: nflAskGuardGames,
                     propLines: nflAskGuardPropLines,
                     briefcase: nflAskGuardBriefcase,
+                    history: normalizedUrTakeHistoryForGate,
                   }),
                   sportHint,
                 );
@@ -7941,6 +7945,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
                         games: nflAskGuardGames,
                         propLines: nflAskGuardPropLines,
                         briefcase: nflAskGuardBriefcase,
+                        history: normalizedUrTakeHistoryForGate,
                       }),
                       sportHint,
                     );

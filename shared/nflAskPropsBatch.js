@@ -23,8 +23,11 @@ export function looksLikeNflPropsRefreshAsk(question) {
   return (
     /\b(?:new|more|different|other|fresh|another)\s+(?:\d+\s+)?(?:player\s+)?props?\b/.test(q) ||
     /\b(?:new|more|different|other|fresh)\s+player\s+props?\b/.test(q) ||
-    /\bprovide\s+(?:me\s+)?(?:new|more|different|other|fresh)\b/.test(q) ||
-    /\bgive\s+me\s+(?:new|more|different|other|fresh)\b/.test(q) ||
+    // "provide a few more" / "give me a few more" — common follow-ups without saying "props"
+    /\b(?:provide|give\s+me)\s+(?:me\s+)?(?:a\s+few\s+)?(?:new|more|different|other|fresh)\b/.test(q) ||
+    /\ba\s+few\s+more\b/.test(q) ||
+    /\bfew\s+more\b/.test(q) ||
+    /\bmore\s+(?:please|options?|ideas?|tickets?|leans?|plays?)\b/.test(q) ||
     /\b(?:new|another|fresh)\s+batch\b/.test(q) ||
     /\bnext\s+(?:board|batch|set|ticket)\b/.test(q) ||
     /\bdifferent\s+(?:board|tickets?|leans?|plays?)\b/.test(q) ||

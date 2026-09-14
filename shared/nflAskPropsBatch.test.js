@@ -14,12 +14,16 @@ test("looksLikeNflPropsRefreshAsk covers new/more/different phrasing", () => {
   assert.equal(looksLikeNflPropsRefreshAsk("give me more props"), true);
   assert.equal(looksLikeNflPropsRefreshAsk("different props"), true);
   assert.equal(looksLikeNflPropsRefreshAsk("who else?"), true);
+  assert.equal(looksLikeNflPropsRefreshAsk("provide a few more"), true);
+  assert.equal(looksLikeNflPropsRefreshAsk("a few more"), true);
+  assert.equal(looksLikeNflPropsRefreshAsk("give me a few more"), true);
   assert.equal(looksLikeNflPropsRefreshAsk("Maye over 214.5?"), false);
 });
 
 test("refresh asks still count as props-board asks", () => {
   assert.equal(looksLikeNflPropsBoardAsk("provide new player props"), true);
   assert.equal(looksLikeNflPropsBoardAsk("give me more props"), true);
+  assert.equal(looksLikeNflPropsBoardAsk("provide a few more"), true);
 });
 
 test("extractNflPriorBoardPlayerKeys reads board list + lean", () => {

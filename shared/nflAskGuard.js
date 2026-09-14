@@ -911,6 +911,7 @@ export function buildNflPropsBoardFallbackTake(opts = {}) {
  *   inactives?: { games?: Array<Record<string, unknown>> }|null,
  *   isCurrentSeason?: boolean,
  *   hasOpeningOdds?: boolean,
+ *   history?: unknown[],
  * }} opts
  */
 export function applyNflAskGuard(opts = {}) {
