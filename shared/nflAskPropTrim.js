@@ -798,7 +798,7 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   if (openerWeek) {
     return {
       side: "Under",
-      why: "First week — I wouldn't pay the posted over without a role confirmation.",
+      why: "Early season — I'd rather take the under at this number.",
     };
   }
   return { side: "Under", why: "No smash over at this number." };
@@ -969,14 +969,11 @@ export function buildNflSidedPropRecoverCopy(opts) {
   const last = shortPlayerLast(primary.player);
   const line = primary.line;
   const propLabel = prettyPropLabel(primary);
-  const shortWhy = String(ticket.why || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 72);
-  const lean = `Lean: ${ticket.side} ${line}. ${last} — ${shortWhy}`.slice(0, 120);
+  // Keep lean directional and short — no essay in the header.
+  const lean = `Lean: ${last} ${ticket.side.toLowerCase()} ${line}.`.slice(0, 120);
   const call = `${last.toUpperCase()} ${ticket.side.toUpperCase()} ${line}`;
   const openerLine = openerWeek
-    ? "First week — last year's D is a prior, not this year's rank."
+    ? "Early season — treat last year's defense ranks as a prior only."
     : "If your book's number is different, the side can flip.";
   const boardRows = [primary, ...(opts.boardRows || []).filter(Boolean)].filter(Boolean);
   const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek, briefcase);
@@ -988,7 +985,6 @@ export function buildNflSidedPropRecoverCopy(opts) {
     list ? `Board:\n${list}` : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
     "",
     `${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
-    openerWeek ? openerLine : "",
     thinBoard ? `Short list (${boardRows.length}) — grab these first.` : "",
   ]
     .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))

@@ -185,12 +185,12 @@ export function buildNflLivePropBoardTake(opts = {}) {
   } else {
     const use = ticket;
     call = `${use.side.toUpperCase()} ${line}`;
-    lean = `Lean: ${use.side} ${line}. ${last} — ${String(use.why || "").slice(0, 70)}`.slice(0, 120);
+    lean = `Lean: ${last} ${use.side.toLowerCase()} ${line}.`.slice(0, 120);
     whyNow = [
       `I'd take ${last} ${use.side.toLowerCase()} ${line}.`,
       "",
       use.why,
-      openerWeek ? "Last year's D is a prior, not this year's rank." : "",
+      openerWeek ? "Early season — treat last year's defense ranks as a prior only." : "",
     ]
       .filter((s, i, arr) => s !== "" || (i > 0 && arr[i - 1] !== ""))
       .join("\n")
@@ -224,7 +224,7 @@ export function buildNflLivePropBoardTake(opts = {}) {
     },
     caveats: [
       openerWeek
-        ? "First week — last year's D is a prior, not this year's rank."
+        ? "Early season — treat last year's defense ranks as a prior only."
         : "If your book's number is different, the side can flip.",
       softMarket
         ? "Soft market — Speculative only; keep the stake small."
