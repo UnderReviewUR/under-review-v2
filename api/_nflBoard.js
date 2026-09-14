@@ -1,6 +1,6 @@
 /**
- * NFL live board from Action Network — game O/U, spreads, ML + player props.
- * No The Odds API credits.
+ * NFL live board — BallDontLie GOAT when NFL_BDL_PRIMARY is on, else Action Network.
+ * Never uses The Odds API.
  */
 import { impliedTwoWayFromAmerican, roundProb } from "../shared/nflOddsImplied.js";
 import {
@@ -18,6 +18,14 @@ import {
 import { normalizeNflScoreboardGame } from "./_nflBoardNormalize.js";
 import { getNflPropsForBoard } from "./_nflProps.js";
 import { pickNflGamesForScope } from "../shared/nflAskPropTrim.js";
+import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
+import {
+  fetchNflBdlPlayerPropsForGame,
+  fetchNflBdlWeekGames,
+  fetchNflBdlWeekOdds,
+  getNflBdlApiKey,
+  isNflBdlPrimaryEnabled,
+} from "./_nflBdl.js";
 
 export {
   normalizeNflMoneylineMarket,
@@ -33,6 +41,161 @@ const boardMem = new Map();
 function nflBoardTtlMs(payload, nowMs = Date.now()) {
   if (nflScoreboardNeedsFastPoll(payload?.games, nowMs)) return NFL_BOARD_LIVE_TTL_MS;
   return NFL_BOARD_TTL_MS;
+}
+
+/**
+ * @param {Record<string, unknown>} game
+ * @param {Record<string, unknown>|null|undefined} oddsRow
+ */
+function mergeBdlOddsOntoGame(game, oddsRow) {
+  if (!game || !oddsRow) return game;
+  const home = game.homeAbbr;
+  const away = game.awayAbbr;
+  const spreadHome = oddsRow.spread?.home != null ? Number(oddsRow.spread.home) : null;
+  return {
+    ...game,
+    spread:
+      game.spread ||
+      (Number.isFinite(spreadHome)
+        ? {
+            favoriteAbbr: spreadHome < 0 ? home : away,
+            favoritePoint: Math.abs(spreadHome),
+            displayLine:
+              spreadHome < 0
+                ? `${home} ${oddsRow.spread.home}`
+                : `${away} ${oddsRow.spread.away}`,
+          }
+        : null),
+    total:
+      game.total ||
+      (oddsRow.total?.line != null ? { line: Number(oddsRow.total.line) } : null),
+    moneyline:
+      game.moneyline ||
+      (oddsRow.moneyline
+        ? { home: oddsRow.moneyline.home, away: oddsRow.moneyline.away }
+        : null),
+  };
+}
+
+/**
+ * GOAT board: BDL week games + odds + player props. No Odds API / no AN props.
+ * @param {{
+ *   dateYmd?: string,
+ *   week?: number | string,
+ *   season?: number | string,
+ *   gameId?: number | string,
+ *   includeProps?: boolean,
+ *   maxPropGames?: number,
+ *   scopeAbbrs?: Set<string>|string[],
+ * }} [opts]
+ */
+export async function buildNflBdlLiveBoard(opts = {}) {
+  let week = opts.week != null && opts.week !== "" ? Number(opts.week) : null;
+  let season = opts.season != null && opts.season !== "" ? Number(opts.season) : null;
+
+  // AN scoreboard is schedule metadata only (not Odds API) when week is unknown.
+  if (!Number.isFinite(week) || !Number.isFinite(season)) {
+    try {
+      const meta = await fetchNormalizedNflScoreboard({
+        dateYmd: opts.dateYmd,
+        week: Number.isFinite(week) ? week : undefined,
+        season: Number.isFinite(season) ? season : undefined,
+      });
+      if (!Number.isFinite(week) && meta.week != null) week = Number(meta.week);
+      if (!Number.isFinite(season) && meta.season != null) season = Number(meta.season);
+    } catch {
+      /* resolve below */
+    }
+  }
+  if (!Number.isFinite(season)) season = inferNflSeasonYear();
+  if (!Number.isFinite(week)) week = 1;
+
+  const gamesRes = await fetchNflBdlWeekGames({ season, week });
+  let games = Array.isArray(gamesRes.games) ? gamesRes.games : [];
+  const oddsRes = await fetchNflBdlWeekOdds({ season, week });
+  const oddsById = new Map(
+    (oddsRes.rows || []).map((r) => [String(r.game_id), r]),
+  );
+  games = games.map((g) => mergeBdlOddsOntoGame(g, oddsById.get(String(g.providerGameId))));
+
+  /** @type {Array<Record<string, unknown>>} */
+  let propLines = [];
+  /** @type {Record<string, unknown> | null} */
+  let propsMeta = null;
+
+  const wantProps = Boolean(opts.includeProps) || opts.gameId != null;
+  if (wantProps && games.length) {
+    let targets = games;
+    const scopeSet =
+      opts.scopeAbbrs instanceof Set
+        ? opts.scopeAbbrs
+        : Array.isArray(opts.scopeAbbrs) && opts.scopeAbbrs.length
+          ? new Set(opts.scopeAbbrs.map((x) => String(x || "").toUpperCase()))
+          : null;
+    if (scopeSet?.size) {
+      const scoped = pickNflGamesForScope(targets, scopeSet);
+      if (scoped.length) targets = scoped;
+    }
+    if (opts.gameId != null) {
+      const gid = Number(opts.gameId);
+      targets = targets.filter((g) => Number(g.providerGameId) === gid);
+      if (!targets.length) {
+        targets = [{ providerGameId: gid, awayAbbr: null, homeAbbr: null }];
+      }
+    } else {
+      const now = Date.now();
+      const maxGames = Math.max(
+        1,
+        Math.min(Number(opts.maxPropGames) || (scopeSet?.size ? 1 : 4), 8),
+      );
+      targets = targets
+        .filter((g) => g.providerGameId && (g.tipoffMs == null || g.tipoffMs > now - 4 * 3600_000))
+        .slice(0, maxGames);
+    }
+
+    for (const g of targets) {
+      try {
+        const label =
+          g.awayAbbr && g.homeAbbr ? `${g.awayAbbr} @ ${g.homeAbbr}` : "NFL";
+        const rows = await fetchNflBdlPlayerPropsForGame(g.providerGameId, {
+          gameLabel: label,
+        });
+        propLines = propLines.concat(rows);
+        if (!propsMeta) {
+          propsMeta = {
+            source: "balldontlie_nfl",
+            fetchedAt: new Date().toISOString(),
+            playerCount: new Set(rows.map((r) => r.player).filter(Boolean)).size,
+            hasPostedLines: rows.length > 0,
+          };
+        }
+      } catch (err) {
+        console.warn(
+          JSON.stringify({
+            event: "nfl_bdl_board_props_failed",
+            gameId: g.providerGameId,
+            error: err?.message || String(err),
+          }),
+        );
+      }
+    }
+  }
+
+  return {
+    ok: true,
+    source: "balldontlie_nfl",
+    asOf: new Date().toISOString(),
+    cache: "fresh",
+    dateYmd: opts.dateYmd || null,
+    week,
+    season,
+    seasonType: games[0]?.seasonType || null,
+    gameCount: games.length,
+    games,
+    propLines,
+    propLineCount: propLines.length,
+    props: propsMeta,
+  };
 }
 
 /**
@@ -125,7 +288,8 @@ export function nflPropsPayloadToPropLines(propsPayload, game = {}) {
 }
 
 /**
- * Full board response for API.
+ * Full board response for API / Ask.
+ * GOAT primary → BallDontLie only (never The Odds API). AN only when flag is off.
  * @param {{
  *   dateYmd?: string,
  *   week?: number | string,
@@ -137,6 +301,59 @@ export function nflPropsPayloadToPropLines(propsPayload, game = {}) {
  * }} [opts]
  */
 export async function buildNflLiveBoard(opts = {}) {
+  if (isNflBdlPrimaryEnabled() && getNflBdlApiKey()) {
+    const keyPart =
+      opts.week != null
+        ? `bdl_week_${opts.week}_${opts.season || "cur"}`
+        : `bdl_${String(opts.dateYmd || nflEtDateYmd()).replace(/-/g, "")}`;
+    const cacheKey = nflBoardCacheKey(keyPart);
+    const hit = boardMem.get(cacheKey);
+    if (hit && Date.now() - hit.fetchedAtMs < nflBoardTtlMs(hit.payload)) {
+      return { ...hit.payload, cache: "memory" };
+    }
+    try {
+      const bdlBoard = await buildNflBdlLiveBoard(opts);
+      if (bdlBoard.gameCount > 0 || bdlBoard.propLineCount > 0) {
+        boardMem.set(cacheKey, { fetchedAtMs: Date.now(), payload: bdlBoard });
+        return bdlBoard;
+      }
+      console.warn(
+        JSON.stringify({
+          event: "nfl_bdl_board_empty",
+          week: bdlBoard.week,
+          season: bdlBoard.season,
+          note: "GOAT primary on — not falling back to Odds API; returning empty BDL board",
+        }),
+      );
+      boardMem.set(cacheKey, { fetchedAtMs: Date.now(), payload: bdlBoard });
+      return bdlBoard;
+    } catch (err) {
+      console.warn(
+        JSON.stringify({
+          event: "nfl_bdl_board_failed",
+          error: err?.message || String(err),
+          note: "GOAT primary on — not using Odds API",
+        }),
+      );
+      return {
+        ok: false,
+        source: "balldontlie_nfl",
+        asOf: new Date().toISOString(),
+        cache: "error",
+        dateYmd: opts.dateYmd || null,
+        week: opts.week ?? null,
+        season: opts.season ?? inferNflSeasonYear(),
+        seasonType: null,
+        gameCount: 0,
+        games: [],
+        propLines: [],
+        propLineCount: 0,
+        props: null,
+        error: err?.message || "nfl_bdl_board_failed",
+      };
+    }
+  }
+
   const board = await getNflBoardCached({
     dateYmd: opts.dateYmd,
     week: opts.week,

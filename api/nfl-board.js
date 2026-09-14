@@ -1,5 +1,7 @@
 /**
- * Live NFL game lines + optional player props from Action Network.
+ * Live NFL game lines + optional player props.
+ * With NFL_BDL_PRIMARY=1 → BallDontLie GOAT only (never The Odds API).
+ * Otherwise Action Network.
  * GET /api/nfl-board
  * GET /api/nfl-board?includeProps=1
  * GET /api/nfl-board?gameId=290801
