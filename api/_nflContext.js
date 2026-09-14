@@ -88,6 +88,7 @@ function nflAbbrAliasKeys(abbr) {
   if (a === "NE" || a === "NWE") return ["NE", "NWE"];
   if (a === "LA" || a === "LAR") return ["LA", "LAR"];
   if (a === "JAC" || a === "JAX") return ["JAC", "JAX"];
+  if (a === "NO" || a === "NOP" || a === "NOLA") return ["NO", "NOP", "NOLA"];
   return [a];
 }
 

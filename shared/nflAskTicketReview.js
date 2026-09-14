@@ -102,6 +102,11 @@ function gameTeamSet(games, liveGame) {
   }
   if (out.has("NE")) out.add("NWE");
   if (out.has("NWE")) out.add("NE");
+  if (out.has("NO") || out.has("NOP") || out.has("NOLA")) {
+    out.add("NO");
+    out.add("NOP");
+    out.add("NOLA");
+  }
   return out;
 }
 

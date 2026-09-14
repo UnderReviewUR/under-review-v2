@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 import { normalizePlayerKey } from "../shared/nflAskPropTrim.js";
+import { canonicalizeNflTeamAbbr } from "../shared/nflTeamAbbr.js";
 import {
   fetchNflBdlTeams,
   getNflBdlApiKey,
@@ -59,7 +60,7 @@ async function main() {
   const errors = [];
 
   for (const team of teams) {
-    const abbr = String(team?.abbreviation || "").toUpperCase();
+    const abbr = canonicalizeNflTeamAbbr(team?.abbreviation || "");
     const teamId = Number(team?.id);
     if (!abbr || !Number.isFinite(teamId)) continue;
     const got = await fetchRosterWithRetry(teamId, abbr);

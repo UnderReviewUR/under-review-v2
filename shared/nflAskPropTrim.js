@@ -15,6 +15,9 @@ const NFL_ABBR_ALIAS = {
   JAX: ["JAC", "JAX"],
   NE: ["NE", "NWE"],
   NWE: ["NE", "NWE"],
+  NO: ["NO", "NOP", "NOLA"],
+  NOP: ["NO", "NOP", "NOLA"],
+  NOLA: ["NO", "NOP", "NOLA"],
 };
 
 /**

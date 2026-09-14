@@ -1,4 +1,4 @@
-import { canonicalizeTeamAbbr } from "../shared/gameLineSpread.js";
+import { canonicalizeNflTeamAbbr } from "../shared/nflTeamAbbr.js";
 import { impliedTwoWayFromAmerican, roundProb } from "../shared/nflOddsImplied.js";
 import { NFL_PROPS_BOOK_IDS, nflPropsBookLabel } from "../shared/nflPropsConstants.js";
 
@@ -10,8 +10,8 @@ function teamAbbrsFromGame(game) {
   const home = teams.find((t) => Number(t?.id) === Number(game?.home_team_id));
   const away = teams.find((t) => Number(t?.id) === Number(game?.away_team_id));
   return {
-    homeAbbr: canonicalizeTeamAbbr(home?.abbr) || null,
-    awayAbbr: canonicalizeTeamAbbr(away?.abbr) || null,
+    homeAbbr: canonicalizeNflTeamAbbr(home?.abbr) || null,
+    awayAbbr: canonicalizeNflTeamAbbr(away?.abbr) || null,
     homeName: home?.full_name ? String(home.full_name) : null,
     awayName: away?.full_name ? String(away.full_name) : null,
   };

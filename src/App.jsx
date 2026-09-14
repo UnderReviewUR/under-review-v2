@@ -1851,12 +1851,15 @@ ${themeCss}
       priorSnapshot.length > 0 && historyForRoute.length > 1
         ? inferSportFromChatHistory(historyForRoute)
         : null;
+    // Prefer explicitHint (arg + pendingExplicitSportHintRef from home prefill).
+    // Home NFL strip sets the ref then submitAsk fires without a sportHint arg —
+    // dropping the ref here routes "NO/NOP @ DET" to NBA via matchup-slug inference.
     const pinnedExplicit =
-      typeof sportHint === "string" &&
-      sportHint.trim() &&
-      sportHint.trim() !== "generic" &&
-      sportHint.trim() !== "worldcup"
-        ? sportHint.trim()
+      typeof explicitHint === "string" &&
+      explicitHint.trim() &&
+      explicitHint.trim() !== "generic" &&
+      explicitHint.trim() !== "worldcup"
+        ? explicitHint.trim()
         : null;
     const pinnedScreen =
       screenSport && screenSport !== "generic" && screenSport !== "worldcup"

@@ -81,14 +81,26 @@ test("Cardinals at Raiders total stays NFL, not MLB Cardinals", () => {
   );
 });
 
-test("explicit Lakers ask can still pivot off NFL tab", () => {
-  assert.equal(
-    resolveSportHint({
-      incomingSportHint: "nfl",
-      question: "Lakers ML tonight?",
-    }),
-    "nba",
-  );
+test("home strip NO/NOP @ DET side-total-pass stays NFL", () => {
+  for (const q of [
+    "NOP @ DET — side, total, or pass?",
+    "NO @ DET — side, total, or pass?",
+  ]) {
+    assert.equal(hasNflAskLexicon(q), true);
+    assert.equal(inferSportFromQuestionText(q), "nfl");
+    assert.equal(
+      resolveSportHint({ incomingSportHint: "nfl", question: q }),
+      "nfl",
+    );
+    assert.equal(
+      resolveSportHint({ incomingSportHint: "generic", question: q }),
+      "nfl",
+    );
+  }
+});
+
+test("bare NOP @ DET without NFL language still looks like NBA (Pelicans abbr)", () => {
+  assert.equal(inferSportFromQuestionText("NOP @ DET"), "nba");
 });
 
 test("LeBron / 76ers remain NBA", () => {

@@ -14,6 +14,7 @@ import {
   buildDefenseMapFromBdlTeamSeasonStats,
 } from "../shared/nflBdlDefenseNormalize.js";
 import { pickNflGamesForScope, nflGameIdsFromGames } from "../shared/nflAskPropTrim.js";
+import { canonicalizeNflTeamAbbr } from "../shared/nflTeamAbbr.js";
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 
@@ -130,14 +131,12 @@ export function normalizeNflBdlPlayerPropRows(rows, ctx = {}) {
     const eventId = ctx.eventId ?? row.game_id ?? null;
     const game = ctx.gameLabel || "NFL";
 
-    const teamAbbr = String(
+    const teamAbbr = canonicalizeNflTeamAbbr(
       row?.team?.abbreviation ||
         row?.player?.team?.abbreviation ||
         row?.team_abbreviation ||
         "",
-    )
-      .toUpperCase()
-      .trim();
+    );
 
     if (market.type === "over_under" && Number.isFinite(lineVal)) {
       out.push({
@@ -181,10 +180,10 @@ export function normalizeNflBdlPlayerPropRows(rows, ctx = {}) {
 export function normalizeNflBdlGames(rows) {
   return (Array.isArray(rows) ? rows : [])
     .map((g) => {
-      const homeAbbr = String(g?.home_team?.abbreviation || "").toUpperCase();
-      const awayAbbr = String(
+      const homeAbbr = canonicalizeNflTeamAbbr(g?.home_team?.abbreviation || "");
+      const awayAbbr = canonicalizeNflTeamAbbr(
         g?.visitor_team?.abbreviation || g?.away_team?.abbreviation || "",
-      ).toUpperCase();
+      );
       if (!homeAbbr || !awayAbbr) return null;
       return {
         providerGameId: g.id ?? null,
@@ -222,7 +221,7 @@ export function normalizeNflBdlInjuries(rows) {
         "",
     ).trim(),
     playerId: row?.player?.id ?? row?.player_id ?? null,
-    team: String(row?.team?.abbreviation || row?.player?.team?.abbreviation || "").toUpperCase() || null,
+    team: canonicalizeNflTeamAbbr(row?.team?.abbreviation || row?.player?.team?.abbreviation || "") || null,
     position: row?.player?.position || row?.position || null,
     status: row?.status || row?.injury_status || null,
     comment: row?.comment || null,
@@ -241,7 +240,7 @@ export function normalizeNflBdlSeasonStatRows(rows) {
         "",
     ).trim(),
     playerId: row?.player?.id ?? row?.player_id ?? null,
-    team: String(row?.team?.abbreviation || row?.player?.team?.abbreviation || "").toUpperCase() || null,
+    team: canonicalizeNflTeamAbbr(row?.team?.abbreviation || row?.player?.team?.abbreviation || "") || null,
     position: row?.player?.position || null,
     season: row?.season ?? null,
     games: row?.games_played ?? row?.games ?? null,
@@ -263,11 +262,11 @@ export function normalizeNflBdlSeasonStatRows(rows) {
  */
 export function normalizeNflBdlGameStatRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => {
-    const home = String(row?.game?.home_team?.abbreviation || "").toUpperCase();
-    const away = String(
+    const home = canonicalizeNflTeamAbbr(row?.game?.home_team?.abbreviation || "");
+    const away = canonicalizeNflTeamAbbr(
       row?.game?.visitor_team?.abbreviation || row?.game?.away_team?.abbreviation || "",
-    ).toUpperCase();
-    const team = String(row?.team?.abbreviation || "").toUpperCase();
+    );
+    const team = canonicalizeNflTeamAbbr(row?.team?.abbreviation || "");
     const opponent = team && home && away ? (team === home ? away : home) : null;
     return {
       player: String(
@@ -388,7 +387,7 @@ export function normalizeNflBdlRosterRows(rows, teamAbbr) {
       playerId: player.id ?? row?.player_id ?? null,
       jersey: player.jersey_number ?? row?.jersey_number ?? null,
       injuryStatus: row?.injury_status ?? null,
-      team: String(teamAbbr || "").toUpperCase() || null,
+      team: canonicalizeNflTeamAbbr(teamAbbr) || null,
       source: "balldontlie_nfl",
     };
   });
@@ -399,7 +398,7 @@ export function normalizeNflBdlRosterRows(rows, teamAbbr) {
  */
 export function normalizeNflBdlStandingsRows(rows) {
   return (Array.isArray(rows) ? rows : []).map((row) => ({
-    team: String(row?.team?.abbreviation || row?.abbreviation || "").toUpperCase() || null,
+    team: canonicalizeNflTeamAbbr(row?.team?.abbreviation || row?.abbreviation || "") || null,
     teamName: row?.team?.full_name || row?.team?.name || null,
     conference: row?.team?.conference || row?.conference || null,
     division: row?.team?.division || row?.division || null,
@@ -425,7 +424,7 @@ export function normalizeNflBdlAdvancedStatRows(rows, kind) {
         "",
     ).trim(),
     playerId: row?.player?.id ?? row?.player_id ?? null,
-    team: String(row?.team?.abbreviation || row?.player?.team?.abbreviation || "").toUpperCase() || null,
+    team: canonicalizeNflTeamAbbr(row?.team?.abbreviation || row?.player?.team?.abbreviation || "") || null,
     season: row?.season ?? null,
     week: row?.week ?? null,
     metrics: row,
@@ -722,15 +721,15 @@ export async function fetchNflBdlSlateRosters(games, opts) {
   /** @type {Map<string, number>} */
   const abbrToId = new Map(
     teams
-      .map((t) => [String(t?.abbreviation || "").toUpperCase(), Number(t?.id)])
+      .map((t) => [canonicalizeNflTeamAbbr(t?.abbreviation || ""), Number(t?.id)])
       .filter(([abbr, id]) => abbr && Number.isFinite(id)),
   );
 
   /** @type {Set<string>} */
   const abbrs = new Set();
   for (const g of games || []) {
-    if (g?.homeAbbr) abbrs.add(String(g.homeAbbr).toUpperCase());
-    if (g?.awayAbbr) abbrs.add(String(g.awayAbbr).toUpperCase());
+    if (g?.homeAbbr) abbrs.add(canonicalizeNflTeamAbbr(g.homeAbbr));
+    if (g?.awayAbbr) abbrs.add(canonicalizeNflTeamAbbr(g.awayAbbr));
   }
 
   /** @type {Record<string, Array<Record<string, unknown>>>} */
@@ -811,7 +810,7 @@ export async function fetchNflBdlAllTeamRosters(opts) {
   let lastError = null;
 
   for (const team of teams) {
-    const abbr = String(team?.abbreviation || "").toUpperCase();
+    const abbr = canonicalizeNflTeamAbbr(team?.abbreviation || "");
     const teamId = Number(team?.id);
     if (!abbr || !Number.isFinite(teamId)) continue;
     const res = await nflBdlFetch(

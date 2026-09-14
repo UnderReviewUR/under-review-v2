@@ -608,6 +608,10 @@ export function hasNflAskLexicon(question) {
   if (/\b(spread|moneyline|\bml\b|ats|cover)\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
     return true;
   }
+  // Home NFL score strip: "NO @ DET — side, total, or pass?"
+  if (/\bside\b[\s,]*\btotal\b[\s,]*or\s+pass\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
+    return true;
+  }
   if (/\btotal\b/.test(q) && /(?:^|[^\d])-\d{1,2}(?:\.5)?\b/.test(q) && !hasStrongNbaOnlyLexicon(q)) {
     return true;
   }
