@@ -2,17 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   nflAskPropsBoardUsesOffline,
+  nflAskUsesMarriedPropPath,
   resolveNflAskModelLane,
 } from "./nflAskModelRoute.js";
 
-test("props board asks use free offline lane by default", () => {
+test("props board asks use married offline lane by default", () => {
   const prev = process.env.NFL_ASK_PROPS_BOARD_OFFLINE;
   delete process.env.NFL_ASK_PROPS_BOARD_OFFLINE;
   assert.equal(
     nflAskPropsBoardUsesOffline("best player props for broncos vs chiefs tonight?"),
     true,
   );
-  assert.equal(resolveNflAskModelLane("best props for SEA vs NE").lane, "props_board_offline");
+  assert.equal(resolveNflAskModelLane("best props for SEA vs NE").lane, "married");
   if (prev !== undefined) process.env.NFL_ASK_PROPS_BOARD_OFFLINE = prev;
 });
 
@@ -27,9 +28,10 @@ test("NFL_ASK_PROPS_BOARD_OFFLINE=0 forces Haiku on props boards", () => {
   else delete process.env.NFL_ASK_PROPS_BOARD_OFFLINE;
 });
 
-test("named / scoped props use Haiku", () => {
+test("named / scoped props use married path", () => {
+  assert.equal(nflAskUsesMarriedPropPath("Maye over 214.5 passing yards?"), true);
   const lane = resolveNflAskModelLane("Maye over 214.5 passing yards?");
-  assert.equal(lane.lane, "haiku");
+  assert.equal(lane.lane, "married");
   assert.match(String(lane.model), /haiku/i);
 });
 

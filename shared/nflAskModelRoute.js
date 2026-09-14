@@ -1,9 +1,8 @@
 /**
- * NFL Ask model cost lane — keep Sonnet for hard reads; burn Haiku (or $0) on simple props.
+ * NFL Ask model cost lane — marry deterministic GOAT tickets with optional Haiku voice.
  *
  * Lanes:
- * - props_board_offline: "best player props for DEN vs KC" → deterministic GOAT board ($0)
- * - haiku: scoped / named player props (fast path) → Claude Haiku
+ * - married: props boards + scoped/named props → picker first, Haiku polishes voice only
  * - sonnet: ticket reviews, spreads/ML thesis, anything else → default ANTHROPIC_MODEL
  */
 import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
@@ -25,8 +24,8 @@ function envFlagOn(raw, defaultOn = true) {
 }
 
 /**
- * Broad "best props / best bets tonight" boards — ship the deterministic picker, no Anthropic.
- * Kill with NFL_ASK_PROPS_BOARD_OFFLINE=0 to force a model call.
+ * Broad "best props / best bets tonight" boards — deterministic picker (+ optional Haiku polish).
+ * Kill with NFL_ASK_PROPS_BOARD_OFFLINE=0 to force a full model call.
  * @param {string} question
  */
 export function nflAskPropsBoardUsesOffline(question) {
@@ -36,21 +35,34 @@ export function nflAskPropsBoardUsesOffline(question) {
 }
 
 /**
+ * Named / scoped single-prop asks that should also stay on the married path.
  * @param {string} question
  * @param {{ fastPathActive?: boolean }} [opts]
- * @returns {{ lane: "props_board_offline"|"haiku"|"sonnet", model: string|null }}
+ */
+export function nflAskUsesMarriedPropPath(question, opts = {}) {
+  if (isNflTicketReviewAsk(question)) return false;
+  if (nflAskPropsBoardUsesOffline(question)) return true;
+  return Boolean(opts.fastPathActive) || isNflScopedPropFastPath(question);
+}
+
+/**
+ * @param {string} question
+ * @param {{ fastPathActive?: boolean }} [opts]
+ * @returns {{ lane: "married"|"haiku"|"sonnet", model: string|null }}
  */
 export function resolveNflAskModelLane(question, opts = {}) {
   const q = String(question || "");
-  if (nflAskPropsBoardUsesOffline(q)) {
-    return { lane: "props_board_offline", model: null };
-  }
   if (isNflTicketReviewAsk(q)) {
     return { lane: "sonnet", model: null };
   }
-  const fast = Boolean(opts.fastPathActive) || isNflScopedPropFastPath(q);
+  if (nflAskUsesMarriedPropPath(q, opts)) {
+    const model =
+      String(process.env.NFL_UR_TAKE_FAST_MODEL || "").trim() ||
+      NFL_UR_TAKE_FAST_MODEL_DEFAULT;
+    return { lane: "married", model };
+  }
   // Props boards with offline disabled still stay on Haiku — not Sonnet.
-  if (fast || looksLikeNflPropsBoardAsk(q)) {
+  if (looksLikeNflPropsBoardAsk(q)) {
     const model =
       String(process.env.NFL_UR_TAKE_FAST_MODEL || "").trim() ||
       NFL_UR_TAKE_FAST_MODEL_DEFAULT;

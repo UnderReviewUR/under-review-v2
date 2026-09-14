@@ -409,8 +409,10 @@ import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake
 import { detectNflAskMarket } from "../../shared/nflGoatExtractionContract.js";
 import {
   nflAskPropsBoardUsesOffline,
+  nflAskUsesMarriedPropPath,
   resolveNflAskModelLane,
 } from "../../shared/nflAskModelRoute.js";
+import { polishNflStructuredTakeWithHaiku } from "../_nflAskHaikuPolish.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "../../shared/nflAskTicketReview.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
@@ -5727,7 +5729,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
           }
         : null;
 
-    // Cost lane: broad props boards → free GOAT picker; named/scoped props → Haiku; hard asks → Sonnet.
+    // Cost lane: married props (picker + Haiku voice) vs Sonnet for hard asks.
     const nflModelLane = resolveNflAskModelLane(question, {
       fastPathActive: nflFastPathActive,
     });
@@ -5745,27 +5747,31 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       }),
     );
 
-    if (
-      nflAskPropsBoardUsesOffline(question) &&
-      nflAskGuardPropLines.length > 0
-    ) {
-      const offline = repairStructuredForDelivery(
-        buildNflPropsBoardFallbackTake({
-          question,
-          games: nflAskGuardGames,
-          propLines: nflAskGuardPropLines,
-          briefcase: nflAskGuardBriefcase,
-        }),
-        "nfl",
-      );
+    /**
+     * Ship deterministic GOAT ticket (+ optional Haiku voice). Never white-pills on polish fail.
+     * @param {Record<string, unknown>} structuredIn
+     * @param {string} laneTag
+     */
+    const shipNflMarriedTake = async (structuredIn, laneTag) => {
+      const repaired = repairStructuredForDelivery(structuredIn, "nfl");
+      const polish = await polishNflStructuredTakeWithHaiku({
+        apiKey: ANTHROPIC_API_KEY,
+        question,
+        structured: repaired,
+        requestId,
+      });
+      const offline = polish.structured || repaired;
       const prose = formatStructuredResponseAsUrTakeProse(offline);
       const textOut =
         String(prose || "").trim() ||
         String(offline.lean || offline.whyNow || "Board tickets from the live GOAT props.").trim();
       console.log(
         JSON.stringify({
-          event: "nfl_ask_props_board_offline",
+          event: "nfl_ask_married_take",
           requestId,
+          lane: laneTag,
+          polished: Boolean(polish.polished),
+          polishReason: polish.reason || null,
           propRows: nflAskGuardPropLines.length,
           lean: String(offline.lean || "").slice(0, 120),
         }),
@@ -5779,9 +5785,9 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
         confidence: offline.confidence || "Speculative",
         sport: "nfl",
         structured: offline,
-        fallback: true,
-        fallbackReason: "nfl_props_board_offline",
-        nflAskLane: "props_board_offline",
+        fallback: !polish.polished,
+        fallbackReason: polish.polished ? "nfl_married_haiku_polish" : laneTag,
+        nflAskLane: polish.polished ? "married_polished" : laneTag,
       };
       if (nflMatchupThesisOut) {
         responseBody.nflMatchupThesis = nflMatchupThesisOut;
@@ -5792,6 +5798,61 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
         gateQuotaSessionId,
       });
       return res.status(200).json(responseBody);
+    };
+
+    if (
+      nflAskPropsBoardUsesOffline(question) &&
+      nflAskGuardPropLines.length > 0
+    ) {
+      return await shipNflMarriedTake(
+        buildNflPropsBoardFallbackTake({
+          question,
+          games: nflAskGuardGames,
+          propLines: nflAskGuardPropLines,
+          briefcase: nflAskGuardBriefcase,
+        }),
+        "nfl_props_board_offline",
+      );
+    }
+
+    if (nflAskUsesMarriedPropPath(question, { fastPathActive: nflFastPathActive })) {
+      const liveLine = nflMatchupMetaOut?.liveLine;
+      if (liveLine && liveLine.line != null) {
+        return await shipNflMarriedTake(
+          buildNflLivePropBoardTake({
+            question,
+            liveLine,
+            defenseTier: nflMatchupMetaOut?.defenseTier,
+            defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
+            playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+            briefcase: nflAskGuardBriefcase,
+            propLines: nflAskGuardPropLines,
+            week: nflAskGuardBriefcase?.week ?? nflAskGuardGames?.[0]?.week,
+          }),
+          "nfl_named_prop_offline",
+        );
+      }
+      if (nflAskGuardPropLines.length > 0) {
+        return await shipNflMarriedTake(
+          buildNflPropsBoardFallbackTake({
+            question,
+            games: nflAskGuardGames,
+            propLines: nflAskGuardPropLines,
+            briefcase: nflAskGuardBriefcase,
+          }),
+          "nfl_named_prop_board",
+        );
+      }
+      // No posted line — ship PASS, don't burn Sonnet inventing one.
+      return await shipNflMarriedTake(
+        buildNflLivePropBoardTake({
+          question,
+          liveLine: null,
+          briefcase: nflAskGuardBriefcase,
+          propLines: nflAskGuardPropLines,
+        }),
+        "nfl_named_prop_no_line",
+      );
     }
 
     const nflLive = resolveNflAskLiveSignals({
