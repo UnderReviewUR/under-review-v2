@@ -407,6 +407,10 @@ import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
 import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, buildNflPropsBoardFallbackTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
 import { detectNflAskMarket } from "../../shared/nflGoatExtractionContract.js";
+import {
+  nflAskPropsBoardUsesOffline,
+  resolveNflAskModelLane,
+} from "../../shared/nflAskModelRoute.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "../../shared/nflAskTicketReview.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
 import {
@@ -5697,7 +5701,6 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
   } else if (sportHint === "nfl") {
     const canonicalNfl = await buildCanonicalNflContext({ question, matchupContext });
     nflFastPathActive = Boolean(canonicalNfl?.meta?.fastPath);
-    // Keep the default UR Take model (Sonnet). Haiku was starving GOAT evidence.
     nflAskGuardGames = Array.isArray(canonicalNfl?.games) ? canonicalNfl.games : [];
     nflAskGuardPropLines = Array.isArray(canonicalNfl?.propLines) ? canonicalNfl.propLines : [];
     nflAskGuardBriefcase =
@@ -5709,16 +5712,6 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       canonicalNfl?.inactives && typeof canonicalNfl.inactives === "object"
         ? canonicalNfl.inactives
         : null;
-    const nflLive = resolveNflAskLiveSignals({
-      question,
-      hasImage,
-      games: nflAskGuardGames,
-    });
-    liveSignals.isBoardLive = nflLive.isBoardLive;
-    liveSignals.isEffectivelyLive = nflLive.isEffectivelyLive;
-    if (nflLive.isEffectivelyLive) {
-      systemPrompt = appendLiveModeSystemPrompt(systemPrompt);
-    }
     nflMatchupThesisOut = String(canonicalNfl?.matchup?.thesis || "").trim() || null;
     nflMatchupMetaOut =
       canonicalNfl?.matchup && typeof canonicalNfl.matchup === "object"
@@ -5733,6 +5726,84 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
             injuryFlag: Boolean(canonicalNfl.matchup.injuryFlag),
           }
         : null;
+
+    // Cost lane: broad props boards → free GOAT picker; named/scoped props → Haiku; hard asks → Sonnet.
+    const nflModelLane = resolveNflAskModelLane(question, {
+      fastPathActive: nflFastPathActive,
+    });
+    if (nflModelLane.lane === "haiku" && nflModelLane.model) {
+      anthropicModelOverride = nflModelLane.model;
+    }
+    console.log(
+      JSON.stringify({
+        event: "nfl_ask_model_lane",
+        requestId,
+        lane: nflModelLane.lane,
+        model: nflModelLane.model || ANTHROPIC_MODEL,
+        fastPath: nflFastPathActive,
+        propRows: nflAskGuardPropLines.length,
+      }),
+    );
+
+    if (
+      nflAskPropsBoardUsesOffline(question) &&
+      nflAskGuardPropLines.length > 0
+    ) {
+      const offline = repairStructuredForDelivery(
+        buildNflPropsBoardFallbackTake({
+          question,
+          games: nflAskGuardGames,
+          propLines: nflAskGuardPropLines,
+          briefcase: nflAskGuardBriefcase,
+        }),
+        "nfl",
+      );
+      const prose = formatStructuredResponseAsUrTakeProse(offline);
+      const textOut =
+        String(prose || "").trim() ||
+        String(offline.lean || offline.whyNow || "Board tickets from the live GOAT props.").trim();
+      console.log(
+        JSON.stringify({
+          event: "nfl_ask_props_board_offline",
+          requestId,
+          propRows: nflAskGuardPropLines.length,
+          lean: String(offline.lean || "").slice(0, 120),
+        }),
+      );
+      gateQuotaDelivered = true;
+      const responseBody = {
+        requestId,
+        response: textOut,
+        take: textOut,
+        lean: offline.lean || textOut,
+        confidence: offline.confidence || "Speculative",
+        sport: "nfl",
+        structured: offline,
+        fallback: true,
+        fallbackReason: "nfl_props_board_offline",
+        nflAskLane: "props_board_offline",
+      };
+      if (nflMatchupThesisOut) {
+        responseBody.nflMatchupThesis = nflMatchupThesisOut;
+        if (nflMatchupMetaOut) responseBody.nflMatchup = nflMatchupMetaOut;
+      }
+      await attachFreeQuotaMirrorToUrTakeResponse(responseBody, {
+        gateQuotaEmail,
+        gateQuotaSessionId,
+      });
+      return res.status(200).json(responseBody);
+    }
+
+    const nflLive = resolveNflAskLiveSignals({
+      question,
+      hasImage,
+      games: nflAskGuardGames,
+    });
+    liveSignals.isBoardLive = nflLive.isBoardLive;
+    liveSignals.isEffectivelyLive = nflLive.isEffectivelyLive;
+    if (nflLive.isEffectivelyLive) {
+      systemPrompt = appendLiveModeSystemPrompt(systemPrompt);
+    }
     const briefcaseHealthBlock = String(canonicalNfl?.briefcase?.promptBlock || "").trim();
     const matchupCardBlock = String(canonicalNfl?.matchup?.promptBlock || "").trim();
     // This-turn GOAT/canonical context wins over a stale client league dump.

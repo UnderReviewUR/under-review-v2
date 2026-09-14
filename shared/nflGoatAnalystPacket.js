@@ -223,7 +223,8 @@ export function formatNflGoatAnalystPacket(opts = {}) {
       : Array.isArray(opts.scopeAbbrs)
         ? new Set(opts.scopeAbbrs.map((x) => String(x || "").toUpperCase()))
         : null;
-  const maxChars = Math.max(2000, Number(opts.maxChars) || 9000);
+  // Keep lean — fat packets were burning Sonnet credits without better tickets.
+  const maxChars = Math.max(2000, Number(opts.maxChars) || 4500);
 
   const seasonStats = preferRows(briefcase.players?.seasonStats, question, 8).filter(
     (r) => r?.source && String(r.source).includes("balldontlie"),
