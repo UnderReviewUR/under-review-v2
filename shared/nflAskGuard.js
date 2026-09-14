@@ -153,7 +153,10 @@ export function buildNflLivePropBoardTake(opts = {}) {
   const last = String(who).trim().split(/\s+/).filter(Boolean).pop() || who;
   const prop = String(liveLine.prop || liveLine.propRaw || detected.label || "prop").trim();
   const marketLabel = String(detected.label || prop).trim() || "prop";
-  const ticket = inferNflPropTicketSide(liveLine, opts.propLines || [liveLine], { openerWeek });
+  const ticket = inferNflPropTicketSide(liveLine, opts.propLines || [liveLine], {
+    openerWeek,
+    briefcase: opts.briefcase || null,
+  });
 
   const tough = /\b(ELITE|TOP|LOCK|SHUT|TOUGH|GOOD|STOUT)\b/.test(tier);
   const softD = /\b(SOFT|BOTTOM|BAD|POOR|LEAKY|WORST|WEAK)\b/.test(tier);
@@ -171,7 +174,10 @@ export function buildNflLivePropBoardTake(opts = {}) {
 
   const softMarket = band === "soft" || band === "lottery";
 
-  if (!openerWeek && softD && !tough) {
+  // Prefer unified GOAT-aware side; soft-D override only when inference had no evidence vote.
+  const evidenceLed =
+    /pace|projection|defense|listed|clears|sits under/i.test(String(ticket.why || ""));
+  if (!openerWeek && softD && !tough && !evidenceLed && ticket.side === "Under") {
     call = `OVER ${line}`;
     lean = `Lean: Over ${line}. ${last} into a soft look.`;
     whyNow = `I'd take ${last} over ${line}. Defense looks like a green light at the posted number.`;
@@ -179,7 +185,7 @@ export function buildNflLivePropBoardTake(opts = {}) {
   } else {
     const use = ticket;
     call = `${use.side.toUpperCase()} ${line}`;
-    lean = `Lean: ${use.side} ${line}. ${last} — ${openerWeek ? "first week, small." : use.why}`.slice(0, 120);
+    lean = `Lean: ${use.side} ${line}. ${last} — ${String(use.why || "").slice(0, 70)}`.slice(0, 120);
     whyNow = [
       `I'd take ${last} ${use.side.toLowerCase()} ${line}.`,
       "",
@@ -756,6 +762,7 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     boardRows: ranked.slice(1, 6),
     allRows: propLines,
     openerWeek,
+    briefcase,
   });
   structured.sport = "NFL";
   structured.call = copy.call;

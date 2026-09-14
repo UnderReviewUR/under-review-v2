@@ -3,6 +3,7 @@
  */
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 import { nflAskNamedPlayerHits } from "./nflAskScope.js";
+import { buildNflPropEdgeForRow, voteNflPropEdgeSide } from "./nflAskPropEdge.js";
 
 const NFL_ABBR_ALIAS = {
   WSH: ["WAS", "WSH"],
@@ -684,17 +685,30 @@ function otherBookLines(unique, line) {
 }
 
 /**
- * Every prop ticket needs Over or Under. When books disagree, fade the high print
- * and buy the low print. Else take the less-juiced side. Opener week defaults under.
+ * Every prop ticket needs Over or Under.
+ * Order: injury → book disagreement → GOAT pace/D/fantasy → juice → opener default.
  *
  * @param {Record<string, unknown>} row
  * @param {Array<Record<string, unknown>>} [allRows]
- * @param {{ openerWeek?: boolean }} [opts]
+ * @param {{
+ *   openerWeek?: boolean,
+ *   briefcase?: Record<string, unknown>|null,
+ *   edge?: ReturnType<typeof buildNflPropEdgeForRow>|null,
+ * }} [opts]
  * @returns {{ side: "Over"|"Under", why: string }}
  */
 export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   const openerWeek = Boolean(opts.openerWeek);
   const line = Number(row?.line);
+  const marketBase = nflPropMarketKeyBase(row);
+  const edge =
+    opts.edge ||
+    (opts.briefcase ? buildNflPropEdgeForRow(row, marketBase, opts.briefcase) : null);
+
+  if (edge?.injuryHard && edge.injuryWhy) {
+    return { side: "Under", why: edge.injuryWhy };
+  }
+
   const unique = nflPropPeerLines(row, allRows);
   if (Number.isFinite(line) && unique.length >= 2) {
     const hi = Math.max(...unique);
@@ -709,6 +723,10 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
       }
     }
   }
+
+  const evidence = voteNflPropEdgeSide(row, marketBase, edge, { openerWeek });
+  if (evidence) return evidence;
+
   if (nflPropMarketKey(row) === "pass_yds" && Number.isFinite(line) && line >= 275) {
     return { side: "Under", why: `${line} is a high passing-yards number.` };
   }
@@ -858,11 +876,12 @@ function prettyPropLabel(row) {
  * @param {Array<Record<string, unknown>>} rows
  * @param {Array<Record<string, unknown>>} allRows
  * @param {boolean} openerWeek
+ * @param {Record<string, unknown>|null} [briefcase]
  */
-export function formatNflSidedPropBoardList(rows, allRows = [], openerWeek = false) {
+export function formatNflSidedPropBoardList(rows, allRows = [], openerWeek = false, briefcase = null) {
   return (rows || [])
     .map((row, i) => {
-      const t = inferNflPropTicketSide(row, allRows, { openerWeek });
+      const t = inferNflPropTicketSide(row, allRows, { openerWeek, briefcase });
       const last = shortPlayerLast(row.player);
       return `${i + 1}. ${last} ${t.side.toLowerCase()} ${row.line} (${prettyPropLabel(row)})`;
     })
@@ -871,51 +890,47 @@ export function formatNflSidedPropBoardList(rows, allRows = [], openerWeek = fal
 
 /**
  * Friend-text copy: one primary Over/Under plus a sided 3–5 board.
+ * Directional and short — GOAT evidence drives the side; face stays readable.
  * @param {{
  *   primary: Record<string, unknown>,
  *   allRows?: Array<Record<string, unknown>>,
  *   boardRows?: Array<Record<string, unknown>>,
  *   openerWeek?: boolean,
+ *   briefcase?: Record<string, unknown>|null,
  * }} opts
  */
 export function buildNflSidedPropRecoverCopy(opts) {
   const primary = opts.primary;
   const allRows = opts.allRows || [];
   const openerWeek = Boolean(opts.openerWeek);
-  const ticket = inferNflPropTicketSide(primary, allRows, { openerWeek });
+  const briefcase = opts.briefcase || null;
+  const marketBase = nflPropMarketKeyBase(primary);
+  const edge = briefcase ? buildNflPropEdgeForRow(primary, marketBase, briefcase) : null;
+  const ticket = inferNflPropTicketSide(primary, allRows, { openerWeek, briefcase, edge });
   const last = shortPlayerLast(primary.player);
   const line = primary.line;
   const propLabel = prettyPropLabel(primary);
-  const shortWhy =
-    ticket.side === "Under"
-      ? openerWeek
-        ? "high number in an opener."
-        : "that's the high number."
-      : openerWeek
-        ? "cheap number in an opener."
-        : "that's the cheap number.";
+  const shortWhy = String(ticket.why || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 72);
   const lean = `Lean: ${ticket.side} ${line}. ${last} — ${shortWhy}`.slice(0, 120);
   const call = `${last.toUpperCase()} ${ticket.side.toUpperCase()} ${line}`;
   const openerLine = openerWeek
     ? "First week — last year's D is a prior, not this year's rank."
     : "If your book's number is different, the side can flip.";
   const boardRows = [primary, ...(opts.boardRows || []).filter(Boolean)].filter(Boolean);
-  const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek);
+  const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek, briefcase);
   const thinBoard = boardRows.length > 0 && boardRows.length < 3;
+  const injuryNote = edge?.injuryStatus
+    ? `${last} injury: ${edge.injuryStatus}.`
+    : "Check inactives before you bet it.";
   const whyNow = [
-    list
-      ? `Board tickets (posted numbers only):\n${list}`
-      : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
+    list ? `Board:\n${list}` : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
     "",
-    `Primary lean: ${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
-    openerWeek
-      ? ticket.side === "Under"
-        ? "I'd rather see a cheaper number if you can get it."
-        : "If you can get this number or higher, the over is cleaner."
-      : "",
-    thinBoard
-      ? `Short list (${boardRows.length}) from the live board — grab these first.`
-      : "One ticket first. Speculative.",
+    `${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
+    openerWeek ? openerLine : "",
+    thinBoard ? `Short list (${boardRows.length}) — grab these first.` : "",
   ]
     .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
     .join("\n")
@@ -931,10 +946,15 @@ export function buildNflSidedPropRecoverCopy(opts) {
     edge: `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
     analysis: {
       matchupAnalysis: `${last} ${propLabel} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
-      injuryContext: "Check inactives before you bet it.",
+      injuryContext: injuryNote,
       marketContext: list || ticket.why,
       lineMovement: "Stick to a posted number. Don't invent movement.",
-      statisticalEdge: openerLine,
+      statisticalEdge:
+        edge?.pace != null
+          ? `Pace ~${edge.pace}${edge.paceSource ? ` (${edge.paceSource})` : ""}${
+              edge.fantasyPace != null ? ` · proj ~${edge.fantasyPace}` : ""
+            }.`
+          : openerLine,
     },
     caveats: [
       openerLine,

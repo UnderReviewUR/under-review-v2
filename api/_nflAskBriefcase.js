@@ -246,7 +246,7 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
         hydrateRosters: false,
         hydrateAllRosters: false,
         hydrateDfs: false,
-        hydrateFantasy: Boolean(scoped),
+        hydrateFantasy: Boolean(scoped) || questionWantsNflMultiPropBoard(question),
         maxStatPlayers: scoped ? 12 : 16,
         maxAdvancedPlayers: scoped ? 4 : 6,
       });
