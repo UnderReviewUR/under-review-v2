@@ -9,6 +9,7 @@ import {
   mergeNflPlayerTeamIndexesPreferLast,
   mergeNflRostersByTeamPreferLast,
   trimNflPlayerPropsForAsk,
+  isNflGoatFeaturedBoardRow,
 } from "./nflAskPropTrim.js";
 
 test("pickNflGamesForScope returns NE @ SEA matchup", () => {
@@ -887,6 +888,25 @@ test("no-usage depth rush (Vaki) does not pad a best-props board", () => {
   const names = tickets.map((t) => String(t.player)).join(" | ");
   assert.ok(!/Vaki/i.test(names), `depth rush should not board: ${names}`);
   assert.ok(/Gibbs/i.test(names), names);
+});
+
+test("GOAT tier rejects integer depth rush even without usage map", () => {
+  assert.equal(
+    isNflGoatFeaturedBoardRow({
+      player: "Sione Vaki",
+      propRaw: "rushing_yards",
+      line: 40,
+    }),
+    false,
+  );
+  assert.equal(
+    isNflGoatFeaturedBoardRow({
+      player: "Jahmyr Gibbs",
+      propRaw: "rushing_yards",
+      line: 78.5,
+    }),
+    true,
+  );
 });
 
 test("depth TE can board when the number is real value vs pace", () => {

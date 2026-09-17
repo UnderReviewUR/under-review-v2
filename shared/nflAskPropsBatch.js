@@ -1,7 +1,7 @@
 /**
  * NFL props batch-2 — “new / more / different props” follow-ups exclude prior board names.
  */
-import { normalizeNflAskQuestion } from "./nflAskNormalize.js";
+import { looksLikeNflPropsBoardAsk, normalizeNflAskQuestion } from "./nflAskNormalize.js";
 
 /**
  * @param {string} name
@@ -23,8 +23,13 @@ export function looksLikeNflPropsRefreshAsk(question) {
   return (
     /\b(?:new|more|different|other|fresh|another)\s+(?:\d+\s+)?(?:player\s+)?props?\b/.test(q) ||
     /\b(?:new|more|different|other|fresh)\s+player\s+props?\b/.test(q) ||
+    // "another set of player props" / "new set of props" / "different board"
+    /\b(?:another|new|different|fresh|other)\s+(?:set|batch|board|round|list)\b/.test(q) ||
+    /\b(?:another|new|different|fresh)\s+set\s+of\s+(?:player\s+)?props?\b/.test(q) ||
     // "provide a few more" / "give me a few more" — common follow-ups without saying "props"
-    /\b(?:provide|give\s+me)\s+(?:me\s+)?(?:a\s+few\s+)?(?:new|more|different|other|fresh)\b/.test(q) ||
+    /\b(?:provide|give\s+me)\s+(?:me\s+)?(?:a\s+few\s+)?(?:new|more|different|other|fresh|another)\b/.test(
+      q,
+    ) ||
     /\ba\s+few\s+more\b/.test(q) ||
     /\bfew\s+more\b/.test(q) ||
     /\bmore\s+(?:please|options?|ideas?|tickets?|leans?|plays?)\b/.test(q) ||
@@ -33,8 +38,23 @@ export function looksLikeNflPropsRefreshAsk(question) {
     /\bdifferent\s+(?:board|tickets?|leans?|plays?)\b/.test(q) ||
     /\bwho\s+else\b/.test(q) ||
     /\banything\s+else\b/.test(q) ||
-    /\bother\s+(?:ideas?|leans?|tickets?|plays?)\b/.test(q)
+    /\bother\s+(?:ideas?|leans?|tickets?|plays?)\b/.test(q) ||
+    /\breshuffle\b/.test(q) ||
+    /\b(?:same\s+game|this\s+game|this\s+matchup).{0,24}\b(?:more|other|different|fresh)\b/.test(q)
   );
+}
+
+/**
+ * Refresh phrasing OR a second props-board ask in a thread that already shipped a board.
+ * Prevents "another set of player props" / repeat "best props" from reprinting the same card.
+ * @param {string} question
+ * @param {unknown[]} [history]
+ */
+export function shouldNflPropsRefreshBatch(question, history) {
+  if (looksLikeNflPropsRefreshAsk(question)) return true;
+  if (!looksLikeNflPropsBoardAsk(question)) return false;
+  const prior = extractNflPriorBoardPlayerKeys(history);
+  return prior.size >= 2;
 }
 
 /**
@@ -102,15 +122,75 @@ export function extractNflPriorBoardPlayerKeys(history) {
         const k = normalizePlayerKey(m[1]);
         if (k && k.length >= 3) keys.add(k);
       }
-      for (const m of blob.matchAll(
-        /\b([A-Z][A-Za-z.'’\-]{2,})\s+(?:OVER|UNDER)\s+\d/g,
-      )) {
+      for (const m of blob.matchAll(/\b([A-Za-z][A-Za-z.'’\-]{2,})\s+(?:over|under)\s+\d/gi)) {
         const k = normalizePlayerKey(m[1]);
-        if (k && k.length >= 3) keys.add(k);
+        if (k && k.length >= 3 && k !== "lean" && k !== "the") keys.add(k);
       }
     }
   }
   return keys;
+}
+
+/**
+ * Prior board tickets as player + line fingerprints (block near-duplicate reprints).
+ * @param {unknown[]} history
+ * @returns {Array<{ playerKey: string, line: number }>}
+ */
+export function extractNflPriorBoardTicketLines(history) {
+  /** @type {Array<{ playerKey: string, line: number }>} */
+  const out = [];
+  const turns = Array.isArray(history) ? history : [];
+  for (const turn of turns) {
+    if (!turn || typeof turn !== "object") continue;
+    const role = String(turn.role || "").toLowerCase();
+    if (role && role !== "assistant" && role !== "ai") continue;
+    const structured =
+      (turn.structured && typeof turn.structured === "object" && turn.structured) ||
+      (turn.structuredResponse && typeof turn.structuredResponse === "object" && turn.structuredResponse) ||
+      null;
+    const blobs = [structured?.whyNow, structured?.lean, structured?.call, turn.content, turn.text]
+      .filter(Boolean)
+      .map((x) => String(x));
+    for (const blob of blobs) {
+      for (const m of blob.matchAll(
+        /(?:^\s*\d+\.\s*|Lean:\s*|THE PLAY:\s*)?([A-Za-z][A-Za-z.'’\-]+)\s+(?:over|under)\s+(\d+(?:\.\d+)?)/gim,
+      )) {
+        const playerKey = normalizePlayerKey(m[1]);
+        const line = Number(m[2]);
+        if (!playerKey || playerKey.length < 3 || !Number.isFinite(line)) continue;
+        if (playerKey === "lean" || playerKey === "the") continue;
+        out.push({ playerKey, line });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * True when this row reprints a prior board ticket (same player, line within band).
+ * @param {Record<string, unknown>} row
+ * @param {Array<{ playerKey: string, line: number }>} priorTickets
+ * @param {number} [band]
+ */
+export function nflPropRowNearPriorBoardTicket(row, priorTickets, band = 3) {
+  const key = normalizePlayerKey(row?.player);
+  const line = Number(row?.line);
+  if (!key || !Number.isFinite(line) || !Array.isArray(priorTickets) || !priorTickets.length) {
+    return false;
+  }
+  const last = key.split(/\s+/).pop();
+  for (const prior of priorTickets) {
+    const pk = String(prior?.playerKey || "");
+    if (!pk) continue;
+    const same =
+      key === pk ||
+      key.includes(pk) ||
+      pk.includes(key) ||
+      (last && last.length >= 3 && (pk === last || pk.endsWith(` ${last}`)));
+    if (!same) continue;
+    if (Math.abs(Number(prior.line) - line) <= band) return true;
+  }
+  return false;
 }
 
 /**

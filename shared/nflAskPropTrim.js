@@ -7,7 +7,7 @@ import {
   buildNflPropEdgeForRow,
   voteNflPropEdgeSide,
 } from "./nflAskPropEdge.js";
-import { nflPlayerKeyIsExcluded } from "./nflAskPropsBatch.js";
+import { nflPlayerKeyIsExcluded, nflPropRowNearPriorBoardTicket } from "./nflAskPropsBatch.js";
 import {
   detectNflBoardScriptConflicts,
   nflPropBatch2PassesFloor,
@@ -370,6 +370,44 @@ export function nflPropMarketKeyBase(row) {
  */
 export function isNflHeadlineBoardMarket(row) {
   return NFL_HEADLINE_BOARD_MARKETS.has(nflPropMarketKeyBase(row));
+}
+
+/**
+ * GOAT-tier best-board eligibility — live BDL props only, no depth/alt junk.
+ * BDL returns thousands of alts; the board must stay on featured skill mains.
+ *
+ * @param {Record<string, unknown>|null|undefined} row
+ * @param {{
+ *   volumeByPlayer?: Record<string, number>|null,
+ *   valueBoost?: (row: Record<string, unknown>) => number,
+ * }} [opts]
+ */
+export function isNflGoatFeaturedBoardRow(row, opts = {}) {
+  if (!row?.player || row.line == null) return false;
+  if (!isNflHeadlineBoardMarket(row) && !NFL_SECONDARY_BOARD_MARKETS.has(nflPropMarketKeyBase(row))) {
+    return false;
+  }
+  const market = nflPropMarketKeyBase(row);
+  const line = Number(row.line);
+  if (!Number.isFinite(line)) return false;
+
+  // Integer yard alts (Vaki 40, Trautman 40, 250 pass ladders) are not starter mains.
+  if (Math.abs(line % 1) < 0.001 && /yds/.test(String(market))) {
+    if (market === "rush_yds" && line <= 50) return false;
+    if (market === "rec_yds" && line <= 40) return false;
+    if (market === "pass_yds" && (line < 195 || line > 320)) return false;
+  }
+
+  const volMap = opts.volumeByPlayer;
+  if (volMap && typeof volMap === "object" && Object.keys(volMap).length) {
+    const vol = Number(volMap[normalizePlayerKey(row.player)]);
+    const boost = typeof opts.valueBoost === "function" ? Number(opts.valueBoost(row)) || 0 : 0;
+    // Featured usage required unless the number is a true soft Over misprice.
+    if (!Number.isFinite(vol) || vol < 12) {
+      if (boost < 30) return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -1219,6 +1257,7 @@ export function normalizePlayerKey(name) {
  *   maxTickets?: number,
  *   briefcase?: Record<string, unknown>|null,
  *   excludePlayerKeys?: Set<string>|string[],
+ *   priorTicketLines?: Array<{ playerKey: string, line: number }>,
  * }} [opts]
  */
 export function pickNflPropsBoardTickets(props, opts = {}) {
@@ -1237,6 +1276,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       : new Set(
           [...(opts.excludePlayerKeys || [])].map((k) => normalizePlayerKey(k)).filter(Boolean),
         );
+  const priorTicketLines = Array.isArray(opts.priorTicketLines) ? opts.priorTicketLines : [];
   const requested = requestedNflPropsBoardCount(opts.question);
   const maxTickets = Math.max(
     2,
@@ -1275,6 +1315,9 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   if (excludePlayerKeys.size) {
     rows = rows.filter((p) => !nflPlayerKeyIsExcluded(String(p?.player || ""), excludePlayerKeys));
   }
+  if (priorTicketLines.length) {
+    rows = rows.filter((p) => !nflPropRowNearPriorBoardTicket(p, priorTicketLines, 3));
+  }
   if (!questionWantsNflPeriodProps(opts.question)) {
     rows = rows.filter((p) => !isNflPeriodPropRow(p));
   }
@@ -1286,7 +1329,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   if (scoreOpts.multiBoard) {
     const headline = rows.filter((p) => isNflHeadlineBoardMarket(p));
     // On batch-2 excludes, don't require a fat headline pool — take what's left.
-    const minHeadline = excludePlayerKeys.size ? 1 : Math.min(maxTickets, 3);
+    const minHeadline = excludePlayerKeys.size || priorTicketLines.length ? 1 : Math.min(maxTickets, 3);
     if (headline.length >= minHeadline) rows = headline;
     else {
       rows = rows.filter(
@@ -1295,6 +1338,14 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
           NFL_SECONDARY_BOARD_MARKETS.has(nflPropMarketKeyBase(p)),
       );
     }
+    // GOAT tier: drop depth/alt seats from the thousands of BDL props for this game.
+    const goatPool = rows.filter((p) =>
+      isNflGoatFeaturedBoardRow(p, {
+        volumeByPlayer: scoreOpts.volumeByPlayer,
+        valueBoost,
+      }),
+    );
+    if (goatPool.length >= Math.min(2, rows.length)) rows = goatPool;
   }
 
   // Consensus first — then score. Do not let vendor alt ladders crowd skill markets.

@@ -1,5 +1,5 @@
 ---
-description: NFL player teams come from live BDL GOAT roster snapshot, never training-data priors.
+description: NFL player teams and props boards come from live BDL GOAT — never training-data priors or depth alts.
 alwaysApply: true
 ---
 
@@ -12,3 +12,13 @@ Source of truth: `api/data/nflBdlRosterSnapshot.js` (`NFL_BDL_ROSTER_SNAPSHOT.pl
 Refresh with `npm run sync:nfl-bdl-rosters`.
 
 Confirmed on the 2026 snapshot: **A.J. Brown is NE**. **Romeo Doubs is NE**. If a take, ticket review, or board filter treats them as PHI or GB, that is a bug.
+
+# NFL props boards (BDL GOAT tier)
+
+BDL returns thousands of props per game (alts, period markets, depth names). Best-props boards must only ship **GOAT-tier** tickets:
+
+- Live BDL/GOAT prop rows for the featured matchup (not invented names/lines)
+- Roster-scoped to the matchup via BDL roster truth
+- Featured usage / half-point skill mains — not KR/depth integer alts (e.g. Vaki over 40)
+
+Sione Vaki is a real DET roster player — still not a default best-board seat without featured usage.

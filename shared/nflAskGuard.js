@@ -23,8 +23,10 @@ import { isNflOpenerWeek } from "./nflAskComposeRule.js";
 import { propsForFeaturedNflGame } from "./homeEngageNudges.js";
 import {
   extractNflPriorBoardPlayerKeys,
+  extractNflPriorBoardTicketLines,
   extractNflPriorMatchupAbbrs,
   looksLikeNflPropsRefreshAsk,
+  shouldNflPropsRefreshBatch,
 } from "./nflAskPropsBatch.js";
 
 const CONF_RANK = Object.freeze({ Speculative: 0, Medium: 1, High: 2 });
@@ -753,6 +755,7 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     opts.excludePlayerKeys instanceof Set
       ? opts.excludePlayerKeys
       : new Set([...(opts.excludePlayerKeys || [])].map(String).filter(Boolean));
+  const priorTicketLines = Array.isArray(opts.priorTicketLines) ? opts.priorTicketLines : [];
   const refreshBatch = Boolean(opts.refreshBatch) || looksLikeNflPropsRefreshAsk(question);
   const top = pickNflPropsBoardTickets(propLines, {
     scope,
@@ -767,9 +770,10 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
     briefcase,
     openerWeek,
     excludePlayerKeys,
+    priorTicketLines,
   });
   if (!top.length) {
-    if (refreshBatch && excludePlayerKeys.size) {
+    if (refreshBatch && (excludePlayerKeys.size || priorTicketLines.length)) {
       structured.sport = "NFL";
       structured.call = "PASS";
       structured.callType = "prop";
@@ -837,11 +841,14 @@ export function buildNflPropsBoardFallbackTake(opts = {}) {
   const question = String(opts.question || "");
   let games = Array.isArray(opts.games) ? opts.games : [];
   let propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
-  const refreshBatch = looksLikeNflPropsRefreshAsk(question);
+  const refreshBatch = shouldNflPropsRefreshBatch(question, opts.history);
   const excludePlayerKeys =
     opts.excludePlayerKeys instanceof Set
       ? opts.excludePlayerKeys
-      : extractNflPriorBoardPlayerKeys(opts.history);
+      : refreshBatch
+        ? extractNflPriorBoardPlayerKeys(opts.history)
+        : new Set();
+  const priorTicketLines = refreshBatch ? extractNflPriorBoardTicketLines(opts.history) : [];
 
   if (refreshBatch) {
     const prior = extractNflPriorMatchupAbbrs(opts.history);
@@ -887,6 +894,7 @@ export function buildNflPropsBoardFallbackTake(opts = {}) {
     if (
       applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase, {
         excludePlayerKeys: refreshBatch ? excludePlayerKeys : new Set(),
+        priorTicketLines: refreshBatch ? priorTicketLines : [],
         refreshBatch,
       })
     ) {
@@ -1018,10 +1026,13 @@ export function applyNflAskGuard(opts = {}) {
     !nflModelAlreadyShippedPropsBoard(structured, propLines)
   ) {
     if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase, {
-      excludePlayerKeys: looksLikeNflPropsRefreshAsk(question)
+      excludePlayerKeys: shouldNflPropsRefreshBatch(question, opts.history)
         ? extractNflPriorBoardPlayerKeys(opts.history)
         : new Set(),
-      refreshBatch: looksLikeNflPropsRefreshAsk(question),
+      priorTicketLines: shouldNflPropsRefreshBatch(question, opts.history)
+        ? extractNflPriorBoardTicketLines(opts.history)
+        : [],
+      refreshBatch: shouldNflPropsRefreshBatch(question, opts.history),
     })) {
       codes.push("props_board_force_recover");
     }
@@ -1067,10 +1078,13 @@ export function applyNflAskGuard(opts = {}) {
       // Broad "best player props" asks: recover from live board rows instead of blank PASS.
       if (marketId === "props_board" && propLines.length > 0) {
         if (applyPropsBoardRecoverToStructured(structured, question, games, propLines, opts.briefcase, {
-          excludePlayerKeys: looksLikeNflPropsRefreshAsk(question)
+          excludePlayerKeys: shouldNflPropsRefreshBatch(question, opts.history)
             ? extractNflPriorBoardPlayerKeys(opts.history)
             : new Set(),
-          refreshBatch: looksLikeNflPropsRefreshAsk(question),
+          priorTicketLines: shouldNflPropsRefreshBatch(question, opts.history)
+            ? extractNflPriorBoardTicketLines(opts.history)
+            : [],
+          refreshBatch: shouldNflPropsRefreshBatch(question, opts.history),
         })) {
           codes.push("props_board_recover");
         } else {
