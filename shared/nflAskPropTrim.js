@@ -201,8 +201,8 @@ function scorePropRow(row, tokens, hints, opts = {}) {
       else if (vol >= 25) score += 16;
       else if (vol >= 12) score += 6;
       else score -= 30;
-    } else if (opts.multiBoard && (market === "rec_yds" || market === "receptions")) {
-      score -= 20;
+    } else if (opts.multiBoard && (market === "rec_yds" || market === "receptions" || market === "rush_yds")) {
+      score -= 40;
     }
   }
   return score;
@@ -1245,12 +1245,15 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   const tokens = playerTokensFromQuestion(opts.question || "");
   const hints = propHintsFromQuestion(opts.question || "");
   const volumeByPlayer = buildNflPropVolumeByPlayer(opts.briefcase);
+  const hasFeaturedUsage = Object.values(volumeByPlayer || {}).some(
+    (n) => Number.isFinite(Number(n)) && Number(n) > 0,
+  );
   const openerWeek = Boolean(opts.openerWeek);
   const valueBoost = (row) =>
     nflPropBoardValueBoost(row, Array.isArray(props) ? props : [], opts.briefcase, { openerWeek });
   const scoreOpts = {
     multiBoard: questionWantsNflMultiPropBoard(opts.question) || maxTickets >= 4,
-    volumeByPlayer,
+    volumeByPlayer: hasFeaturedUsage ? volumeByPlayer : null,
     valueBoost,
   };
 
@@ -1412,6 +1415,17 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     if (used >= cap) return false;
     if (used >= 1 && picked.length < Math.min(maxTickets, 3) && !allowValueSeat) return false;
     if (allowValueSeat && valueBoost(row) < 30) return false;
+    // No-usage depth (Vaki / practice-squad RBs) never pad a best-props board.
+    if (
+      scoreOpts.multiBoard &&
+      hasFeaturedUsage &&
+      (fam === "rec_yds" || fam === "receptions" || fam === "rush_yds") &&
+      !Number.isFinite(Number(volumeByPlayer[playerKey])) &&
+      valueBoost(row) < 30 &&
+      !allowValueSeat
+    ) {
+      return false;
+    }
     // Value seat is for soft Overs (buy the number), not padding fades.
     if (allowValueSeat) {
       const edge = buildNflPropEdgeForRow(row, fam, opts.briefcase);
@@ -1452,8 +1466,8 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       // No-usage depth pads the board unless the line is actually soft/hard vs pace.
       if (
         scoreOpts.multiBoard &&
-        (fam === "rec_yds" || fam === "receptions") &&
-        volumeByPlayer &&
+        hasFeaturedUsage &&
+        (fam === "rec_yds" || fam === "receptions" || fam === "rush_yds") &&
         !Number.isFinite(Number(volumeByPlayer[playerKey])) &&
         boost < 30
       ) {

@@ -37,3 +37,7 @@ test("isNflScopedPropFastPath — best player props board stays on full GOAT pat
     false,
   );
 });
+
+test("isNflScopedPropFastPath — who is X is not a prop fast path", () => {
+  assert.equal(isNflScopedPropFastPath("Who is Vaki?"), false);
+});

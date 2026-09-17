@@ -42,3 +42,9 @@ test("ticket reviews stay on Sonnet", () => {
   assert.equal(lane.lane, "sonnet");
   assert.equal(lane.model, null);
 });
+
+test("who is X identity asks leave the married props path", () => {
+  assert.equal(nflAskUsesMarriedPropPath("Who is Vaki?", { fastPathActive: true }), false);
+  assert.equal(resolveNflAskModelLane("Who is Vaki?", { fastPathActive: true }).lane, "sonnet");
+  assert.equal(nflAskUsesMarriedPropPath("who's Sione Vaki?"), false);
+});

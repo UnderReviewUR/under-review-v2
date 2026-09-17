@@ -5,7 +5,7 @@
  * full GOAT briefcase (~18 wires), not the 10-wire fast pocket.
  */
 import { shouldSkipNflLiveBoardForAsk } from "./nflAskBoardPolicy.js";
-import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
+import { looksLikeNflPropsBoardAsk, isNflPlayerIdentityAsk } from "./nflAskNormalize.js";
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 
 /**
@@ -15,6 +15,7 @@ export function isNflScopedPropFastPath(question) {
   const q = String(question || "").trim();
   if (!q || shouldSkipNflLiveBoardForAsk(q)) return false;
   if (isNflTicketReviewAsk(q) || looksLikeNflPropsBoardAsk(q)) return false;
+  if (isNflPlayerIdentityAsk(q)) return false;
 
   const lower = q.toLowerCase();
   const hasPropSignal =

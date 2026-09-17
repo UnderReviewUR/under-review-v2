@@ -25,7 +25,7 @@ import {
   isWcTotalsExplainFollowUp,
   isWcVagueMatchGoalsOverUnderAsk,
 } from "./wcMatchBettingPrompt.js";
-import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
+import { looksLikeNflPropsBoardAsk, isNflPlayerIdentityAsk } from "./nflAskNormalize.js";
 import { looksLikeNflPropsRefreshAsk } from "./nflAskPropsBatch.js";
 
 /** @typedef {"take"|"talk"} UrTakeDeliveryMode */
@@ -126,6 +126,8 @@ export function isUrTakeNewBettingAsk(opts = {}) {
   if (isWcPlayerPropBettingQuestion(question, wcIntent)) return true;
   // NFL props boards + "new/more props" follow-ups need a fresh Take card, not Talk prose.
   if (looksLikeNflPropsBoardAsk(question) || looksLikeNflPropsRefreshAsk(question)) return true;
+  // "Who is Vaki?" is identity — not a new betting ask.
+  if (isNflPlayerIdentityAsk(question)) return false;
   if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return true;
   if (
     !isFollowUp &&

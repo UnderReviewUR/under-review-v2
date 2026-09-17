@@ -5,7 +5,7 @@
  * - married: props boards + scoped/named props → picker first, Haiku polishes voice only
  * - sonnet: ticket reviews, spreads/ML thesis, anything else → default ANTHROPIC_MODEL
  */
-import { looksLikeNflPropsBoardAsk } from "./nflAskNormalize.js";
+import { looksLikeNflPropsBoardAsk, isNflPlayerIdentityAsk } from "./nflAskNormalize.js";
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 import {
   isNflScopedPropFastPath,
@@ -32,6 +32,7 @@ function envFlagOn(raw, defaultOn = true) {
 export function nflAskPropsBoardUsesOffline(question) {
   if (!envFlagOn(process.env.NFL_ASK_PROPS_BOARD_OFFLINE, true)) return false;
   if (isNflTicketReviewAsk(question)) return false;
+  if (isNflPlayerIdentityAsk(question)) return false;
   return looksLikeNflPropsBoardAsk(question) || looksLikeNflPropsRefreshAsk(question);
 }
 
@@ -42,9 +43,17 @@ export function nflAskPropsBoardUsesOffline(question) {
  */
 export function nflAskUsesMarriedPropPath(question, opts = {}) {
   if (isNflTicketReviewAsk(question)) return false;
+  if (isNflPlayerIdentityAsk(question)) return false;
   if (nflAskPropsBoardUsesOffline(question)) return true;
   if (looksLikeNflPropsRefreshAsk(question)) return true;
-  return Boolean(opts.fastPathActive) || isNflScopedPropFastPath(question);
+  if (isNflScopedPropFastPath(question)) return true;
+  // Sticky fast-path from a prior prop turn: only keep married if THIS ask still
+  // looks ticket-shaped — not "Who is Vaki?"
+  if (opts.fastPathActive) {
+    const q = String(question || "");
+    return /\b(over|under|prop|line|ticket|yards?|tds?|fade|lean|play|spread|total)\b/i.test(q);
+  }
+  return false;
 }
 
 /**

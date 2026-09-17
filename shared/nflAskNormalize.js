@@ -184,3 +184,24 @@ export function looksLikeNflPropsBoardAsk(question) {
     /\banything\s+else\b/.test(q)
   );
 }
+
+/**
+ * Identity / “who is this guy?” follow-ups — not a betting ticket ask.
+ * @param {string} question
+ */
+export function isNflPlayerIdentityAsk(question) {
+  const q = String(question || "").trim();
+  if (!q) return false;
+  const lower = q.toLowerCase();
+  if (/\bwho\s+else\b/.test(lower)) return false;
+  if (/\bwho\s+(?:wins?|covers?|scores?|gets?)\b/.test(lower)) return false;
+  if (/\bwho\s+(?:is|was|'s)\s+(?:most|more|the|mispriced|favored|leading|ahead)\b/.test(lower)) {
+    return false;
+  }
+  if (/\bwho\s+(?:do\s+i|should\s+i)\b/.test(lower)) return false;
+  return (
+    /\bwho\s*(?:'s|is|was)\s+[a-z]/i.test(q) ||
+    /\bwho\s+the\s+(?:hell|heck)\s+is\s+/i.test(q) ||
+    /\b(?:what|which)\s+team\s+(?:is|does)\s+[a-z]/i.test(q)
+  );
+}

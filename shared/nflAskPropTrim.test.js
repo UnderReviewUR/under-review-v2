@@ -809,6 +809,86 @@ test("depth TE Trautman loses the rec seat to featured targets", () => {
   assert.ok(/Worthy/i.test(names), names);
 });
 
+test("no-usage depth rush (Vaki) does not pad a best-props board", () => {
+  const tickets = pickNflPropsBoardTickets(
+    [
+      {
+        game: "BUF @ DET",
+        player: "Jared Goff",
+        team: "DET",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 267.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Josh Allen",
+        team: "BUF",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 254.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Khalil Shakir",
+        team: "BUF",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 46.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Sione Vaki",
+        team: "DET",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 40,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Jahmyr Gibbs",
+        team: "DET",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 78.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    {
+      scope: new Set(["BUF", "DET"]),
+      question: "Best player props for bills vs lions?",
+      maxTickets: 4,
+      briefcase: {
+        players: {
+          seasonStats: [
+            { player: "Jared Goff", games: 1, passYds: 250 },
+            { player: "Josh Allen", games: 1, passYds: 240 },
+            { player: "Khalil Shakir", games: 1, recYds: 55 },
+            { player: "Jahmyr Gibbs", games: 1, rushYds: 85 },
+          ],
+        },
+      },
+    },
+  );
+  const names = tickets.map((t) => String(t.player)).join(" | ");
+  assert.ok(!/Vaki/i.test(names), `depth rush should not board: ${names}`);
+  assert.ok(/Gibbs/i.test(names), names);
+});
+
 test("depth TE can board when the number is real value vs pace", () => {
   const tickets = pickNflPropsBoardTickets(
     [
