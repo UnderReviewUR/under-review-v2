@@ -77,10 +77,23 @@ function paceGapThreshold(marketBase, line) {
   if (/tds$|_td/.test(m)) return 0.35;
   if (m === "receptions") return 0.55;
   if (/yds/.test(m)) {
-    if (!Number.isFinite(n)) return 12;
-    return Math.max(8, Math.min(22, n * 0.08));
+    if (!Number.isFinite(n)) return 8;
+    // Pass yards: ~6–12 yd band so proj 268 vs 264.5 can actually vote Over.
+    if (/pass/.test(m)) return Math.max(5, Math.min(12, n * 0.035));
+    return Math.max(3, Math.min(10, n * 0.05));
   }
   return Math.max(1, Number.isFinite(n) ? n * 0.1 : 1);
+}
+
+/** Tighter band for fantasy projections than raw season pace. */
+function fantasyGapThreshold(marketBase, line) {
+  const m = String(marketBase || "");
+  const n = Number(line);
+  if (/tds$|_td/.test(m)) return 0.25;
+  if (m === "receptions") return 0.35;
+  if (/pass/.test(m) && /yds/.test(m)) return Math.max(2.5, Math.min(8, Number.isFinite(n) ? n * 0.02 : 3));
+  if (/yds/.test(m)) return Math.max(2, Math.min(6, Number.isFinite(n) ? n * 0.035 : 2));
+  return Math.max(0.5, paceGapThreshold(marketBase, line) * 0.4);
 }
 
 /**
@@ -347,7 +360,7 @@ export function voteNflPropEdgeSide(row, marketBase, edge, opts = {}) {
 
   if (edge.fantasyPace != null) {
     const gap = line - edge.fantasyPace;
-    const thr = threshold * 0.85;
+    const thr = fantasyGapThreshold(marketBase, line);
     if (gap >= thr) {
       votes.push({
         side: "Under",

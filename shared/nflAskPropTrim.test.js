@@ -1099,3 +1099,53 @@ test("tiny juice gaps do not invent a side", async () => {
   const ticket = inferNflPropTicketSide(row, [row], { openerWeek: false });
   assert.doesNotMatch(ticket.why, /better price/i);
 });
+
+test("requestedNflPropsBoardCount reads provide 5 bets player props", async () => {
+  const { requestedNflPropsBoardCount, questionWantsNflMultiPropBoard } = await import(
+    "./nflAskPropTrim.js"
+  );
+  const q = "provide 5 bets player props for tonights matchup between lions and bills";
+  assert.equal(requestedNflPropsBoardCount(q), 5);
+  assert.equal(questionWantsNflMultiPropBoard(q), true);
+});
+
+test("fantasy proj over the number beats opener Under default", async () => {
+  const { inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
+  const row = {
+    player: "Jared Goff",
+    team: "DET",
+    propRaw: "passing_yards",
+    line: 264.5,
+    overOdds: -110,
+    underOdds: -110,
+  };
+  const ticket = inferNflPropTicketSide(row, [row], {
+    openerWeek: true,
+    briefcase: {
+      fantasy: { projections: [{ player: "Jared Goff", passing_yards: 268 }] },
+    },
+  });
+  assert.equal(ticket.side, "Over");
+  assert.match(ticket.why, /268|Projection/i);
+});
+
+test("fantasy proj under the number leans Under with proj why", async () => {
+  const { inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
+  const row = {
+    player: "Josh Allen",
+    team: "BUF",
+    propRaw: "passing_yards",
+    line: 254.5,
+    overOdds: -110,
+    underOdds: -110,
+  };
+  const ticket = inferNflPropTicketSide(row, [row], {
+    openerWeek: true,
+    briefcase: {
+      fantasy: { projections: [{ player: "Josh Allen", passing_yards: 244 }] },
+    },
+  });
+  assert.equal(ticket.side, "Under");
+  assert.match(ticket.why, /244|Projection/i);
+  assert.doesNotMatch(ticket.why, /Early season/i);
+});

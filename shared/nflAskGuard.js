@@ -17,6 +17,7 @@ import {
   inferNflPropTicketSide,
   pickNflPropsBoardTickets,
   preferHighPrintPrimary,
+  requestedNflPropsBoardCount,
 } from "./nflAskPropTrim.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "./nflAskTicketReview.js";
 import { isNflOpenerWeek } from "./nflAskComposeRule.js";
@@ -766,7 +767,7 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
         ? briefcase.league.playerTeamByName
         : undefined,
     question,
-    maxTickets: 5,
+    maxTickets: Math.max(5, requestedNflPropsBoardCount(question) || 5),
     briefcase,
     openerWeek,
     excludePlayerKeys,

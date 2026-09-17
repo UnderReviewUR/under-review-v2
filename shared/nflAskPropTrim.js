@@ -327,6 +327,9 @@ export function questionWantsNflMultiPropBoard(question) {
   if (/\b\d+\s*[-–to]{1,3}\s*\d+\s*(player\s+)?props?\b/.test(q)) return true;
   if (/\b(best|top)\s+(player\s+)?props?\b/.test(q)) return true;
   if (/\b(several|multiple|list|board)\b.*\bprops?\b/.test(q)) return true;
+  if (/\b\d+\s*(?:player\s+)?(?:props?|bets?)\b/.test(q)) return true;
+  if (/\bprovide\b.*\b(?:player\s+)?props?\b/.test(q)) return true;
+  if (/\b(?:player\s+)?props?\b.*\b(?:matchup|tonight|game|vs\.?|versus|@)\b/.test(q)) return true;
   return false;
 }
 
@@ -969,6 +972,39 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
     if (over > under) return { side: "Over", why: "Over is hanging the better price." };
     return { side: "Under", why: "Under is hanging the better price." };
   }
+
+  // Soft fantasy/pace lean before the opener Under default — don't ignore a 268 proj on 264.5.
+  if (edge?.fantasyPace != null && Number.isFinite(line)) {
+    const gap = line - Number(edge.fantasyPace);
+    if (gap <= -2) {
+      return {
+        side: "Over",
+        why: `Projection ~${edge.fantasyPace} clears ${line}.`,
+      };
+    }
+    if (gap >= 2) {
+      return {
+        side: "Under",
+        why: `Projection ~${edge.fantasyPace} sits under ${line}.`,
+      };
+    }
+  }
+  if (edge?.pace != null && Number.isFinite(line)) {
+    const gap = line - Number(edge.pace);
+    if (gap <= -4) {
+      return {
+        side: "Over",
+        why: `Pace ~${edge.pace}${edge.paceSource ? ` (${edge.paceSource})` : ""} clears ${line}.`,
+      };
+    }
+    if (gap >= 4) {
+      return {
+        side: "Under",
+        why: `Pace ~${edge.pace}${edge.paceSource ? ` (${edge.paceSource})` : ""} sits under ${line}.`,
+      };
+    }
+  }
+
   if (openerWeek) {
     return {
       side: "Under",
@@ -1072,8 +1108,11 @@ export function requestedNflPropsBoardCount(question) {
     const b = Number(range[2]);
     if (Number.isFinite(a) && Number.isFinite(b)) return Math.max(a, b);
   }
-  const n = q.match(/\b(?:best|top|give\s+me|list)\s+(\d+)\s*(player\s+)?props?\b/) ||
-    q.match(/\b(\d+)\s*(player\s+)?props?\b/);
+  const n =
+    q.match(/\b(?:best|top|give\s+me|list|provide)\s+(\d+)\s*(?:bets?\s+)?(?:player\s+)?props?\b/) ||
+    q.match(/\b(?:best|top|give\s+me|list|provide)\s+(\d+)\s*(?:player\s+)?(?:props?|bets?)\b/) ||
+    q.match(/\b(\d+)\s*(?:bets?\s+)?(?:player\s+)?props?\b/) ||
+    q.match(/\b(\d+)\s*(?:player\s+)?(?:props?|bets?)\b/);
   if (n) {
     const v = Number(n[1]);
     if (Number.isFinite(v) && v >= 2 && v <= 8) return v;
@@ -1441,9 +1480,9 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   ];
   const familyCap = {
     pass_yds: 2,
-    // One featured rec seat by default; a second seat only for true value (below).
-    rec_yds: scoreOpts.multiBoard ? 1 : 2,
-    rush_yds: 1,
+    // Ask for 5 → need two WR seats; default boards still prefer one featured WR.
+    rec_yds: scoreOpts.multiBoard && maxTickets >= 5 ? 2 : scoreOpts.multiBoard ? 1 : 2,
+    rush_yds: maxTickets >= 5 ? 2 : 1,
     rush_rec_yds: 1,
     pass_tds: 1,
     receptions: 1,
