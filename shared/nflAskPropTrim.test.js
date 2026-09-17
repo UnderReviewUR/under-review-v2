@@ -901,12 +901,79 @@ test("GOAT tier rejects integer depth rush even without usage map", () => {
   );
   assert.equal(
     isNflGoatFeaturedBoardRow({
+      player: "Sione Vaki",
+      propRaw: "rushing_yards",
+      line: 40.5,
+    }),
+    false,
+  );
+  assert.equal(
+    isNflGoatFeaturedBoardRow({
       player: "Jahmyr Gibbs",
       propRaw: "rushing_yards",
       line: 78.5,
     }),
     true,
   );
+});
+
+test("Vaki never boards even as the only rush print on BUF @ DET", () => {
+  const tickets = pickNflPropsBoardTickets(
+    [
+      {
+        game: "BUF @ DET",
+        player: "Jared Goff",
+        team: "DET",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 267.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Josh Allen",
+        team: "BUF",
+        prop: "passing yards",
+        propRaw: "passing_yards",
+        line: 254.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Khalil Shakir",
+        team: "BUF",
+        prop: "receiving yards",
+        propRaw: "receiving_yards",
+        line: 46.5,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+      {
+        game: "BUF @ DET",
+        player: "Sione Vaki",
+        team: "DET",
+        prop: "rushing yards",
+        propRaw: "rushing_yards",
+        line: 40,
+        overOdds: -110,
+        underOdds: -110,
+        eventId: "1",
+      },
+    ],
+    {
+      scope: new Set(["BUF", "DET"]),
+      question: "Best player props for bills vs lions?",
+      maxTickets: 4,
+    },
+  );
+  const names = tickets.map((t) => String(t.player)).join(" | ");
+  assert.ok(!/Vaki/i.test(names), `Vaki must never board: ${names}`);
+  assert.ok(tickets.length >= 2, names);
 });
 
 test("depth TE can board when the number is real value vs pace", () => {

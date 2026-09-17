@@ -19,6 +19,6 @@ BDL returns thousands of props per game (alts, period markets, depth names). Bes
 
 - Live BDL/GOAT prop rows for the featured matchup (not invented names/lines)
 - Roster-scoped to the matchup via BDL roster truth
-- Featured usage / half-point skill mains — not KR/depth integer alts (e.g. Vaki over 40)
+- Featured usage / half-point skill mains only — **never** KR/depth scraps
 
-Sione Vaki is a real DET roster player — still not a default best-board seat without featured usage.
+Hard ban examples: Sione Vaki rush 40 / 40.5, integer yard alt ladders, period props. If it looks like a special-teamer alt, it does not belong on UR.

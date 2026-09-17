@@ -375,6 +375,7 @@ export function isNflHeadlineBoardMarket(row) {
 /**
  * GOAT-tier best-board eligibility — live BDL props only, no depth/alt junk.
  * BDL returns thousands of alts; the board must stay on featured skill mains.
+ * Depth names like Sione Vaki (KR/RB scraps) must never take a UR board seat.
  *
  * @param {Record<string, unknown>|null|undefined} row
  * @param {{
@@ -391,17 +392,19 @@ export function isNflGoatFeaturedBoardRow(row, opts = {}) {
   const line = Number(row.line);
   if (!Number.isFinite(line)) return false;
 
-  // Integer yard alts (Vaki 40, Trautman 40, 250 pass ladders) are not starter mains.
-  if (Math.abs(line % 1) < 0.001 && /yds/.test(String(market))) {
-    if (market === "rush_yds" && line <= 50) return false;
-    if (market === "rec_yds" && line <= 40) return false;
-    if (market === "pass_yds" && (line < 195 || line > 320)) return false;
-  }
+  const boost = typeof opts.valueBoost === "function" ? Number(opts.valueBoost(row)) || 0 : 0;
+
+  // Integer yard prints are BDL alt ladders — never a best-board seat.
+  if (/yds/.test(String(market)) && Math.abs(line % 1) < 0.001) return false;
+
+  // Sub-starter rush/rec scraps (Vaki 40 / 40.5). Soft Over value can still unlock.
+  if (market === "rush_yds" && line < 45 && boost < 30) return false;
+  if (market === "rec_yds" && line < 30 && boost < 30) return false;
+  if (market === "pass_yds" && (line < 195 || line > 320)) return false;
 
   const volMap = opts.volumeByPlayer;
   if (volMap && typeof volMap === "object" && Object.keys(volMap).length) {
     const vol = Number(volMap[normalizePlayerKey(row.player)]);
-    const boost = typeof opts.valueBoost === "function" ? Number(opts.valueBoost(row)) || 0 : 0;
     // Featured usage required unless the number is a true soft Over misprice.
     if (!Number.isFinite(vol) || vol < 12) {
       if (boost < 30) return false;
@@ -1338,14 +1341,13 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
           NFL_SECONDARY_BOARD_MARKETS.has(nflPropMarketKeyBase(p)),
       );
     }
-    // GOAT tier: drop depth/alt seats from the thousands of BDL props for this game.
-    const goatPool = rows.filter((p) =>
+    // GOAT tier is mandatory — never fall back to depth/alt rows when the pool is thin.
+    rows = rows.filter((p) =>
       isNflGoatFeaturedBoardRow(p, {
         volumeByPlayer: scoreOpts.volumeByPlayer,
         valueBoost,
       }),
     );
-    if (goatPool.length >= Math.min(2, rows.length)) rows = goatPool;
   }
 
   // Consensus first — then score. Do not let vendor alt ladders crowd skill markets.
@@ -1467,6 +1469,15 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     if (used >= 1 && picked.length < Math.min(maxTickets, 3) && !allowValueSeat) return false;
     if (allowValueSeat && valueBoost(row) < 30) return false;
     // No-usage depth (Vaki / practice-squad RBs) never pad a best-props board.
+    if (
+      scoreOpts.multiBoard &&
+      !isNflGoatFeaturedBoardRow(row, {
+        volumeByPlayer: scoreOpts.volumeByPlayer,
+        valueBoost,
+      })
+    ) {
+      return false;
+    }
     if (
       scoreOpts.multiBoard &&
       hasFeaturedUsage &&
