@@ -886,7 +886,12 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
       "KNOCKOUT FIXTURE SCOPE: Single-elimination — do not use group Favorite/Contender advancement paths for cited fixtures.",
       "",
     );
-  } else if (groupLetters.length) {
+  }
+  const hasCitedKnockoutFixture =
+    (Array.isArray(ctx.fixtures) && ctx.fixtures.length > 0) ||
+    (Array.isArray(ctx.matchDetails) && ctx.matchDetails.length > 0);
+  // Path / outright asks may still need question-scoped group rows; fixture matchups should not.
+  if (groupLetters.length && !(fixturesKnockoutOnly && hasCitedKnockoutFixture)) {
     lines.push(
       "STRENGTH TAGS (pre-tournament / baseline — never cite numeric power ratings or rating points):",
       "Favorite = group favorite · Contender = realistic knockout team · Longshot = upset/long-shot profile",
@@ -912,7 +917,7 @@ export function formatWorldCupUrTakePromptBlock(ctx) {
       });
       lines.push(`  Group ${letter}: ${teamBits.join(" · ")}`);
     }
-  } else if (!isKnockoutPhase(phase)) {
+  } else if (!isKnockoutPhase(phase) && !groupLetters.length) {
     lines.push("GROUPS: No group rows loaded for this question.");
   }
 

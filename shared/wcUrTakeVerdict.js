@@ -41,6 +41,11 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
   ).trim();
   const q = extractLatestUserTurnForRouting(rawQ);
 
+  // Fresh question text wins over stale message.wcIntent (rules / player-prop pivots).
+  if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
+  if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
+  if (classifyWcQuestionIntent(q) === WC_INTENT.PARLAY) return WC_INTENT.PARLAY;
+
   const direct = String(
     message?.wcIntent || message?.urTakeTelemetry?.wcIntent || "",
   ).toUpperCase();
@@ -51,10 +56,6 @@ export function resolveWcIntentFromMessage(message, userQuestion = "") {
   ) {
     return direct;
   }
-
-  if (isWcRulesQuestion(q)) return WC_INTENT.RULES;
-  if (isWcFixtureScopedPlayerMarketQuestion(q)) return WC_INTENT.PLAYER_PROP;
-  if (classifyWcQuestionIntent(q) === WC_INTENT.PARLAY) return WC_INTENT.PARLAY;
 
   const classified = classifyWcQuestionIntent(q);
   if (isWcPlayerMarketIntent(classified)) return classified;

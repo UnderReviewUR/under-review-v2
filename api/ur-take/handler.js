@@ -4813,7 +4813,10 @@ WC RULES FOLLOW-UP (mandatory): Structured betting JSON mode is OFF. Return tier
 
   const nbaShortcutEarly = await tryUrTakeEarlyPaths(buildEarlyPathsCtx(), {
     includeEmptyFallbacks: false,
-    includeNbaShortcuts: !isConversationFollowUp,
+    // Follow-ups skip most NBA shortcuts, but blocked_unavailable is deterministic
+    // (no Anthropic) and must still ship when invalidation already resolved.
+    includeNbaShortcuts:
+      !isConversationFollowUp || nbaDecisionMode === "blocked_unavailable",
   });
   if (nbaShortcutEarly.handled) return;
 
@@ -7292,7 +7295,8 @@ You are responding to a Pro subscriber. Apply the following:
       }
     }
 
-    const maxQaAttempts = isConversationFollowUp ? 0 : 1;
+    // Follow-ups still need one generation attempt when talk-mode did not return early.
+    const maxQaAttempts = 1;
     for (let qaAttempt = 0; qaAttempt < maxQaAttempts; qaAttempt++) {
       qaAttemptCount = qaAttempt + 1;
       const previousStructured = structuredResponse;

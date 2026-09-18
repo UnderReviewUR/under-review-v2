@@ -238,7 +238,9 @@ export function formatWcBdlAdvancePriceAttribution(
 ) {
   const abbr = String(teamAbbr || "").trim().toUpperCase();
   if (!abbr || !bdlFutures?.byMarketType) return "";
-  const row = bdlFutures.byMarketType[marketType]?.[abbr];
+  const row =
+    getBdlFuturesPrice(bdlFutures.byMarketType, marketType, abbr) ||
+    bdlFutures.byMarketType[marketType]?.[abbr];
   if (!row) return "";
 
   const display =

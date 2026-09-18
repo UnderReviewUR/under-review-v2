@@ -585,7 +585,7 @@ export function buildWcGroundingPacket(params) {
 
   const dataFreshness = normalizeDataFreshness(dataFreshnessInput);
   const fullLadder = buildFullLadderFromRawMarkets(rawBdlPlayerProps || {});
-  const marketsSummary = buildMarketsSummary(fullLadder.byPlayerMarket, pinnedFixture, 8);
+  const marketsSummary = buildMarketsSummary(fullLadder.byPlayerMarket, pinnedFixture, 5);
   const blockers = buildBlockers(
     marketsSummary,
     pinnedFixture,

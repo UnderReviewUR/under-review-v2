@@ -256,7 +256,14 @@ export function extractLikelyScorerPlayerNames(text) {
 export function detectWcScorerRoleMismatch(text, opts = {}) {
   const slotText = String(opts.topScorerSlotValue || "").trim();
   const fullText = String(text || "").trim();
-  const focusBlob = slotText || fullText;
+  const focusBlob = slotText
+    ? slotText
+    : (() => {
+        const section = fullText.match(
+          /(?:^|\n)\s*Top goalscorer:\s*([^\n]+)/i,
+        );
+        return section?.[1]?.trim() || fullText;
+      })();
   if (!focusBlob) return null;
 
   const scorerContext =

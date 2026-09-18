@@ -1070,6 +1070,10 @@ export function detectMissingWcCardFaceNumericWhy(structured, question = "", opt
   ) {
     return false;
   }
+  // Correlation / cleaner-leg analysis — thesis card, not a priced ticket face.
+  if (/\b(correlated|correlation|cleaner leg)\b/i.test(q)) {
+    return false;
+  }
 
   const { faceBlob } = wcCardFaceNumericWhyFields(structured);
   return !wcCardFaceBlobHasNumericWhy(faceBlob);

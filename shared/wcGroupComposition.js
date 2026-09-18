@@ -393,7 +393,13 @@ export function buildWcCrossGroupValuePrebuiltStructured(opts = {}) {
   }
 
   const top = ranked[0];
-  const priceRow = opts.bdlFutures?.byMarketType?.[bdlType]?.[top.teamAbbr];
+  const priceRow =
+    opts.bdlFutures?.byMarketType?.[bdlType]?.[top.teamAbbr] ||
+    (bdlType === "group_winner"
+      ? opts.bdlFutures?.byMarketType?.win_group?.[top.teamAbbr]
+      : bdlType === "win_group"
+        ? opts.bdlFutures?.byMarketType?.group_winner?.[top.teamAbbr]
+        : null);
   const advanceOdds =
     priceRow?.americanDisplay ||
     (priceRow?.american != null ? String(priceRow.american) : null);

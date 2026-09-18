@@ -446,6 +446,13 @@ export function extractLatestUserTurnForRouting(question) {
     return q.slice(followIdx + followUpMarker.length).trim();
   }
 
+  // Client recap uses a compact "↳ follow-up:" / "Follow-up:" suffix (not the
+  // double-newline marker from buildContextualQuestion).
+  const clientFollowUp = q.match(/(?:↳\s*)?follow-up:\s*([\s\S]+)$/i);
+  if (clientFollowUp) {
+    return clientFollowUp[1].trim();
+  }
+
   const lines = q.split("\n");
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
@@ -540,10 +547,7 @@ const LALIGA_TERMS = [
   "real betis",
   "valencia",
   "1x2",
-  "both teams to score",
-  "btts",
-  "anytime scorer",
-  "goalscorer",
+  // Shared soccer markets (BTTS / goalscorer) are not La Liga-only — WC owns them too.
 ];
 
 export function hasCfbAskLexicon(question) {
@@ -628,7 +632,14 @@ export function hasStrongNbaOnlyLexicon(question) {
   if (!q) return false;
   if (/\b(76ers|sixers|lakers|celtics|knicks|warriors|nuggets|spurs)\b/.test(q)) return true;
   if (/\b(lebron|embiid|jokic|curry|tatum|luka|doncic|wembanyama|giannis)\b/.test(q)) return true;
-  if (/\b(pra|rebounds?|assists?|three-?pointers?|double-double)\b/.test(q)) return true;
+  // Bare "assists" is shared with soccer — need NBA co-signal.
+  if (/\b(pra|rebounds?|three-?pointers?|double-double)\b/.test(q)) return true;
+  if (
+    /\bassists?\b/.test(q) &&
+    /\b(pra|points|rebounds?|nba|lakers|celtics|knicks|warriors|nuggets|spurs|76ers|sixers)\b/.test(q)
+  ) {
+    return true;
+  }
   // Bare "nba" does not beat an NFL-only matchup slug (DET @ CIN / GB @ PIT).
   if (mentionsNbaAffirmatively(q) && !inferNflFromMatchupSlug(q)) return true;
   return false;

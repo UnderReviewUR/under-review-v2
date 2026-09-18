@@ -3,6 +3,8 @@
  * without removing API routes or deep-link screens.
  */
 
+import { isWcHomePromoWindow } from "./wc2026Constants.js";
+
 /** @typedef {"home"|"worldcup"|"nba"|"nfl"|"cfb"|"laliga"|"f1"|"golf"|"tennis"|"mlb"|"ask"|"pro"} NavSportSlug */
 /** @typedef {"nba"|"mlb"|"nfl"|"laliga"|"f1"|"tennis"|"golf"|"worldcup"} HomeTickerSportSlug */
 /** @typedef {"nba"|"mlb"|"tennis"|"f1"|"golf"|"nflDraft"} HomeCardSportSlug */
@@ -108,10 +110,13 @@ export function coerceUrAskSportToLiveSurface(sport, question = "") {
 
 /**
  * @param {HomeTickerSportSlug | string} slug
+ * @param {number} [nowMs]
  */
-export function isHomeTickerSportVisible(slug) {
+export function isHomeTickerSportVisible(slug, nowMs = Date.now()) {
   const key = String(slug || "").toLowerCase();
   if (!key) return false;
+  // Absolute kill-switch is for live production; historical/promo windows still surface WC.
+  if (key === "worldcup" && isWcHomePromoWindow(nowMs)) return true;
   return SITE_SPORT_VISIBILITY.homeTicker[key] !== false;
 }
 
@@ -126,11 +131,20 @@ export function isHomeCardSportVisible(slug) {
 
 /**
  * @param {HomePromptSportSlug | string} slug
+ * @param {number} [nowMs]
  */
-export function isHomePromptSportVisible(slug) {
+export function isHomePromptSportVisible(slug, nowMs = Date.now()) {
   const key = String(slug || "").toLowerCase();
   if (!key) return false;
+  // Historical Masters / 1000 promo windows still surface tennis home prompts.
+  if (key === "tennis" && isTennisHomePromoWindow(nowMs)) return true;
   return SITE_SPORT_VISIBILITY.homePrompts[key] !== false;
+}
+
+function isTennisHomePromoWindow(nowMs) {
+  const t = Number(nowMs);
+  if (!Number.isFinite(t)) return false;
+  return t >= Date.parse("2026-03-01T00:00:00Z") && t <= Date.parse("2026-06-15T00:00:00Z");
 }
 
 /**

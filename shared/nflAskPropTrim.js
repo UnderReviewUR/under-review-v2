@@ -1238,7 +1238,7 @@ export function buildNflSidedPropRecoverCopy(opts) {
   const injuryNote = edge?.injuryStatus
     ? `${last} injury: ${edge.injuryStatus}.`
     : "Check inactives before you bet it.";
-  const thinEvidence = /close number|no clear smash|early season|no smash over/i.test(
+  const thinEvidence = /close number|no clear smash|early season|no smash over|open history|speculative opener lean/i.test(
     String(ticket.why || ""),
   );
   const whyNow = [
@@ -1407,6 +1407,8 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   if (!questionWantsNflNoveltyProps(opts.question)) {
     rows = rows.filter((p) => !isNflNoveltyBoardProp(p));
   }
+  const namedTokensEarly = nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
+  const rowsBeforeGoat = rows;
   // Best-props boards: full-game headline yards/TDs only when we have enough.
   // Receptions (esp. Engram over 8) are not default “best” tickets.
   if (scoreOpts.multiBoard) {
@@ -1422,12 +1424,22 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
       );
     }
     // GOAT tier is mandatory — never fall back to depth/alt rows when the pool is thin.
-    rows = rows.filter((p) =>
-      isNflGoatFeaturedBoardRow(p, {
+    // Explicitly named players keep their rows even when under the GOAT floor.
+    rows = rows.filter((p) => {
+      if (
+        namedTokensEarly.length &&
+        namedTokensEarly.some((t) => {
+          const n = String(p?.player || "").toLowerCase();
+          return n.includes(t) || n.split(/\s+/).pop() === t;
+        })
+      ) {
+        return true;
+      }
+      return isNflGoatFeaturedBoardRow(p, {
         volumeByPlayer: scoreOpts.volumeByPlayer,
         valueBoost,
-      }),
-    );
+      });
+    });
   }
 
   // Consensus first — then score. Do not let vendor alt ladders crowd skill markets.
@@ -1435,12 +1447,23 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   const scoredBoard = [...rows].sort(
     (a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts),
   );
-  const namedTokens = nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
+  const namedTokens = namedTokensEarly.length
+    ? namedTokensEarly
+    : nflAskNamedPlayerHits(opts.question || "", opts.playerTeamByName).tokens;
   if (namedTokens.length) {
     /** @type {Array<Record<string, unknown>>} */
     const namedPicked = [];
     const namedSeen = new Set();
-    for (const row of scoredBoard) {
+    const namedPool = collapseNflPropsToConsensusBoard(
+      rowsBeforeGoat.filter((p) => {
+        const n = String(p?.player || "").toLowerCase();
+        return namedTokens.some((t) => n.includes(t) || n.split(/\s+/).pop() === t);
+      }),
+    );
+    const namedScored = [...namedPool].sort(
+      (a, b) => scorePropRow(b, tokens, hints, scoreOpts) - scorePropRow(a, tokens, hints, scoreOpts),
+    );
+    for (const row of namedScored.length ? namedScored : scoredBoard) {
       const n = String(row?.player || "").toLowerCase();
       const hit = namedTokens.some((t) => n.includes(t) || n.split(/\s+/).pop() === t);
       if (!hit) continue;

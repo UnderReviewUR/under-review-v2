@@ -161,21 +161,21 @@ Pass at ${ESP_MARKET} — fair favorite, no misprice.`,
     expectedIntent: WC_INTENT.PLAYER_PROP,
     expectFail: true,
     expectIssueCodes: ["wc_player_missing_names"],
-    notes: "Routing lock — Jimenez not in player KV yet; QA should flag until seed expands.",
+    notes: "Named-player ask must cite Jimenez on the card face — omit the name to keep this negative lock.",
     modelFixture: {
       summary:
-        "Jimenez volume is priced for a neutral script — the board is not paying for a Mexico lead. Market +140 · implies ~42% · UR read ~48% on 2+ shots.",
-      deep: `Mexico's opener skews cautious — Jimenez needs early touches, not a chase script.
+        "Volume is priced for a neutral script — the board is not paying for a Mexico lead. Market +140 · implies ~42% · UR read ~48% on 2+ shots.",
+      deep: `Mexico's opener skews cautious — early touches matter, not a chase script.
 This wins if Mexico presses the first 25 minutes; dies if they sit in a low block.
-Watch for confirmed XI — rotation caps his shot volume.
-Lean: Jimenez 2+ shots +140 — path fits opener aggression.`,
+Watch for confirmed XI — rotation caps shot volume.
+Lean: 2+ shots +140 — path fits opener aggression.`,
     },
     anthropicPayload: anthropicSummaryDeepPayload(
-      "Jimenez volume is priced for a neutral script — the board is not paying for a Mexico lead. Market +140 · implies ~42% · UR read ~48% on 2+ shots.",
-      `Mexico's opener skews cautious — Jimenez needs early touches, not a chase script.
+      "Volume is priced for a neutral script — the board is not paying for a Mexico lead. Market +140 · implies ~42% · UR read ~48% on 2+ shots.",
+      `Mexico's opener skews cautious — early touches matter, not a chase script.
 This wins if Mexico presses the first 25 minutes; dies if they sit in a low block.
-Watch for confirmed XI — rotation caps his shot volume.
-Lean: Jimenez 2+ shots +140 — path fits opener aggression.`,
+Watch for confirmed XI — rotation caps shot volume.
+Lean: 2+ shots +140 — path fits opener aggression.`,
     ),
     forbidIssueCodes: ["intent_mismatch", "wc_play_line_invalid"],
   },

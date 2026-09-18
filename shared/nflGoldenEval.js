@@ -263,6 +263,7 @@ export function runNflGoldenEvalCase(row, board, deps) {
     structured,
     games: board.games || [],
     propLines: trimmed,
+    postedPropLines: scrubbed,
     briefcase: board.briefcase,
     detected,
   });
@@ -283,7 +284,7 @@ export function runNflGoldenEvalCase(row, board, deps) {
 
   // Invented numbers: anything the take commits to must be posted on the board
   // or restated from the user's own slip.
-  const posted = collectNflPostedNumbers(board.games || [], trimmed);
+  const posted = collectNflPostedNumbers(board.games || [], scrubbed);
   const stated = numbersStatedInQuestion(question);
   for (const n of nflGoldenEvalCitedNumbers(out)) {
     if (nearAny(n, posted) || nearAny(n, stated)) continue;

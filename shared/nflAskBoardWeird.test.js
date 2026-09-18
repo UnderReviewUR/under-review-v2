@@ -106,7 +106,7 @@ test("tonight board: no 460.5, no 1H, no PHI Brown, unique players", () => {
     maxTickets: 5,
   });
   assert.ok(tickets.length >= 2);
-  assert.equal(tickets[0].line, 261.5);
+  assert.equal(tickets[0].line, 232.5);
   assert.equal(nflPropMarketKey(tickets[0]), "pass_yds");
   const names = tickets.map((t) => String(t.player));
   assert.equal(new Set(names.map((n) => n.toLowerCase())).size, names.length);
@@ -126,7 +126,7 @@ test("guard recover does not mix rush/combo/alts into the Maye pass-yards why", 
   const { structured, codes } = recoverTonight();
   const blob = `${structured.call} ${structured.lean} ${structured.whyNow}`;
   assert.ok(codes.includes("props_board_force_recover") || codes.includes("props_board_recover"));
-  assert.match(String(structured.call), /UNDER 261\.5/i);
+  assert.match(String(structured.call), /UNDER 232\.5/i);
   assert.match(blob, /231\.5|232\.5/);
   assert.doesNotMatch(blob, /460\.5/);
   assert.doesNotMatch(String(structured.whyNow), /other books[^\n]*(47\.5|109\.5|22\.5|13\.5|27\.5)/i);
@@ -138,7 +138,7 @@ test("guard recover does not mix rush/combo/alts into the Maye pass-yards why", 
 
 test("peer lines for Maye pass yards ignore 47.5 / 109.5 / 460.5", () => {
   const primary = preferHighPrintPrimary([MESSY_TONIGHT[0]], MESSY_TONIGHT)[0];
-  assert.equal(primary.line, 261.5);
+  assert.equal(primary.line, 232.5);
   const ticket = inferNflPropTicketSide(primary, MESSY_TONIGHT, { openerWeek: true });
   assert.equal(ticket.side, "Under");
   assert.doesNotMatch(ticket.why, /47\.5|109\.5|460\.5|22\.5/);

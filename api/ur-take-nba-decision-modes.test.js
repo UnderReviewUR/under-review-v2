@@ -65,6 +65,17 @@ function mockOddsApiEventPropsPayload() {
   };
 }
 
+function anthropicSystemText(system) {
+  if (typeof system === "string") return system;
+  if (Array.isArray(system)) {
+    return system
+      .map((block) => (typeof block === "string" ? block : String(block?.text || "")))
+      .join("\n");
+  }
+  if (system && typeof system === "object") return String(system.text || "");
+  return String(system || "");
+}
+
 async function invokeUrTake(
   body,
   {
@@ -735,15 +746,16 @@ test("NBA conversation follow-up forces short system prompt and full NBA context
   );
   assert.equal(out.status, 200);
   assert.ok(anthropicPayload);
-  assert.match(String(anthropicPayload.system || ""), /FOLLOW-UP STYLE/);
-  assert.match(String(anthropicPayload.system || ""), /Answer only the specific question asked/);
-  assert.match(String(anthropicPayload.system || ""), /FACT AUTHORITY — SERVER GROUNDING/);
+  const systemText = anthropicSystemText(anthropicPayload.system);
+  assert.match(systemText, /FOLLOW-UP STYLE/);
+  assert.match(systemText, /Answer only the specific question asked/);
+  assert.match(systemText, /FACT AUTHORITY — SERVER GROUNDING/);
   assert.match(
-    String(anthropicPayload.system || ""),
+    systemText,
     /Prefer players and teams from verified roster or verification lists/,
   );
-  assert.match(String(anthropicPayload.system || ""), /DATA PERSISTENCE — FOLLOW-UPS/);
-  assert.doesNotMatch(String(anthropicPayload.system || ""), /JSON RESPONSE MODE/);
+  assert.match(systemText, /DATA PERSISTENCE — FOLLOW-UPS/);
+  assert.doesNotMatch(systemText, /JSON RESPONSE MODE/);
   const lastUser = [...(anthropicPayload.messages || [])].reverse().find((m) => m.role === "user");
   const userText = typeof lastUser?.content === "string" ? lastUser.content : "";
   assert.match(userText, /NBA context \(full board — same filtered payload as the opening turn/);

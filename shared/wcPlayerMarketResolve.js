@@ -1030,7 +1030,7 @@ export function buildWcPlayerMarketPrebuiltStructured(
   const wcEventId = String(opts.wcEventId || "").trim();
   let rows = goldenBootRowsFromKv(goldenBoot, 6);
   let label = formatWcPlayerMarketPassLabel(wcIntent);
-  let contextNote = "Based on current betting markets and form in VERIFIED CONTEXT.";
+  let contextNote = "Based on current betting markets and form.";
 
   if (
     isWcFixturePlayerMarketIntent(wcIntent) &&
@@ -1041,7 +1041,7 @@ export function buildWcPlayerMarketPrebuiltStructured(
     if (matchRows.length) {
       rows = matchRows;
       label = "anytime goalscorer (this match)";
-      contextNote = `Match-scoped lines for event ${wcEventId} in VERIFIED CONTEXT.`;
+      contextNote = `Match-scoped lines for event ${wcEventId}.`;
     }
   }
 
@@ -1063,12 +1063,12 @@ export function buildWcPlayerMarketPrebuiltStructured(
     playerMarketTier: tier,
     wcEventId: wcEventId || undefined,
     call: `Market has ${rows[0].name} — ${label} board prices the name first.`,
-    line: `Market ${rows[0].americanOdds} · next ${rows[1]?.name || "contender"} ${rows[1]?.americanOdds || ""}.`.replace(
-      /\s+\./,
-      ".",
-    ),
+    line: `Market at ${rows[0].americanOdds} · next ${rows[1]?.name || "contender"} ${rows[1]?.americanOdds || ""}`.replace(
+      /\s+$/,
+      "",
+    ) + ".",
     lean: `Lean: ${rows[0].name} at ${rows[0].americanOdds} — best listed price on the ${label} board.${lineupNote}`,
-    whyNow: `Top contenders by price: ${lead}. ${contextNote}`,
+    whyNow: `Top contenders by price at ${rows[0].americanOdds}: ${lead}. ${contextNote}`,
     edge:
       rows.length >= 2
         ? `Watch for lineup confirmation — ${rows[1].name} at ${rows[1].americanOdds} closes fast if ${rows[0].name} starts.`
@@ -1538,7 +1538,8 @@ export function resolveWcPlayerMarketAnswer(
   if (
     questionStr &&
     (wcIntent === WC_INTENT.GOLDEN_BOOT || wcIntent === WC_INTENT.TOP_SCORER) &&
-    goldenBootRowCount(kvBlocks?.goldenBoot) > 0
+    goldenBootRowCount(kvBlocks?.goldenBoot) > 0 &&
+    opts.prebuiltAnswer
   ) {
     const prebuilt = buildWcPlayerMarketPrebuiltStructured(
       questionStr,

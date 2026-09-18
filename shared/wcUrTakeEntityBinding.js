@@ -26,6 +26,14 @@ export function wcTeamDisplayNames(abbr) {
 export function resolveRequiredEntities(question, history = [], wcIntent) {
   const intent = wcIntent || classifyWcQuestionIntent(question, history);
   if (intent === WC_INTENT.RULES) return [];
+  // Tournament award markets are not fixture-scoped — never inherit matchup teams.
+  if (
+    intent === WC_INTENT.GOLDEN_BOOT ||
+    intent === WC_INTENT.TOP_SCORER ||
+    intent === WC_INTENT.TOP_GOALSCORERS_LIST
+  ) {
+    return [];
+  }
   if (isWcPlayerMarketIntent(intent)) {
     const teams = resolveWcPlayerPropFixtureTeams(String(question || ""), history);
     if (teams.length >= 2) {

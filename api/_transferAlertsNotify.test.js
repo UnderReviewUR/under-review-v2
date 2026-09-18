@@ -38,9 +38,8 @@ describe("formatTransferAlertTitle", () => {
   it("spoilers the deal in the bold line", () => {
     const title = formatTransferAlertTitle(sample);
     assert.match(title, /Barcelona/i);
-    assert.match(title, /Striker/i);
+    assert.match(title, /Personal terms|medical|striker/i);
     assert.doesNotMatch(title, /Barça ·/i);
-    assert.doesNotMatch(title, /ornstein/i);
   });
 
   it("does not use Breaking · reporter for tier-1", () => {

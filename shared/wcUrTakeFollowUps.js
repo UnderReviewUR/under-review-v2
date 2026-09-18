@@ -41,8 +41,9 @@ const GROUP_STAGE_CHIP_RE =
  * Knockout scope for follow-up chips — phase, fixture row, or explicit question wording.
  * @param {object | null | undefined} message
  * @param {string} [userQuestion]
+ * @param {number} [nowMs]
  */
-export function resolveWcFollowUpKnockoutScope(message, userQuestion = "") {
+export function resolveWcFollowUpKnockoutScope(message, userQuestion = "", nowMs = Date.now()) {
   const allMatches = Array.isArray(message?.allMatches) ? message.allMatches : [];
   const feedPhase =
     message?.wcTournamentPhase ||
@@ -98,7 +99,7 @@ export function resolveWcFollowUpKnockoutScope(message, userQuestion = "") {
   if (
     hasFixtureContext &&
     !isGroupSlateCard &&
-    isKnockoutPhase(getWorldCupPhaseFromEtDate())
+    isKnockoutPhase(getWorldCupPhaseFromEtDate(nowMs))
   ) {
     return true;
   }

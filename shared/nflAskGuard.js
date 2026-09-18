@@ -929,6 +929,8 @@ export function applyNflAskGuard(opts = {}) {
     opts.structured && typeof opts.structured === "object" ? { ...opts.structured } : null;
   const games = Array.isArray(opts.games) ? opts.games : [];
   const propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
+  // Invented-line checks against the live board (scrubbed), not the prompt-trimmed subset.
+  const postedPropLines = Array.isArray(opts.postedPropLines) ? opts.postedPropLines : propLines;
   /** @type {string[]} */
   const codes = [];
   if (!structured) return { structured: null, codes, invert: null };
@@ -1072,7 +1074,7 @@ export function applyNflAskGuard(opts = {}) {
     const cited = extractNflTicketNumbers(
       `${structured.call || ""} ${structured.lean || ""} ${actionText}`,
     );
-    const posted = collectNflPostedNumbers(games, propLines);
+    const posted = collectNflPostedNumbers(games, postedPropLines);
     const invented = detectNflInventedLine(cited, posted);
     if (invented && (posted.length === 0 || invented.invented) && !codes.includes("ticket_review_recover")) {
       const marketId = String(suitcase.detected?.marketId || "");

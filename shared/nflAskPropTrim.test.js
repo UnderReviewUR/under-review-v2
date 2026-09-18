@@ -1162,7 +1162,7 @@ test("thin default copy is honest Speculative not smash language", async () => {
     underOdds: -110,
   };
   const ticket = inferNflPropTicketSide(primary, [primary], { openerWeek: true });
-  assert.match(ticket.why, /Close number|no clear smash/i);
+  assert.match(ticket.why, /Close number|no clear smash|open history/i);
   const copy = buildNflSidedPropRecoverCopy({
     primary,
     boardRows: [],

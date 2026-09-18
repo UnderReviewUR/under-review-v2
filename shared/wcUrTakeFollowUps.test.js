@@ -175,10 +175,11 @@ test("resolveWcFollowUpKnockoutScope uses ET calendar for fixture thread without
         structured: { fixtureHome: "BRA", fixtureAway: "JPN" },
       },
       "",
+      Date.parse("2026-06-28T16:00:00Z"),
     ),
     true,
   );
-  assert.equal(resolveWcFollowUpKnockoutScope({}, ""), false);
+  assert.equal(resolveWcFollowUpKnockoutScope({}, "", Date.parse("2026-06-28T16:00:00Z")), false);
 });
 
 test("mergeWcFollowUpChips PLAYER_MARKET_PASS drops group-stage chip during knockout", () => {

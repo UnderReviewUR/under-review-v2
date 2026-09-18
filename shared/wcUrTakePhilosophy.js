@@ -69,6 +69,14 @@ export function detectWcSgpComboIntent(question) {
   const q = extractLatestUserTurnForRouting(String(question || "").trim());
   if (!q) return false;
 
+  // Correlation / cleaner-leg analysis — not an SGP ticket build.
+  if (
+    /\b(correlated|correlation|cleaner leg|same script)\b/i.test(q) &&
+    /\?/.test(q)
+  ) {
+    return false;
+  }
+
   if (detectParlayIntent(q)) return true;
 
   // Market comparison / ranking (ML + totals + BTTS) — not an SGP ticket build.

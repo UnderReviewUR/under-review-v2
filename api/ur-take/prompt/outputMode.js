@@ -4,7 +4,7 @@ import { detectNbaPlayerPropIntent } from "../../../shared/detectNbaPlayerPropIn
 import { NBA_FINALS_STRUCTURED_JSON_CONTRACT } from "../../../shared/nbaFinalsStructured.js";
 import { WC_CARD_CONTRACT_TIER25_APPENDIX } from "../../../shared/wcCardContractVoice.js";
 import { WC_SCRIPT_PRICE_PLAYER_TIER25_APPENDIX } from "../../../shared/wcUrTakePhilosophy.js";
-import { isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
+import { isWcPlayerAwardMarketIntent, isWcPlayerMarketIntent, WC_INTENT } from "../../../shared/wcUrTakeIntent.js";
 import { normalizeText } from "./normalize.js";
 
 export function isSettledFactQuestion(question) {
@@ -271,7 +271,9 @@ No other keys. No markdown.`;
 
   if (mode === "tier2_5_json") {
     const wcPlayer =
-      sport === "worldcup" && isWcPlayerMarketIntent(String(wcIntent || ""));
+      sport === "worldcup" &&
+      (isWcPlayerMarketIntent(String(wcIntent || "")) ||
+        isWcPlayerAwardMarketIntent(String(wcIntent || "")));
     const tier25Body =
       sport === "worldcup" ? (wcPlayer ? worldCupPlayerMarketTier25Spec : worldCupTier25Spec) : tier25Spec;
     return `OUTPUT CONTRACT — TIER 2.5 + DEEP (mandatory)

@@ -9,6 +9,7 @@ import { detectRulesThreadBleed } from "../shared/wcUrTakeRules.js";
 import { WC_INTENT } from "../shared/wcUrTakeIntent.js";
 import {
   detectTeamAnswerToPlayerQuestion,
+  extractWcNamedPlayerFromQuestion,
   isWcPlayerMarketIntent,
   questionAsksForWcPlayerMarket,
 } from "../shared/wcUrTakePlayerMarket.js";
@@ -392,12 +393,24 @@ export function runWcUrTakeQA(opts = {}) {
       issueCodes.push("wc_player_question_team_lead");
       qaPlayerMatch = "fail";
     } else {
-      const knownNames = extractKnownPlayerNamesFromKv(opts.playerMarketKv);
-      if (knownNames.length && !responseMentionsKnownPlayer(headline, body, knownNames)) {
-        issueCodes.push("wc_player_missing_names");
-        qaPlayerMatch = "fail";
+      const named = extractWcNamedPlayerFromQuestion(routingQuestion);
+      if (named) {
+        const blob = `${headline} ${body}`.toLowerCase();
+        const last = String(named).split(/\s+/).pop()?.toLowerCase() || "";
+        if (!last || last.length < 3 || !blob.includes(last)) {
+          issueCodes.push("wc_player_missing_names");
+          qaPlayerMatch = "fail";
+        } else {
+          qaPlayerMatch = "pass";
+        }
       } else {
-        qaPlayerMatch = "pass";
+        const knownNames = extractKnownPlayerNamesFromKv(opts.playerMarketKv);
+        if (knownNames.length && !responseMentionsKnownPlayer(headline, body, knownNames)) {
+          issueCodes.push("wc_player_missing_names");
+          qaPlayerMatch = "fail";
+        } else {
+          qaPlayerMatch = "pass";
+        }
       }
     }
     const tier = String(opts.playerMarketTier || "");

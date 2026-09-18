@@ -84,7 +84,8 @@ test("buildWcGroundingPacketForUrTake — Ghana vs Panama surfaces card groundin
   });
   assert.equal(formatWcGroundingPinnedLine(structured.groundingPinBanner), "PINNED · Ghana vs Panama (GHA–PAN)");
   assert.match(strip?.statusLine || "", /Live · 1st half, 2'/);
-  assert.match(strip?.statusLine || "", /Updated 45s ago \(BDL\)/);
+  assert.match(strip?.statusLine || "", /Updated 45s ago/);
+  assert.doesNotMatch(strip?.statusLine || "", /\(BDL\)/);
   assert.equal(strip?.postedLine, "Posted: Shots · SOT");
   assert.match(strip?.notPostedLine || "", /Not posted:.*Anytime goals/);
 });

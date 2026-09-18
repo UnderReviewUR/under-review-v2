@@ -2,7 +2,11 @@
  * World Cup UR Take — question intent classification + static rules corpus.
  */
 
-import { extractMentionedWcTeams } from "./wcUrTakeKeywords.js";
+import {
+  extractMentionedWcTeams,
+  inferWorldCupFromPlayerMarketQuestion,
+  questionMentionsWorldCup,
+} from "./wcUrTakeKeywords.js";
 import { isKnockoutAdvancementQuestion, isTournamentWinnerQuestion } from "./wcPhaseUtils.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import {
@@ -47,6 +51,33 @@ import { isWcBttsQuestion } from "./wcMatchBettingPrompt.js";
 function isNonWorldCupSportAsk(question) {
   const q = String(question || "");
   if (!q.trim()) return false;
+  // Shared soccer language (BTTS / goalscorer / assists) is WC-native when WC cues present.
+  if (questionMentionsWorldCup(q) || inferWorldCupFromPlayerMarketQuestion(q)) return false;
+  if (extractMentionedWcTeams(q).length > 0) return false;
+  // Nation codes like FRA/BRA or France vs Brazil — not La Liga / NBA steals.
+  if (
+    /\b(france|brazil|spain|england|germany|portugal|argentina|mexico|canada|morocco|netherlands|norway|japan|senegal|australia)\b/i.test(
+      q,
+    ) &&
+    /\b(vs\.?|versus|v\.|@)\b/i.test(q)
+  ) {
+    return false;
+  }
+  if (/\b[A-Z]{3}\s+vs\.?\s+[A-Z]{3}\b/.test(q) && !hasNflAskLexicon(q)) {
+    return false;
+  }
+  // Bare soccer markets without club brands stay eligible for WC classification.
+  const soccerSharedOnly =
+    /\b(btts|both teams to score|goalscorer|anytime scorer|assists?|shots?(?:\s+on\s+target)?)\b/i.test(
+      q,
+    ) &&
+    !/\b(la liga|laliga|real madrid|barcelona|barca|atletico|sevilla|nba|lakers|celtics|knicks|pra|rebounds?)\b/i.test(
+      q,
+    ) &&
+    !hasNflAskLexicon(q) &&
+    !hasCfbAskLexicon(q);
+  if (soccerSharedOnly) return false;
+
   return (
     hasNflAskLexicon(q) ||
     hasLaligaAskLexicon(q) ||

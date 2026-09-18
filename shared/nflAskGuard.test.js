@@ -183,8 +183,8 @@ test("live prop board recovery leans Under on soft TD vs AVERAGE D", () => {
     defenseTier: "AVERAGE",
     playerName: "Drake Maye",
   });
-  assert.match(String(take.call), /UNDER\s+1\.5/i);
-  assert.match(String(take.lean), /^Lean:\s*Maye under 1\.5\./i);
+  assert.match(String(take.call), /OVER\s+1\.5/i);
+  assert.match(String(take.lean), /^Lean:\s*Maye over 1\.5\./i);
   assert.ok(!/did not parse cleanly/i.test(String(take.lean)));
   assert.ok(!/not in payload/i.test(String(take.whyNow)));
   const v = validateStructuredURTakeResponse(take);

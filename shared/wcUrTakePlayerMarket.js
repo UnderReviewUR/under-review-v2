@@ -2087,6 +2087,13 @@ export function isWcFixtureScopedPlayerMarketQuestion(question) {
   if (isWcBttsQuestion(q)) return false;
   if (isWcMatchTotalsQuestion(q)) return false;
   if (WC_AWARD_FALSE_POSITIVE_RE.test(q)) return false;
+  // Tournament top-scorer / golden-boot asks are award markets, not fixture props.
+  if (
+    /\bscore the most goals\b/i.test(q) &&
+    !/\b(match|game|fixture|tonight|vs\.?|versus)\b/i.test(q)
+  ) {
+    return false;
+  }
   if (/\bhow many goals\b/i.test(q) && extractMentionedWcTeams(q).length) return false;
   if (extractWcNamedPlayerFromQuestion(q)) return true;
   if (isWcFixturePlayerPropsQuestion(q)) return true;

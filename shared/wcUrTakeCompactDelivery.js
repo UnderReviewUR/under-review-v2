@@ -16,6 +16,7 @@ import {
   synthesizeGoldenBootCallFromBlob,
   synthesizeGoldenBootLineFromBlob,
   resolveWcPlayerPropDisplayLean,
+  extractWcNamedPlayerFromQuestion,
 } from "./wcUrTakePlayerMarket.js";
 import { isWcAdvancementMarketQuestion } from "./wcAdvancementMarket.js";
 import { tierMetaFor } from "./wcPlayerMarketResolve.js";
@@ -606,6 +607,23 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
       return `Lean: ${team} outright — thesis longshot; size for variance only.`;
     }
     return "Pass — thesis only until verified outright odds post.";
+  }
+
+  // Correlation / cleaner-leg analysis — keep a Pass + cleaner decision, name the player.
+  if (/\b(correlated|correlation|cleaner leg)\b/i.test(question)) {
+    const named = extractWcNamedPlayerFromQuestion(question);
+    const cleaner =
+      deep.match(/cleaner leg:\s*([^.!?\n]+)/i)?.[1]?.trim() ||
+      summary.match(/cleaner leg:\s*([^.!?\n]+)/i)?.[1]?.trim() ||
+      "";
+    if (cleaner) {
+      return named
+        ? `Pass — ${named} legs share one script; cleaner: ${cleaner}.`
+        : `Pass — same-script stack; cleaner: ${cleaner}.`;
+    }
+    return named
+      ? `Pass — ${named} SGP is high correlation, not independent prices.`
+      : `Pass — legs share one script; do not stack as independent.`;
   }
 
   const fromPlayerOdds = synthesizePlayerPropPlayFromCitedOdds(summary, deep, question);
@@ -1248,10 +1266,24 @@ function buildWcCompactStructuredBody(opts = {}) {
   }
   const edge = capWcDeepWords(extractWatchFor(deep, pass, whyNow), 22);
 
+  // Named-player correlation asks: keep the player on the headline when summary omits them.
+  let headlineCall = call;
+  const namedForCall = extractWcNamedPlayerFromQuestion(question);
+  if (
+    namedForCall &&
+    isWcPlayerMarketIntent(wcIntent) &&
+    /\b(correlated|correlation|cleaner leg)\b/i.test(question) &&
+    !new RegExp(`\\b${namedForCall.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(
+      `${call} ${lean}`,
+    )
+  ) {
+    headlineCall = `${namedForCall} — ${call}`.slice(0, 120);
+  }
+
   const base = {
     sport: "worldcup",
     lean,
-    call,
+    call: headlineCall,
     line,
     whyNow,
     edge,
@@ -1265,7 +1297,7 @@ function buildWcCompactStructuredBody(opts = {}) {
   if (isWcPlayerMarketIntent(wcIntent) && !isListIntent) {
     const odds =
       !isWcShotsPropQuestion(question) ? (summary.match(/\+\d{3,}/) || [])[0] || "" : "";
-    let playerCall = call;
+    let playerCall = headlineCall;
     if (pass && !/^pass/i.test(playerCall) && playerCall.split(/\s+/).length <= 14) {
       playerCall = odds ? `Pass at ${odds} — ${playerCall}` : `Pass — ${playerCall}`;
     } else if (odds && !playerCall.includes(odds) && line && line.includes(odds)) {

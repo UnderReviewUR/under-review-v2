@@ -1151,7 +1151,7 @@ export function buildWcTomorrowSlatePrebuiltStructured(opts = {}) {
 
   return {
     ...base,
-    callType: "tomorrow_slate",
+    callType: knockoutPhase ? "knockout_slate" : "tomorrow_slate",
     lean: lean.startsWith("Lean:") ? lean : `Lean: ${lean}`.slice(0, 120),
     call: (predictionMode
       ? count > 1

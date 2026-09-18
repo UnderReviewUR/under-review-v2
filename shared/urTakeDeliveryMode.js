@@ -131,7 +131,8 @@ export function isUrTakeNewBettingAsk(opts = {}) {
   if (!isFollowUp && isWcPlayerMarketIntent(wcIntent)) return true;
   if (
     !isFollowUp &&
-    (wcIntent === WC_INTENT.MATCHUP || wcIntent === WC_INTENT.SCORE_PREDICTION)
+    (wcIntent === WC_INTENT.MATCHUP || wcIntent === WC_INTENT.SCORE_PREDICTION) &&
+    !isWcSimpleMatchupTalkOpener(question)
   ) {
     return true;
   }

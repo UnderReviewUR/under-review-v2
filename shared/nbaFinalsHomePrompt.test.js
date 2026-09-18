@@ -35,6 +35,7 @@ test("buildNbaFinalsHomePrompt — off-night with Knicks up 2-0, Game 3 in NY", 
         status: "NY leads series 2-0",
       },
     ],
+    Date.parse("2026-06-10T16:00:00Z"),
   );
   assert.ok(row?.text?.includes("Game 3"));
   assert.match(row?.prompt || "", /Knicks lead the series 2-0/i);

@@ -359,7 +359,7 @@ export function buildDynamicHomeQuestions({
   const tennisShowcase = isTennisShowcaseWindow(context, activeTournamentMatches);
   const tennisBoardOk = tennisShowcase || Boolean(prefLive || prefUpcoming);
 
-  if (isHomePromptSportVisible("tennis") && tennisBoardOk && prefLive) {
+  if (isHomePromptSportVisible("tennis", promoNowMs) && tennisBoardOk && prefLive) {
     const label = `${prefLive.raw?.home || ""} vs ${prefLive.raw?.away || ""}`;
     const tennisLivePrompt = rotate(
       [
@@ -383,7 +383,7 @@ export function buildDynamicHomeQuestions({
     });
   }
 
-  if (isHomePromptSportVisible("tennis") && tennisBoardOk && prefUpcoming) {
+  if (isHomePromptSportVisible("tennis", promoNowMs) && tennisBoardOk && prefUpcoming) {
     const label = `${prefUpcoming.raw?.home || ""} vs ${prefUpcoming.raw?.away || ""}`;
     const tennisUpcomingPrompt = rotate(
       [
@@ -405,7 +405,7 @@ export function buildDynamicHomeQuestions({
       sortRank: ranks.tennisUp,
       ...tennisUpcomingPrompt,
     });
-  } else if (isHomePromptSportVisible("tennis") && tennisShowcase && context?.currentTournament?.name) {
+  } else if (isHomePromptSportVisible("tennis", promoNowMs) && tennisShowcase && context?.currentTournament?.name) {
     push({
       id: "q2b",
       color: "#0891B2",
@@ -414,7 +414,7 @@ export function buildDynamicHomeQuestions({
       text: `Tournament value — ${context.currentTournament.name}?`,
       prompt: `Around ${context.currentTournament.name}, where is the best futures or outright value on the board right now?`,
     });
-  } else if (isHomePromptSportVisible("tennis") && tennisShowcase && !prefLive && !prefUpcoming) {
+  } else if (isHomePromptSportVisible("tennis", promoNowMs) && tennisShowcase && !prefLive && !prefUpcoming) {
     push({
       id: "q2c",
       color: "#0891B2",
@@ -581,7 +581,7 @@ export function buildDynamicHomeQuestions({
   }
 
   if (
-    isHomePromptSportVisible("mlb") &&
+    isHomePromptSportVisible("mlb", promoNowMs) &&
     isMlbSeasonMonthEt(etNow) &&
     Array.isArray(mlbGames) &&
     mlbGames.length > 0

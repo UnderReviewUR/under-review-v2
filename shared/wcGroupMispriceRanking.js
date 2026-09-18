@@ -82,7 +82,13 @@ export function computeGroupMispriceRankings(opts = {}) {
   const market = resolveMarketForRanking(question);
   const meta = wcAdvancementMarketMeta(market);
   const bdlType = WC_ADVANCEMENT_TO_BDL_MARKET[market] || "qualify_from_group";
-  const marketRows = byMarketType[bdlType] || {};
+  let marketRows = byMarketType[bdlType] || {};
+  // Legacy KV seeds store group-winner under `win_group`.
+  if (bdlType === "group_winner" && !Object.keys(marketRows).length) {
+    marketRows = byMarketType.win_group || {};
+  } else if (bdlType === "win_group" && !Object.keys(marketRows).length) {
+    marketRows = byMarketType.group_winner || {};
+  }
 
   const freshness = calculateOddsFreshness(
     opts.bdlFutures?.lastUpdated,

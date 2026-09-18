@@ -35,25 +35,69 @@ export function parseGolfDisplayDateStartMs(displayDate, nowMs = Date.now()) {
   if (!raw) return NaN;
 
   const direct = Date.parse(raw);
-  if (Number.isFinite(direct)) return direct;
+  if (Number.isFinite(direct) && !/^[A-Za-z]+\s+\d/i.test(raw)) return direct;
 
   const range = raw.match(/^([A-Za-z]+)\s+(\d{1,2})\s*[-–]\s*(\d{1,2})(?:\s*,?\s*(\d{4}))?/i);
   if (range) {
     const month = range[1];
     const day = range[2];
     const year = range[4] ? Number(range[4]) : etYearFromMs(nowMs);
-    const ms = Date.parse(`${month} ${day}, ${year}`);
+    const ms = parseMonthDayNoonEt(month, day, year);
     if (Number.isFinite(ms)) return ms;
   }
 
   const monthDay = raw.match(/^([A-Za-z]+)\s+(\d{1,2})(?:\s*,?\s*(\d{4}))?/i);
   if (monthDay) {
     const year = monthDay[3] ? Number(monthDay[3]) : etYearFromMs(nowMs);
-    const ms = Date.parse(`${monthDay[1]} ${monthDay[2]}, ${year}`);
+    const ms = parseMonthDayNoonEt(monthDay[1], monthDay[2], year);
     if (Number.isFinite(ms)) return ms;
   }
 
+  if (Number.isFinite(direct)) return direct;
   return NaN;
+}
+
+/**
+ * Parse "May 22, 2026" as noon America/New_York so UTC CI and US local agree on the ET calendar day.
+ * @param {string} month
+ * @param {string|number} day
+ * @param {number} year
+ */
+function parseMonthDayNoonEt(month, day, year) {
+  const monthNames = {
+    jan: 1,
+    january: 1,
+    feb: 2,
+    february: 2,
+    mar: 3,
+    march: 3,
+    apr: 4,
+    april: 4,
+    may: 5,
+    jun: 6,
+    june: 6,
+    jul: 7,
+    july: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    september: 9,
+    oct: 10,
+    october: 10,
+    nov: 11,
+    november: 11,
+    dec: 12,
+    december: 12,
+  };
+  const m = monthNames[String(month || "").toLowerCase()];
+  const d = Number(day);
+  const y = Number(year);
+  if (!m || !Number.isFinite(d) || !Number.isFinite(y)) return NaN;
+  const mm = String(m).padStart(2, "0");
+  const dd = String(d).padStart(2, "0");
+  // Fixed -04:00 is fine for May–Aug golf dates; noon keeps the ET calendar day stable.
+  return Date.parse(`${y}-${mm}-${dd}T12:00:00-04:00`);
 }
 
 function etYearFromMs(nowMs) {

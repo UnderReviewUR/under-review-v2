@@ -69,7 +69,7 @@ export function planLiveSnapshot(input) {
     nowMs,
   );
   const wcOrdered =
-    isWcHomePromoWindow(nowMs) && isHomeTickerSportVisible("worldcup")
+    isWcHomePromoWindow(nowMs) && isHomeTickerSportVisible("worldcup", nowMs)
       ? filterAndOrderWcMatchesForSnapshot(input.wcMatches || [], nowMs)
       : [];
 

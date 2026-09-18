@@ -34,9 +34,10 @@ function finalsSeriesLeadNote(row) {
 /**
  * @param {Array<Record<string, unknown>> | null | undefined} nbaGames
  * @param {Array<Record<string, unknown>> | null | undefined} playoffSeries
+ * @param {number} [nowMs]
  * @returns {{ text: string, prompt: string } | null}
  */
-export function buildNbaFinalsHomePrompt(nbaGames, playoffSeries) {
+export function buildNbaFinalsHomePrompt(nbaGames, playoffSeries, nowMs = Date.now()) {
   const rows = Array.isArray(nbaGames) ? nbaGames : [];
   let game =
     rows.find((g) => g?.state === "in") ||
@@ -50,7 +51,7 @@ export function buildNbaFinalsHomePrompt(nbaGames, playoffSeries) {
   });
 
   if (!game && finalsRow) {
-    const next = resolveNextNbaFinalsScheduledGame();
+    const next = resolveNextNbaFinalsScheduledGame(nowMs);
     if (next) {
       game = {
         state: "pre",
