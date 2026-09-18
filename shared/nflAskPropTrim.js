@@ -1008,10 +1008,10 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   if (openerWeek) {
     return {
       side: "Under",
-      why: "Early season — I'd rather take the under at this number.",
+      why: "Close number — no clear smash. Speculative lean Under.",
     };
   }
-  return { side: "Under", why: "No smash over at this number." };
+  return { side: "Under", why: "Close number — no clear smash either way." };
 }
 
 /**
@@ -1210,12 +1210,15 @@ export function buildNflSidedPropRecoverCopy(opts) {
   const injuryNote = edge?.injuryStatus
     ? `${last} injury: ${edge.injuryStatus}.`
     : "Check inactives before you bet it.";
+  const thinEvidence = /close number|no clear smash|early season|no smash over/i.test(
+    String(ticket.why || ""),
+  );
   const whyNow = [
     list ? `Board:\n${list}` : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
     "",
     `${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
     conflicts.length ? conflicts.join(" ") : "",
-    thinBoard ? `Short list (${boardRows.length}) — grab these first.` : "",
+    thinBoard ? `Short list (${boardRows.length}) — what's gradeable first.` : "",
   ]
     .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
     .join("\n")
@@ -1228,7 +1231,9 @@ export function buildNflSidedPropRecoverCopy(opts) {
     callType: "prop",
     confidence: "Speculative",
     whyNow,
-    edge: `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
+    edge: thinEvidence
+      ? "Thin edge — Speculative, not a smash."
+      : `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
     // Filled for schema/repair; married delivery slims these so the card doesn't echo the board.
     analysis: {
       matchupAnalysis: `${last} ${propLabel} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
@@ -1236,20 +1241,28 @@ export function buildNflSidedPropRecoverCopy(opts) {
       marketContext: list || ticket.why,
       lineMovement: "Stick to a posted number. Don't invent movement.",
       statisticalEdge:
-        edge?.pace != null
-          ? `Pace ~${edge.pace}${edge.paceSource ? ` (${edge.paceSource})` : ""}${
-              edge.fantasyPace != null ? ` · proj ~${edge.fantasyPace}` : ""
-            }.`
-          : openerLine,
+        edge?.fantasyPace != null || edge?.pace != null
+          ? `${edge.fantasyPace != null ? `Proj ~${edge.fantasyPace}` : ""}${
+              edge.pace != null
+                ? `${edge.fantasyPace != null ? " · " : ""}Pace ~${edge.pace}${
+                    edge.paceSource ? ` (${edge.paceSource})` : ""
+                  }`
+                : ""
+            }.`.trim()
+          : thinEvidence
+            ? "No clear proj/pace smash on this number."
+            : openerLine,
     },
     caveats: [
       openerLine,
       ...conflicts,
       thinBoard
         ? "Short list from what's gradeable on this board right now."
-        : ticket.side === "Under"
-          ? "If your number is a lot lower, the under gets worse."
-          : "If your number is a lot higher, the over gets worse.",
+        : thinEvidence
+          ? "No smash edge — shop your number or pass."
+          : ticket.side === "Under"
+            ? "If your number is a lot lower, the under gets worse."
+            : "If your number is a lot higher, the over gets worse.",
     ].filter(Boolean),
   };
 }
@@ -1581,7 +1594,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
   }
 
   // Elite primary: strongest evidence stack, then high-print only if still an Under fade.
-  const ordered = orderNflPropsBoardByPrimaryEdge(picked, Array.isArray(props) ? props : [], {
+  let ordered = orderNflPropsBoardByPrimaryEdge(picked, Array.isArray(props) ? props : [], {
     openerWeek,
     briefcase: opts.briefcase,
     inferSide: inferNflPropTicketSide,
@@ -1590,7 +1603,62 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     peerLines: nflPropPeerLines,
     pickConsensus: pickNflConsensusMarketRow,
   });
+  ordered = diversifyNflPropsBoardSides(ordered, Array.isArray(props) ? props : [], playerBest, {
+    openerWeek,
+    briefcase: opts.briefcase,
+  });
   return ordered.slice(0, maxTickets);
+}
+
+/**
+ * If the whole board is Unders with thin why, swap in one Over that has real evidence.
+ * @param {Array<Record<string, unknown>>} picked
+ * @param {Array<Record<string, unknown>>} allRows
+ * @param {Array<Record<string, unknown>>} pool
+ * @param {{ openerWeek?: boolean, briefcase?: Record<string, unknown>|null }} opts
+ */
+export function diversifyNflPropsBoardSides(picked, allRows, pool, opts = {}) {
+  if (!Array.isArray(picked) || picked.length < 3) return picked || [];
+  const openerWeek = Boolean(opts.openerWeek);
+  const briefcase = opts.briefcase || null;
+  const sides = picked.map((row) =>
+    inferNflPropTicketSide(row, allRows, { openerWeek, briefcase }),
+  );
+  if (sides.some((s) => s.side === "Over")) return picked;
+
+  const pickedKeys = new Set(picked.map((r) => normalizePlayerKey(r.player)));
+  const overCand = (pool || []).find((row) => {
+    const key = normalizePlayerKey(row?.player);
+    if (!key || pickedKeys.has(key)) return false;
+    if (
+      !isNflGoatFeaturedBoardRow(row, {
+        volumeByPlayer: buildNflPropVolumeByPlayer(briefcase),
+      })
+    ) {
+      return false;
+    }
+    const t = inferNflPropTicketSide(row, allRows, { openerWeek, briefcase });
+    return t.side === "Over" && !/close number|no clear smash|early season|no smash/i.test(t.why);
+  });
+  if (!overCand) return picked;
+
+  const thinIdx =
+    [...sides]
+      .map((s, i) => ({ s, i }))
+      .reverse()
+      .find((x) => /close number|early season|no smash|no clear smash/i.test(x.s.why))?.i ??
+    picked.length - 1;
+  const next = [...picked];
+  next[thinIdx] = overCand;
+  return orderNflPropsBoardByPrimaryEdge(next, allRows, {
+    openerWeek,
+    briefcase,
+    inferSide: inferNflPropTicketSide,
+    marketKey: nflPropMarketKeyBase,
+    sameTicket: nflPropSameTicket,
+    peerLines: nflPropPeerLines,
+    pickConsensus: pickNflConsensusMarketRow,
+  });
 }
 
 /**

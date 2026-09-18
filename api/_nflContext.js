@@ -830,7 +830,11 @@ export async function buildCanonicalNflContext(options = {}) {
   return {
     uiPlayers,
     promptContext,
+    // Keep GOAT fantasy/pace/stats on the briefcase so offline board picker can lean from evidence.
     briefcase: {
+      ...(briefcaseHealth.briefcase && typeof briefcaseHealth.briefcase === "object"
+        ? briefcaseHealth.briefcase
+        : {}),
       grade: briefcaseHealth.interaction?.grade || null,
       smooth: briefcaseHealth.interaction?.smooth ?? null,
       marketId: briefcaseHealth.interaction?.detected?.marketId || null,
@@ -842,6 +846,10 @@ export async function buildCanonicalNflContext(options = {}) {
       propCatalog: briefcaseHealth.propCatalog || null,
       promptBlock: briefcaseHealth.promptBlock || "",
       analystPacket: briefcaseHealth.analystPacket || "",
+      week:
+        briefcaseHealth.briefcase?.week ??
+        briefcaseHealth.interaction?.week ??
+        null,
     },
     propLines: trimmedPropLines,
     draft: {

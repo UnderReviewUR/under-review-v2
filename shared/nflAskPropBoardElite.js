@@ -77,11 +77,17 @@ export function scoreNflPropPrimaryEdge(row, allRows, inferSide, marketKey, opts
     score += weight;
     if (vote.side === ticket.side) score += 12;
     else score -= 25; // line-shop side fights pace — don't make this THE PLAY
-  } else if (/early season|no smash over/i.test(String(ticket.why || ""))) {
-    score -= 18;
+  } else if (/early season|no smash over|close number|no clear smash/i.test(String(ticket.why || ""))) {
+    score -= 40;
   }
 
   if (edge?.pace != null || edge?.fantasyPace != null) score += 10;
+
+  // Real proj/pace why beats a blank default for THE PLAY.
+  if (edge?.fantasyPace != null && Number.isFinite(Number(row.line))) {
+    const gap = Math.abs(Number(row.line) - Number(edge.fantasyPace));
+    if (gap >= 2) score += 28;
+  }
 
   // Flat boards (no injury/pace/shop): still prefer fading the juiciest print —
   // especially QB pass yards — so THE PLAY isn't a random first family seat.

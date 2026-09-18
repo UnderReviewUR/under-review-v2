@@ -1557,12 +1557,13 @@ export async function buildNflGoatBriefcase(opts = {}) {
 
       const fromProps = (briefcase.slate.playerProps || [])
         .map((r) => r.playerId)
-        .filter((id) => id != null)
-        .slice(0, 8);
+        .filter((id) => id != null);
+      // Prefer unique ids — board asks need more than 8 so WR/RB projs land for THE PLAY.
+      const uniqIds = [...new Set(fromProps.map((id) => String(id)))].slice(0, 24);
       const proj = await fetchNflBdlFantasyProjections({
         season,
         week: week ?? undefined,
-        playerIds: fromProps,
+        playerIds: uniqIds,
         apiKey: getNflBdlApiKey(),
       });
       endpoints["fantasy/projections"] = {

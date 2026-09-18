@@ -501,7 +501,9 @@ export async function buildNflFastAskContext(options = {}) {
   return {
     uiPlayers: {},
     promptContext,
+    // Fast lane: keep projections/stats so married prop path can vote Over/Under from evidence.
     briefcase: {
+      ...stubBriefcase,
       grade: interaction.grade,
       smooth: interaction.smooth,
       marketId: interaction.detected?.marketId || market.marketId,
@@ -512,6 +514,8 @@ export async function buildNflFastAskContext(options = {}) {
       requiredPct: interaction.requiredPct,
       propCatalog: null,
       promptBlock: goatPacket || "",
+      week,
+      season,
     },
     propLines,
     draft: { phase: "in_season" },

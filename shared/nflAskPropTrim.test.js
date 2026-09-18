@@ -1149,3 +1149,26 @@ test("fantasy proj under the number leans Under with proj why", async () => {
   assert.match(ticket.why, /244|Projection/i);
   assert.doesNotMatch(ticket.why, /Early season/i);
 });
+
+test("thin default copy is honest Speculative not smash language", async () => {
+  const { buildNflSidedPropRecoverCopy, inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
+  const primary = {
+    player: "Bo Nix",
+    team: "DEN",
+    prop: "passing yards",
+    propRaw: "passing_yards",
+    line: 230.5,
+    overOdds: -110,
+    underOdds: -110,
+  };
+  const ticket = inferNflPropTicketSide(primary, [primary], { openerWeek: true });
+  assert.match(ticket.why, /Close number|no clear smash/i);
+  const copy = buildNflSidedPropRecoverCopy({
+    primary,
+    boardRows: [],
+    allRows: [primary],
+    openerWeek: true,
+  });
+  assert.match(String(copy.edge), /Thin edge|Speculative/i);
+  assert.doesNotMatch(String(copy.edge), /Don't stack it/i);
+});

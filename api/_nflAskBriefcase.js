@@ -15,6 +15,8 @@ import {
   trimNflPlayerPropsForAsk,
   questionWantsNflMultiPropBoard,
 } from "../shared/nflAskPropTrim.js";
+import { looksLikeNflPropsBoardAsk } from "../shared/nflAskNormalize.js";
+import { looksLikeNflPropsRefreshAsk } from "../shared/nflAskPropsBatch.js";
 import {
   scrubNflMatchupPropLines,
   buildNflStaticPlayerTeamIndex,
@@ -246,7 +248,11 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
         hydrateRosters: false,
         hydrateAllRosters: false,
         hydrateDfs: false,
-        hydrateFantasy: Boolean(scoped) || questionWantsNflMultiPropBoard(question),
+        hydrateFantasy:
+          Boolean(scoped) ||
+          questionWantsNflMultiPropBoard(question) ||
+          looksLikeNflPropsBoardAsk(question) ||
+          looksLikeNflPropsRefreshAsk(question),
         maxStatPlayers: scoped ? 12 : 16,
         maxAdvancedPlayers: scoped ? 4 : 6,
       });
