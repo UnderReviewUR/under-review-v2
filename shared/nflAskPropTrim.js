@@ -7,6 +7,11 @@ import {
   buildNflPropEdgeForRow,
   voteNflPropEdgeSide,
 } from "./nflAskPropEdge.js";
+import {
+  nflOpenHistoryTossUpLean,
+  resolveNflPropPlayerSpread,
+  resolveNflPropVenue,
+} from "./nflAskPropOpenHistory.js";
 import { nflPlayerKeyIsExcluded, nflPropRowNearPriorBoardTicket } from "./nflAskPropsBatch.js";
 import {
   detectNflBoardScriptConflicts,
@@ -1005,13 +1010,36 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
     }
   }
 
-  if (openerWeek) {
+  // Toss-up: open-line settlement priors (2025 + 2026 YTD ADP top-75)
+  // — market / price EV / venue / spread / player instead of blanket Under.
+  const venue = resolveNflPropVenue(row, {
+    playerTeam: opts.playerTeam || row?.team || row?.teamAbbr || null,
+    venue: opts.venue || null,
+  });
+  const playerSpread = resolveNflPropPlayerSpread(row, opts.briefcase || null, {
+    playerTeam: opts.playerTeam || row?.team || row?.teamAbbr || null,
+    venue,
+    playerSpread: opts.playerSpread ?? null,
+  });
+  const hist = nflOpenHistoryTossUpLean({
+    player: String(row?.player || ""),
+    marketBase,
+    venue,
+    playerSpread,
+  });
+  if (openerWeek && hist.confidence === "neutral") {
     return {
       side: "Under",
       why: "Close number — no clear smash. Speculative lean Under.",
     };
   }
-  return { side: "Under", why: "Close number — no clear smash either way." };
+  if (openerWeek && hist.confidence !== "neutral") {
+    return {
+      side: hist.side,
+      why: `${hist.why} Speculative opener lean.`,
+    };
+  }
+  return { side: hist.side, why: hist.why };
 }
 
 /**

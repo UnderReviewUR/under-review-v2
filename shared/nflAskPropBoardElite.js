@@ -8,6 +8,7 @@ import {
   buildNflPropEdgeForRow,
   voteNflPropEdgeSide,
 } from "./nflAskPropEdge.js";
+import { detectNflSamePlayerJointConflicts } from "./nflAskPropOpenJoints.js";
 
 /**
  * @param {string} name
@@ -205,7 +206,10 @@ export function detectNflBoardScriptConflicts(sided) {
       }
     }
   }
-  return [...new Set(notes)].slice(0, 2);
+  const jointNotes = detectNflSamePlayerJointConflicts(legs, (row) =>
+    String(row?.propRaw || row?.prop || ""),
+  );
+  return [...new Set([...notes, ...jointNotes])].slice(0, 3);
 }
 
 /**
