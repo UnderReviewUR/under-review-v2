@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isNflScopedPropFastPath } from "./nflAskFastPath.js";
+import { isNflGamePriceAsk, isNflScopedPropFastPath } from "./nflAskFastPath.js";
+import { nflAskUsesMarriedPropPath, resolveNflAskModelLane } from "./nflAskModelRoute.js";
+import { detectNflAskMarket } from "./nflGoatExtractionContract.js";
 
 test("isNflScopedPropFastPath — Maye passing TD ask", () => {
   assert.equal(
@@ -9,6 +11,16 @@ test("isNflScopedPropFastPath — Maye passing TD ask", () => {
     ),
     true,
   );
+});
+
+test("home total nudge is a game-price ask, not a props fast path", () => {
+  const q = "On CAR @ ATL, the total is 43.5. Over, under, or pass? Give me the lean.";
+  assert.equal(detectNflAskMarket(q).marketId, "total");
+  assert.equal(isNflGamePriceAsk(q), true);
+  assert.equal(isNflScopedPropFastPath(q), false);
+  assert.equal(nflAskUsesMarriedPropPath(q), false);
+  assert.equal(nflAskUsesMarriedPropPath(q, { fastPathActive: true }), false);
+  assert.equal(resolveNflAskModelLane(q).lane, "sonnet");
 });
 
 test("isNflScopedPropFastPath — rejects draft futures", () => {

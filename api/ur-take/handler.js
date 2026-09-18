@@ -5825,49 +5825,58 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
     }
 
     if (nflAskUsesMarriedPropPath(question, { fastPathActive: nflFastPathActive })) {
-      const liveLine = nflMatchupMetaOut?.liveLine;
-      // Refresh follow-ups always reshuffle the board — don't stick on the prior primary liveLine.
+      const marriedMarketId = detectNflAskMarket(question)?.marketId;
+      // Defense in depth: never hijack game-price Asks into a props board.
       if (
-        liveLine &&
-        liveLine.line != null &&
-        !looksLikeNflPropsRefreshAsk(question)
+        marriedMarketId !== "total" &&
+        marriedMarketId !== "spread" &&
+        marriedMarketId !== "moneyline" &&
+        marriedMarketId !== "opinion"
       ) {
+        const liveLine = nflMatchupMetaOut?.liveLine;
+        // Refresh follow-ups always reshuffle the board — don't stick on the prior primary liveLine.
+        if (
+          liveLine &&
+          liveLine.line != null &&
+          !looksLikeNflPropsRefreshAsk(question)
+        ) {
+          return await shipNflMarriedTake(
+            buildNflLivePropBoardTake({
+              question,
+              liveLine,
+              defenseTier: nflMatchupMetaOut?.defenseTier,
+              defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
+              playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+              briefcase: nflAskGuardBriefcase,
+              propLines: nflAskGuardPropLines,
+              week: nflAskGuardBriefcase?.week ?? nflAskGuardGames?.[0]?.week,
+            }),
+            "nfl_named_prop_offline",
+          );
+        }
+        if (nflAskGuardPropLines.length > 0) {
+          return await shipNflMarriedTake(
+            buildNflPropsBoardFallbackTake({
+              question,
+              games: nflAskGuardGames,
+              propLines: nflAskGuardPropLines,
+              briefcase: nflAskGuardBriefcase,
+              history: normalizedUrTakeHistoryForGate,
+            }),
+            "nfl_named_prop_board",
+          );
+        }
+        // No posted line — ship PASS, don't burn Sonnet inventing one.
         return await shipNflMarriedTake(
           buildNflLivePropBoardTake({
             question,
-            liveLine,
-            defenseTier: nflMatchupMetaOut?.defenseTier,
-            defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
-            playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+            liveLine: null,
             briefcase: nflAskGuardBriefcase,
             propLines: nflAskGuardPropLines,
-            week: nflAskGuardBriefcase?.week ?? nflAskGuardGames?.[0]?.week,
           }),
-          "nfl_named_prop_offline",
+          "nfl_named_prop_no_line",
         );
       }
-      if (nflAskGuardPropLines.length > 0) {
-        return await shipNflMarriedTake(
-          buildNflPropsBoardFallbackTake({
-            question,
-            games: nflAskGuardGames,
-            propLines: nflAskGuardPropLines,
-            briefcase: nflAskGuardBriefcase,
-            history: normalizedUrTakeHistoryForGate,
-          }),
-          "nfl_named_prop_board",
-        );
-      }
-      // No posted line — ship PASS, don't burn Sonnet inventing one.
-      return await shipNflMarriedTake(
-        buildNflLivePropBoardTake({
-          question,
-          liveLine: null,
-          briefcase: nflAskGuardBriefcase,
-          propLines: nflAskGuardPropLines,
-        }),
-        "nfl_named_prop_no_line",
-      );
     }
 
     const nflLive = resolveNflAskLiveSignals({

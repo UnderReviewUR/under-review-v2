@@ -7,6 +7,18 @@
 import { shouldSkipNflLiveBoardForAsk } from "./nflAskBoardPolicy.js";
 import { looksLikeNflPropsBoardAsk, isNflPlayerIdentityAsk } from "./nflAskNormalize.js";
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
+import { detectNflAskMarket } from "./nflGoatExtractionContract.js";
+
+/** Game-price / thesis markets — never the married player-prop lane. */
+const NFL_GAME_PRICE_MARKET_IDS = new Set(["total", "spread", "moneyline", "opinion"]);
+
+/**
+ * @param {string} question
+ */
+export function isNflGamePriceAsk(question) {
+  const id = detectNflAskMarket(question)?.marketId;
+  return Boolean(id && NFL_GAME_PRICE_MARKET_IDS.has(id));
+}
 
 /**
  * @param {string} question
@@ -16,6 +28,8 @@ export function isNflScopedPropFastPath(question) {
   if (!q || shouldSkipNflLiveBoardForAsk(q)) return false;
   if (isNflTicketReviewAsk(q) || looksLikeNflPropsBoardAsk(q)) return false;
   if (isNflPlayerIdentityAsk(q)) return false;
+  // Home total/spread nudges look like "matchup + over/under + 43.5" — that is NOT a prop ask.
+  if (isNflGamePriceAsk(q)) return false;
 
   const lower = q.toLowerCase();
   const hasPropSignal =
