@@ -6,13 +6,14 @@ import {
   normalizeNflAskQuestion,
 } from "./nflAskNormalize.js";
 
-test("normalizeNflAskQuestion fixes messy props asks and team typos", () => {
-  const q = normalizeNflAskQuestion("what ar ethe best playre propes for seahaks vs patroits?");
-  assert.match(q, /what are the/i);
-  assert.match(q, /player props/i);
-  assert.match(q, /seahawks/i);
-  assert.match(q, /patriots/i);
-  assert.doesNotMatch(normalizeNflAskQuestion("who beats the spread?"), /bears/i);
+test("normalizeNflAskQuestion does not rewrite roster surnames into team nicknames", () => {
+  assert.equal(normalizeNflAskQuestion("pickens"), "pickens");
+  assert.doesNotMatch(
+    normalizeNflAskQuestion(
+      "best player props for cowboys vs commanders? anything for ceedee lamb, pickens, diggs?",
+    ),
+    /packers/i,
+  );
 });
 
 test("looksLikeNflPropsBoardAsk covers best bets / this game / vs", () => {

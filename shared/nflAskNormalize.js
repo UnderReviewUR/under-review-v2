@@ -2,6 +2,8 @@
  * Forgiving NFL Ask parse — typos, mashed words, messy “best props / best bets”.
  */
 
+import { nflBdlRosterHasSurnameToken } from "./nflBdlRosterLookup.js";
+
 const SKIP_FUZZY = new Set([
   "about",
   "and",
@@ -100,6 +102,8 @@ export function nflAskLevenshtein(a, b) {
 function closestNflNickname(token) {
   const w = String(token || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (w.length < 6 || SKIP_FUZZY.has(w)) return null;
+  // Never rewrite roster surnames (pickens → packers emptied DAL @ WAS boards).
+  if (nflBdlRosterHasSurnameToken(w)) return null;
   let best = null;
   let bestD = 99;
   for (const name of NFL_FUZZY_NICKNAMES) {

@@ -19,6 +19,11 @@ import {
   orderNflPropsBoardByPrimaryEdge,
   scoreNflPropPrimaryEdge,
 } from "./nflAskPropBoardElite.js";
+import {
+  nflBdlPreferredSkillMarket,
+  nflBdlRosterIsQb,
+  nflBdlRosterPosition,
+} from "./nflBdlRosterLookup.js";
 
 const NFL_ABBR_ALIAS = {
   WSH: ["WAS", "WSH"],
@@ -197,6 +202,8 @@ function scorePropRow(row, tokens, hints, opts = {}) {
   const passBoost = opts.multiBoard ? 12 : 28;
   if (market === "pass_yds") score += passBoost;
   else if (market === "rush_yds" || market === "rec_yds" || market === "pass_tds") score += 12;
+  score += roleMarketBoost(row);
+  if (isNflPassMarketOnNonQb(row)) score -= 200;
   // Featured usage beats depth by default. True misprices unlock a value seat later —
   // they do not leapfrog stars in the first-pass ranking.
   if (opts.volumeByPlayer && typeof opts.volumeByPlayer === "object") {
@@ -381,6 +388,38 @@ export function isNflHeadlineBoardMarket(row) {
 }
 
 /**
+ * Pass yards/TDs belong to QBs only — never seat an RB/WR on a pass market.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+export function isNflPassMarketOnNonQb(row) {
+  const market = nflPropMarketKeyBase(row);
+  if (market !== "pass_yds" && market !== "pass_tds") return false;
+  const name = String(row?.player || "");
+  if (!name) return false;
+  if (nflBdlRosterIsQb(name)) return false;
+  const pos = nflBdlRosterPosition(name);
+  // Known non-QB from roster truth, or known skill non-QB without a QB tag.
+  if (pos && pos !== "QB") return true;
+  return false;
+}
+
+/**
+ * Boost the featured skill main for a player's roster position.
+ * @param {Record<string, unknown>|null|undefined} row
+ */
+function roleMarketBoost(row) {
+  const preferred = nflBdlPreferredSkillMarket(String(row?.player || ""));
+  if (!preferred) return 0;
+  const market = nflPropMarketKeyBase(row);
+  if (market === preferred) return 40;
+  if (preferred === "pass_yds" && market === "pass_tds") return 20;
+  if (preferred === "rush_yds" && market === "rec_yds") return 10;
+  if (preferred === "rec_yds" && market === "receptions") return 10;
+  if ((market === "pass_yds" || market === "pass_tds") && preferred !== "pass_yds") return -80;
+  return 0;
+}
+
+/**
  * GOAT-tier best-board eligibility — live BDL props only, no depth/alt junk.
  * BDL returns thousands of alts; the board must stay on featured skill mains.
  * Depth names like Sione Vaki (KR/RB scraps) must never take a UR board seat.
@@ -396,6 +435,7 @@ export function isNflGoatFeaturedBoardRow(row, opts = {}) {
   if (!isNflHeadlineBoardMarket(row) && !NFL_SECONDARY_BOARD_MARKETS.has(nflPropMarketKeyBase(row))) {
     return false;
   }
+  if (isNflPassMarketOnNonQb(row)) return false;
   const market = nflPropMarketKeyBase(row);
   const line = Number(row.line);
   if (!Number.isFinite(line)) return false;
@@ -1426,6 +1466,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     // GOAT tier is mandatory — never fall back to depth/alt rows when the pool is thin.
     // Explicitly named players keep their rows even when under the GOAT floor.
     rows = rows.filter((p) => {
+      if (isNflPassMarketOnNonQb(p)) return false;
       if (
         namedTokensEarly.length &&
         namedTokensEarly.some((t) => {
@@ -1456,6 +1497,7 @@ export function pickNflPropsBoardTickets(props, opts = {}) {
     const namedSeen = new Set();
     const namedPool = collapseNflPropsToConsensusBoard(
       rowsBeforeGoat.filter((p) => {
+        if (isNflPassMarketOnNonQb(p)) return false;
         const n = String(p?.player || "").toLowerCase();
         return namedTokens.some((t) => n.includes(t) || n.split(/\s+/).pop() === t);
       }),

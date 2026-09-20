@@ -188,3 +188,87 @@ test("tonight board skips kicker XP, 0.5 rush, and tackles", () => {
   assert.match(blob, /Maye/i);
   assert.doesNotMatch(blob, /Barner|Borregales|Gonzalez|0\.5|extra points|tackles/i);
 });
+
+test("DAL @ WAS named board never seats RB on pass TDs; pickens stays Pickens", async () => {
+  const { normalizeNflAskQuestion } = await import("./nflAskNormalize.js");
+  const { NFL_BDL_ROSTER_SNAPSHOT } = await import("../api/data/nflBdlRosterSnapshot.js");
+  const q =
+    "best player props for cowboys vs commanders? anything for javonte williams, jayden daniels, spann ford, dak, ceedee lamb, pickens, diggs?";
+  assert.doesNotMatch(normalizeNflAskQuestion(q), /packers/i);
+  const props = [
+    line({
+      player: "Javonte Williams",
+      team: "DAL",
+      game: "WAS @ DAL",
+      prop: "passing tds",
+      propRaw: "passing_tds",
+      line: 0.5,
+    }),
+    line({
+      player: "Javonte Williams",
+      team: "DAL",
+      game: "WAS @ DAL",
+      prop: "rushing yards",
+      propRaw: "rushing_yards",
+      line: 45.5,
+    }),
+    line({
+      player: "CeeDee Lamb",
+      team: "DAL",
+      game: "WAS @ DAL",
+      prop: "receiving yards",
+      propRaw: "receiving_yards",
+      line: 78.5,
+    }),
+    line({
+      player: "Jayden Daniels",
+      team: "WAS",
+      game: "WAS @ DAL",
+      prop: "passing yards",
+      propRaw: "passing_yards",
+      line: 224.5,
+    }),
+    line({
+      player: "George Pickens",
+      team: "DAL",
+      game: "WAS @ DAL",
+      prop: "receiving yards",
+      propRaw: "receiving_yards",
+      line: 62.5,
+    }),
+    line({
+      player: "Stefon Diggs",
+      team: "WAS",
+      game: "WAS @ DAL",
+      prop: "receiving yards",
+      propRaw: "receiving_yards",
+      line: 54.5,
+    }),
+    line({
+      player: "Dak Prescott",
+      team: "DAL",
+      game: "WAS @ DAL",
+      prop: "passing yards",
+      propRaw: "passing_yards",
+      line: 248.5,
+    }),
+  ];
+  const tickets = pickNflPropsBoardTickets(props, {
+    question: q,
+    scope: ["DAL", "WAS"],
+    eventIds: ["1"],
+    playerTeamByName: NFL_BDL_ROSTER_SNAPSHOT.playerTeamByName,
+    maxTickets: 5,
+  });
+  assert.ok(tickets.length >= 3, tickets.map((t) => `${t.player} ${t.line}`).join(" | "));
+  assert.ok(
+    !tickets.some(
+      (t) => /williams/i.test(String(t.player)) && /pass/i.test(`${t.propRaw || ""} ${t.prop || ""}`),
+    ),
+  );
+  assert.ok(
+    tickets.some(
+      (t) => /williams/i.test(String(t.player)) && /rush/i.test(`${t.propRaw || ""} ${t.prop || ""}`),
+    ),
+  );
+});
