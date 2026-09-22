@@ -1223,14 +1223,14 @@ stress("F", "routing: WC thread lock on recreational bucks follow-up", () => {
     { role: "user", content: "Should I bet the spread here?", sport: "worldcup" },
     { role: "assistant", content: "SLIP VERDICT Fade", sport: "worldcup" },
   ];
-  assert.equal(
-    resolveSportHint({
-      incomingSportHint: "nba",
-      question: "I'm fine with making a few bucks tops",
-      chatHistory: history,
-    }),
-    "worldcup",
-  );
+  const hint = resolveSportHint({
+    incomingSportHint: "nba",
+    question: "I'm fine with making a few bucks tops",
+    chatHistory: history,
+  });
+  // World Cup is off the live nav. Stake talk must not become NBA or a dead WC thread.
+  assert.notEqual(hint, "nba");
+  assert.notEqual(hint, "worldcup");
   assert.equal(
     shouldLockWorldCupThreadSport({
       question: "I don't need an edge. I'm fine with making a few bucks tops",

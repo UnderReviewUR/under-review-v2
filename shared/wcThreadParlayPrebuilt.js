@@ -362,21 +362,16 @@ export function shouldBuildWcThreadParlay(question, history, wcIntent) {
   if (!q) return false;
   if (!(detectParlayIntent(q) || detectWcSgpComboIntent(q))) return false;
 
+  // Thread SGP is a 2-leg scorer + total. A named 3+ leg ticket is a different path.
+  const legCount = extractParlayLegCount(q);
+  if (legCount != null && legCount > 2) return false;
+
   if (isWcScorerTotalsSgpQuestion(q)) return true;
 
   const thread = extractWcThreadStateFromHistory(history);
   const totalsInQ = parseWcMatchGoalsOverUnder(q);
   const hasTotals = totalsInQ || thread.lastTotalsLean;
   if (!hasTotals) return false;
-
-  // N-leg player-only tickets — not cross-market SGP from thread totals.
-  if (/\b\d+\s*[- ]?player\s*parlay\b/i.test(q) && !totalsInQ) return false;
-  const legCount = extractParlayLegCount(q);
-  if (legCount != null && legCount >= 3 && !totalsInQ && !/\b(under|over)\s+\d/i.test(q)) {
-    return false;
-  }
-  // Thread SGP builder is strictly 2-leg scorer + totals.
-  if (legCount != null && legCount > 2) return false;
   // All "player parlay" asks use the fixture player-parlay path.
   if (/\bplayer\s*parlay\b/i.test(q)) return false;
 

@@ -924,7 +924,14 @@ export function resolveSportHint({
     return historySportLive;
   }
 
-  if (h && h !== "generic" && h !== "image_review") return h;
+  // "a few bucks" is stake talk. It must not inherit an NBA tab.
+  const hintSport =
+    h === "nba" &&
+    isCasualMoneyBucksPhrase(routingQuestion) &&
+    !hasStrongNbaOnlyLexicon(routingQuestion)
+      ? ""
+      : h;
+  if (hintSport && hintSport !== "generic" && hintSport !== "image_review") return hintSport;
 
   if (
     golfContext &&
