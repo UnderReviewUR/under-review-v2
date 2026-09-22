@@ -612,10 +612,12 @@ function extractPlayDecision(summary, deep, call, opts = {}) {
   // Correlation / cleaner-leg analysis — keep a Pass + cleaner decision, name the player.
   if (/\b(correlated|correlation|cleaner leg)\b/i.test(question)) {
     const named = extractWcNamedPlayerFromQuestion(question);
-    const cleaner =
-      deep.match(/cleaner leg:\s*([^.!?\n]+)/i)?.[1]?.trim() ||
-      summary.match(/cleaner leg:\s*([^.!?\n]+)/i)?.[1]?.trim() ||
-      "";
+    const cleanerSent = splitWcSentences(`${summary}\n${deep}`).find((s) =>
+      /cleaner leg:/i.test(s),
+    );
+    const cleaner = cleanerSent
+      ? cleanerSent.replace(/^.*?cleaner leg:\s*/i, "").replace(/[.!?]+$/, "").trim()
+      : "";
     if (cleaner) {
       return named
         ? `Pass — ${named} legs share one script; cleaner: ${cleaner}.`

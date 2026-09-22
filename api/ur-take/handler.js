@@ -3072,6 +3072,7 @@ export default async function handler(req, res) {
   let wcStrengthTags = {};
   // All World Cup routing decisions now live in shared/wcTurnPlanner.js.
   // Do not add new routing logic or shouldUseWc* guards here.
+  let wcEventIdTrimmed = null;
   if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
@@ -3102,7 +3103,7 @@ export default async function handler(req, res) {
     wcRelevanceLog.playerPropDetected = isWcPlayerMarketIntent(wcIntent);
     wcRelevanceLog.playerMarketTier = wcContext?.playerMarketTier || null;
     const historyPinnedFixture = resolveWcFixturePairFromHistory(normalizedUrTakeHistoryForGate);
-    const wcEventIdTrimmed =
+    wcEventIdTrimmed =
       incomingWcEventId != null && String(incomingWcEventId).trim()
         ? String(incomingWcEventId).trim()
         : historyPinnedFixture?.eventId
@@ -8855,7 +8856,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
       }
     }
 
-    if (!isPro) {
+    if (!isPro && !isGoldenEvalMode()) {
       if (structuredResponse && typeof structuredResponse === "object") {
         structuredResponse = maskStructuredForFreeTier(structuredResponse);
         if (sportHint === "worldcup" && wcIntent !== WC_INTENT.RULES) {
