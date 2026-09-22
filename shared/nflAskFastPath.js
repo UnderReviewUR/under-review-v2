@@ -7,17 +7,13 @@
 import { shouldSkipNflLiveBoardForAsk } from "./nflAskBoardPolicy.js";
 import { looksLikeNflPropsBoardAsk, isNflPlayerIdentityAsk } from "./nflAskNormalize.js";
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
-import { detectNflAskMarket } from "./nflGoatExtractionContract.js";
-
-/** Game-price / thesis markets — never the married player-prop lane. */
-const NFL_GAME_PRICE_MARKET_IDS = new Set(["total", "spread", "moneyline", "opinion"]);
+import { parseNflFirstAsk } from "./nflAskParse.js";
 
 /**
  * @param {string} question
  */
 export function isNflGamePriceAsk(question) {
-  const id = detectNflAskMarket(question)?.marketId;
-  return Boolean(id && NFL_GAME_PRICE_MARKET_IDS.has(id));
+  return parseNflFirstAsk(question).lane === "game_price";
 }
 
 /**

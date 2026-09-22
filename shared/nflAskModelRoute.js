@@ -8,11 +8,11 @@
 import { looksLikeNflPropsBoardAsk, isNflPlayerIdentityAsk } from "./nflAskNormalize.js";
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 import {
-  isNflGamePriceAsk,
   isNflScopedPropFastPath,
   NFL_UR_TAKE_FAST_MODEL_DEFAULT,
 } from "./nflAskFastPath.js";
 import { looksLikeNflPropsRefreshAsk } from "./nflAskPropsBatch.js";
+import { parseNflFirstAsk } from "./nflAskParse.js";
 
 /**
  * @param {unknown} raw
@@ -43,15 +43,15 @@ export function nflAskPropsBoardUsesOffline(question) {
  * @param {{ fastPathActive?: boolean }} [opts]
  */
 export function nflAskUsesMarriedPropPath(question, opts = {}) {
+  const ask = parseNflFirstAsk(question);
+  if (ask.lane === "game_price" || ask.lane === "identity" || ask.lane === "ticket_review") return false;
   if (isNflTicketReviewAsk(question)) return false;
   if (isNflPlayerIdentityAsk(question)) return false;
-  // Game total / spread / ML / who-wins — never ship a player-props board.
-  if (isNflGamePriceAsk(question)) return false;
-  if (nflAskPropsBoardUsesOffline(question)) return true;
-  if (looksLikeNflPropsRefreshAsk(question)) return true;
+  if (ask.lane === "props_board") {
+    return nflAskPropsBoardUsesOffline(question) || looksLikeNflPropsRefreshAsk(question);
+  }
+  if (ask.lane === "named_prop") return true;
   if (isNflScopedPropFastPath(question)) return true;
-  // Sticky fast-path from a prior prop turn: only keep married if THIS ask still
-  // looks ticket-shaped — not "Who is Vaki?" or a total lean.
   if (opts.fastPathActive) {
     const q = String(question || "");
     return /\b(over|under|prop|line|ticket|yards?|tds?|fade|lean|play)\b/i.test(q);
