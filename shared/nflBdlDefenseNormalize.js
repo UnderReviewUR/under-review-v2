@@ -33,6 +33,10 @@ export function buildDefenseMapFromBdlTeamSeasonStats(rows, meta = {}) {
         num(row.opp_total_points_per_game) ??
         num(row.opp_points_per_game) ??
         null;
+      const ptsScored =
+        num(row.total_points_per_game) ??
+        num(row.points_per_game) ??
+        null;
       const passYds =
         num(row.opp_passing_yards_per_game) ??
         num(row.opp_net_passing_yards_per_game) ??
@@ -56,6 +60,7 @@ export function buildDefenseMapFromBdlTeamSeasonStats(rows, meta = {}) {
         conf: String(row?.team?.conference || ""),
         season: meta.season ?? row.season ?? null,
         ptsAllowed: pts,
+        ptsScored,
         passYdsAllowed: passYds,
         rushYdsAllowed: rushYds,
         ydsAllowed: yds,
@@ -108,6 +113,7 @@ export function buildDefenseMapFromBdlTeamSeasonStats(rows, meta = {}) {
       bettingAngles: [],
       note: `Live season defense (${t.gamesPlayed ?? "?"}g) — ranks from opponent yards/points allowed, not DVOA.`,
       gamesPlayed: t.gamesPlayed,
+      ptsScored: t.ptsScored,
     };
   }
   return out;
@@ -132,6 +138,8 @@ export function mergeNflDefenseMaps(live, staticMap) {
         source: prev.source || "static_prior",
         liveDeferred: true,
         gamesPlayed: liveGp || prev.gamesPlayed || 0,
+        ptsScored: row.ptsScored ?? prev.ptsScored ?? null,
+        livePtsAllowed: row.overall?.ptsAllowed ?? prev.livePtsAllowed ?? null,
       };
       continue;
     }

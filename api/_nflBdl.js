@@ -621,7 +621,9 @@ export async function fetchNflBdlDefenseMap(opts) {
         Object.keys(cached.defenseByTeam).length >= 20
       ) {
         const age = cached.fetchedAt ? Date.now() - Number(cached.fetchedAt) : Infinity;
-        if (age < DEFENSE_TTL_SEC * 1000) {
+        const sample = Object.values(cached.defenseByTeam)[0];
+        const hasScoring = sample && Number.isFinite(Number(sample.ptsScored));
+        if (age < DEFENSE_TTL_SEC * 1000 && hasScoring) {
           return {
             defenseByTeam: cached.defenseByTeam,
             source: "kv_cache",

@@ -17,7 +17,11 @@ import {
 } from "./_nflPropsFetch.js";
 import { normalizeNflScoreboardGame } from "./_nflBoardNormalize.js";
 import { getNflPropsForBoard } from "./_nflProps.js";
-import { pickNflGamesForScope } from "../shared/nflAskPropTrim.js";
+import {
+  matchupGameForScope,
+  pickNflGamesForScope,
+  selectNflWeekContainingMatchup,
+} from "../shared/nflAskPropTrim.js";
 import { inferNflSeasonYear } from "../shared/bdlSeasonDefaults.js";
 import {
   fetchNflBdlPlayerPropsForGame,
@@ -54,21 +58,26 @@ function mergeBdlOddsOntoGame(game, oddsRow) {
   const spreadHome = oddsRow.spread?.home != null ? Number(oddsRow.spread.home) : null;
   return {
     ...game,
-    spread:
-      game.spread ||
-      (Number.isFinite(spreadHome)
-        ? {
-            favoriteAbbr: spreadHome < 0 ? home : away,
-            favoritePoint: Math.abs(spreadHome),
-            displayLine:
-              spreadHome < 0
-                ? `${home} ${oddsRow.spread.home}`
-                : `${away} ${oddsRow.spread.away}`,
-          }
-        : null),
+    spread: Number.isFinite(spreadHome)
+      ? {
+          favoriteAbbr: spreadHome < 0 ? home : away,
+          favoritePoint: Math.abs(spreadHome),
+          displayLine:
+            spreadHome < 0
+              ? `${home} ${oddsRow.spread.home}`
+              : `${away} ${oddsRow.spread.away}`,
+          homeOdds: oddsRow.spread.homeOdds ?? null,
+          awayOdds: oddsRow.spread.awayOdds ?? null,
+        }
+      : game.spread || null,
     total:
-      game.total ||
-      (oddsRow.total?.line != null ? { line: Number(oddsRow.total.line) } : null),
+      oddsRow.total?.line != null
+        ? {
+            line: Number(oddsRow.total.line),
+            overOdds: oddsRow.total.overOdds ?? null,
+            underOdds: oddsRow.total.underOdds ?? null,
+          }
+        : game.total || null,
     moneyline:
       game.moneyline ||
       (oddsRow.moneyline
@@ -110,8 +119,31 @@ export async function buildNflBdlLiveBoard(opts = {}) {
   if (!Number.isFinite(season)) season = inferNflSeasonYear();
   if (!Number.isFinite(week)) week = 1;
 
+  const scopeSet =
+    opts.scopeAbbrs instanceof Set
+      ? opts.scopeAbbrs
+      : Array.isArray(opts.scopeAbbrs) && opts.scopeAbbrs.length
+        ? new Set(opts.scopeAbbrs.map((x) => String(x || "").toUpperCase()))
+        : null;
+
   const gamesRes = await fetchNflBdlWeekGames({ season, week });
   let games = Array.isArray(gamesRes.games) ? gamesRes.games : [];
+  if (scopeSet?.size >= 2 && !matchupGameForScope(games, scopeSet)) {
+    /** @type {Array<{ week: number, games: Array<Record<string, unknown>> }>} */
+    const loaded = [{ week, games }];
+    for (const nextWeek of [week + 1, week + 2, week - 1]) {
+      if (nextWeek < 1 || nextWeek === week) continue;
+      const next = await fetchNflBdlWeekGames({ season, week: nextWeek });
+      const nextGames = Array.isArray(next.games) ? next.games : [];
+      loaded.push({ week: nextWeek, games: nextGames });
+      if (matchupGameForScope(nextGames, scopeSet)) break;
+    }
+    const chosen = selectNflWeekContainingMatchup(loaded, scopeSet);
+    if (chosen?.games?.length) {
+      week = chosen.week;
+      games = chosen.games;
+    }
+  }
   const oddsRes = await fetchNflBdlWeekOdds({ season, week });
   const oddsById = new Map(
     (oddsRes.rows || []).map((r) => [String(r.game_id), r]),
@@ -126,12 +158,6 @@ export async function buildNflBdlLiveBoard(opts = {}) {
   const wantProps = Boolean(opts.includeProps) || opts.gameId != null;
   if (wantProps && games.length) {
     let targets = games;
-    const scopeSet =
-      opts.scopeAbbrs instanceof Set
-        ? opts.scopeAbbrs
-        : Array.isArray(opts.scopeAbbrs) && opts.scopeAbbrs.length
-          ? new Set(opts.scopeAbbrs.map((x) => String(x || "").toUpperCase()))
-          : null;
     if (scopeSet?.size) {
       const scoped = pickNflGamesForScope(targets, scopeSet);
       if (scoped.length) targets = scoped;

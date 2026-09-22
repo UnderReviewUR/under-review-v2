@@ -32,6 +32,8 @@ import {
   shouldNflPropsRefreshBatch,
 } from "./nflAskPropsBatch.js";
 import { classifyNflAskFollowUp } from "./nflAskTurn.js";
+import { isNflGamePriceAsk } from "./nflAskFastPath.js";
+import { buildNflGamePriceTake } from "./nflAskGamePrice.js";
 
 const CONF_RANK = Object.freeze({ Speculative: 0, Medium: 1, High: 2 });
 const PRICED_MARKET_IDS = new Set(["spread", "total", "moneyline", "sgp"]);
@@ -864,6 +866,13 @@ function applyPropsBoardRecoverToStructured(structured, question, games, propLin
  */
 export function buildNflPropsBoardFallbackTake(opts = {}) {
   const question = String(opts.question || "");
+  if (isNflGamePriceAsk(question)) {
+    return buildNflGamePriceTake({
+      question,
+      games: Array.isArray(opts.games) ? opts.games : [],
+      briefcase: opts.briefcase,
+    });
+  }
   let games = Array.isArray(opts.games) ? opts.games : [];
   let propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
   const followKind = classifyNflAskFollowUp(question, opts.history);

@@ -1789,6 +1789,37 @@ export function diversifyNflPropsBoardSides(picked, allRows, pool, opts = {}) {
  * @param {Array<{ awayAbbr?: string, homeAbbr?: string }>} games
  * @param {Set<string>|string[]} scope
  */
+/**
+ * The one game that has both scoped clubs. A week that only has each club
+ * in a different game is not the matchup.
+ * @param {Array<{ awayAbbr?: string, homeAbbr?: string }>} games
+ * @param {Set<string>|string[]} scope
+ */
+export function matchupGameForScope(games, scope) {
+  const set = expandScope(scope);
+  if (set.size < 2) return null;
+  return (
+    (games || []).find((g) => {
+      const away = String(g?.awayAbbr || "").toUpperCase();
+      const home = String(g?.homeAbbr || "").toUpperCase();
+      return set.has(away) && set.has(home);
+    }) || null
+  );
+}
+
+/**
+ * Prefer the week that actually contains the named matchup.
+ * @param {Array<{ week: number, games: Array<Record<string, unknown>> }>} weeks
+ * @param {Set<string>|string[]} scope
+ */
+export function selectNflWeekContainingMatchup(weeks, scope) {
+  const list = Array.isArray(weeks) ? weeks : [];
+  for (const row of list) {
+    if (matchupGameForScope(row?.games, scope)) return row;
+  }
+  return list[0] || null;
+}
+
 export function pickNflGamesForScope(games, scope) {
   const set = expandScope(scope);
   if (!set.size) return Array.isArray(games) ? games : [];

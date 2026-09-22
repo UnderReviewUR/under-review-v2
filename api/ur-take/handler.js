@@ -406,6 +406,8 @@ import { buildCanonicalNflContext } from "../_nflContext.js";
 import { buildNcaafContextForAsk } from "../_ncaafContext.js";
 import { buildLaligaContextForAsk } from "../_laligaContext.js";
 import { applyNflAskGuard, buildNflPassStructuredTake, buildNflLivePropBoardTake, buildNflPropsBoardFallbackTake, resolveNflSuitcaseGuard } from "../../shared/nflAskGuard.js";
+import { buildNflGamePriceTake } from "../../shared/nflAskGamePrice.js";
+import { isNflGamePriceAsk } from "../../shared/nflAskFastPath.js";
 import { detectNflAskMarket } from "../../shared/nflGoatExtractionContract.js";
 import {
   nflAskPropsBoardUsesOffline,
@@ -5814,6 +5816,18 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       });
       return res.status(200).json(responseBody);
     };
+
+    if (isNflGamePriceAsk(question)) {
+      return await shipNflMarriedTake(
+        buildNflGamePriceTake({
+          question,
+          games: nflAskGuardGames,
+          briefcase: nflAskGuardBriefcase,
+        }),
+        "nfl_game_price",
+        { skipPolish: true },
+      );
+    }
 
     const nflFollowKind = classifyNflAskFollowUp(question, normalizedUrTakeHistoryForGate);
     const nflHoldTake = buildNflFollowUpHoldTake(question, normalizedUrTakeHistoryForGate);
