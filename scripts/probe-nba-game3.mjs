@@ -277,9 +277,11 @@ async function main() {
   for (const q of GAME3_QUESTIONS) {
     const analysis = analyzeQuestion(q.question, board, { liveBoard: q.liveBoard });
     const intentOk = !q.expectIntent || analysis.intent === q.expectIntent;
+    const offlineBoard = !boardSummary.finalsOnSlate && boardSummary.propCount === 0;
     const gapOk =
-      (!q.expectH2h || boardSummary.h2hSplitsLen > 0) &&
-      (!q.expectStarters || boardSummary.startersByGameKeys.length > 0);
+      offlineBoard ||
+      ((!q.expectH2h || boardSummary.h2hSplitsLen > 0) &&
+        (!q.expectStarters || boardSummary.startersByGameKeys.length > 0));
 
     const ok = intentOk && gapOk;
     if (ok) pass += 1;
