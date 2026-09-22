@@ -185,6 +185,8 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
   const teams = new Set();
   /** @type {Set<string>} */
   const tokens = new Set();
+  /** @type {Set<string>} */
+  const names = new Set();
 
   // Full names first — "aj brown" and "a.j. brown" both normalize onto the
   // snapshot key, where the bare surname is one of 26 Browns. Also match
@@ -200,8 +202,10 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
       const key = normalizePlayerKey(window.join(" "));
       if (!key) continue;
       let team = index[key] ? String(index[key]).toUpperCase() : "";
+      /** @type {string[]} */
+      let ends = [];
       if (!team) {
-        const ends = Object.keys(index).filter((k) => {
+        ends = Object.keys(index).filter((k) => {
           const kn = normalizePlayerKey(k);
           return kn === key || kn.endsWith(` ${key}`);
         });
@@ -209,6 +213,8 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
       }
       if (!team) continue;
       teams.add(team);
+      const canon = index[key] != null ? key : ends.length === 1 ? normalizePlayerKey(ends[0]) : "";
+      if (canon) names.add(canon);
       for (let k = 0; k < size; k += 1) {
         consumed.add(i + k);
         tokens.add(window[k]);
@@ -223,6 +229,14 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
     if (!team) continue;
     teams.add(team);
     tokens.add(raw);
+    const lastKeys = (maps.byLast.get(raw) || []).filter(
+      (kn) => String(index[kn] || "").toUpperCase() === team,
+    );
+    const firstKeys = (maps.byFirst.get(raw) || []).filter(
+      (kn) => String(index[kn] || "").toUpperCase() === team,
+    );
+    const keyHit = lastKeys.length === 1 ? lastKeys[0] : firstKeys.length === 1 ? firstKeys[0] : "";
+    if (keyHit) names.add(keyHit);
   }
 
   if (teams.size) {
@@ -232,12 +246,31 @@ export function nflAskNamedPlayerHits(question, teamIndex) {
       const inScope = lasts.filter((kn) => teams.has(String(index[kn] || "").toUpperCase()));
       if (inScope.length === 1) {
         tokens.add(raw);
+        names.add(inScope[0]);
         teams.add(String(index[inScope[0]] || "").toUpperCase());
       }
     }
   }
 
-  return { teams, tokens: [...tokens] };
+  // Unique 3-letter first names (Dak). Only when one roster key starts with that token.
+  for (const raw of words) {
+    if (tokens.has(raw) || NAME_STOP.has(raw) || raw.length !== 3) continue;
+    const prefixHits = Object.keys(index).filter((k) => {
+      const kn = normalizePlayerKey(k);
+      const parts = kn.split(" ").filter(Boolean);
+      return parts.length >= 2 && parts[0] === raw;
+    });
+    const scoped = teams.size
+      ? prefixHits.filter((k) => teams.has(String(index[k] || "").toUpperCase()))
+      : prefixHits;
+    const hit = scoped.length === 1 ? scoped[0] : prefixHits.length === 1 ? prefixHits[0] : "";
+    if (!hit) continue;
+    tokens.add(raw);
+    names.add(normalizePlayerKey(hit));
+    teams.add(String(index[hit] || "").toUpperCase());
+  }
+
+  return { teams, tokens: [...tokens], names: [...names] };
 }
 
 function teamFromStatedName(raw, index, maps, question = "") {

@@ -1172,3 +1172,25 @@ test("thin default copy is honest Speculative not smash language", async () => {
   assert.match(String(copy.edge), /Thin edge|Speculative/i);
   assert.doesNotMatch(String(copy.edge), /Don't stack it/i);
 });
+
+test("pace and player-history disagreement is a pass", async () => {
+  const { inferNflPropTicketSide } = await import("./nflAskPropTrim.js");
+  const row = {
+    player: "Jayden Daniels",
+    team: "WAS",
+    prop: "passing yards",
+    propRaw: "passing_yards",
+    line: 200.5,
+    overOdds: -110,
+    underOdds: -110,
+  };
+  const ticket = inferNflPropTicketSide(row, [row], {
+    briefcase: {
+      fantasy: { projections: [{ player: "Jayden Daniels", passing_yards: 260 }] },
+    },
+  });
+  assert.equal(ticket.side, "Pass");
+  assert.equal(ticket.conflict, true);
+  assert.match(ticket.why, /Pace says Over/i);
+  assert.match(ticket.why, /Open history says Under/i);
+});

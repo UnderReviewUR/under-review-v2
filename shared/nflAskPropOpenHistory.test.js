@@ -12,6 +12,16 @@ import {
 } from "./nflAskPropOpenHistory.js";
 import { inferNflPropTicketSide } from "./nflAskPropTrim.js";
 
+test("toss-up lean does not read weather or rest", () => {
+  const lean = nflOpenHistoryTossUpLean({
+    marketBase: "rush_yds",
+    player: "Random Guy",
+    venue: "away",
+    playerSpread: 10,
+  });
+  assert.doesNotMatch(`${lean.side} ${lean.why}`, /weather|wind|rain|dome|days rest/i);
+});
+
 test("anytime_td open prior leans Under", () => {
   const prior = nflOpenPropPrior("anytime_td");
   assert.ok(prior);

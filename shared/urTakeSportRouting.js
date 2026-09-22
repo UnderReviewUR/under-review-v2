@@ -874,6 +874,17 @@ export function resolveSportHint({
   const hCoerced = hRaw ? coerceUrAskSportToLiveSurface(hRaw, routingQuestion) : "";
   const h = hCoerced && hCoerced !== "generic" ? hCoerced : hRaw && isNavSportVisible(hRaw) ? hRaw : "";
 
+  // An explicit NFL / NBA / college / La Liga / MLB question leaves a World Cup tab.
+  if (
+    textualSport === "nfl" ||
+    textualSport === "nba" ||
+    textualSport === "cfb" ||
+    textualSport === "laliga" ||
+    textualSport === "mlb"
+  ) {
+    return textualSport;
+  }
+
   // Explicit WC tab hint only when World Cup is a live product surface.
   if (hRaw === "worldcup" && isNavSportVisible("worldcup")) return "worldcup";
 

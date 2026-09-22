@@ -9,6 +9,14 @@ import {
   shouldLockWorldCupThreadSport,
 } from "./urTakeSportRouting.js";
 
+test("NFL props leave a World Cup tab", () => {
+  const hint = resolveSportHint({
+    incomingSportHint: "worldcup",
+    question: "best player props for cowboys vs commanders?",
+  });
+  assert.equal(hint, "nfl");
+});
+
 test("James Cook rush yards vs PHI is NFL, not NBA james/PHI", () => {
   const q = "James Cook rush yards vs PHI — over or under 72.5?";
   assert.equal(hasNflAskLexicon(q), true);

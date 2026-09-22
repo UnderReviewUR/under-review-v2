@@ -44,28 +44,25 @@ export function slimNflMarriedStructuredForDelivery(structured) {
 }
 
 /**
- * Lean prose for married props boards — no MATCH READ / MARKET echo chamber.
+ * Lean prose for married props boards — one play, the board, one kill.
  * @param {Record<string, unknown>|null|undefined} s
  */
 export function formatNflMarriedBoardProse(s) {
   if (!s || typeof s !== "object") return "";
-  const lean = String(s.lean || "").trim();
-  const call = String(s.call || "").trim();
+  const lean = String(s.lean || "").replace(/^Lean:\s*/i, "").trim();
   const conf = String(s.confidence || "").trim();
   const why = String(s.whyNow || "").trim();
-  const edge = String(s.edge || "").trim();
-  const injury = String(s.analysis?.injuryContext || "").trim();
+  const caveats = Array.isArray(s.caveats)
+    ? s.caveats.map((c) => String(c || "").trim()).filter(Boolean)
+    : [];
+  const kill =
+    caveats.find((c) => /number is a lot/i.test(c) && !why.toLowerCase().includes(c.toLowerCase().slice(0, 40))) ||
+    caveats.find((c) => !/^early season/i.test(c) && !why.toLowerCase().includes(c.toLowerCase().slice(0, 48))) ||
+    "";
   const lines = [];
   if (lean) lines.push(lean);
-  if (call) lines.push(`THE PLAY: ${call}`);
-  if (conf) lines.push(`CONFIDENCE\n${conf}`);
+  if (conf) lines.push(conf);
   if (why) lines.push(why);
-  if (edge) lines.push(edge);
-  if (injury) lines.push(`INJURY / AVAILABILITY\n${injury}`);
-  if (Array.isArray(s.caveats) && s.caveats.length) {
-    lines.push(
-      `WHAT KILLS IT\n${s.caveats.map((c) => String(c).trim()).filter(Boolean).join("\n")}`,
-    );
-  }
+  if (kill) lines.push(`Kills it\n${kill}`);
   return lines.filter(Boolean).join("\n\n");
 }

@@ -4,6 +4,11 @@
 import { isNflTicketReviewAsk } from "./nflAskTicketParse.js";
 import { nflAskNamedPlayerHits } from "./nflAskScope.js";
 import {
+  looksLikeNflPropsRefreshAsk,
+  nflPlayerKeyIsExcluded,
+  nflPropRowNearPriorBoardTicket,
+} from "./nflAskPropsBatch.js";
+import {
   buildNflPropEdgeForRow,
   voteNflPropEdgeSide,
 } from "./nflAskPropEdge.js";
@@ -12,7 +17,6 @@ import {
   resolveNflPropPlayerSpread,
   resolveNflPropVenue,
 } from "./nflAskPropOpenHistory.js";
-import { nflPlayerKeyIsExcluded, nflPropRowNearPriorBoardTicket } from "./nflAskPropsBatch.js";
 import {
   detectNflBoardScriptConflicts,
   nflPropBatch2PassesFloor,
@@ -995,12 +999,50 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   }
 
   const evidence = voteNflPropEdgeSide(row, marketBase, edge, { openerWeek });
-  if (evidence) {
-    // Never sell Over on a high catch number as a “best” ticket.
-    if (evidence.side === "Over" && isNflHighReceptionsLine(row)) {
-      return { side: "Under", why: `${line} receptions is a high catch number — I'd rather fade it.` };
-    }
-    return evidence;
+  const receptionsFade =
+    evidence?.side === "Over" && isNflHighReceptionsLine(row)
+      ? { side: "Under", why: `${line} receptions is a high catch number — I'd rather fade it.` }
+      : evidence;
+  const over = Number(row?.overOdds);
+  const under = Number(row?.underOdds);
+  const priceSignal =
+    Number.isFinite(over) && Number.isFinite(under) && Math.abs(over - under) >= 20
+      ? over > under
+        ? { side: "Over", why: "Over is hanging the better price." }
+        : { side: "Under", why: "Under is hanging the better price." }
+      : null;
+  const venue = resolveNflPropVenue(row, {
+    playerTeam: opts.playerTeam || row?.team || row?.teamAbbr || null,
+    venue: opts.venue || null,
+  });
+  const playerSpread = resolveNflPropPlayerSpread(row, opts.briefcase || null, {
+    playerTeam: opts.playerTeam || row?.team || row?.teamAbbr || null,
+    venue,
+    playerSpread: opts.playerSpread ?? null,
+  });
+  const hist = nflOpenHistoryTossUpLean({
+    player: String(row?.player || ""),
+    marketBase,
+    venue,
+    playerSpread,
+  });
+  const strongHist = ["price", "player", "venue", "spread"].includes(hist.confidence);
+  /** @type {Array<{ label: string, side: string, why: string }>} */
+  const signals = [];
+  if (receptionsFade) signals.push({ label: "Pace", side: receptionsFade.side, why: receptionsFade.why });
+  if (priceSignal) signals.push({ label: "Price", side: priceSignal.side, why: priceSignal.why });
+  if (strongHist) signals.push({ label: "Open history", side: hist.side, why: hist.why });
+  const signalSides = new Set(signals.map((s) => s.side));
+  if (signals.length >= 2 && signalSides.size > 1) {
+    return {
+      side: "Pass",
+      conflict: true,
+      why: signals.map((s) => `${s.label} says ${s.side}: ${s.why}`).join(" "),
+    };
+  }
+
+  if (receptionsFade) {
+    return receptionsFade;
   }
 
   if (isNflHighReceptionsLine(row)) {
@@ -1010,13 +1052,7 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
   if (nflPropMarketKey(row) === "pass_yds" && Number.isFinite(line) && line >= 275) {
     return { side: "Under", why: `${line} is a high passing-yards number.` };
   }
-  const over = Number(row?.overOdds);
-  const under = Number(row?.underOdds);
-  // Tiny juice gaps (-110 vs -105) are not an edge — need a real price gap.
-  if (Number.isFinite(over) && Number.isFinite(under) && Math.abs(over - under) >= 20) {
-    if (over > under) return { side: "Over", why: "Over is hanging the better price." };
-    return { side: "Under", why: "Under is hanging the better price." };
-  }
+  if (priceSignal) return priceSignal;
 
   // Soft fantasy/pace lean before the opener Under default — don't ignore a 268 proj on 264.5.
   if (edge?.fantasyPace != null && Number.isFinite(line)) {
@@ -1052,21 +1088,6 @@ export function inferNflPropTicketSide(row, allRows = [], opts = {}) {
 
   // Toss-up: open-line settlement priors (2025 + 2026 YTD ADP top-75)
   // — market / price EV / venue / spread / player instead of blanket Under.
-  const venue = resolveNflPropVenue(row, {
-    playerTeam: opts.playerTeam || row?.team || row?.teamAbbr || null,
-    venue: opts.venue || null,
-  });
-  const playerSpread = resolveNflPropPlayerSpread(row, opts.briefcase || null, {
-    playerTeam: opts.playerTeam || row?.team || row?.teamAbbr || null,
-    venue,
-    playerSpread: opts.playerSpread ?? null,
-  });
-  const hist = nflOpenHistoryTossUpLean({
-    player: String(row?.player || ""),
-    marketBase,
-    venue,
-    playerSpread,
-  });
   if (openerWeek && hist.confidence === "neutral") {
     return {
       side: "Under",
@@ -1223,6 +1244,9 @@ export function formatNflSidedPropBoardList(rows, allRows = [], openerWeek = fal
     .map((row, i) => {
       const t = inferNflPropTicketSide(row, allRows, { openerWeek, briefcase });
       const last = shortPlayerLast(row.player);
+      if (t.side === "Pass") {
+        return `${i + 1}. ${last} — no side on ${row.line} (${prettyPropLabel(row)})`;
+      }
       return `${i + 1}. ${last} ${t.side.toLowerCase()} ${row.line} (${prettyPropLabel(row)})`;
     })
     .join("\n");
@@ -1252,6 +1276,7 @@ export function buildNflSidedBoardConflictNotes(rows, allRows = [], openerWeek =
  *   boardRows?: Array<Record<string, unknown>>,
  *   openerWeek?: boolean,
  *   briefcase?: Record<string, unknown>|null,
+ *   missingNames?: string[],
  * }} opts
  */
 export function buildNflSidedPropRecoverCopy(opts) {
@@ -1265,31 +1290,37 @@ export function buildNflSidedPropRecoverCopy(opts) {
   const last = shortPlayerLast(primary.player);
   const line = primary.line;
   const propLabel = prettyPropLabel(primary);
-  // Keep lean directional and short — no essay in the header.
-  const lean = `Lean: ${last} ${ticket.side.toLowerCase()} ${line}.`.slice(0, 120);
-  const call = `${last.toUpperCase()} ${ticket.side.toUpperCase()} ${line}`;
+  const conflicted = ticket.side === "Pass" || Boolean(ticket.conflict);
+  const lean = conflicted
+    ? "Pass. The reads on this number disagree."
+    : `Lean: ${last} ${ticket.side.toLowerCase()} ${line} ${propLabel}.`.slice(0, 140);
+  const call = conflicted ? "PASS" : `${last.toUpperCase()} ${ticket.side.toUpperCase()} ${line}`;
+  const killLine =
+    ticket.side === "Under"
+      ? "If your number is a lot lower, the under gets worse."
+      : "If your number is a lot higher, the over gets worse.";
   const openerLine = openerWeek
     ? "Early season — treat last year's defense ranks as a prior only."
-    : "If your book's number is different, the side can flip.";
+    : killLine;
   const boardRows = [primary, ...(opts.boardRows || []).filter(Boolean)].filter(Boolean);
   const list = formatNflSidedPropBoardList(boardRows, allRows, openerWeek, briefcase);
   const conflicts = buildNflSidedBoardConflictNotes(boardRows, allRows, openerWeek, briefcase);
-  const thinBoard = boardRows.length > 0 && boardRows.length < 3;
   const injuryNote = edge?.injuryStatus
     ? `${last} injury: ${edge.injuryStatus}.`
     : "Check inactives before you bet it.";
   const thinEvidence = /close number|no clear smash|early season|no smash over|open history|speculative opener lean/i.test(
     String(ticket.why || ""),
   );
+  const missing = [...new Set((opts.missingNames || []).map((n) => String(n || "").trim()).filter(Boolean))];
+  const missingRows = missing.map((name, i) => `${boardRows.length + i + 1}. ${name} — no line posted`).join("\n");
+  const boardText = [list, missingRows].filter(Boolean).join("\n");
   const whyNow = [
-    list ? `Board:\n${list}` : `I'd take ${last} ${ticket.side.toLowerCase()} ${line}.`,
-    "",
-    `${last} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
+    boardText ? `Board:\n${boardText}` : ticket.why,
+    ticket.why,
     conflicts.length ? conflicts.join(" ") : "",
-    thinBoard ? `Short list (${boardRows.length}) — what's gradeable first.` : "",
   ]
-    .filter((lineText, i, arr) => lineText !== "" || (i > 0 && arr[i - 1] !== ""))
-    .join("\n")
+    .filter(Boolean)
+    .join("\n\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return {
@@ -1299,9 +1330,11 @@ export function buildNflSidedPropRecoverCopy(opts) {
     callType: "prop",
     confidence: "Speculative",
     whyNow,
-    edge: thinEvidence
-      ? "Thin edge — Speculative, not a smash."
-      : `I'd take the ${ticket.side.toLowerCase()}. Don't stack it.`,
+    edge: conflicted
+      ? ticket.why
+      : thinEvidence
+        ? "Thin edge — Speculative. Shop the number or pass."
+        : killLine,
     // Filled for schema/repair; married delivery slims these so the card doesn't echo the board.
     analysis: {
       matchupAnalysis: `${last} ${propLabel} ${ticket.side.toLowerCase()} ${line}. ${ticket.why}`,
@@ -1322,15 +1355,12 @@ export function buildNflSidedPropRecoverCopy(opts) {
             : openerLine,
     },
     caveats: [
-      openerLine,
+      openerWeek ? openerLine : "",
+      killLine,
       ...conflicts,
-      thinBoard
-        ? "Short list from what's gradeable on this board right now."
-        : thinEvidence
-          ? "No smash edge — shop your number or pass."
-          : ticket.side === "Under"
-            ? "If your number is a lot lower, the under gets worse."
-            : "If your number is a lot higher, the over gets worse.",
+      injuryNote.startsWith("Check inactives") ? "" : injuryNote,
+      missing.length ? `No line posted: ${missing.join(", ")}.` : "",
+      thinEvidence ? "No smash edge — shop your number or pass." : "",
     ].filter(Boolean),
   };
 }

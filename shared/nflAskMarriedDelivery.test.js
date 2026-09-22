@@ -42,10 +42,11 @@ test("formatNflMarriedBoardProse keeps ticket + board, skips MATCH/MARKET", () =
       matchupAnalysis: "should not appear",
       marketContext: "should not appear",
     },
-    caveats: ["Early season — prior only."],
+    caveats: ["If your number is a lot lower, the under gets worse."],
   });
-  assert.match(prose, /Lean: Mahomes/);
+  assert.match(prose, /Mahomes under 225\.5/);
   assert.match(prose, /Board:/);
-  assert.doesNotMatch(prose, /MATCH READ|MARKET|LINE MOVEMENT|STAT EDGE|should not appear/);
-  assert.match(prose, /WHAT KILLS IT/);
+  assert.doesNotMatch(prose, /THE PLAY|I'd take the under|MATCH READ|MARKET|LINE MOVEMENT|STAT EDGE|should not appear/);
+  assert.match(prose, /Kills it/);
+  assert.match(prose, /lot lower/);
 });

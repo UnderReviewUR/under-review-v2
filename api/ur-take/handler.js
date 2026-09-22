@@ -417,6 +417,7 @@ import {
   slimNflMarriedStructuredForDelivery,
 } from "../../shared/nflAskMarriedDelivery.js";
 import { looksLikeNflPropsRefreshAsk } from "../../shared/nflAskPropsBatch.js";
+import { buildNflFollowUpHoldTake, classifyNflAskFollowUp } from "../../shared/nflAskTurn.js";
 import { polishNflStructuredTakeWithHaiku } from "../_nflAskHaikuPolish.js";
 import { applyNflTicketReviewToStructured, isNflTicketReviewAsk } from "../../shared/nflAskTicketReview.js";
 import { formatPropContextForPlayers } from "../_nflPropLineContext.js";
@@ -5761,14 +5762,16 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
      * @param {Record<string, unknown>} structuredIn
      * @param {string} laneTag
      */
-    const shipNflMarriedTake = async (structuredIn, laneTag) => {
+    const shipNflMarriedTake = async (structuredIn, laneTag, shipOpts = {}) => {
       const repaired = repairStructuredForDelivery(structuredIn, "nfl");
-      const polish = await polishNflStructuredTakeWithHaiku({
-        apiKey: ANTHROPIC_API_KEY,
-        question,
-        structured: repaired,
-        requestId,
-      });
+      const polish = shipOpts.skipPolish
+        ? { structured: repaired, polished: false, reason: "skip" }
+        : await polishNflStructuredTakeWithHaiku({
+            apiKey: ANTHROPIC_API_KEY,
+            question,
+            structured: repaired,
+            requestId,
+          });
       const offline = slimNflMarriedStructuredForDelivery(
         polish.structured || repaired,
       );
@@ -5811,8 +5814,22 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       return res.status(200).json(responseBody);
     };
 
+    const nflFollowKind = classifyNflAskFollowUp(question, normalizedUrTakeHistoryForGate);
+    const nflHoldTake = buildNflFollowUpHoldTake(question, normalizedUrTakeHistoryForGate);
     if (
-      nflAskPropsBoardUsesOffline(question) &&
+      nflHoldTake &&
+      (nflFollowKind === "explain_kill" ||
+        nflFollowKind === "parlay" ||
+        nflFollowKind === "flip_side" ||
+        nflFollowKind === "hold_context")
+    ) {
+      return await shipNflMarriedTake(nflHoldTake, "nfl_follow_up_hold", { skipPolish: true });
+    }
+
+    if (
+      (nflAskPropsBoardUsesOffline(question) ||
+        nflFollowKind === "continue_player" ||
+        nflFollowKind === "refresh") &&
       nflAskGuardPropLines.length > 0
     ) {
       return await shipNflMarriedTake(
