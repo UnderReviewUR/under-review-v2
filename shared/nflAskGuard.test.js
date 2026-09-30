@@ -160,7 +160,7 @@ test("forcePass rewrites even when model already said PASS", () => {
   });
   assert.ok(codes.includes("no_live_prop"));
   assert.equal(structured.call, "PASS");
-  assert.match(String(structured.lean), /No live .+ row on the board/i);
+  assert.match(String(structured.lean), /No posted GOAT .+ line/i);
   assert.ok(!/did not parse cleanly/i.test(String(structured.lean)));
   const take = buildNflPassStructuredTake("no_live_prop", { question: q });
   const v = validateStructuredURTakeResponse(take);

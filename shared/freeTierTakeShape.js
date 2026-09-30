@@ -14,6 +14,9 @@ You are responding to a free user. They do not get THE PLAY or an explicit bet t
 const THE_PLAY_SECTION_RE =
   /(?:^|\n)\s*(?:\*{0,2})THE\s+PLAY(?:\*{0,2})\s*:?\s*[\s\S]*?(?=(?:\n\s*(?:\*{0,2})?(?:CONFIDENCE|MARKET|MATCH READ|WHY|EDGE|WHAT KILLS|LEAN)\b)|$)/gi;
 
+/** Inline "THE PLAY: UNDER 231.5" on the same line as other prose. */
+const THE_PLAY_INLINE_RE = /(?:^|\s)(?:\*{0,2})THE\s+PLAY(?:\*{0,2})\s*:\s*[^\n]*/gi;
+
 /**
  * Remove THE PLAY section(s) from plain prose (dual-publish + legacy cards).
  * @param {string} text
@@ -23,6 +26,8 @@ export function stripThePlayFromProse(text) {
   const raw = String(text || "");
   if (!raw.trim()) return raw;
   let out = raw.replace(THE_PLAY_SECTION_RE, "\n");
+  out = out.replace(THE_PLAY_INLINE_RE, " ");
+  out = out.replace(/[ \t]{2,}/g, " ");
   out = out.replace(/\n{3,}/g, "\n\n").trim();
   return out;
 }
@@ -47,6 +52,12 @@ export function maskStructuredForFreeTier(structured) {
   next.parlayLegs = [];
   next.parlayTotalOdds = null;
   next.lean = truncateLeanAtWord(leanOnly || String(structured.lean || "").trim(), LEAN_MAX_CHARS);
+  if (next.lean && /\bTHE\s+PLAY\b/i.test(String(next.lean))) {
+    next.lean = stripThePlayFromProse(String(next.lean));
+  }
+  if (next.whyNow && /\bTHE\s+PLAY\b/i.test(String(next.whyNow))) {
+    next.whyNow = stripThePlayFromProse(String(next.whyNow));
+  }
   if (next.deep && /\bTHE\s+PLAY\b/i.test(String(next.deep))) {
     next.deep = stripThePlayFromProse(String(next.deep));
   }

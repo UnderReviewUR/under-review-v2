@@ -321,7 +321,7 @@ export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
   const statedBit = stated != null ? ` (you cited ${stated})` : "";
   const leans = {
     suitcase_red: "Lean: Pass. Live line not in payload. No invented number.",
-    no_live_prop: `Lean: Pass. No live ${marketLabel} row on the board.`,
+    no_live_prop: `Lean: Pass. No posted GOAT ${marketLabel} line.`,
     structured_parse_failed: "Lean: Pass. Couldn't lock a clean ticket from this ask.",
     invented_line: "Lean: Pass. Cited number is not on the live board.",
     call_body_conflict: "Lean: Pass. Call and writeup disagreed on the side.",
@@ -339,13 +339,13 @@ export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
     reason === "structured_parse_failed"
       ? "I couldn't ship a clean lean on that ask. Ask again with the player + market (or wait a beat and retry) — no fake number from me."
       : noLineBody
-        ? `The live board has no verified ${marketLabel} row for this ask${statedBit}. Pass until books post that market — matchup notes are not a ticket.`
+        ? `No posted GOAT-tier ${marketLabel} line for this ask${statedBit}. Pass — not a feed snag, and not a pivot to a different market or TD scrap.`
         : "The priced market for this ask is missing or the take was not safe to ship. Passing is the call until a live number is on the board.";
   const edge =
     reason === "structured_parse_failed"
       ? "Action: re-ask with a specific prop (player + line) or refresh once the board loads."
       : noLineBody
-        ? `No priced edge without a verified live ${marketLabel} number. Role notes and season pace are not a substitute for a posted prop.`
+        ? `No priced edge without a posted GOAT ${marketLabel} number. Role notes and season pace are not a substitute for a posted prop.`
         : "No priced edge without a verified live number. Role notes and season pace are not a substitute for a posted prop or spread.";
 
   return {
@@ -361,13 +361,13 @@ export function buildNflPassStructuredTake(reason = "suitcase_red", opts = {}) {
         "Suitcase pockets for this ask are too thin to price a ticket. Do not invent a line or treat a season O/U as tonight's prop.",
       injuryContext:
         "Availability is not confirmed enough to force a play. Wait for the official report or a posted market.",
-      marketContext: `No verified live ${marketLabel} line on the board${statedBit}. PASS is the honest closer, not a delayed pick.`,
+      marketContext: `No posted GOAT ${marketLabel} line on the board${statedBit}. PASS is the honest closer, not a delayed pick.`,
       lineMovement: "No live number to shop. Come back when the board posts the market.",
       statisticalEdge:
         "Role and history are context only. They do not become a ticket without a posted line.",
     },
     caveats: [
-      `Live ${marketLabel} line not in payload.`,
+      `No posted GOAT ${marketLabel} line.`,
       stated != null
         ? `Do not treat this PASS as a delayed ticket on ${stated}.`
         : "Do not treat this PASS as a delayed over.",

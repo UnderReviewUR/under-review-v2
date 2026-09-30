@@ -21,6 +21,13 @@ Fast pace both sides.`;
   assert.match(out, /MATCH READ/);
 });
 
+test("stripThePlayFromProse removes inline THE PLAY leak", () => {
+  const src = "Lean: Maye under 231.5. THE PLAY: UNDER 231.5 CONFIDENCE Medium";
+  const out = stripThePlayFromProse(src);
+  assert.match(out, /Lean: Maye under 231\.5/);
+  assert.doesNotMatch(out, /THE PLAY/i);
+});
+
 test("maskStructuredForFreeTier clears call and parlay legs", () => {
   const masked = maskStructuredForFreeTier({
     sport: "nfl",

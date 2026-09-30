@@ -414,6 +414,7 @@ import {
   nflAskUsesMarriedPropPath,
   resolveNflAskModelLane,
 } from "../../shared/nflAskModelRoute.js";
+import { parseNflFirstAsk } from "../../shared/nflAskParse.js";
 import {
   formatNflMarriedBoardProse,
   slimNflMarriedStructuredForDelivery,
@@ -2539,6 +2540,7 @@ function buildNflProviderFailureStructuredTake(opts = {}) {
   const propLines = Array.isArray(opts.propLines) ? opts.propLines : [];
   const briefcase = opts.briefcase && typeof opts.briefcase === "object" ? opts.briefcase : null;
   const matchupMeta = opts.matchupMeta && typeof opts.matchupMeta === "object" ? opts.matchupMeta : null;
+  const ask = parseNflFirstAsk(question);
 
   if (isNflTicketReviewAsk(question)) {
     const next = { call: "TICKET REVIEW", lean: "Lean: Ticket review.", confidence: "Speculative" };
@@ -2557,6 +2559,18 @@ function buildNflProviderFailureStructuredTake(opts = {}) {
         briefcase,
         propLines,
         week: briefcase?.week ?? games?.[0]?.week,
+      }),
+      "nfl",
+    );
+  }
+  // Named skill prop with no GOAT main — honest PASS, never snag or TD-scrap pivot.
+  if (ask.lane === "named_prop") {
+    return repairStructuredForDelivery(
+      buildNflLivePropBoardTake({
+        question,
+        liveLine: null,
+        briefcase,
+        propLines,
       }),
       "nfl",
     );
@@ -5775,13 +5789,21 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
             structured: repaired,
             requestId,
           });
-      const offline = slimNflMarriedStructuredForDelivery(
+      let offline = slimNflMarriedStructuredForDelivery(
         polish.structured || repaired,
       );
-      const prose = formatNflMarriedBoardProse(offline);
-      const textOut =
+      let prose = formatNflMarriedBoardProse(offline);
+      let textOut =
         String(prose || "").trim() ||
         String(offline.lean || offline.whyNow || "Board tickets from the live GOAT props.").trim();
+      if (!isPro && !isGoldenEvalMode()) {
+        offline = maskStructuredForFreeTier(offline) || offline;
+        prose = formatNflMarriedBoardProse(offline);
+        textOut = stripThePlayFromProse(
+          String(prose || "").trim() ||
+            String(offline.lean || offline.whyNow || textOut).trim(),
+        );
+      }
       console.log(
         JSON.stringify({
           event: "nfl_ask_married_take",
@@ -5861,6 +5883,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
 
     if (nflAskUsesMarriedPropPath(question, { fastPathActive: nflFastPathActive })) {
       const marriedMarketId = detectNflAskMarket(question)?.marketId;
+      const marriedAsk = parseNflFirstAsk(question);
       // Defense in depth: never hijack game-price Asks into a props board.
       if (
         marriedMarketId !== "total" &&
@@ -5889,6 +5912,19 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
             "nfl_named_prop_offline",
           );
         }
+        // Named rush/rec/pass asks: PASS when GOAT main missing — never pivot to first_td / board scraps.
+        if (marriedAsk.lane === "named_prop") {
+          return await shipNflMarriedTake(
+            buildNflLivePropBoardTake({
+              question,
+              liveLine: null,
+              briefcase: nflAskGuardBriefcase,
+              propLines: nflAskGuardPropLines,
+            }),
+            "nfl_named_prop_no_line",
+            { skipPolish: true },
+          );
+        }
         if (nflAskGuardPropLines.length > 0) {
           return await shipNflMarriedTake(
             buildNflPropsBoardFallbackTake({
@@ -5910,6 +5946,7 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
             propLines: nflAskGuardPropLines,
           }),
           "nfl_named_prop_no_line",
+          { skipPolish: true },
         );
       }
     }
@@ -7696,7 +7733,7 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
 
         // Anthropic out of credits / 4xx: still return a GOAT board for NFL props asks.
         if (sportHint === "nfl") {
-          const offline = buildNflProviderFailureStructuredTake({
+          let offline = buildNflProviderFailureStructuredTake({
             question,
             games: nflAskGuardGames,
             propLines: nflAskGuardPropLines,
@@ -7705,10 +7742,16 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
             history: normalizedUrTakeHistoryForGate,
           });
           if (offline) {
+            if (!isPro && !isGoldenEvalMode()) {
+              offline = maskStructuredForFreeTier(offline) || offline;
+            }
             const prose = formatStructuredResponseAsUrTakeProse(offline);
-            const textOut =
+            let textOut =
               String(prose || "").trim() ||
               String(offline.lean || offline.whyNow || "Board tickets from the live GOAT props.").trim();
+            if (!isPro && !isGoldenEvalMode()) {
+              textOut = stripThePlayFromProse(textOut);
+            }
             logUrTakeApiFallback({
               requestId,
               fallbackReason: "provider_non_ok_nfl_board_recover",
@@ -7722,7 +7765,8 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               structuredKeys: Object.keys(offline),
               extra: { providerRequestId: result.requestId },
             });
-            return res.status(200).json({
+            gateQuotaDelivered = true;
+            const recoverBody = {
               requestId,
               response: textOut,
               take: textOut,
@@ -7733,7 +7777,12 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
               fallback: true,
               fallbackReason: "provider_non_ok_nfl_board_recover",
               providerRequestId: result.requestId,
+            };
+            await attachFreeQuotaMirrorToUrTakeResponse(recoverBody, {
+              gateQuotaEmail,
+              gateQuotaSessionId,
             });
+            return res.status(200).json(recoverBody);
           }
         }
 
@@ -8880,13 +8929,15 @@ Respond with ONLY the JSON object from STRUCTURED RESPONSE MODE. Answer the foll
           );
         } else if (!isNbaFinalsStructured(structuredResponse)) {
           const formatted = formatStructuredResponseAsUrTakeProse(structuredResponse);
-          if (formatted.trim()) responseText = formatted;
-          else responseText = stripThePlayFromProse(responseText);
+          responseText = stripThePlayFromProse(formatted.trim() ? formatted : responseText);
+        } else {
+          responseText = stripThePlayFromProse(responseText);
         }
       } else if (responseText) {
         responseText = stripThePlayFromProse(responseText);
       }
       if (responseDeep) responseDeep = stripThePlayFromProse(responseDeep);
+      responseText = stripThePlayFromProse(responseText);
     }
 
     if (userEmail && isPro && !isConversationFollowUp) {
