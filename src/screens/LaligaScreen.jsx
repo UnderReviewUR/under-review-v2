@@ -23,6 +23,7 @@ export default function LaligaScreen({
   laligaStandings = [],
   laligaBoardLoading = false,
   laligaBoardAsOf = null,
+  laligaBoardUnavailable = false,
 }) {
   const quickPrompts = getQuickPromptsForState("laliga", "live");
   const urDockedChat = hasDockedBar && laligaMsgs.length > 0;
@@ -76,6 +77,27 @@ export default function LaligaScreen({
           {laligaBoardLoading && !laligaMatches.length ? (
             <div className="loading-state">
               <div className="loading-text">LOADING LA LIGA...</div>
+            </div>
+          ) : laligaMatches.length === 0 ? (
+            <div
+              style={{
+                marginBottom: 12,
+                padding: "14px 12px",
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--soft)", marginBottom: 6 }}>
+                {laligaBoardUnavailable
+                  ? "Matchweek board unavailable right now"
+                  : "No La Liga fixtures on the board yet"}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+                {laligaBoardUnavailable
+                  ? "Feed is down or rate-limited. You can still Ask about a named match — or check NFL while this refreshes."
+                  : "When the matchweek posts, fixtures and 1X2 lines show here. Ask with a club or matchup anytime."}
+              </div>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>

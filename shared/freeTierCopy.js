@@ -3,7 +3,7 @@
  */
 
 /** Home first-session footnote (primary line). */
-export const FREE_TIER_HOME_FOOTNOTE_PRIMARY = "3 free NFL + La Liga reads · No card · No signup";
+export const FREE_TIER_HOME_FOOTNOTE_PRIMARY = "3 free NFL reads · No card · No signup";
 
 /** Home first-session footnote (secondary — optional). */
 export const FREE_TIER_HOME_FOOTNOTE_SECONDARY =
@@ -36,4 +36,16 @@ $9.99/month · cancel anytime`;
 export function freeLimitChipMessage(remaining) {
   const qWord = remaining === 1 ? "question" : "questions";
   return `${remaining} free ${qWord} left. Pro unlocks THE PLAY and unlimited reads.`;
+}
+
+/**
+ * @param {number} remaining
+ * @param {"session" | "email" | string} [scope]
+ */
+export function freeLimitChipMessageForScope(remaining, scope) {
+  const qWord = remaining === 1 ? "question" : "questions";
+  if (scope === "session") {
+    return `${remaining} free ${qWord} left this session. Pro unlocks THE PLAY and unlimited reads.`;
+  }
+  return `${remaining} free ${qWord} left today. Pro unlocks THE PLAY and unlimited reads.`;
 }

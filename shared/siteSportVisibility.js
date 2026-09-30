@@ -19,7 +19,8 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
     nba: false,
     nfl: true,
     cfb: false,
-    laliga: true,
+    // La Liga paused — not in public focus while NFL BDL GOAT is the rent path.
+    laliga: false,
     golf: false,
     f1: false,
     tennis: false,
@@ -32,7 +33,7 @@ export const SITE_SPORT_VISIBILITY = Object.freeze({
     worldcup: false,
     mlb: false,
     nfl: true,
-    laliga: true,
+    laliga: false,
     f1: false,
     tennis: false,
     golf: false,

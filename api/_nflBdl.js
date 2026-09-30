@@ -26,6 +26,18 @@ const ROSTERS_TTL_SEC = 6 * 60 * 60;
 const PREFERRED_ODDS_VENDORS = ["draftkings", "fanduel", "betmgm", "caesars", "fanatics", "betrivers"];
 const LIVE_GAME_STATUS_STATES = new Set(["in_progress", "delayed", "suspended"]);
 
+/** Short mem cache so board + Ask briefcase do not double-hit /odds/player_props. */
+const NFL_BDL_PROPS_MEM_TTL_MS = 90_000;
+/** @type {Map<string, { fetchedAtMs: number, rows: Array<Record<string, unknown>> }>} */
+const nflBdlPropsMem = new Map();
+
+function nflBdlPropsMemKey(gameId, opts = {}) {
+  const propType = opts.propType ? String(opts.propType) : "";
+  const playerId = opts.playerId != null ? String(opts.playerId) : "";
+  const vendors = Array.isArray(opts.vendors) ? opts.vendors.join(",") : "";
+  return `${gameId}|${propType}|${playerId}|${vendors}|names:${opts.resolveNames === false ? 0 : 1}`;
+}
+
 /**
  * BDL NFL expects bracket array params (`team_ids[]=1`), not bare repeats.
  * @param {Record<string, unknown>} params
@@ -494,6 +506,11 @@ export async function fetchNflBdlPlayerNameMap(playerIds, opts = {}) {
 export async function fetchNflBdlPlayerPropsForGame(gameId, opts = {}) {
   const gid = Number(gameId);
   if (!Number.isFinite(gid)) return [];
+  const memKey = nflBdlPropsMemKey(gid, opts);
+  const memHit = nflBdlPropsMem.get(memKey);
+  if (memHit && Date.now() - memHit.fetchedAtMs < NFL_BDL_PROPS_MEM_TTL_MS) {
+    return memHit.rows.map((r) => ({ ...r }));
+  }
   // BDL GOAT: /odds/player_props returns the full game board in one response
   // (no cursor). Optional filters: player_id, prop_type, vendors[] — use those
   // for targeted follow-ups; Ask hydrate wants the whole board then consensus.
@@ -510,27 +527,50 @@ export async function fetchNflBdlPlayerPropsForGame(gameId, opts = {}) {
     },
     { apiKey: opts.apiKey, timeoutMs: opts.timeoutMs ?? 20000 },
   );
-  if (!res.ok || !Array.isArray(res.data?.data)) return [];
+  if (!res.ok || !Array.isArray(res.data?.data)) {
+    console.warn(
+      JSON.stringify({
+        event: "nfl_bdl_player_props_empty",
+        gameId: gid,
+        status: res.status,
+        ok: res.ok,
+        error: res.error || null,
+      }),
+    );
+    return [];
+  }
   const rows = normalizeNflBdlPlayerPropRows(res.data.data, {
     gameLabel: opts.gameLabel,
     eventId: gid,
   });
-  if (opts.resolveNames === false || !rows.length) return rows;
+  if (opts.resolveNames === false || !rows.length) {
+    if (rows.length) {
+      nflBdlPropsMem.set(memKey, { fetchedAtMs: Date.now(), rows });
+    }
+    return rows;
+  }
 
   const needIds = rows
     .filter((r) => /^player_\d+$/i.test(String(r.player || "")))
     .map((r) => r.playerId)
     .filter((id) => id != null);
-  if (!needIds.length) return rows;
+  if (!needIds.length) {
+    nflBdlPropsMem.set(memKey, { fetchedAtMs: Date.now(), rows });
+    return rows;
+  }
 
   const nameMap = await fetchNflBdlPlayerNameMap(needIds, { apiKey: opts.apiKey });
-  if (!nameMap.size) return rows;
+  if (!nameMap.size) {
+    nflBdlPropsMem.set(memKey, { fetchedAtMs: Date.now(), rows });
+    return rows;
+  }
   for (const row of rows) {
     const id = Number(row.playerId);
     if (!Number.isFinite(id)) continue;
     const name = nameMap.get(id);
     if (name) row.player = name;
   }
+  nflBdlPropsMem.set(memKey, { fetchedAtMs: Date.now(), rows });
   return rows;
 }
 

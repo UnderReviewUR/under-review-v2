@@ -43,8 +43,9 @@ import {
   PRO_CTA_BULLETS,
   PRO_PROOF_LINES,
   PRO_PAGE_FEATURE_ROWS,
-  PRO_UNLOCK_BUTTON_LABEL,
   PRO_RESTORE_RECEIPT_HINT,
+  VALUE_TRIAL_CTA_LABEL,
+  freeLimitChipMessageForScope,
 } from "./lib/proUpgradeCopy.js";
 import ValueTrialModal from "./components/ValueTrialModal.jsx";
 import {
@@ -909,6 +910,7 @@ ${themeCss}
     laligaContextData,
     laligaBoard,
     laligaBoardLoading,
+    laligaBoardUnavailable,
     laligaMatches,
     laligaPropLines,
     laligaStandings,
@@ -4061,12 +4063,12 @@ ${themeCss}
     }
     if (!freeTierApproachingLimit(freeUsedCount, freeQuotaLimit)) return null;
     const remaining = Math.max(0, freeQuotaLimit - freeUsedCount);
-    const qWord = remaining === 1 ? "question" : "questions";
+    const scope = hasStoredFreeTierEmail() ? "email" : "session";
     return (
       <div className="ur-free-limit-chip" role="status">
         <div className="ur-free-limit-chip-main">
           <span>
-            {remaining} free {qWord} remaining today. Unlock unlimited with Pro{" "}
+            {freeLimitChipMessageForScope(remaining, scope)}{" "}
             <button type="button" className="ur-free-limit-chip-unlock" onClick={openUpgradeModal}>
               Unlock
             </button>
@@ -5295,6 +5297,7 @@ ${themeCss}
             laligaStandings={laligaStandings}
             laligaBoardLoading={laligaBoardLoading}
             laligaBoardAsOf={laligaBoard?.asOf || null}
+            laligaBoardUnavailable={laligaBoardUnavailable}
           />
         )}
 
@@ -5536,6 +5539,7 @@ ${themeCss}
       performanceError={performanceError}
       onRefresh={loadPerformanceSnapshot}
       onUpgrade={() => setShowUpgradeModal(true)}
+      onAskFirstPlay={goNfl}
     />
 
     {isUnlimited && trackerLoaded && (
@@ -6079,7 +6083,7 @@ ${themeCss}
       >
         Unlock Live Edges →
       </ProCheckoutCTA>
-      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>NFL + La Liga weekends · 3 free reads to start</div>
+      <div style={{fontFamily:"var(--mono-font)",fontSize:10,color:proMarketing.checkoutFoot ?? "rgba(255,255,255,.15)",letterSpacing:1,textTransform:"uppercase"}}>Starts with 7 free days · then $9.99/mo · NFL weekends</div>
     </div>
     )}
 
@@ -6519,7 +6523,7 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
                 onClick={() => { setShowUpgradeModal(false); goPro(); }}
                 style={{width:"100%",padding:"13px",border:"none",borderRadius:10,background:"var(--cyan-bright)",color:"#080A0C",fontFamily:"var(--display-font)",fontSize:18,letterSpacing:2,cursor:"pointer",marginBottom:10}}
               >
-                {PRO_UNLOCK_BUTTON_LABEL}
+                {VALUE_TRIAL_CTA_LABEL}
               </button>
               <button
                 onClick={() => setShowUpgradeModal(false)}
@@ -6658,7 +6662,7 @@ ${UPGRADE_LIMIT_HIT_BODY}`}
                   marginBottom: 10,
                 }}
               >
-                {PRO_UNLOCK_BUTTON_LABEL}
+                {VALUE_TRIAL_CTA_LABEL}
               </button>
               <button
                 type="button"

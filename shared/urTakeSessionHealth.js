@@ -57,16 +57,25 @@ export function deriveScopedBoardHealth(input = {}) {
       propLineCount,
     };
   }
-  if (matchCount <= 0 || propLineCount <= 0) {
+  // Fixtures + posted game lines are enough for a usable weekend board.
+  // Empty props alone must not suppress conversion (live NFL often ships
+  // spreads/totals while prop hydration is thin or rate-limited).
+  if (matchCount <= 0) {
     return {
       scoped: true,
       healthy: false,
-      reason: matchCount <= 0 ? "empty_matches" : "empty_prop_lines",
+      reason: "empty_matches",
       matchCount,
       propLineCount,
     };
   }
-  return { scoped: true, healthy: true, reason: null, matchCount, propLineCount };
+  return {
+    scoped: true,
+    healthy: true,
+    reason: propLineCount <= 0 ? "thin_prop_lines" : null,
+    matchCount,
+    propLineCount,
+  };
 }
 
 /**

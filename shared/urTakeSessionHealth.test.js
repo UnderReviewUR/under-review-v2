@@ -32,12 +32,26 @@ test("shouldSuppressPaywallPush on fail-soft thread", () => {
   assert.ok(shouldSuppressPaywallPush({ askHealth: ask }));
 });
 
-test("shouldSuppressPaywallPush when board unhealthy", () => {
+test("shouldSuppressPaywallPush when board has no fixtures", () => {
   const board = deriveScopedBoardHealth({
     sport: "laliga",
-    matchCount: 54,
+    matchCount: 0,
     propLineCount: 0,
     boardLoading: false,
   });
+  assert.equal(board.healthy, false);
+  assert.equal(board.reason, "empty_matches");
   assert.ok(shouldSuppressPaywallPush({ boardHealth: board }));
+});
+
+test("deriveScopedBoardHealth stays healthy with fixtures even if props are empty", () => {
+  const board = deriveScopedBoardHealth({
+    sport: "nfl",
+    matchCount: 16,
+    propLineCount: 0,
+    boardLoading: false,
+  });
+  assert.equal(board.healthy, true);
+  assert.equal(board.reason, "thin_prop_lines");
+  assert.ok(!shouldSuppressPaywallPush({ boardHealth: board }));
 });

@@ -7,6 +7,7 @@ import {
   NFL_PROPS_MARKET_LABELS,
   NFL_PROPS_WIRE_MARKETS,
   nflBoardCacheKey,
+  nflLiveBoardCacheKeyPart,
   nflPropsBookLabel,
 } from "../shared/nflPropsConstants.js";
 import { NFL_BOARD_TTL_MS, NFL_BOARD_LIVE_TTL_MS } from "../shared/nflPropsCachePolicy.js";
@@ -172,7 +173,7 @@ export async function buildNflBdlLiveBoard(opts = {}) {
       const now = Date.now();
       const maxGames = Math.max(
         1,
-        Math.min(Number(opts.maxPropGames) || (scopeSet?.size ? 1 : 4), 8),
+        Math.min(Number(opts.maxPropGames) || (scopeSet?.size ? 1 : 8), 16),
       );
       targets = targets
         .filter((g) => g.providerGameId && (g.tipoffMs == null || g.tipoffMs > now - 4 * 3600_000))
@@ -328,10 +329,11 @@ export function nflPropsPayloadToPropLines(propsPayload, game = {}) {
  */
 export async function buildNflLiveBoard(opts = {}) {
   if (isNflBdlPrimaryEnabled() && getNflBdlApiKey()) {
-    const keyPart =
-      opts.week != null
-        ? `bdl_week_${opts.week}_${opts.season || "cur"}`
-        : `bdl_${String(opts.dateYmd || nflEtDateYmd()).replace(/-/g, "")}`;
+    const keyPart = nflLiveBoardCacheKeyPart({
+      ...opts,
+      dateYmd: opts.dateYmd || nflEtDateYmd(),
+      source: "bdl",
+    });
     const cacheKey = nflBoardCacheKey(keyPart);
     const hit = boardMem.get(cacheKey);
     if (hit && Date.now() - hit.fetchedAtMs < nflBoardTtlMs(hit.payload)) {
@@ -348,6 +350,7 @@ export async function buildNflLiveBoard(opts = {}) {
           event: "nfl_bdl_board_empty",
           week: bdlBoard.week,
           season: bdlBoard.season,
+          includeProps: Boolean(opts.includeProps) || opts.gameId != null,
           note: "GOAT primary on — not falling back to Odds API; returning empty BDL board",
         }),
       );
@@ -414,7 +417,7 @@ export async function buildNflLiveBoard(opts = {}) {
       const now = Date.now();
       const maxGames = Math.max(
         1,
-        Math.min(Number(opts.maxPropGames) || (scopeSet?.size ? 1 : 4), 8),
+        Math.min(Number(opts.maxPropGames) || (scopeSet?.size ? 1 : 8), 16),
       );
       targets = targets
         .filter((g) => g.providerGameId && (g.tipoffMs == null || g.tipoffMs > now - 4 * 3600_000))

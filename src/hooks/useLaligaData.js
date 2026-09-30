@@ -10,6 +10,7 @@ export function useLaligaData({ enabled = true } = {}) {
   const [laligaContextData, setLaligaContextData] = useState(null);
   const [laligaBoard, setLaligaBoard] = useState(null);
   const [laligaBoardLoading, setLaligaBoardLoading] = useState(false);
+  const [laligaBoardUnavailable, setLaligaBoardUnavailable] = useState(false);
   const hasBoardRef = useRef(false);
 
   useEffect(() => {
@@ -41,6 +42,7 @@ export function useLaligaData({ enabled = true } = {}) {
       hasBoardRef.current = false;
       setLaligaBoard(null);
       setLaligaBoardLoading(false);
+      setLaligaBoardUnavailable(false);
       return undefined;
     }
     let active = true;
@@ -52,13 +54,25 @@ export function useLaligaData({ enabled = true } = {}) {
         if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         if (active) {
-          hasBoardRef.current = Boolean(data?.matches?.length);
-          setLaligaBoard(data?.matches?.length ? data : data?.ok === false ? null : data);
+          const hasMatches = Boolean(data?.matches?.length);
+          const feedFailed = data?.ok === false || Boolean(data?.error);
+          hasBoardRef.current = hasMatches;
+          setLaligaBoardUnavailable(feedFailed && !hasMatches);
+          // Keep a successful empty payload (ok:true, no matches) so UI can say
+          // "no fixtures yet" vs feed failure — only null on hard fetch errors.
+          if (hasMatches) {
+            setLaligaBoard(data);
+          } else if (feedFailed) {
+            setLaligaBoard(null);
+          } else {
+            setLaligaBoard(data && typeof data === "object" ? data : null);
+          }
         }
       } catch {
         if (active) {
           hasBoardRef.current = false;
           setLaligaBoard(null);
+          setLaligaBoardUnavailable(true);
         }
       } finally {
         if (active) setLaligaBoardLoading(false);
@@ -77,6 +91,7 @@ export function useLaligaData({ enabled = true } = {}) {
     laligaContextData,
     laligaBoard,
     laligaBoardLoading,
+    laligaBoardUnavailable,
     laligaMatches: laligaBoard?.matches || [],
     laligaPropLines: laligaBoard?.propLines || [],
     laligaStandings: laligaBoard?.standings || [],

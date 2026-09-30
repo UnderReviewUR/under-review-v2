@@ -491,7 +491,7 @@ export async function buildCanonicalNflContext(options = {}) {
     try {
       liveBoard = await buildNflLiveBoard({
         includeProps: true,
-        maxPropGames: scoped ? 1 : 4,
+        maxPropGames: scoped ? 1 : 8,
         scopeAbbrs: scoped ? scope : undefined,
       });
     } catch (err) {
@@ -555,7 +555,7 @@ export async function buildCanonicalNflContext(options = {}) {
     uiPlayers,
     includeLiveBoard: false,
     board: liveBoard,
-    maxPropGames: scoped ? 1 : 4,
+    maxPropGames: scoped ? 1 : 8,
     scopeAbbrs: scoped ? scope : undefined,
   });
 
@@ -563,9 +563,12 @@ export async function buildCanonicalNflContext(options = {}) {
     ? briefcaseHealth.briefcase.slate.playerProps
     : [];
   const boardProps = Array.isArray(liveBoard?.propLines) ? liveBoard.propLines : [];
-  // GOAT primary: never fall back to Action Network props (empty GOAT → empty board).
+  // GOAT primary: BDL board props are valid GOAT rows. Prefer briefcase; fall back to
+  // board when briefcase rehydrate emptied the pocket (429 / rate limit). Never AN.
   let rawPropLines = isNflBdlPrimaryEnabled()
-    ? goatProps
+    ? goatProps.length
+      ? goatProps
+      : boardProps
     : boardProps.length
       ? boardProps
       : goatProps;

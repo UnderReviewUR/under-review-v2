@@ -3,7 +3,16 @@ import {
   normalizeConfidenceTier,
   sportDisplayLabel,
 } from "../lib/urTakePerformance.js";
-import { LEDGER_TEASER_UNLOCK, LEDGER_RENEWAL_HEADLINE, LEDGER_RENEWAL_BODY } from "../lib/proUpgradeCopy.js";
+import {
+  LEDGER_TEASER_UNLOCK,
+  LEDGER_TEASER_EMPTY_HEADLINE,
+  LEDGER_TEASER_EMPTY_BODY,
+  LEDGER_EMPTY_PRO_HEADLINE,
+  LEDGER_EMPTY_PRO_BODY,
+  LEDGER_EMPTY_PRO_CTA,
+  LEDGER_RENEWAL_HEADLINE,
+  LEDGER_RENEWAL_BODY,
+} from "../lib/proUpgradeCopy.js";
 import { shouldShowLedgerRenewalPitch } from "../../shared/valueConversion.js";
 
 function mergeSportSnapshots(a, b) {
@@ -144,19 +153,30 @@ export default function UrTakeProLedgerDashboard({
   performanceError,
   onRefresh,
   onUpgrade,
+  onAskFirstPlay,
 }) {
   const paid = accessTier !== "free";
   const isOwner = accessTier === "owner";
-  const teaserTotal =
-    publicStats?.totalTakes != null ? publicStats.totalTakes.toLocaleString() : "—";
 
   if (!paid) {
+    const hasPublicSample = publicStats?.totalTakes != null && Number(publicStats.totalTakes) > 0;
     return (
       <div className="ur-record-gate">
-        <div className="ur-record-teaser">{teaserTotal} edges tracked this season</div>
-        <div className="ur-record-unlock">{LEDGER_TEASER_UNLOCK}</div>
+        {hasPublicSample ? (
+          <>
+            <div className="ur-record-teaser">
+              {Number(publicStats.totalTakes).toLocaleString()} edges tracked this season
+            </div>
+            <div className="ur-record-unlock">{LEDGER_TEASER_UNLOCK}</div>
+          </>
+        ) : (
+          <>
+            <div className="ur-record-teaser">{LEDGER_TEASER_EMPTY_HEADLINE}</div>
+            <div className="ur-record-unlock">{LEDGER_TEASER_EMPTY_BODY}</div>
+          </>
+        )}
         <button type="button" className="ur-upgrade-btn" onClick={() => onUpgrade?.()}>
-          Upgrade to Pro
+          Start 7-day free trial
         </button>
       </div>
     );
@@ -194,7 +214,15 @@ export default function UrTakeProLedgerDashboard({
     return (
       <div className="ur-record-dashboard-wrap">
         <div className="ur-record-heading">Win–loss record</div>
-        <p className="ur-record-muted">No performance data yet.</p>
+        <p className="ur-record-muted">{LEDGER_EMPTY_PRO_HEADLINE}</p>
+        <p className="ur-record-muted" style={{ marginTop: 8 }}>
+          {LEDGER_EMPTY_PRO_BODY}
+        </p>
+        {typeof onAskFirstPlay === "function" ? (
+          <button type="button" className="ur-upgrade-btn" style={{ marginTop: 14 }} onClick={onAskFirstPlay}>
+            {LEDGER_EMPTY_PRO_CTA}
+          </button>
+        ) : null}
       </div>
     );
   }
@@ -208,6 +236,23 @@ export default function UrTakeProLedgerDashboard({
   const tiers = mergeTierSnapshots(performanceData.byConfidence);
   const bySport = performanceData.bySport || {};
   const showRenewalPitch = shouldShowLedgerRenewalPitch(summary);
+
+  if (total === 0) {
+    return (
+      <div className="ur-record-dashboard-wrap">
+        <div className="ur-record-heading">Win–loss record</div>
+        <p className="ur-record-muted" style={{ fontSize: 14, color: "var(--soft)", marginBottom: 8 }}>
+          {LEDGER_EMPTY_PRO_HEADLINE}
+        </p>
+        <p className="ur-record-muted">{LEDGER_EMPTY_PRO_BODY}</p>
+        {typeof onAskFirstPlay === "function" ? (
+          <button type="button" className="ur-upgrade-btn" style={{ marginTop: 14 }} onClick={onAskFirstPlay}>
+            {LEDGER_EMPTY_PRO_CTA}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   const sportBlocks = SPORT_ROWS.map(({ keys, label }) => {
     let snap = null;
@@ -397,7 +442,9 @@ export default function UrTakeProLedgerDashboard({
       <div className="ur-record-section-label">Last 10 takes</div>
       <div className="ur-record-last-grid">
         {last10.length === 0 ? (
-          <div className="ur-record-muted">No settled takes yet.</div>
+          <div className="ur-record-muted">
+            No settled takes yet. Tracked plays grade after the market settles — keep tracking THE PLAY.
+          </div>
         ) : (
           last10.map((t) => {
             const r = String(t.result || "").toLowerCase();

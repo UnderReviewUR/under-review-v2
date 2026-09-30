@@ -284,15 +284,18 @@ export async function buildNflAskBriefcaseHealth(opts = {}) {
     if (odds.length && !briefcase.slate.odds?.length) {
       briefcase.slate.odds = odds;
     }
-    // GOAT primary: never fill prop pocket from Action Network — empty GOAT stays empty.
+    // GOAT primary: never fill from Action Network. BDL board props are GOAT —
+    // reuse them when the briefcase pocket is empty so Ask does not drop posted lines.
     if (
-      !isNflBdlPrimaryEnabled() &&
       Array.isArray(board.propLines) &&
       board.propLines.length &&
       !briefcase.slate.playerProps?.length
     ) {
-      briefcase.slate.playerProps = board.propLines;
-      propsSource = "action_network";
+      const boardIsBdl = /balldontlie/i.test(String(board.source || ""));
+      if (!isNflBdlPrimaryEnabled() || boardIsBdl) {
+        briefcase.slate.playerProps = board.propLines;
+        propsSource = boardIsBdl ? "balldontlie_nfl" : "action_network";
+      }
     }
   }
 
