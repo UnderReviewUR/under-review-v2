@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>How to read NFL player props before kickoff — Under Review</title>
+  <meta name="theme-color" content="#CBD5E1" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="apple-touch-icon" href="/favicon.png" />
+  <meta name="description" content="A short checklist for reading NFL player props before kickoff: posted mains, roster truth, and when to pass. Then ask Under Review." />
+  <meta property="og:title" content="How to read NFL player props before kickoff" />
+  <meta property="og:description" content="Posted lines, usage, and honest passes — then ask Under Review. Not a lock service." />
+  <meta property="og:url" content="https://under-review.app/how-to-read-nfl-player-props" />
+  <meta property="og:type" content="article" />
+  <meta property="og:image" content="https://under-review.app/og-image.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="How to read NFL player props before kickoff" />
+  <meta name="twitter:description" content="Posted lines, usage, and honest passes — then ask Under Review." />
+  <meta name="twitter:image" content="https://under-review.app/og-image.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500;600&amp;family=DM+Sans:wght@400;500;600;700&amp;family=Playfair+Display:wght@600;700&amp;display=swap" rel="stylesheet" />
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --bg:#CBD5E1;
+      --ink:#0F172A;
+      --soft:#475569;
+      --muted:#64748B;
+      --line:#94A3B8;
+      --surface:#F8FAFC;
+      --accent:#0369a1;
+      --mono:"DM Mono",ui-monospace,monospace;
+      --sans:"DM Sans",system-ui,sans-serif;
+      --display:"Playfair Display",Georgia,serif;
+    }
+    html{scroll-behavior:smooth;}
+    body{
+      background:
+        radial-gradient(ellipse 90% 50% at 10% -10%, rgba(3,105,161,0.12), transparent 55%),
+        radial-gradient(ellipse 70% 40% at 100% 0%, rgba(15,23,42,0.06), transparent 50%),
+        var(--bg);
+      color:var(--ink);
+      font-family:var(--sans);
+      -webkit-font-smoothing:antialiased;
+      line-height:1.55;
+      min-height:100vh;
+    }
+    nav{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:16px 20px;
+      max-width:640px;
+      margin:0 auto;
+    }
+    .logo{
+      font-family:var(--display);
+      font-size:22px;
+      font-weight:700;
+      color:var(--ink);
+      text-decoration:none;
+      letter-spacing:-0.02em;
+    }
+    .logo span{font-weight:600;opacity:0.55;}
+    .nav-cta{
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color:#fff;
+      background:var(--ink);
+      padding:10px 14px;
+      text-decoration:none;
+      font-weight:600;
+    }
+    main{
+      max-width:640px;
+      margin:0 auto;
+      padding:12px 20px 48px;
+    }
+    .kicker{
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:0.14em;
+      text-transform:uppercase;
+      color:var(--accent);
+      margin-bottom:12px;
+    }
+    h1{
+      font-family:var(--display);
+      font-size:clamp(28px,6vw,40px);
+      line-height:1.15;
+      letter-spacing:-0.02em;
+      margin-bottom:14px;
+    }
+    .lede{
+      font-size:17px;
+      color:var(--soft);
+      margin-bottom:28px;
+      max-width:36em;
+    }
+    h2{
+      font-family:var(--display);
+      font-size:22px;
+      margin:28px 0 10px;
+      letter-spacing:-0.01em;
+    }
+    p,li{font-size:16px;color:var(--ink);}
+    p{margin-bottom:14px;max-width:36em;}
+    ul{margin:0 0 16px 1.15em;max-width:36em;}
+    li{margin-bottom:8px;color:var(--soft);}
+    li strong{color:var(--ink);font-weight:600;}
+    .cta-band{
+      margin:36px 0 20px;
+      padding:24px 0 0;
+      border-top:1px solid var(--line);
+    }
+    .cta-band p{color:var(--soft);margin-bottom:16px;}
+    .cta-primary{
+      display:inline-block;
+      font-family:var(--mono);
+      font-size:12px;
+      letter-spacing:0.1em;
+      text-transform:uppercase;
+      font-weight:600;
+      color:#fff;
+      background:var(--ink);
+      padding:14px 22px;
+      text-decoration:none;
+    }
+    .cta-sub{
+      font-family:var(--mono);
+      font-size:11px;
+      color:var(--muted);
+      margin-top:10px;
+      letter-spacing:0.04em;
+    }
+    .related{
+      margin-top:32px;
+      font-size:14px;
+      color:var(--muted);
+    }
+    .related a{color:var(--accent);text-decoration:underline;text-underline-offset:3px;}
+    footer{
+      max-width:640px;
+      margin:0 auto;
+      padding:20px;
+      border-top:1px solid var(--line);
+      font-family:var(--mono);
+      font-size:10px;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color:var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a class="logo" href="/">Under <span>Review</span></a>
+    <a class="nav-cta" href="/?sport=nfl">Ask NFL →</a>
+  </nav>
+
+  <main>
+    <p class="kicker">NFL · before kickoff</p>
+    <h1>How to read NFL player props before kickoff</h1>
+    <p class="lede">A short checklist — not a lock sheet. Use it on the board you can actually bet, then ask Under Review for a structured take on the posted line.</p>
+
+    <h2>1. Start from the posted main</h2>
+    <p>Ignore alt ladders and period scraps. Read the half-point skill main your book actually prices (rush yards, receiving yards, receptions, pass yards). If there is no honest posted line, the correct move is often to pass.</p>
+
+    <h2>2. Confirm the player is on the right team</h2>
+    <p>Roster moves wreck stale priors. Before you lean over or under, make sure the name still belongs to the offense you think you’re betting — then check role (starter vs depth) against that matchup.</p>
+
+    <h2>3. Ask usage, not vibes</h2>
+    <ul>
+      <li><strong>Volume:</strong> targets, carries, or dropbacks that support the line</li>
+      <li><strong>Script risk:</strong> blowout or negative game flow that kills the path</li>
+      <li><strong>Competition:</strong> other mouths in the same offense eating the same pie</li>
+    </ul>
+
+    <h2>4. Treat “pass” as a take</h2>
+    <p>No posted GOAT-tier main, unclear role, or only a special-teams scrap? Passing is sharper than forcing a number. Under Review is built to say that out loud.</p>
+
+    <div class="cta-band">
+      <p>Done reading — ask a real prop from this weekend’s slate.</p>
+      <a class="cta-primary" href="/?sport=nfl&amp;q=How%20should%20I%20read%20the%20best%20posted%20NFL%20player%20props%20before%20kickoff%20this%20weekend%3F&amp;ask=0">Ask Under Review →</a>
+      <p class="cta-sub">Free NFL asks · Trial available · Not a lock service</p>
+    </div>
+
+    <p class="related">Related: <a href="/when-to-pass-receiving-yards">When to pass on a receiving-yards line</a></p>
+  </main>
+
+  <footer>Under Review · under-review.app · NFL weekends</footer>
+
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</body>
+</html>
