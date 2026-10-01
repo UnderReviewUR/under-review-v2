@@ -17,7 +17,12 @@ import {
 import { detectNflAskMarket } from "../shared/nflGoatExtractionContract.js";
 import { isNflTicketReviewAsk } from "../shared/nflAskTicketReview.js";
 import { NFL_BDL_ROSTER_SNAPSHOT } from "./data/nflBdlRosterSnapshot.js";
-import { normalizePlayerKey, resolveNflPlayerTeamFromIndex } from "../shared/nflAskPropTrim.js";
+import {
+  isNflGoatFeaturedBoardRow,
+  normalizePlayerKey,
+  pickNflConsensusMarketRow,
+  resolveNflPlayerTeamFromIndex,
+} from "../shared/nflAskPropTrim.js";
 import {
   buildNflH2hNoteFromRecentStats,
   inferNflOpponentFromSlate,
@@ -336,34 +341,116 @@ function propRawHintsForMarket(marketId, pos) {
 }
 
 /**
+ * Rows for one player — prefer exact name, never steal another player's last-name match
+ * (e.g. A.J. Brown vs Marquise Brown).
+ * @param {Array<Record<string, unknown>>} propLines
+ * @param {string} playerName
+ */
+function propRowsForNamedPlayer(propLines, playerName) {
+  const rows = Array.isArray(propLines) ? propLines : [];
+  const key = normalizePlayerKey(playerName);
+  if (!key) return [];
+  const exact = rows.filter((r) => normalizePlayerKey(r?.player) === key);
+  if (exact.length) return exact;
+
+  const parts = key.split(" ").filter(Boolean);
+  const last = parts[parts.length - 1] || "";
+  const first = parts[0] || "";
+  if (!last) return [];
+
+  const lastHits = rows.filter((r) => {
+    const pk = normalizePlayerKey(r?.player);
+    const rp = pk.split(" ").filter(Boolean);
+    return rp[rp.length - 1] === last;
+  });
+  if (!lastHits.length) return [];
+
+  if (first) {
+    const firstHits = lastHits.filter((r) => {
+      const pk = normalizePlayerKey(r?.player);
+      const rp = pk.split(" ").filter(Boolean);
+      const rf = rp[0] || "";
+      return rf === first || rf.startsWith(first) || first.startsWith(rf);
+    });
+    if (firstHits.length) return firstHits;
+  }
+
+  const distinct = new Set(lastHits.map((r) => normalizePlayerKey(r?.player)));
+  // Ambiguous shared last name with no first-token match → refuse wrong player.
+  if (distinct.size !== 1) return [];
+  return lastHits;
+}
+
+/**
+ * Pick the GOAT half-point main (or the exact asked print) — never a random integer alt.
  * @param {Array<Record<string, unknown>>} propLines
  * @param {string} playerName
  * @param {string[]} hints
+ * @param {{ askedLine?: number|null }} [opts]
  */
-export function pickLivePropLine(propLines, playerName, hints) {
-  const name = String(playerName || "").toLowerCase();
-  const rows = (Array.isArray(propLines) ? propLines : []).filter((r) =>
-    String(r?.player || "")
-      .toLowerCase()
-      .includes(name.split(" ").pop() || name),
-  );
+export function pickLivePropLine(propLines, playerName, hints, opts = {}) {
+  const rows = propRowsForNamedPlayer(propLines, playerName);
   if (!rows.length) return null;
   const want = (hints || []).map((h) => String(h).toLowerCase());
-  const ranked = [...rows].sort((a, b) => {
-    const ar = String(a.propRaw || a.prop || "").toLowerCase();
-    const br = String(b.propRaw || b.prop || "").toLowerCase();
-    const as = want.some((h) => ar.includes(h)) ? 0 : 1;
-    const bs = want.some((h) => br.includes(h)) ? 0 : 1;
-    return as - bs;
-  });
-  const best = ranked[0];
-  if (!best) return null;
-  const raw = String(best.propRaw || best.prop || "").toLowerCase();
+  const marketRows = want.length
+    ? rows.filter((r) => {
+        const raw = String(r?.propRaw || r?.prop || "").toLowerCase();
+        return want.some((h) => raw.includes(h));
+      })
+    : rows;
   // Priced prop ask with no matching market → do not show a wrong prop (e.g. yards for TDs).
-  if (want.length && !want.some((h) => raw.includes(h))) {
-    return null;
+  if (want.length && !marketRows.length) return null;
+
+  const askedRaw = opts.askedLine;
+  const asked =
+    askedRaw != null && Number.isFinite(Number(askedRaw)) ? Number(askedRaw) : null;
+  if (asked != null) {
+    const exact = marketRows.find((r) => Number(r?.line) === asked);
+    if (exact) return exact;
   }
-  return best;
+
+  const halfPoints = marketRows.filter((r) => {
+    const n = Number(r?.line);
+    return Number.isFinite(n) && Math.abs(n % 1 - 0.5) < 0.01;
+  });
+  const pool = halfPoints.length ? halfPoints : marketRows;
+  const consensus = pickNflConsensusMarketRow(pool);
+  if (consensus) return consensus;
+
+  const ranked = [...pool].sort((a, b) => {
+    const al = Number(a?.line);
+    const bl = Number(b?.line);
+    const aHalf = Number.isFinite(al) && Math.abs(al % 1 - 0.5) < 0.01 ? 0 : 1;
+    const bHalf = Number.isFinite(bl) && Math.abs(bl % 1 - 0.5) < 0.01 ? 0 : 1;
+    if (aHalf !== bHalf) return aHalf - bHalf;
+    return 0;
+  });
+  return ranked[0] || null;
+}
+
+/**
+ * Named-prop live line that is safe to ticket — asked print or GOAT half-point main only.
+ * Depth/KR scraps and integer alts never ticket — even when the user typed that number.
+ * @param {Array<Record<string, unknown>>} propLines
+ * @param {string} playerName
+ * @param {string[]} hints
+ * @param {{ askedLine?: number|null }} [opts]
+ */
+export function pickGoatNamedPropLiveLine(propLines, playerName, hints, opts = {}) {
+  const asked =
+    opts.askedLine != null && Number.isFinite(Number(opts.askedLine))
+      ? Number(opts.askedLine)
+      : null;
+  const primary = pickLivePropLine(propLines, playerName, hints, { askedLine: asked });
+  if (primary && primary.line != null && isNflGoatFeaturedBoardRow(primary)) {
+    return primary;
+  }
+  // Asked print was an alt/scrap — fall back to the posted GOAT half-point main when one exists.
+  if (asked != null) {
+    const main = pickLivePropLine(propLines, playerName, hints, { askedLine: null });
+    if (main && main.line != null && isNflGoatFeaturedBoardRow(main)) return main;
+  }
+  return null;
 }
 
 /**
@@ -631,7 +718,11 @@ export function buildNflMatchupCard(opts = {}) {
 
   const market = detectNflAskMarket(question);
   const hints = propRawHintsForMarket(market.marketId, player.pos);
-  const liveLine = pickLivePropLine(opts.propLines || [], player.name, hints);
+  const askedNumberRaw = (question.match(/\b(\d+\.5|\d+)\b/) || [])[1];
+  const askedNumber = askedNumberRaw != null ? Number(askedNumberRaw) : NaN;
+  const liveLine = pickGoatNamedPropLiveLine(opts.propLines || [], player.name, hints, {
+    askedLine: Number.isFinite(askedNumber) ? askedNumber : null,
+  });
   const bookDisagree = summarizeNflBookDisagreement(opts.propLines || [], player.name, hints);
   const phase = detectNflAskPhase(question);
   const isAlt = isNflAltLineAsk(question);
@@ -678,9 +769,6 @@ export function buildNflMatchupCard(opts = {}) {
   if (weatherLine) lines.push(weatherLine);
   else if (stadium) lines.push(stadium);
   if (h2h) lines.push(`H2H note: ${h2h}`);
-
-  const askedNumberRaw = (question.match(/\b(\d+\.5|\d+)\b/) || [])[1];
-  const askedNumber = askedNumberRaw != null ? Number(askedNumberRaw) : NaN;
 
   if (liveLine && liveLine.line != null) {
     lines.push(

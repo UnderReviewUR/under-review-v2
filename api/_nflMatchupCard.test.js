@@ -7,6 +7,7 @@ import {
   resolveNflOpponentAbbr,
   resolveHomeFromSlate,
   pickLivePropLine,
+  pickGoatNamedPropLiveLine,
   buildInjuryOverrideLine,
   buildNflMatchupThesis,
 } from "./_nflMatchupCard.js";
@@ -64,6 +65,93 @@ test("pickLivePropLine matches rush yards", () => {
   );
   assert.equal(line.line, 78.5);
   assert.equal(line.propRaw, "rush_yds");
+});
+
+test("pickLivePropLine prefers asked half-point main over integer rush alt", () => {
+  const line = pickLivePropLine(
+    [
+      {
+        player: "Jaylen Warren",
+        propRaw: "rush_yds",
+        prop: "rush yards",
+        line: 90,
+        overOdds: -110,
+        underOdds: -110,
+        book: "DraftKings",
+      },
+      {
+        player: "Jaylen Warren",
+        propRaw: "rush_yds",
+        prop: "rush yards",
+        line: 72.5,
+        overOdds: -115,
+        underOdds: -105,
+        book: "DraftKings",
+      },
+      {
+        player: "Jaylen Warren",
+        propRaw: "rush_yds",
+        prop: "rush yards",
+        line: 71.5,
+        overOdds: -110,
+        underOdds: -110,
+        book: "FanDuel",
+      },
+    ],
+    "Jaylen Warren",
+    ["rush_yds", "rushing_yards"],
+    { askedLine: 72.5 },
+  );
+  assert.equal(line?.line, 72.5);
+});
+
+test("pickLivePropLine does not steal Marquise Brown for A.J. Brown", () => {
+  const line = pickLivePropLine(
+    [
+      {
+        player: "Marquise Brown",
+        propRaw: "rec_yds",
+        line: 44.5,
+        overOdds: -110,
+        underOdds: -110,
+      },
+      {
+        player: "A.J. Brown",
+        propRaw: "first_td",
+        line: 0.5,
+        overOdds: 800,
+      },
+    ],
+    "A.J. Brown",
+    ["rec_yds", "receiving_yards"],
+  );
+  assert.equal(line, null);
+});
+
+test("pickGoatNamedPropLiveLine refuses depth rush and TD scrap pivot", () => {
+  assert.equal(
+    pickGoatNamedPropLiveLine(
+      [
+        {
+          player: "Sione Vaki",
+          propRaw: "rush_yds",
+          line: 40.5,
+          overOdds: -110,
+          underOdds: -110,
+        },
+        {
+          player: "Sione Vaki",
+          propRaw: "first_td",
+          line: 0.5,
+          overOdds: 2500,
+        },
+      ],
+      "Sione Vaki",
+      ["rush_yds", "rushing_yards"],
+      { askedLine: 40.5 },
+    ),
+    null,
+  );
 });
 
 test("buildInjuryOverrideLine flags Out player", () => {

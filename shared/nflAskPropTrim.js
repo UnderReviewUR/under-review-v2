@@ -888,6 +888,12 @@ function dropNflYardLadderAlts(list, market) {
     if (passMains.length) return passMains;
   }
   if (/rush_yds/.test(m)) {
+    // Half-point mains (71.5–73.5) beat integer alt ladders (40/50/60/90) on the same player.
+    const halfMains = list.filter((r) => {
+      const n = Number(r.line);
+      return n >= 18 && n <= 110 && Math.abs(n % 1 - 0.5) < 0.01;
+    });
+    if (halfMains.length) return halfMains;
     const rushMains = list.filter((r) => {
       const n = Number(r.line);
       return n >= 18 && n <= 110;
@@ -895,6 +901,11 @@ function dropNflYardLadderAlts(list, market) {
     if (rushMains.length) return rushMains;
   }
   if (/rec_yds/.test(m)) {
+    const halfMains = list.filter((r) => {
+      const n = Number(r.line);
+      return n >= 15 && n <= 125 && Math.abs(n % 1 - 0.5) < 0.01;
+    });
+    if (halfMains.length) return halfMains;
     const recMains = list.filter((r) => {
       const n = Number(r.line);
       return n >= 15 && n <= 125;
@@ -933,9 +944,14 @@ export function pickNflConsensusMarketRow(rows) {
     const band = passYds ? 8 : nflPropPeerBand(market, bestCenter);
     const cluster = list.filter((r) => Math.abs(Number(r.line) - bestCenter) <= band);
     const pool = cluster.length ? cluster : list;
-    return pool.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), pool[0]);
+    const half = pool.filter((r) => Math.abs(Number(r.line) % 1 - 0.5) < 0.01);
+    const prefer = half.length ? half : pool;
+    // Among half-point mains, keep the high print (fade bait). Never leap to integer alts.
+    return prefer.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), prefer[0]);
   }
-  return list.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), list[0]);
+  const half = list.filter((r) => Math.abs(Number(r.line) % 1 - 0.5) < 0.01);
+  const prefer = half.length ? half : list;
+  return prefer.reduce((best, row) => (Number(row.line) > Number(best.line) ? row : best), prefer[0]);
 }
 
 const NFL_NAME_SUFFIX_RE = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i;

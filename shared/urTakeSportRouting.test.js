@@ -211,10 +211,10 @@ describe("resolveSportHint — WC off: live surface is NFL / La Liga", () => {
     }
   }
 
-  it("anytime scorer lands on La Liga while WC is off", () => {
+  it("anytime scorer stays generic while WC and La Liga are off the live surface", () => {
     assert.equal(
       resolveSportHint({ incomingSportHint: "generic", question: "Mbappe anytime scorer odds tonight" }),
-      "laliga",
+      "generic",
     );
   });
 

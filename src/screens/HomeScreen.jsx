@@ -19,8 +19,8 @@ const FIRST_SESSION_PROMPTS = HOME_PROMPT_FALLBACKS.filter((q) =>
   ["fb1", "fb2", "fb3"].includes(q.id),
 );
 
-/** Home hero copy — NFL + La Liga weekend ICP. */
-const HOME_HEADLINE = "Your NFL + La Liga weekend companion.";
+/** Home hero copy — NFL weekend ICP. */
+const HOME_HEADLINE = "Your NFL weekend companion.";
 const HOME_SUBHEAD = "Posted lines, matchup reads, and prop angles before kickoff.";
 const HOME_ASK_PROMISE = `${HOME_HEADLINE} ${HOME_SUBHEAD}`;
 

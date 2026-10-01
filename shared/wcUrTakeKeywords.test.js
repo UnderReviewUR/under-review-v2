@@ -26,14 +26,23 @@ test("player props with WC team is WC-shaped but coerced off the live surface", 
   assert.equal(inferSportFromQuestionText(q), null);
 });
 
-test("anytime scorer keyword still looks like soccer; live surface is La Liga", () => {
+test("anytime scorer keyword still looks like soccer; live surface stays generic while La Liga is hidden", () => {
   assert.equal(questionImpliesWcSoccerPlayerProp("Best anytime scorer value today?"), true);
   assert.equal(inferWorldCupFromPlayerMarketQuestion("Best anytime scorer value today?"), true);
-  assert.equal(inferSportFromQuestionText("Best anytime scorer value today?"), "laliga");
-  assert.equal(detectSportFromQuestion("Best anytime scorer value today?", "home"), "laliga");
+  assert.equal(inferSportFromQuestionText("Best anytime scorer value today?"), null);
+  assert.equal(detectSportFromQuestion("Best anytime scorer value today?", "home"), "generic");
 });
 
 test("bare player props alone does not force World Cup", () => {
   assert.equal(inferWorldCupFromPlayerMarketQuestion("best player props tonight?"), false);
   assert.equal(questionMentionsWorldCup("best player props tonight?"), false);
+});
+
+test("New England Patriots does not match WC England", () => {
+  const q =
+    "A.J. Brown this week for New England — any playable receiving prop, or pass if lines aren't there?";
+  assert.equal(questionMentionsWorldCup(q), false);
+  assert.equal(questionMentionsWorldCup("New England Patriots vs Buffalo"), false);
+  assert.equal(questionMentionsWorldCup("England vs Wales"), true);
+  assert.equal(questionMentionsWorldCup("England world cup opener"), true);
 });

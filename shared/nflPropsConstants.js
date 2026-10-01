@@ -129,3 +129,47 @@ export function nflPropsCacheKey(gameId) {
 export function nflBoardCacheKey(dateOrWeekKey) {
   return `nfl_board_${String(dateOrWeekKey).trim()}_v1`;
 }
+
+/**
+ * Cache key for live board payloads — must vary by includeProps / game / scope
+ * so a bare scoreboard fetch cannot poison `?includeProps=1`.
+ * @param {{
+ *   dateYmd?: string,
+ *   week?: number | string,
+ *   season?: number | string,
+ *   gameId?: number | string,
+ *   includeProps?: boolean,
+ *   maxPropGames?: number,
+ *   scopeAbbrs?: Set<string>|string[]|null,
+ *   source?: string,
+ * }} opts
+ */
+export function nflLiveBoardCacheKeyPart(opts = {}) {
+  const keyPart =
+    opts.week != null
+      ? `week_${opts.week}_${opts.season || "cur"}`
+      : String(opts.dateYmd || "").replace(/-/g, "") || "today";
+  const wantProps = Boolean(opts.includeProps) || opts.gameId != null;
+  const src = String(opts.source || "bdl").slice(0, 8);
+  let scope = "";
+  if (opts.scopeAbbrs) {
+    const arr =
+      opts.scopeAbbrs instanceof Set
+        ? [...opts.scopeAbbrs]
+        : Array.isArray(opts.scopeAbbrs)
+          ? [...opts.scopeAbbrs]
+          : [];
+    if (arr.length) {
+      scope = `_s${arr
+        .map((x) => String(x || "").toUpperCase())
+        .filter(Boolean)
+        .sort()
+        .join("-")}`;
+    }
+  }
+  const gid = opts.gameId != null ? `_g${opts.gameId}` : "";
+  const maxP = wantProps
+    ? `_mp${Math.max(1, Math.min(Number(opts.maxPropGames) || (scope ? 1 : 4), 16))}`
+    : "";
+  return `${src}_${keyPart}_p${wantProps ? 1 : 0}${gid}${maxP}${scope}`;
+}

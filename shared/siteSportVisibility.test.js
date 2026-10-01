@@ -11,10 +11,10 @@ import {
   isWorldCupUrTakeGated,
 } from "./siteSportVisibility.js";
 
-test("nav live surface is home + NFL + La Liga (WC off)", () => {
+test("nav live surface is home + NFL only (La Liga + WC off)", () => {
   assert.ok(isNavSportVisible("home"));
   assert.ok(isNavSportVisible("nfl"));
-  assert.ok(isNavSportVisible("laliga"));
+  assert.ok(!isNavSportVisible("laliga"));
   assert.ok(!isNavSportVisible("worldcup"));
   assert.ok(!isNavSportVisible("nba"));
   assert.ok(!isNavSportVisible("cfb"));
@@ -24,9 +24,9 @@ test("nav live surface is home + NFL + La Liga (WC off)", () => {
   assert.ok(!isNavSportVisible("golf"));
 });
 
-test("home ticker is NFL + La Liga only", () => {
+test("home ticker is NFL only", () => {
   assert.ok(isHomeTickerSportVisible("nfl"));
-  assert.ok(isHomeTickerSportVisible("laliga"));
+  assert.ok(!isHomeTickerSportVisible("laliga"));
   assert.ok(!isHomeTickerSportVisible("worldcup"));
   assert.ok(!isHomeTickerSportVisible("nba"));
 });
@@ -51,14 +51,14 @@ test("isNflUrTakeGated is off while NFL nav is on", () => {
 test("World Cup ask is gated while nav.worldcup is false", () => {
   assert.ok(isWorldCupUrTakeGated());
   assert.ok(isUrAskSportActive("nfl"));
-  assert.ok(isUrAskSportActive("laliga"));
+  assert.ok(!isUrAskSportActive("laliga"));
   assert.ok(!isUrAskSportActive("worldcup"));
 });
 
-test("coerce WC club props to La Liga; tournament asks stay generic", () => {
+test("coerce WC club props stay generic while La Liga nav is off; NFL remaps", () => {
   assert.equal(
     coerceUrAskSportToLiveSurface("worldcup", "Best anytime scorer value today?"),
-    "laliga",
+    "generic",
   );
   assert.equal(
     coerceUrAskSportToLiveSurface("worldcup", "Will Paraguay advance from Group D?"),

@@ -12,7 +12,8 @@ async function postCheckout(email, restoreProEntitlement) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email }),
+    // Match Pro tab + CTA copy: 7-day free trial, then $9.99/mo.
+    body: JSON.stringify({ email, trial: true, offer: "weekend_trial" }),
   });
   const data = await res.json().catch(() => ({}));
   if (res.status === 403 && data.error === "already_pro") {
@@ -30,7 +31,7 @@ async function postCheckout(email, restoreProEntitlement) {
     } catch {
       /* optional */
     }
-    trackFunnelEvent("checkout_start", { surface: "pro_checkout" });
+    trackFunnelEvent("checkout_start", { surface: "pro_checkout", trial: true });
     return { ok: true, url: data.url };
   }
   if (data.retryAfterSeconds) {
