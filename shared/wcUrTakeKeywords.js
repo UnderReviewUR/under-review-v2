@@ -67,7 +67,15 @@ const WC_TOURNAMENT_TERMS = [
 ];
 
 /** Single-token nation names that collide with other sports — need a co-signal. */
-const WC_AMBIGUOUS_TEAM_PHRASES = new Set(["jordan"]);
+const WC_AMBIGUOUS_TEAM_PHRASES = new Set(["jordan", "england"]);
+
+/**
+ * NFL "New England" must not count as WC nation England.
+ * @param {string} q already normalized
+ */
+function stripNflNewEngland(q) {
+  return String(q || "").replace(/\bnew england\b/g, " ");
+}
 
 const WC_TEAM_ALIASES = {
   "united states": ["usa", "u.s.", "u.s.a.", "usmnt", "team usa"],
@@ -206,6 +214,7 @@ export function inferWorldCupFromPlayerMarketQuestion(question) {
 export function questionMentionsWorldCup(question) {
   const q = normalizeText(question);
   if (!q) return false;
+  const qTeams = stripNflNewEngland(q);
 
   if (WC_GROUP_STAGE_RE.test(q)) return true;
   if (WC_GROUP_STAGE_PHASE_RE.test(q)) return true;
@@ -219,7 +228,7 @@ export function questionMentionsWorldCup(question) {
   if (questionImpliesWcSoccerPlayerProp(question)) return true;
 
   for (const phrase of WC_TEAM_PHRASES) {
-    if (!containsPhrase(q, phrase)) continue;
+    if (!containsPhrase(qTeams, phrase)) continue;
     if (WC_AMBIGUOUS_TEAM_PHRASES.has(phrase)) {
       const coSignal =
         WC_GROUP_STAGE_RE.test(q) ||
@@ -229,7 +238,7 @@ export function questionMentionsWorldCup(question) {
         (q.includes("football") && !WC_NFL_EXCLUDE_RE.test(q)) ||
         q.includes("group stage") ||
         q.includes("knockout") ||
-        /\bvs\.?\b/.test(q) ||
+        /\bvs\.?\b/.test(qTeams) ||
         q.includes("national team");
       if (!coSignal) continue;
     }
@@ -247,10 +256,11 @@ export function questionMentionsWorldCup(question) {
 export function extractMentionedWcTeams(question) {
   const q = normalizeText(question);
   if (!q) return [];
+  const qTeams = stripNflNewEngland(q);
   /** @type {Set<string>} */
   const found = new Set();
   for (const phrase of WC_TEAM_PHRASES) {
-    if (!containsPhrase(q, phrase)) continue;
+    if (!containsPhrase(qTeams, phrase)) continue;
     if (WC_AMBIGUOUS_TEAM_PHRASES.has(phrase)) {
       const coSignal =
         WC_GROUP_STAGE_RE.test(q) ||
@@ -258,7 +268,7 @@ export function extractMentionedWcTeams(question) {
         q.includes("fifa") ||
         q.includes("soccer") ||
         (q.includes("football") && !WC_NFL_EXCLUDE_RE.test(q)) ||
-        /\bvs\.?\b/.test(q);
+        /\bvs\.?\b/.test(qTeams);
       if (!coSignal) continue;
     }
     const abbr = WC_PHRASE_TO_ABBR.get(phrase);

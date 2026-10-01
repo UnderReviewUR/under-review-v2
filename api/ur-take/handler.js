@@ -3089,7 +3089,14 @@ export default async function handler(req, res) {
   // All World Cup routing decisions now live in shared/wcTurnPlanner.js.
   // Do not add new routing logic or shouldUseWc* guards here.
   let wcEventIdTrimmed = null;
-  if (sportHint === "worldcup" || questionMentionsWorldCup(question)) {
+  // NFL UI / New England Patriots asks must not be stolen by WC "England" phrase matches.
+  const forceNflUi =
+    String(uiSportHintForRouting || "").toLowerCase() === "nfl" ||
+    hasNflAskLexicon(routingQuestion);
+  if (
+    !forceNflUi &&
+    (sportHint === "worldcup" || questionMentionsWorldCup(question))
+  ) {
     if (sportHint !== "worldcup") sportHint = "worldcup";
     wcIntent = classifyWcQuestionIntent(routingQuestion, incomingHistory);
     if (

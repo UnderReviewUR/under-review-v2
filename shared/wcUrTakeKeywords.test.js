@@ -37,3 +37,12 @@ test("bare player props alone does not force World Cup", () => {
   assert.equal(inferWorldCupFromPlayerMarketQuestion("best player props tonight?"), false);
   assert.equal(questionMentionsWorldCup("best player props tonight?"), false);
 });
+
+test("New England Patriots does not match WC England", () => {
+  const q =
+    "A.J. Brown this week for New England — any playable receiving prop, or pass if lines aren't there?";
+  assert.equal(questionMentionsWorldCup(q), false);
+  assert.equal(questionMentionsWorldCup("New England Patriots vs Buffalo"), false);
+  assert.equal(questionMentionsWorldCup("England vs Wales"), true);
+  assert.equal(questionMentionsWorldCup("England world cup opener"), true);
+});
