@@ -5951,6 +5951,36 @@ in words (e.g. "podium only makes sense at +400 or better — watch qual gap").`
       }
     }
 
+    // Safety net: named skill props never fall through to Sonnet/snag.
+    if (parseNflFirstAsk(question).lane === "named_prop") {
+      const liveLine = nflMatchupMetaOut?.liveLine;
+      if (liveLine && liveLine.line != null) {
+        return await shipNflMarriedTake(
+          buildNflLivePropBoardTake({
+            question,
+            liveLine,
+            defenseTier: nflMatchupMetaOut?.defenseTier,
+            defensePrior: Boolean(nflMatchupMetaOut?.defensePrior),
+            playerName: nflMatchupMetaOut?.player?.name || nflMatchupMetaOut?.player,
+            briefcase: nflAskGuardBriefcase,
+            propLines: nflAskGuardPropLines,
+            week: nflAskGuardBriefcase?.week ?? nflAskGuardGames?.[0]?.week,
+          }),
+          "nfl_named_prop_offline",
+        );
+      }
+      return await shipNflMarriedTake(
+        buildNflLivePropBoardTake({
+          question,
+          liveLine: null,
+          briefcase: nflAskGuardBriefcase,
+          propLines: nflAskGuardPropLines,
+        }),
+        "nfl_named_prop_no_line",
+        { skipPolish: true },
+      );
+    }
+
     const nflLive = resolveNflAskLiveSignals({
       question,
       hasImage,

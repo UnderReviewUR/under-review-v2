@@ -530,6 +530,25 @@ test("pass yards consensus prefers the half-point main over a 250 alt ladder", a
   assert.notEqual(Number(consensus.line), 250);
 });
 
+test("rush yards consensus prefers half-point main over integer alt ladder", async () => {
+  const { pickNflConsensusMarketRow } = await import("./nflAskPropTrim.js");
+  const ladder = [40, 50, 60, 70, 71.5, 72.5, 73.5, 80, 90, 100, 110].map((line) => ({
+    player: "Jaylen Warren",
+    prop: "rushing yards",
+    propRaw: "rushing_yards",
+    line,
+    overOdds: -110,
+    underOdds: -110,
+  }));
+  const consensus = pickNflConsensusMarketRow(ladder);
+  assert.ok(consensus);
+  assert.ok(
+    Number(consensus.line) >= 71 && Number(consensus.line) <= 74,
+    `expected ~71.5–73.5 main, got ${consensus.line}`,
+  );
+  assert.notEqual(Number(consensus.line), 90);
+});
+
 test("a row stamped with another matchup is dropped even when the player is in scope", () => {
   const rows = [
     { player: "A.J. Brown", propRaw: "rec_yds", line: 62.5, game: "NE @ SEA", team: "NE" },
