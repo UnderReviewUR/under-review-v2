@@ -42,20 +42,36 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:ital,wght@0,400;0,500;1,400&amp;family=Bebas+Neue&amp;family=Epilogue:wght@400;600;800;900&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" media="print" onload="this.media='all'">
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=Barlow:ital,wght@0,400;0,500;1,400&amp;family=Bebas+Neue&amp;family=Epilogue:wght@400;600;800;900&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap"></noscript>
 
-    <!-- Optional: smooth font rendering -->
-    <style>
+    <!-- Optional: smooth font rendering.
+         Main app locks document scroll (iOS chat shell). /transfers owner Phone alerts
+         is a tall multi-step form outside that shell — keep document scrollable. -->
+    <style id="ur-shell-base">
       html, body {
         margin: 0;
         padding: 0;
         height: 100%;
         width: 100%;
-        overflow: hidden;
-        position: fixed;
         background: #CBD5E1;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
     </style>
+    <script>
+      (function () {
+        try {
+          var path = String(location.pathname || "/").replace(/\/+$/, "") || "/";
+          var s = document.createElement("style");
+          if (path === "/transfers") {
+            s.textContent =
+              "html,body,#root{height:auto!important;min-height:100%;min-height:100dvh;overflow:auto!important;overflow-x:hidden;position:static!important;-webkit-overflow-scrolling:touch;overscroll-behavior:auto;touch-action:pan-y;}" +
+              "html,body{background:#070710;}";
+          } else {
+            s.textContent = "html,body{overflow:hidden;position:fixed;}";
+          }
+          document.head.appendChild(s);
+        } catch (e) {}
+      })();
+    </script>
     <meta name="description" content="NFL weekend companion. Sharp takes you can push back on — THE PLAY on Pro, graded record, 7-day trial then $9.99/mo. Not a pick service.">
     <meta property="og:title" content="Under Review — NFL weekends">
     <meta property="og:description" content="Posted lines, prop angles, THE PLAY on Pro, and a graded record. 7-day free trial, then $9.99/mo. Not a pick service.">
