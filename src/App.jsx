@@ -5456,7 +5456,7 @@ ${themeCss}
               onClick={()=>{ window.location.href = "/transfers"; }}
               style={{marginTop:8,background:"none",border:"none",padding:0,color:"var(--cyan-bright)",fontSize:12,cursor:"pointer",fontFamily:"var(--mono-font)",letterSpacing:1}}
             >
-              Transfer alerts
+              Owner alerts
             </button>
           ) : null}
         </div>
