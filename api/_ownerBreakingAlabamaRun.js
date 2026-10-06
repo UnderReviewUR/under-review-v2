@@ -6,7 +6,12 @@ import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { parseRssItems } from "../shared/transferAlerts/parseRss.js";
 import { rankAlabamaAlerts } from "../shared/ownerBreaking/alabamaScore.js";
-import { formatOwnerBreakingBody, sendOwnerWebPush } from "./_ownerBreakingPush.js";
+import {
+  formatOwnerBreakingBody,
+  loadOwnerAlertPrefs,
+  alabamaAlertPassesPrefs,
+  sendOwnerWebPush,
+} from "./_ownerBreakingPush.js";
 
 const SEEN_KEY = "owner_breaking:alabama_seen_v1";
 const SEEN_TTL_SECONDS = 5 * 24 * 60 * 60;
@@ -127,10 +132,17 @@ export async function runAlabamaBreakingTick(opts = {}) {
     return { ok: true, skipped: true, reason: "alabama_disabled" };
   }
 
+  const prefs = await loadOwnerAlertPrefs();
+  if (!prefs.teams?.alabama) {
+    return { ok: true, skipped: true, reason: "alabama_pref_off" };
+  }
+
   const { items, feedResults } = await fetchAlabamaFeedItems(
     opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
   );
-  const ranked = rankAlabamaAlerts(items, { limit: maxSend * 4 });
+  const ranked = rankAlabamaAlerts(items, { limit: maxSend * 4 }).filter((a) =>
+    alabamaAlertPassesPrefs(a, prefs).ok,
+  );
   const seen = await loadSeen();
   const now = Date.now();
 

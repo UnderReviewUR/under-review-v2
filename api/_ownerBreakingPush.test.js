@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   formatOwnerBreakingBody,
+  normalizeOwnerAlertPrefs,
   parseOwnerBreakingPaste,
   sendOwnerWebPush,
 } from "./_ownerBreakingPush.js";
@@ -36,6 +37,22 @@ describe("parseOwnerBreakingPaste", () => {
     });
     assert.equal(p.ok, true);
     assert.equal(p.injectAsk, false);
+  });
+});
+
+describe("normalizeOwnerAlertPrefs", () => {
+  it("defaults Barça + Alabama on and rumors off", () => {
+    const p = normalizeOwnerAlertPrefs(null);
+    assert.equal(p.teams.barcelona, true);
+    assert.equal(p.teams.alabama, true);
+    assert.equal(p.interests.transfers, true);
+    assert.equal(p.interests.rumors, false);
+  });
+
+  it("migrates v1 OFF flags", () => {
+    const p = normalizeOwnerAlertPrefs({ barca: false, alabama: true });
+    assert.equal(p.teams.barcelona, false);
+    assert.equal(p.teams.alabama, true);
   });
 });
 

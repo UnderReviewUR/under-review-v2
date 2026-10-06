@@ -11,9 +11,21 @@ import {
   getVapidConfig,
   loadPushSubscriptions,
 } from "./_transferAlertsPush.js";
+import {
+  CURATED_TEAMS,
+  INTEREST_DEFS,
+  normalizeOwnerAlertPrefs,
+} from "../shared/ownerBreaking/prefs.js";
+
+export { CURATED_TEAMS, INTEREST_DEFS, normalizeOwnerAlertPrefs };
+export {
+  alabamaAlertPassesPrefs,
+  transferAlertPassesPrefs,
+} from "../shared/ownerBreaking/prefs.js";
 
 export const NFL_BREAKING_KV_KEY = "owner_breaking:nfl_v1";
 export const NFL_BREAKING_TTL_SECONDS = 36 * 60 * 60;
+export const OWNER_ALERT_PREFS_KV_KEY = "owner_breaking:prefs_v1";
 
 export const OWNER_BREAKING_SOURCES = [
   "Schefter",
@@ -24,6 +36,35 @@ export const OWNER_BREAKING_SOURCES = [
 ];
 
 export const OWNER_BREAKING_SPORTS = ["nfl", "soccer", "cfb", "other"];
+
+/**
+ * @returns {Promise<import("../shared/ownerBreaking/prefs.js").OwnerAlertPrefs>}
+ */
+export async function loadOwnerAlertPrefs() {
+  const raw = await getDurableJson(OWNER_ALERT_PREFS_KV_KEY);
+  return normalizeOwnerAlertPrefs(raw);
+}
+
+/**
+ * @param {unknown} patch
+ */
+export async function saveOwnerAlertPrefs(patch) {
+  const prev = await loadOwnerAlertPrefs();
+  const merged =
+    patch && typeof patch === "object"
+      ? {
+          ...prev,
+          ...patch,
+          teams: { ...prev.teams, ...(patch.teams || {}) },
+          interests: { ...prev.interests, ...(patch.interests || {}) },
+          customTeams:
+            patch.customTeams !== undefined ? patch.customTeams : prev.customTeams,
+        }
+      : prev;
+  const next = normalizeOwnerAlertPrefs(merged);
+  await setDurableJson(OWNER_ALERT_PREFS_KV_KEY, next);
+  return next;
+}
 
 /**
  * @param {{

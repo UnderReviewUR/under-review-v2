@@ -277,9 +277,11 @@ async function main() {
   for (const q of GAME3_QUESTIONS) {
     const analysis = analyzeQuestion(q.question, board, { liveBoard: q.liveBoard });
     const intentOk = !q.expectIntent || analysis.intent === q.expectIntent;
-    const offlineBoard = !boardSummary.finalsOnSlate && boardSummary.propCount === 0;
+    // Finals starters/H2H only apply when SAS/NYK is on tonight's slate.
+    // Other NBA props can still be present in the regular season / preseason.
+    const offlineFinals = !boardSummary.finalsOnSlate;
     const gapOk =
-      offlineBoard ||
+      offlineFinals ||
       ((!q.expectH2h || boardSummary.h2hSplitsLen > 0) &&
         (!q.expectStarters || boardSummary.startersByGameKeys.length > 0));
 

@@ -7,6 +7,7 @@ import { getEnv } from "./_env.js";
 import { fetchTransferFeedItems } from "./_transferAlertsFetch.js";
 import { bounceTransferAlert } from "./_transferAlertsNotify.js";
 import { rankTransferAlerts, shouldSkipAsRepeat, markAlertSeen } from "../shared/transferAlerts/scoreAlert.js";
+import { loadOwnerAlertPrefs, transferAlertPassesPrefs } from "./_ownerBreakingPush.js";
 
 const SEEN_KEY = "transfer_alerts:seen_v1";
 const SEEN_TTL_SECONDS = 7 * 24 * 60 * 60;
@@ -63,7 +64,10 @@ export async function runTransferAlertsTick(opts = {}) {
   const { items, feedResults } = await fetchTransferFeedItems(
     opts.fetchImpl ? { fetchImpl: opts.fetchImpl } : {},
   );
-  const ranked = rankTransferAlerts(items, { limit: maxSend * 3 });
+  const prefs = await loadOwnerAlertPrefs();
+  const ranked = rankTransferAlerts(items, { limit: maxSend * 3 }).filter((alert) => {
+    return transferAlertPassesPrefs(alert, prefs).ok;
+  });
   const seen = await loadSeenMap();
   const now = Date.now();
 

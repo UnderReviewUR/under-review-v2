@@ -63,4 +63,4 @@ Reserved Barça slots and the send list only keep items that pass `passesBarcaHi
 
 Barça without a byline now needs score ≥ 9.5 (was 7.5). Soft-only Barça without a reporter is dropped before ranking.
 
-Owner paste / Alabama / NFL Ask inject: see Project doc `docs/owner-breaking-alerts.md` (Agent Store) and `/transfers` paste form.
+Owner phone setup: Enable push → pick teams + interests on `/transfers`. See Project doc `docs/owner-breaking-alerts.md`. Auto transfer bounce is gated by those prefs (team match + transfers/rumors interest).

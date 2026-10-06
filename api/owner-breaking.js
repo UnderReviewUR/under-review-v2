@@ -1,17 +1,22 @@
 /**
- * Owner-only breaking paste → Web Push (no cron).
+ * Owner-only breaking paste + alert preferences.
  * Auth: same as transfer-alerts-push (owner code / owner Bearer / TRANSFER_ALERTS_PUSH_SECRET).
  *
- * POST { sport, source, text, link?, injectAsk?, code? }
- * GET  → vapid status + source/sport enums (owner only)
+ * GET  → subscribe status + tailored prefs (teams + interests)
+ * POST { prefs } → save preferences
+ * POST { sport, source, text, link?, injectAsk? } → paste → push (always available)
  */
 
 import { applyCors } from "./_cors.js";
 import {
   formatOwnerBreakingBody,
+  CURATED_TEAMS,
+  INTEREST_DEFS,
+  loadOwnerAlertPrefs,
   OWNER_BREAKING_SOURCES,
   OWNER_BREAKING_SPORTS,
   parseOwnerBreakingPaste,
+  saveOwnerAlertPrefs,
   sendOwnerWebPush,
   storeNflBreakingForAsk,
 } from "./_ownerBreakingPush.js";
@@ -35,13 +40,23 @@ export default async function handler(req, res) {
   if (req.method === "GET") {
     const vapid = getVapidConfig();
     const { subscriptions } = await loadPushSubscriptions();
+    const prefs = await loadOwnerAlertPrefs();
     return res.status(200).json({
       ok: true,
       vapidConfigured: Boolean(vapid),
       subscribed: subscriptions.length > 0,
+      prefs,
+      curatedTeams: CURATED_TEAMS.map(({ id, label, league }) => ({ id, label, league })),
+      interests: INTEREST_DEFS,
       sports: OWNER_BREAKING_SPORTS,
       sources: OWNER_BREAKING_SOURCES,
     });
+  }
+
+  // Preference save — tailored teams + interests.
+  if (req.body?.prefs && typeof req.body.prefs === "object") {
+    const prefs = await saveOwnerAlertPrefs(req.body.prefs);
+    return res.status(200).json({ ok: true, prefs });
   }
 
   const parsed = parseOwnerBreakingPaste(req.body || {});
