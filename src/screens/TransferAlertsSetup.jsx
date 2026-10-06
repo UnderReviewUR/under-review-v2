@@ -156,6 +156,47 @@ export default function TransferAlertsSetup() {
     loadConfig();
   }, [loadConfig]);
 
+  // index.html locks html/body scroll for the main app shell; this page is outside
+  // that shell and taller than a phone viewport. Keep a dedicated scroll pane so
+  // Teams → Interests → Done stay reachable on iOS PWA / mobile Safari.
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const root = document.getElementById("root");
+    const prev = {
+      htmlOverflow: html.style.overflow,
+      htmlPosition: html.style.position,
+      htmlHeight: html.style.height,
+      bodyOverflow: body.style.overflow,
+      bodyPosition: body.style.position,
+      bodyHeight: body.style.height,
+      rootHeight: root?.style.height || "",
+      rootOverflow: root?.style.overflow || "",
+    };
+    html.style.overflow = "auto";
+    html.style.position = "static";
+    html.style.height = "auto";
+    body.style.overflow = "auto";
+    body.style.position = "static";
+    body.style.height = "auto";
+    if (root) {
+      root.style.height = "auto";
+      root.style.overflow = "visible";
+    }
+    return () => {
+      html.style.overflow = prev.htmlOverflow;
+      html.style.position = prev.htmlPosition;
+      html.style.height = prev.htmlHeight;
+      body.style.overflow = prev.bodyOverflow;
+      body.style.position = prev.bodyPosition;
+      body.style.height = prev.bodyHeight;
+      if (root) {
+        root.style.height = prev.rootHeight;
+        root.style.overflow = prev.rootOverflow;
+      }
+    };
+  }, []);
+
   async function enable() {
     setBusy(true);
     try {
@@ -393,10 +434,15 @@ export default function TransferAlertsSetup() {
     <div
       style={{
         minHeight: "100dvh",
-        padding: "48px 24px 40px",
+        padding: "48px 24px calc(40px + env(safe-area-inset-bottom, 0px))",
         background: "#070710",
         color: "#e8eaf0",
         fontFamily: "system-ui, sans-serif",
+        overflowY: "auto",
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "auto",
+        touchAction: "pan-y",
+        boxSizing: "border-box",
       }}
     >
       <div style={{ maxWidth: 440, margin: "0 auto" }}>
