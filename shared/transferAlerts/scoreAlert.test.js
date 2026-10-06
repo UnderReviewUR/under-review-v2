@@ -203,14 +203,14 @@ describe("rankTransferAlerts", () => {
     };
     const barca = {
       guid: "barca-alvarez",
-      title: "Atletico hit back at Barca over Alvarez transfer row - BBC",
-      description: "Zero per cent chance of a move",
-      link: "https://www.bbc.com/sport/football/articles/alvarez",
+      title: "Barcelona agree personal terms for midfielder — James Benge",
+      description: "Medical planned next week",
+      link: "https://www.nytimes.com/athletic/articles/barca",
       pubDate: now,
-      source: "BBC",
-      feedId: "bbc_football",
-      feedLabel: "BBC Sport Football",
-      feedWeight: 0.95,
+      source: "The Athletic",
+      feedId: "gnews_barca_reporters",
+      feedLabel: "Barça beat reporters",
+      feedWeight: 1.45,
       barcaHeavyFeed: true,
     };
     const ranked = rankTransferAlerts([pl, barca], { limit: 1, barcaReserve: 1 });

@@ -32,6 +32,7 @@ import {
   staticRosterNamesForScope,
 } from "./_nflMatchupPropHygiene.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
+import { getNflBreakingLine } from "./_ownerBreakingPush.js";
 import { detectNflAskMarket, evaluateBriefcaseForInteraction } from "../shared/nflGoatExtractionContract.js";
 import {
   buildNflAskDisciplinePromptBlock,
@@ -474,6 +475,17 @@ export async function buildNflFastAskContext(options = {}) {
   let promptContext = lines.join("\n\n");
   if (promptContext.length > FAST_PROMPT_BUDGET) {
     promptContext = `${promptContext.slice(0, FAST_PROMPT_BUDGET)}\n\n[trimmed for fast lane]`;
+  }
+
+  try {
+    const nflBreaking = String(await getNflBreakingLine() || "").trim();
+    if (nflBreaking) {
+      promptContext =
+        `NFL BREAKING (owner paste / env — treat as authoritative over stale feed):\n  ${nflBreaking}\n\n` +
+        promptContext;
+    }
+  } catch {
+    /* ignore */
   }
 
   const stubBriefcase = {

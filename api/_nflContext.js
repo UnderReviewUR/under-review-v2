@@ -38,6 +38,7 @@ import {
 } from "./_nflMatchupPropHygiene.js";
 import { isNflScopedPropFastPath } from "../shared/nflAskFastPath.js";
 import { isNflBdlPrimaryEnabled } from "./_nflBdl.js";
+import { getNflBreakingLine } from "./_ownerBreakingPush.js";
 import { capNflAskScopeTeams, collectNflAskScopeFromQuestion } from "../shared/nflAskScope.js";
 
 export { NFL_STADIUM_META };
@@ -828,6 +829,19 @@ export async function buildCanonicalNflContext(options = {}) {
     promptContext = `${body}${suffix}${disciplineTail}`;
   } else {
     promptContext += disciplineTail;
+  }
+
+  // Owner paste / env NFL_BREAKING — same spirit as TENNIS_BREAKING / WC_BREAKING.
+  // Applied after trim so the line is never dropped for budget.
+  try {
+    const nflBreaking = String(await getNflBreakingLine() || "").trim();
+    if (nflBreaking) {
+      promptContext =
+        `NFL BREAKING (owner paste / env — treat as authoritative over stale feed):\n  ${nflBreaking}\n\n` +
+        promptContext;
+    }
+  } catch {
+    /* ignore KV blips — Ask still works without breaking */
   }
 
   return {

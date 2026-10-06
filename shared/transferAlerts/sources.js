@@ -98,8 +98,9 @@ export const TRANSFER_FEEDS = [
   {
     id: "gnews_barca_transfer",
     label: "Barcelona transfers",
+    // Prefer strong verbs / confirmed language — soft "interested" flood is filtered server-side too.
     url: gnews(
-      "(Barcelona OR Barça OR Barca) (transfer OR signing OR signed OR bid OR deal OR loan OR medical OR \"personal terms\")",
+      "(Barcelona OR Barça OR Barca) (transfer OR signing OR signed OR bid OR \"personal terms\" OR medical OR \"here we go\" OR loan) -Juvenil -Femeni -\"Barcelona B\"",
     ),
     weight: 1.5,
     barcaHeavy: true,

@@ -3,6 +3,7 @@
  */
 
 import { cleanWireText } from "./formatSpoiler.js";
+import { passesBarcaHighSignalGate } from "../ownerBreaking/barcaHighSignal.js";
 import {
   BARCA_KEYWORDS,
   BUNDESLIGA_KEYWORDS,
@@ -240,8 +241,19 @@ export function scoreTransferItem(item, opts = {}) {
   if (!hasReporter && !barca && !laLiga && clubHits.length === 0) return null;
   // Mix of rumor + close: other-league gossip without a byline needs a real transfer verb.
   if (!hasReporter && !barca && !laLiga && !pl && europe && !hasStrongTransfer) return null;
+  // Barça soft-only without a trusted byline is almost always aggregate noise.
+  if (barca && !hasReporter && !hasStrongTransfer) return null;
 
-  const minScore = hasReporter ? 4.5 : barca ? 7.5 : laLiga ? 6.5 : europe ? 7.0 : 8.5;
+  // Barça without a byline needs a higher bar than the old 7.5 (rumor-mill flood).
+  const minScore = hasReporter
+    ? 4.5
+    : barca
+      ? 9.5
+      : laLiga
+        ? 6.5
+        : europe
+          ? 7.0
+          : 8.5;
   if (score < minScore) return null;
 
   /** @type {3 | 4 | 5} */
@@ -472,10 +484,17 @@ export function rankTransferAlerts(items, opts = {}) {
     return (a.tier || 9) - (b.tier || 9);
   });
 
+  // Drop low-signal Barça after scoring so PL wires are not crowded by aggregate pings.
+  const gated = sorted.filter((a) => {
+    if (!a.barca) return true;
+    return passesBarcaHighSignalGate(a).ok;
+  });
+
   const isHeldSpain = (a) =>
     (a.barca || a.laLiga) && !isBarcaMatchPreview(a.title);
-  const spain = sorted.filter(isHeldSpain);
-  const rest = sorted.filter((a) => !isHeldSpain(a));
+  const spain = gated.filter(isHeldSpain);
+  const rest = gated.filter((a) => !isHeldSpain(a));
+  // Reserved slots: high-signal Barça (already gated) + other La Liga wires.
   const reserved = spain.slice(0, barcaReserve);
   return [...reserved, ...rest].slice(0, limit);
 }

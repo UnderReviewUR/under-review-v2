@@ -47,5 +47,20 @@ Copy rules: one complete sentence in the body (no 46-character headline clip); t
 - **Native X text (preferred):** FxTwitter public timelines for Ornstein / Romano / Di Marzio (full tweet, including fees) plus Telegram mirrors
 - **Tier-1 Google News fallback:** Ornstein, Romano, Di Marzio  
 - **Strong wires:** Jacobs, Matt Law, Whitwell, Stone, Marcotti, etc.  
-- **Barça-heavy:** Benge, Marsden, Jonathan Johnson, Sid Lowe, Westwood + Barcelona transfer language  
+- **Barça-heavy (high-signal only):** Benge, Marsden, Jonathan Johnson, Sid Lowe, Westwood / Ballús + strong transfer language  
 - Rumors OK with allowlisted bylines; anonymous gossip without club/reporter is dropped
+
+### Barça high-signal filter (anti-inundation)
+
+Reserved Barça slots and the send list only keep items that pass `passesBarcaHighSignalGate`:
+
+| Keep | Drop |
+|------|------|
+| Tier-1/2 byline (Ornstein, Romano, Benge, Marsden, …) | Soft “linked with / interested in / eyeing” without a trusted byline |
+| Strong transfer verbs + high score from a legit outlet rewrite | Barcelona B / Juvenil / Femeni / academy |
+| Tier-3 Spanish beat **only** with strong transfer language + score ≥ 8 | Match previews / line-ups / live scores |
+| | Aggregate Google pings that fail the gate (`low_signal_barca`) |
+
+Barça without a byline now needs score ≥ 9.5 (was 7.5). Soft-only Barça without a reporter is dropped before ranking.
+
+Owner paste / Alabama / NFL Ask inject: see Project doc `docs/owner-breaking-alerts.md` (Agent Store) and `/transfers` paste form.

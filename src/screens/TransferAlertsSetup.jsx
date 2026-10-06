@@ -17,11 +17,27 @@ function ownerHeaders(code, token) {
   return h;
 }
 
+const SPORTS = [
+  { id: "nfl", label: "NFL" },
+  { id: "soccer", label: "Soccer" },
+  { id: "cfb", label: "CFB / Alabama" },
+  { id: "other", label: "Other" },
+];
+
+const SOURCES = ["Schefter", "Rapoport", "Shams", "Ornstein", "Other"];
+
 export default function TransferAlertsSetup() {
   const [code, setCode] = useState("");
   const [status, setStatus] = useState("Open this page from the Under Review home-screen icon, then enable alerts.");
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
+  const [sport, setSport] = useState("nfl");
+  const [source, setSource] = useState("Schefter");
+  const [text, setText] = useState("");
+  const [link, setLink] = useState("");
+  const [injectAsk, setInjectAsk] = useState(true);
+  const [pasteStatus, setPasteStatus] = useState("");
+  const [pasteBusy, setPasteBusy] = useState(false);
 
   const token =
     typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : "";
@@ -98,6 +114,55 @@ export default function TransferAlertsSetup() {
     }
   }
 
+  async function sendPaste() {
+    setPasteBusy(true);
+    setPasteStatus("");
+    try {
+      const res = await fetch("/api/owner-breaking", {
+        method: "POST",
+        headers: ownerHeaders(code, token),
+        body: JSON.stringify({
+          sport,
+          source,
+          text,
+          link: link.trim() || undefined,
+          injectAsk: sport === "nfl" ? injectAsk : false,
+          code: code || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPasteStatus(data.error || "Paste failed.");
+        return;
+      }
+      if (data.push?.ok) {
+        setPasteStatus(`Pushed${data.ask?.ok ? " + Ask inject" : ""}. ${data.preview || ""}`);
+        setText("");
+      } else if (data.push?.skipped) {
+        setPasteStatus(
+          `Saved but push skipped (${data.push.reason || "no_subscribers"}). Enable alerts above first.`,
+        );
+      } else {
+        setPasteStatus(data.push?.reason || "Push failed.");
+      }
+    } catch (err) {
+      setPasteStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPasteBusy(false);
+    }
+  }
+
+  const fieldStyle = {
+    width: "100%",
+    marginBottom: 12,
+    padding: "12px 14px",
+    borderRadius: 10,
+    border: "1px solid #2a2d36",
+    background: "#12141a",
+    color: "#e8eaf0",
+    fontSize: 16,
+  };
+
   return (
     <div
       style={{
@@ -110,7 +175,7 @@ export default function TransferAlertsSetup() {
     >
       <div style={{ maxWidth: 420, margin: "0 auto" }}>
         <p style={{ letterSpacing: 2, fontSize: 11, opacity: 0.6, marginBottom: 8 }}>UNDER REVIEW</p>
-        <h1 style={{ fontSize: 28, margin: "0 0 12px" }}>Transfer alerts</h1>
+        <h1 style={{ fontSize: 28, margin: "0 0 12px" }}>Owner alerts</h1>
         <p style={{ lineHeight: 1.5, opacity: 0.85, marginBottom: 24 }}>{status}</p>
         {!token ? (
           <input
@@ -119,16 +184,7 @@ export default function TransferAlertsSetup() {
             placeholder="Owner code"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            style={{
-              width: "100%",
-              marginBottom: 12,
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: "1px solid #2a2d36",
-              background: "#12141a",
-              color: "#e8eaf0",
-              fontSize: 16,
-            }}
+            style={fieldStyle}
           />
         ) : null}
         <button
@@ -148,12 +204,101 @@ export default function TransferAlertsSetup() {
             opacity: busy || (!token && !code.trim()) ? 0.5 : 1,
           }}
         >
-          {busy ? "Working…" : ready ? "Enable transfer alerts" : "Continue"}
+          {busy ? "Working…" : ready ? "Enable Web Push" : "Continue"}
         </button>
         <p style={{ marginTop: 20, fontSize: 13, opacity: 0.55, lineHeight: 1.45 }}>
-          Not linked in the public app. Friend/Pro users cannot subscribe. Open from the home-screen icon so iOS
-          treats this as Under Review, not Safari.
+          Owner only. Same subscription receives transfer wires, Alabama RSS, and paste pushes. Open from the
+          home-screen icon so iOS treats this as Under Review, not Safari.
         </p>
+
+        <hr style={{ border: "none", borderTop: "1px solid #2a2d36", margin: "32px 0 24px" }} />
+
+        <h2 style={{ fontSize: 20, margin: "0 0 8px" }}>Paste → push</h2>
+        <p style={{ fontSize: 13, opacity: 0.65, lineHeight: 1.45, marginBottom: 16 }}>
+          Sport + source + one line. Hits your phone in seconds. No cron. NFL lines can also inject into Ask.
+        </p>
+
+        <label style={{ fontSize: 12, opacity: 0.6, display: "block", marginBottom: 6 }}>Sport</label>
+        <select value={sport} onChange={(e) => setSport(e.target.value)} style={fieldStyle}>
+          {SPORTS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+
+        <label style={{ fontSize: 12, opacity: 0.6, display: "block", marginBottom: 6 }}>Source</label>
+        <select value={source} onChange={(e) => setSource(e.target.value)} style={fieldStyle}>
+          {SOURCES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+
+        <label style={{ fontSize: 12, opacity: 0.6, display: "block", marginBottom: 6 }}>One-line text</label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          maxLength={280}
+          placeholder="e.g. Patriots trading WR X to Jets for a 3rd"
+          style={{ ...fieldStyle, resize: "vertical", fontFamily: "inherit" }}
+        />
+
+        <label style={{ fontSize: 12, opacity: 0.6, display: "block", marginBottom: 6 }}>
+          Link (optional)
+        </label>
+        <input
+          type="url"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+          placeholder="https://"
+          style={fieldStyle}
+        />
+
+        {sport === "nfl" ? (
+          <label
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              fontSize: 13,
+              opacity: 0.85,
+              marginBottom: 16,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={injectAsk}
+              onChange={(e) => setInjectAsk(e.target.checked)}
+            />
+            Inject into NFL Ask breaking context (~36h)
+          </label>
+        ) : null}
+
+        <button
+          type="button"
+          disabled={pasteBusy || !text.trim() || (!token && !code.trim())}
+          onClick={sendPaste}
+          style={{
+            width: "100%",
+            padding: 14,
+            border: "none",
+            borderRadius: 10,
+            background: "#e8eaf0",
+            color: "#080a0c",
+            fontWeight: 700,
+            fontSize: 16,
+            cursor: "pointer",
+            opacity: pasteBusy || !text.trim() || (!token && !code.trim()) ? 0.5 : 1,
+          }}
+        >
+          {pasteBusy ? "Sending…" : "Push to my phone"}
+        </button>
+        {pasteStatus ? (
+          <p style={{ marginTop: 14, fontSize: 13, opacity: 0.75, lineHeight: 1.45 }}>{pasteStatus}</p>
+        ) : null}
       </div>
     </div>
   );
