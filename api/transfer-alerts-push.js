@@ -31,7 +31,9 @@ export default async function handler(req, res) {
     const { subscriptions } = await loadPushSubscriptions();
     return res.status(200).json({
       vapidPublicKey: vapid.publicKey,
+      // True if any owner device is on file — not necessarily this phone.
       subscribed: subscriptions.length > 0,
+      count: subscriptions.length,
     });
   }
 
@@ -40,5 +42,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: saved.reason || "invalid_subscription" });
   }
 
-  return res.status(200).json({ ok: true, count: saved.count, vapidPublicKey: vapid.publicKey });
+  return res.status(200).json({
+    ok: true,
+    count: saved.count,
+    subscribed: true,
+    vapidPublicKey: vapid.publicKey,
+  });
 }

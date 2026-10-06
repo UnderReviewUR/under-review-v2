@@ -56,7 +56,10 @@ export default function TransferAlertsSetup() {
   const [status, setStatus] = useState("Owner phone alerts — enable once, then tailor what lands.");
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
+  /** Server has ≥1 subscription on file (any device). */
+  const [serverCount, setServerCount] = useState(0);
+  /** This browser/PWA has an active PushManager subscription. */
+  const [thisDevice, setThisDevice] = useState(false);
   const [step, setStep] = useState("enable");
   const [prefs, setPrefs] = useState(DEFAULT_PREFS);
   const [curatedTeams, setCuratedTeams] = useState([]);
@@ -71,9 +74,31 @@ export default function TransferAlertsSetup() {
   const [injectAsk, setInjectAsk] = useState(true);
   const [pasteStatus, setPasteStatus] = useState("");
   const [pasteBusy, setPasteBusy] = useState(false);
+  const [testBusy, setTestBusy] = useState(false);
 
   const token =
     typeof window !== "undefined" ? localStorage.getItem("ur_access_token") || "" : "";
+
+  async function detectThisDevice() {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        setThisDevice(false);
+        return false;
+      }
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        setThisDevice(false);
+        return false;
+      }
+      const sub = await reg.pushManager.getSubscription();
+      const ok = Boolean(sub?.endpoint);
+      setThisDevice(ok);
+      return ok;
+    } catch {
+      setThisDevice(false);
+      return false;
+    }
+  }
 
   const loadConfig = useCallback(async () => {
     const [pushRes, breakingRes] = await Promise.all([
@@ -83,23 +108,36 @@ export default function TransferAlertsSetup() {
 
     if (!pushRes.ok) {
       setReady(false);
-      setSubscribed(false);
+      setServerCount(0);
       if (pushRes.status === 401) {
         setStatus("Owner code required (security gate). Friend/Pro codes won’t work.");
         return null;
       }
-      setStatus("Push is not configured on the server yet (VAPID keys).");
+      if (pushRes.status === 503) {
+        setStatus("Push isn’t configured on this deploy (VAPID keys missing).");
+        return null;
+      }
+      setStatus(`Push setup failed (HTTP ${pushRes.status}).`);
       return null;
     }
 
     const pushData = await pushRes.json();
     setReady(true);
-    setSubscribed(Boolean(pushData.subscribed));
-    if (pushData.subscribed) {
-      setStatus("Push is on. Pick teams + interests below — then you’re done.");
+    const count = Number(pushData.count) || (pushData.subscribed ? 1 : 0);
+    setServerCount(count);
+    const onThisPhone = await detectThisDevice();
+
+    if (onThisPhone) {
+      setStatus(
+        `✓ This phone is enabled (${count} device${count === 1 ? "" : "s"} on file). Pick teams + interests, then test with a paste.`,
+      );
       setStep((s) => (s === "enable" ? "teams" : s));
+    } else if (count > 0) {
+      setStatus(
+        `Server has ${count} device${count === 1 ? "" : "s"} on file, but this phone isn’t enabled yet. Tap Enable push on this home-screen app.`,
+      );
     } else {
-      setStatus("Step 1: Enable push on this phone. Then pick what you care about.");
+      setStatus("Step 1: Open from the home-screen icon → Enable push → Allow.");
     }
 
     if (breakingRes.ok) {
@@ -107,6 +145,8 @@ export default function TransferAlertsSetup() {
       if (breakingData.prefs) setPrefs(breakingData.prefs);
       if (Array.isArray(breakingData.curatedTeams)) setCuratedTeams(breakingData.curatedTeams);
       if (Array.isArray(breakingData.interests)) setInterestDefs(breakingData.interests);
+    } else if (breakingRes.status === 404) {
+      setStatus((prev) => `${prev} (Note: owner-breaking API missing — use the PR preview URL, not production.)`);
     }
 
     return pushData;
@@ -120,22 +160,29 @@ export default function TransferAlertsSetup() {
     setBusy(true);
     try {
       if (!window.isSecureContext) {
-        setStatus("Needs HTTPS (or localhost).");
+        setStatus("Needs HTTPS (or localhost). Safari tabs over HTTP won’t work.");
         return;
       }
       if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-        setStatus("Use the home-screen Under Review app on iOS 16.4+ (not Safari).");
+        setStatus(
+          "This browser can’t do Web Push. On iPhone: Add to Home Screen, open that icon (not Safari), then Enable.",
+        );
         return;
       }
       const cfg = await loadConfig();
-      if (!cfg?.vapidPublicKey) return;
+      if (!cfg?.vapidPublicKey) {
+        setStatus("No VAPID public key from server — Enable can’t finish. Check owner code / deploy env.");
+        return;
+      }
 
       const reg = await navigator.serviceWorker.register("/sw.js?v=3", { scope: "/" });
       await navigator.serviceWorker.ready;
 
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setStatus("Notifications were not allowed. iOS only prompts from the home-screen app.");
+        setStatus(
+          `Notifications = ${permission}. On iOS, Allow only appears inside the home-screen app. Settings → Notifications → Under Review if you blocked it.`,
+        );
         return;
       }
 
@@ -149,17 +196,63 @@ export default function TransferAlertsSetup() {
         headers: ownerHeaders(code, token),
         body: JSON.stringify({ subscription: sub.toJSON(), code: code || undefined }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setStatus("Enable failed — owner code only.");
+        setStatus(
+          res.status === 401
+            ? "Enable failed — owner code / owner token only."
+            : `Enable failed (${data.error || res.status}).`,
+        );
         return;
       }
-      setSubscribed(true);
-      setStatus("Push is on. Next: pick teams.");
+      const count = Number(data.count) || 1;
+      setServerCount(count);
+      setThisDevice(true);
+      setStatus(
+        `✓ Enabled on this phone. ${count} device${count === 1 ? "" : "s"} on file. Next: pick teams, then send a test paste.`,
+      );
       setStep("teams");
+      setShowPaste(true);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function sendTestPush() {
+    setTestBusy(true);
+    setPasteStatus("");
+    try {
+      const res = await fetch("/api/owner-breaking", {
+        method: "POST",
+        headers: ownerHeaders(code, token),
+        body: JSON.stringify({
+          sport: "other",
+          source: "Other",
+          text: "Under Review test — if you see this, Enable worked.",
+          injectAsk: false,
+          code: code || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 404) {
+        setPasteStatus("Test paste needs the PR preview (owner-breaking isn’t on production yet).");
+        return;
+      }
+      if (!res.ok) {
+        setPasteStatus(data.error || `Test failed (${res.status}).`);
+        return;
+      }
+      if (data.push?.ok) {
+        setPasteStatus(`Test sent to ${data.push.sent || "?"} device(s). Check your lock screen.`);
+      } else {
+        setPasteStatus(`Test skipped: ${data.push?.reason || "unknown"} — Enable this phone first.`);
+      }
+    } catch (err) {
+      setPasteStatus(err instanceof Error ? err.message : String(err));
+    } finally {
+      setTestBusy(false);
     }
   }
 
@@ -316,7 +409,11 @@ export default function TransferAlertsSetup() {
             </span>
           ))}
         </p>
-        <p style={{ lineHeight: 1.5, opacity: 0.85, marginBottom: 24 }}>{status}</p>
+        <p style={{ lineHeight: 1.5, opacity: 0.85, marginBottom: 12 }}>{status}</p>
+        <p style={{ fontSize: 13, opacity: 0.55, marginBottom: 24 }}>
+          This phone: {thisDevice ? "✓ enabled" : "not enabled"} · Devices on file: {serverCount}
+          {ready ? "" : " · server not ready"}
+        </p>
 
         {!token ? (
           <input
@@ -329,30 +426,59 @@ export default function TransferAlertsSetup() {
           />
         ) : null}
 
-        {(step === "enable" || !subscribed) && (
+        <button
+          type="button"
+          disabled={busy || (!token && !code.trim())}
+          onClick={enable}
+          style={{
+            width: "100%",
+            padding: 14,
+            border: "none",
+            borderRadius: 10,
+            background: thisDevice ? "#1a1d26" : "#00f5e9",
+            color: thisDevice ? "#e8eaf0" : "#080a0c",
+            fontWeight: 700,
+            fontSize: 16,
+            cursor: "pointer",
+            opacity: busy || (!token && !code.trim()) ? 0.5 : 1,
+            marginBottom: 12,
+            borderWidth: thisDevice ? 1 : 0,
+            borderStyle: "solid",
+            borderColor: "#2a2d36",
+          }}
+        >
+          {busy ? "Working…" : thisDevice ? "Re-enable on this phone" : "1 · Enable push"}
+        </button>
+
+        {thisDevice ? (
           <button
             type="button"
-            disabled={busy || (!token && !code.trim())}
-            onClick={enable}
+            disabled={testBusy || (!token && !code.trim())}
+            onClick={sendTestPush}
             style={{
               width: "100%",
-              padding: 14,
-              border: "none",
+              padding: 12,
+              border: "1px solid #2a2d36",
               borderRadius: 10,
-              background: "#00f5e9",
-              color: "#080a0c",
-              fontWeight: 700,
-              fontSize: 16,
+              background: "#12141a",
+              color: "#00f5e9",
+              fontWeight: 600,
+              fontSize: 14,
               cursor: "pointer",
-              opacity: busy || (!token && !code.trim()) ? 0.5 : 1,
               marginBottom: 20,
+              opacity: testBusy ? 0.5 : 1,
             }}
           >
-            {busy ? "Working…" : subscribed ? "Re-enable on this phone" : "1 · Enable push"}
+            {testBusy ? "Sending test…" : "Send test push to this phone"}
           </button>
-        )}
+        ) : null}
+        {pasteStatus && !showPaste ? (
+          <p style={{ marginTop: -8, marginBottom: 20, fontSize: 13, opacity: 0.75, lineHeight: 1.45 }}>
+            {pasteStatus}
+          </p>
+        ) : null}
 
-        {(subscribed || step !== "enable") && (
+        {(thisDevice || step !== "enable") && (
           <>
             <section style={{ marginBottom: 28 }}>
               <h2 style={{ fontSize: 18, margin: "0 0 6px" }}>2 · Teams</h2>
@@ -441,8 +567,9 @@ export default function TransferAlertsSetup() {
                   onClick={() => {
                     setStep("done");
                     setStatus(
-                      "You’re set. Auto alerts follow your teams + interests. Paste only if you saw a beat tweet elsewhere.",
+                      `✓ You’re set. This phone ${thisDevice ? "is enabled" : "still needs Enable"} (${serverCount} on file). Auto alerts follow your teams + interests.`,
                     );
+                    setShowPaste(true);
                   }}
                   style={{
                     marginTop: 16,
