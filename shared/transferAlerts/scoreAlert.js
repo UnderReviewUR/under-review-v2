@@ -3,7 +3,10 @@
  */
 
 import { cleanWireText } from "./formatSpoiler.js";
-import { passesBarcaHighSignalGate } from "../ownerBreaking/barcaHighSignal.js";
+import {
+  isVagueTransferTopic,
+  passesBarcaHighSignalGate,
+} from "../ownerBreaking/barcaHighSignal.js";
 import {
   BARCA_KEYWORDS,
   BUNDESLIGA_KEYWORDS,
@@ -138,6 +141,8 @@ export function scoreTransferItem(item, opts = {}) {
   const nowMs = opts.nowMs ?? Date.now();
   if (!isFreshPubDate(item.pubDate, nowMs)) return null;
   if (item.native && isNativeNoise(item.title)) return null;
+  // Drop "transfer buzz" / unnamed "linked with midfielder" topic labels.
+  if (isVagueTransferTopic(item.title)) return null;
 
   const titleHay = titleBlob(item);
   const fullHay = norm(

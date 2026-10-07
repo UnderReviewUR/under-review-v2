@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { rankAlabamaAlerts, scoreAlabamaItem } from "./alabamaScore.js";
 
 describe("scoreAlabamaItem", () => {
-  it("keeps injury / roster signal", () => {
+  it("keeps injury / roster signal with concrete fact", () => {
     const scored = scoreAlabamaItem({
       guid: "a1",
       title: "Alabama QB ruled out with ankle injury vs Georgia",
@@ -18,6 +18,24 @@ describe("scoreAlabamaItem", () => {
     });
     assert.ok(scored);
     assert.ok(scored.score >= 4.5);
+    assert.ok(scored.reasons.includes("substance"));
+  });
+
+  it("keeps named player status", () => {
+    const scored = scoreAlabamaItem({
+      guid: "a1b",
+      title: "Jalen Milroe questionable vs Georgia — ankle",
+      link: "https://example.com/a1b",
+      pubDate: new Date().toUTCString(),
+      source: "AP",
+      description: "Alabama QB dealing with ankle injury",
+      feedId: "gnews",
+      feedLabel: "Alabama",
+      feedWeight: 1,
+      barcaHeavyFeed: false,
+    });
+    assert.ok(scored);
+    assert.match(scored.title, /Milroe/i);
   });
 
   it("drops recruiting fluff", () => {
@@ -35,10 +53,43 @@ describe("scoreAlabamaItem", () => {
     });
     assert.equal(scored, null);
   });
+
+  it("drops vague coach / injury topic labels", () => {
+    assert.equal(
+      scoreAlabamaItem({
+        guid: "vague1",
+        title: "Alabama coach updates",
+        link: "https://example.com/v1",
+        pubDate: new Date().toUTCString(),
+        source: "Local",
+        description: "Coaching news roundup",
+        feedId: "gnews",
+        feedLabel: "Alabama",
+        feedWeight: 1,
+        barcaHeavyFeed: false,
+      }),
+      null,
+    );
+    assert.equal(
+      scoreAlabamaItem({
+        guid: "vague2",
+        title: "Injuries for starting players",
+        link: "https://example.com/v2",
+        pubDate: new Date().toUTCString(),
+        source: "Local",
+        description: "Alabama football injury notes",
+        feedId: "gnews",
+        feedLabel: "Alabama",
+        feedWeight: 1,
+        barcaHeavyFeed: false,
+      }),
+      null,
+    );
+  });
 });
 
 describe("rankAlabamaAlerts", () => {
-  it("ranks injury above weaker practice note", () => {
+  it("keeps ACL surgery fact and drops empty practice blurb", () => {
     const now = new Date().toUTCString();
     const ranked = rankAlabamaAlerts(
       [
@@ -69,7 +120,7 @@ describe("rankAlabamaAlerts", () => {
       ],
       { limit: 2 },
     );
-    assert.ok(ranked.length >= 1);
+    assert.equal(ranked.length, 1);
     assert.match(ranked[0].title, /ACL|surgery|out for/i);
   });
 });

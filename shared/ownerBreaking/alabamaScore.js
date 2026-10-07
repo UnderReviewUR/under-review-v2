@@ -1,9 +1,17 @@
 /**
  * Score Alabama football RSS items for owner-only Web Push.
- * Keep roster / injury / coaching / game-day — drop recruiting fluff.
+ * Keep roster / injury / coaching / game-day — drop recruiting fluff
+ * and empty topic-label blurbs (no named player / no actionable fact).
  */
 
 import { hashAlertId, isFreshPubDate, phraseMatch } from "../transferAlerts/scoreAlert.js";
+import { hasAlabamaSubstance } from "./alabamaSubstance.js";
+
+export {
+  formatAlabamaPushBody,
+  hasAlabamaSubstance,
+  isVagueAlabamaTopic,
+} from "./alabamaSubstance.js";
 
 /** @typedef {import("../transferAlerts/parseRss.js").RawFeedItem} RawFeedItem */
 
@@ -127,11 +135,19 @@ export function scoreAlabamaItem(item, opts = {}) {
   if (noiseHits.length && !signalHits.length && !coachingHire) return null;
   if (!signalHits.length && !coachingHire) return null;
 
+  const title = String(item.title || "").trim();
+  const description = String(item.description || "").trim();
+  if (!hasAlabamaSubstance(title, description)) return null;
+
   let score = 3 + Math.min(3, signalHits.length * 0.8);
   if (coachingHire) score += 2;
   if (/\binjury|out for|ruled out|surgery|acl\b/i.test(hay)) score += 1.5;
   if (/\btransfer portal|enters portal\b/i.test(hay)) score += 1.2;
   if (noiseHits.length) score -= 1.5;
+  // Named person + concrete status beats role-only blurbs on the lock screen.
+  if (/\b[A-Z][a-z]+\s+[A-Z][a-z]+\b/.test(title) && /\bruled out|questionable|doubtful|surgery|portal|hired|fired\b/i.test(title)) {
+    score += 1.2;
+  }
 
   if (score < 4.5) return null;
 
@@ -141,14 +157,16 @@ export function scoreAlabamaItem(item, opts = {}) {
     `alabama:${alabamaHits.slice(0, 2).join(",")}`,
     signalHits.length ? `signal:${signalHits.slice(0, 3).join(",")}` : null,
     coachingHire ? "coaching" : null,
+    "substance",
   ].filter(Boolean);
 
   return {
     id: hashAlertId(item.guid || item.link || item.title),
-    title: String(item.title || "").trim(),
+    title,
     link: String(item.link || "").trim(),
     pubDate: item.pubDate,
     source: item.source,
+    description,
     score: Math.round(score * 10) / 10,
     reasons,
     priority,

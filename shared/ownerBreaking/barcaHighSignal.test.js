@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   isBarcaNonFirstTeam,
   isBarcaWeakRumorOnly,
+  isVagueTransferTopic,
   passesBarcaHighSignalGate,
 } from "./barcaHighSignal.js";
 
@@ -15,6 +16,19 @@ describe("barcaHighSignal", () => {
   it("flags weak rumor without strong verbs", () => {
     assert.equal(isBarcaWeakRumorOnly("Barcelona interested in Premier League midfielder"), true);
     assert.equal(isBarcaWeakRumorOnly("Barcelona agree personal terms for midfielder"), false);
+  });
+
+  it("flags vague transfer buzz without a player name", () => {
+    assert.equal(isVagueTransferTopic("Barcelona transfer buzz"), true);
+    assert.equal(isVagueTransferTopic("Latest transfer news roundup"), true);
+    assert.equal(
+      isVagueTransferTopic("Barcelona linked with Premier League midfielder"),
+      true,
+    );
+    assert.equal(
+      isVagueTransferTopic("Barcelona agree personal terms for Nico Williams"),
+      false,
+    );
   });
 
   it("keeps tier-2 Barça byline and drops aggregate soft ping", () => {
@@ -37,6 +51,17 @@ describe("barcaHighSignal", () => {
         tier: null,
         score: 7,
         reasons: ["soft:deal", "barca:barcelona"],
+      }).ok,
+      false,
+    );
+    assert.equal(
+      passesBarcaHighSignalGate({
+        barca: true,
+        title: "Barcelona transfer buzz",
+        reporters: [],
+        tier: null,
+        score: 8,
+        reasons: ["transfer:transfer", "barca:barcelona"],
       }).ok,
       false,
     );
