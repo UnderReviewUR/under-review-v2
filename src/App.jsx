@@ -575,9 +575,30 @@ function getColdLoadRouteSnapshot() {
       Boolean(sp.get("picks")) ||
       /\/predict-nfl/i.test(path) ||
       path.replace(/\/+$/, "").toLowerCase().endsWith("/nfl");
-    coldLoadRouteSnapshot = opensNflPredictor
-      ? { tab: "nfl", screen: "nfl", nflUrView: "predict", cleanPath: null }
-      : { tab: "home", screen: "home", nflUrView: "take", cleanPath: null };
+    const sport = String(sp.get("sport") || "").trim().toLowerCase();
+    let q = String(sp.get("q") || sp.get("prompt") || "").trim();
+    if (q) {
+      try {
+        q = decodeURIComponent(q);
+      } catch {
+        /* keep raw */
+      }
+    }
+    // SEO / invite CTAs: ?sport=nfl&q=…&ask=0 → Ask with prefilled NFL question
+    if (!opensNflPredictor && sport === "nfl") {
+      coldLoadRouteSnapshot = {
+        tab: "ask",
+        screen: "ask",
+        nflUrView: "take",
+        cleanPath: "/",
+        // Prefill only — never auto-burn a free ask from a marketing/SEO landing.
+        nflAskDeepLink: q ? { q, prefillOnly: true } : null,
+      };
+    } else {
+      coldLoadRouteSnapshot = opensNflPredictor
+        ? { tab: "nfl", screen: "nfl", nflUrView: "predict", cleanPath: null }
+        : { tab: "home", screen: "home", nflUrView: "take", cleanPath: null };
+    }
   }
   return coldLoadRouteSnapshot;
 }
@@ -4320,6 +4341,16 @@ ${themeCss}
     },
     [askInputRef, isAsking, scheduleChatScroll, screen, tab],
   );
+
+  // One-shot: SEO / invite deep links (?sport=nfl&q=…&ask=0) land on Ask prefilled.
+  const nflAskDeepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (nflAskDeepLinkHandledRef.current) return;
+    const action = getColdLoadRouteSnapshot().nflAskDeepLink;
+    if (!action?.q) return;
+    nflAskDeepLinkHandledRef.current = true;
+    prefillUrTakeQuestion(action.q, "nfl");
+  }, [prefillUrTakeQuestion]);
 
   // ── Submit handlers ────────────────────────────────────────────────────────
   const submitHome = useCallback(() => {
