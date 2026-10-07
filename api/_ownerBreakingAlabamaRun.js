@@ -5,9 +5,11 @@
 import { getDurableJson, setDurableJson } from "./_durableStore.js";
 import { getEnv } from "./_env.js";
 import { parseRssItems } from "../shared/transferAlerts/parseRss.js";
-import { rankAlabamaAlerts } from "../shared/ownerBreaking/alabamaScore.js";
 import {
-  formatOwnerBreakingBody,
+  formatAlabamaPushBody,
+  rankAlabamaAlerts,
+} from "../shared/ownerBreaking/alabamaScore.js";
+import {
   loadOwnerAlertPrefs,
   alabamaAlertPassesPrefs,
   sendOwnerWebPush,
@@ -151,19 +153,22 @@ export async function runAlabamaBreakingTick(opts = {}) {
   const sent = [];
 
   for (const alert of fresh) {
-    const body = formatOwnerBreakingBody({
-      sport: "cfb",
-      source: "Other",
-      text: alert.title,
-    });
+    const body = formatAlabamaPushBody(alert);
+    if (!body) continue;
     if (dryRun) {
       seen[alert.id] = now;
-      sent.push({ id: alert.id, title: alert.title, score: alert.score, dryRun: true });
+      sent.push({
+        id: alert.id,
+        title: alert.title,
+        score: alert.score,
+        preview: body,
+        dryRun: true,
+      });
       continue;
     }
 
     const push = await sendOwnerWebPush({
-      body: `Alabama · ${alert.title}`,
+      body,
       url: alert.link || "/",
       urgency: alert.priority >= 4 ? "high" : "normal",
     });

@@ -22,6 +22,54 @@ const WEAK_RUMOR = [
   "set sights",
 ];
 
+/** Topic-label transfer blurbs with no player + club substance. */
+const VAGUE_TRANSFER_TOPIC =
+  /\btransfer\s+(?:buzz|news|round-?ups?|rumou?rs?|latest|updates?|gossip)\b|\b(?:latest|top)\s+transfer\s+(?:news|rumou?rs?|updates?)\b|\blinked with\s+(?:a |an )?(?:premier league |la liga |serie a )?(?:midfielder|winger|striker|forward|defender|goalkeeper)\b/i;
+
+const TRANSFER_NAME_STOP = new Set([
+  "barcelona",
+  "barça",
+  "real",
+  "madrid",
+  "manchester",
+  "united",
+  "city",
+  "arsenal",
+  "liverpool",
+  "chelsea",
+  "tottenham",
+  "newcastle",
+  "premier",
+  "league",
+  "la",
+  "liga",
+  "serie",
+  "bundesliga",
+  "google",
+  "news",
+  "athletic",
+  "sky",
+  "sports",
+  "transfer",
+  "window",
+]);
+
+/**
+ * @param {string} title
+ */
+export function isVagueTransferTopic(title) {
+  const t = String(title || "").trim();
+  if (!t) return true;
+  if (!VAGUE_TRANSFER_TOPIC.test(t)) return false;
+  // Salvage only when a person-like First Last remains (not club/league labels).
+  const hits = t.match(/\b[A-Z][a-zà-ÿ]+(?:\s+[A-Z][a-zà-ÿ]+){1,2}\b/g) || [];
+  const person = hits.some((hit) => {
+    const parts = hit.split(/\s+/);
+    return parts.some((p) => !TRANSFER_NAME_STOP.has(p.toLowerCase()));
+  });
+  return !person;
+}
+
 /** Not first-team senior squad relevance. */
 const NON_FIRST_TEAM = [
   "barcelona b",
@@ -95,6 +143,11 @@ export function passesBarcaHighSignalGate(alert) {
   // Match / preview noise already handled upstream; keep a belt-and-suspenders drop.
   if (/\bvs\.?\b|\bprediction\b|\bline-?ups?\b|\blive score\b|\bpre-match\b/i.test(title)) {
     return { ok: false, reason: "match_preview" };
+  }
+
+  // "Barcelona transfer buzz" / "linked with midfielder" — no who/clubs.
+  if (isVagueTransferTopic(title) && !hasTrustedByline) {
+    return { ok: false, reason: "vague_transfer_topic" };
   }
 
   if (isBarcaWeakRumorOnly(title) && !hasTrustedByline) {
